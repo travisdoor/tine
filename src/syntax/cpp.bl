@@ -1,0 +1,353 @@
+// @Cleanup these implementation will be probbaly really similar over and over per each syntax, so
+// we should try to deduplicate this...
+
+highlight_syntax_cpp :: fn (buf: *Buffer) {
+	using std;
+
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	buf.indent.len = 0;
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	insert_all(&ctx.keyword_table,   KEYWORDS);
+	insert_all(&ctx.directive_table, DIRECTIVES);
+
+	indentation_nesting := 0;
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		switch token.kind {
+			EOF { break; }
+			LB  {
+				indentation_nesting += 1;
+				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
+			}
+			RB  {
+				indentation_nesting -= 1;
+				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
+			}
+
+			default;
+		}
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+		}
+	}
+
+	std.tbl_terminate(&ctx.keyword_table);
+	std.tbl_terminate(&ctx.directive_table);
+}
+
+#private
+
+kind_to_color :: fn (kind: Token.kind) u8 #inline {
+	using Token.kind;
+	switch kind {
+		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
+		IDENT     { return CODE_COLOR_DEFAULT_INDEX;   }
+		KEYWORD   { return CODE_COLOR_KEYWORD_INDEX;   }
+		COMMENT   { return CODE_COLOR_COMMENT_INDEX;   }
+		DIRECTIVE { return CODE_COLOR_DIRECTIVE_INDEX; }
+		STRING    { return CODE_COLOR_STRING_INDEX;    }
+		NUMBER    { return CODE_COLOR_NUMBER_INDEX;    }
+		LB, RB    { return CODE_COLOR_KEYWORD_INDEX;   }
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+Tokenizer :: struct #base TokenizerBase {
+	keyword_table:   std.Table(string_view, u8); // We need set!
+	directive_table: std.Table(string_view, u8);
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		INVALID;
+		IDENT;
+		KEYWORD;
+		COMMENT;
+		DIRECTIVE;
+		STRING;
+		NUMBER;
+		LB;
+		RB;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+KEYWORDS :: [75]string_view.{
+"alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "break",
+"case", "catch", "class", "compl", "concept", "const", "const_cast", "consteval", "constexpr",
+"constinit", "continue", "co_await", "co_return", "co_yield", "decltype", "default", "delete", "do",
+"dynamic_cast", "else", "enum", "explicit", "export", "extern", "for",
+"friend", "goto", "if", "inline", "mutable", "namespace", "new", "noexcept", "not",
+"not_eq", "operator", "or", "or_eq", "private", "protected", "public", "register", "requires",
+"return", "sizeof", "static", "static_assert", "static_cast", "struct", "switch",
+"template", "this", "thread_local", "throw", "try", "typedef", "typeid", "typename", "union",
+"using", "virtual", "volatile", "while", "xor", "xor_eq", "override"
+};
+
+KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
+
+DIRECTIVES :: [11]string_view.{
+	"include", "if", "ifdef", "ifndef", "define", "undef", "else", "elif", "endif", "error", "pragma"
+};
+
+max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
+	tmp :: []string_view.{ count, ptrs };
+	l := 0;
+	loop i := 0; i < tmp.len; i += 1 {
+		l = std.max(l, auto tmp[i].len);
+	}
+	return l;
+}
+
+insert_all :: fn (tbl: *?T, v: []string_view) #inline {
+	using std;
+	loop i := 0; i < v.len; i += 1 {
+		tbl_insert(tbl, v[i], 0);
+	}
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == '{'         && parse_left_brace  (ctx, &t) { return t; }
+		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
+		if c == '/'         && parse_comment     (ctx, &t) { return t; }
+		if c == '#'         && parse_directive   (ctx, &t) { return t; }
+		if c == '\"'        && parse_string      (ctx, &t) { return t; }
+		if parse_identifier_or_keyword           (ctx, &t) { return t; }
+		if parse_number                          (ctx, &t) { return t; }
+
+		ctx.index += 1;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_left_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	ctx.index += 1;
+	t.kind = LB;
+	t.len  = 1;
+	return true;
+}
+
+parse_right_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	ctx.index += 1;
+	t.kind = RB;
+	t.len  = 1;
+	return true;
+}
+
+parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	ctx.index += 1;
+
+	c := ctx.bytes[ctx.index];
+	switch c {
+		'/' {
+			ctx.index += 1;
+			loop ctx.index < ctx.bytes.len {
+				c = ctx.bytes[ctx.index];
+				if c == '\n' || c == 0 { break; }
+				t.len     += 1;
+				ctx.index += 1;
+			}
+			t.len += 2; // '//'
+		}
+		'*' {
+			ctx.index += 1;
+			t.len     += 2;
+			loop ctx.index < ctx.bytes.len {
+				c = ctx.bytes[ctx.index];
+				if c == 0 { break; }
+				if c == '*' && ctx.index+1 < ctx.bytes.len {
+					ctx.index += 1;
+					if ctx.bytes[ctx.index] == '/' {
+						t.len += 2; // /**/
+						break;
+					}
+					ctx.index -= 1;
+				}
+				t.len     += 1;
+				ctx.index += 1;
+			}
+		}
+	    default {
+			ctx.index -= 1;
+			return false;
+		}
+	}
+
+	t.kind = COMMENT;
+
+	return true;
+}
+
+parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
+	t.kind     = STRING;
+	t.len     += 1; // "
+	ctx.index += 1;
+
+	pc := '0';
+
+	in_string := true;
+	loop in_string && ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\"' && (pc != '\\') {
+			in_string = false;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+		pc = c;
+	}
+
+	return true;
+}
+
+parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	ctx.index += 1;
+	t.len  = 1;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c != '_' && std.is_alpha(c) == false { break; }
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	if t.len == 1 {
+		ctx.index -= 1;
+		t.len     -= 1;
+		return false;
+	}
+
+	maybe_directive :: string_view.{ t.len-1, &ctx.bytes[t.index+1] }; // strip #
+	if std.tbl_contains(&ctx.directive_table, maybe_directive) {
+		t.kind = DIRECTIVE;
+	} else {
+		t.kind = INVALID;
+	}
+
+	return true;
+}
+
+parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '_' || std.is_alpha(c) || (t.len > 0 && std.is_digit(c)) {
+			t.len     += 1;
+			ctx.index += 1;
+		} else {
+			break;
+		}
+	}
+
+	if t.len == 0 { return false; }
+
+	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
+	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && std.tbl_contains(&ctx.keyword_table, maybe_keyword);
+	if is_keyword {
+		t.kind = KEYWORD;
+	} else {
+		t.kind = IDENT;
+	}
+	return true;
+}
+
+parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	c    := ctx.bytes[ctx.index];
+	dot  := false;
+	base := FmtIntBase.DEC;
+
+	if c != '-' && std.is_digit(c) == false { return false; }
+	t.kind = NUMBER;
+
+	if c == '-' {
+		if ctx.index+1 >= ctx.bytes.len {
+			return false;
+		}
+		if std.is_digit(ctx.bytes[ctx.index+1]) == false {
+			return false;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+
+	}
+
+	c = ctx.bytes[ctx.index];
+	if c == '0' {
+		base = FmtIntBase.OCT;
+
+		ctx.index += 1;
+		t.len     += 1;
+
+		if ctx.index < ctx.bytes.len {
+			c = ctx.bytes[ctx.index];
+			switch c {
+				'b' { base = FmtIntBase.BIN;  ctx.index += 1; t.len += 1; }
+				'x' { base = FmtIntBase.HEX; ctx.index += 1; t.len += 1; }
+				default;
+			}
+		}
+	}
+
+	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
+		c = ctx.bytes[ctx.index];
+		if dot && c == 'f' {
+			ctx.index += 1;
+			t.len += 1;
+			break;
+		}
+
+		if dot == false && c == '.' {
+			dot = true;
+			t.len += 1;
+			continue;
+		}
+
+		if !std.is_digit(c, base) {
+			break;
+		}
+		t.len += 1;
+	}
+
+	return true;
+}

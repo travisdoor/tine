@@ -1,0 +1,74 @@
+buffer_open_mode_init :: fn () {
+	// Activate command buffer.
+	active_editor = command_editor;
+	buf :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.TEXT;
+
+	list_buffers();
+}
+
+buffer_open_mode_terminate :: fn () {
+	active_editor = command_editor;
+	std.str_delete(&base_path);
+}
+
+draw_buffer_open_mode :: fn () {
+	assert(active_editor == command_editor);
+	w, h :: get_command_editor_size();
+
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Switch Buffer: ");
+
+	using DrawListCols;
+	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT);
+	draw_last_status_message(0.f, h + list_h, w);
+	if clicked { commit(); }
+}
+
+//
+// Commands
+//
+
+invoke_command_buffer_open_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	using std;
+	using Command;
+
+	switch cmd {
+		INSERT_NEW_LINE { commit(); }
+
+		MOVE_UP   { list_item_up();   }
+		MOVE_DOWN { list_item_down(); }
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+buffer_open_cmd_changed :: fn () {
+	buf :: get_active_buffer_and_editor();
+	user_path :: peek_row(buf, 0);
+	if user_path.len == 0 {
+		clear_list_filters();
+		return;
+	}
+
+	filter_list(user_path);
+}
+
+#private
+
+base_path: string;
+
+commit :: fn () {
+	item :: get_selected_item_in_list();
+	if !item { return; }
+
+	set_mode(Mode.TEXT_EDIT);
+
+	active_split :: get_active_split();
+	find_or_create_editor_in_split(active_split, item.index);
+}

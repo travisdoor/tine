@@ -1,0 +1,251 @@
+highlight_syntax_proj :: fn (buf: *Buffer) {
+	using std;
+
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	ctx := Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+		prev_token = Token.kind.EOF,
+	};
+
+	insert_all(&ctx.commands_table, COMMAND_NAMES);
+	defer std.tbl_terminate(&ctx.commands_table);
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		ctx.prev_token = token.kind;
+		if token.kind == EOF { break; }
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+		}
+	}
+}
+
+#private
+
+Tokenizer :: struct #base TokenizerBase {
+	current_section: ProjectSection;
+	prev_token:      Token.kind;
+	expect_keys:     bool;
+
+	commands_table: std.Table(string_view, s16);
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		INVALID;
+		SECTION;
+		COMMENT;
+		IDENT;
+		VALUE;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+SETTINGS_ENTRIES :: get_struct_members_as_list(Settings);
+COLOR_ENTRIES    :: get_struct_members_as_list(Colors);
+
+kind_to_color :: fn (kind: Token.kind) u8 #inline {
+	using Token.kind;
+	switch kind {
+		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
+		SECTION   { return CODE_COLOR_KEYWORD_INDEX;   }
+		COMMENT   { return CODE_COLOR_COMMENT_INDEX;   }
+		IDENT     { return CODE_COLOR_DEFAULT_INDEX;   }
+		VALUE     { return CODE_COLOR_NUMBER_INDEX;    }
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t := Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == '#' { parse_comment(ctx, &t); ctx.expect_keys = false; return t; }
+		if c == ';' { parse_section(ctx, &t); ctx.expect_keys = false; return t; }
+		if c == '\r' || c == '\n' {
+			ctx.expect_keys = false;
+			ctx.index += 1;
+			continue;
+		}
+
+		using ProjectSection;
+		switch ctx.current_section {
+			NONE;
+			INCLUDE,
+			EXCLUDE {
+				ctx.index += 1;
+				continue;
+			}
+			INCLUDE_FILE_EXTENSIONS {
+				if c == '.' && parse_file_extension(ctx, &t) { return t; }
+			}
+			SETTINGS {
+				if ctx.prev_token == IDENT {
+					if std.is_alpha(c) && parse_bool(ctx, &t) { return t; }
+					if parse_number(ctx, &t) { return t; }
+				} else if std.is_alpha(c) {
+					parse_entry_name (ctx, &t, SETTINGS_ENTRIES);
+					return t;
+				}
+			}
+			COLORS {
+				if ctx.prev_token == IDENT {
+					if parse_number(ctx, &t, FmtIntBase.HEX) { return t; }
+				} else if std.is_alpha(c) {
+					parse_entry_name (ctx, &t, COLOR_ENTRIES);
+					return t;
+				}
+			}
+			KEYS {
+				if ctx.expect_keys {
+					if c == '+' { ctx.index += 1; continue; }
+					if parse_key(ctx, &t) { return t; }
+				} else if std.is_alpha(c) {
+					parse_command_name(ctx, &t);
+					ctx.expect_keys = true;
+					return t;
+				}
+			}
+		}
+
+		ctx.index += 1;
+		t.kind     = INVALID;
+		t.len     += 1;
+		return t;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_command_name :: fn (ctx: *Tokenizer, t: *Token) {
+	using Token.kind;
+	using std;
+	t.kind = IDENT;
+	command_name :: eat_till_whitespace(auto ctx);
+	t.len = auto command_name.len;
+	if !tbl_contains(&ctx.commands_table, command_name) {
+		t.kind = INVALID;
+	}
+}
+
+parse_key :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	using std;
+	t.kind = VALUE;
+
+	key :: eat_till(auto ctx, " \n\r\t#+");
+	if key.len == 0 { return false; }
+
+	t.len += cast(s32) key.len;
+
+	tmp :: str_new(key, application_context.temporary_allocator);
+	str_lower(&tmp);
+
+	if mod_from_name(tmp) != -1 {
+		return true;
+	}
+
+	if key_from_name(tmp) == -1 {
+		t.kind = INVALID;
+	}
+	return true;
+}
+
+parse_comment :: fn (ctx: *Tokenizer, t: *Token) {
+	using Token.kind;
+	ctx.index += 1;
+	t.len     += 1;
+	t.kind     = COMMENT;
+
+	str :: eat_line_and_trim_eol(ctx);
+	t.len += cast(s32) str.len;
+}
+
+parse_file_extension :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	t.kind = IDENT;
+	ext :: eat_till_whitespace(auto ctx);
+	t.len += cast(s32) ext.len;
+	return true;
+}
+
+parse_entry_name :: fn (ctx: *Tokenizer, t: *Token, valid_names: []string_view) {
+	using Token.kind;
+	t.kind = IDENT;
+	ident :: eat_till_whitespace(auto ctx);
+	t.len += cast(s32) ident.len;
+	if !std.str_match_one_of(ident, valid_names) {
+		t.kind = INVALID;
+	}
+}
+
+parse_bool :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	ident :: eat_till(auto ctx, " \t\n\r#");
+	if !std.str_match_one_of(ident, [2]string_view.{ "true", "false" }) {
+		ctx.index -= cast(s32) ident.len;
+		return false;
+	}
+	t.len += cast(s32) ident.len;
+	t.kind = VALUE;
+	return true;
+}
+
+parse_number :: fn (ctx: *Tokenizer, t: *Token, base := FmtIntBase.DEC) bool {
+	using Token.kind;
+	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
+		c :: ctx.bytes[ctx.index];
+		if !std.is_digit(c, base) {
+			break;
+		}
+		t.len += 1;
+	}
+
+	if t.len == 0 { return false; }
+	t.kind = VALUE;
+	return true;
+}
+
+parse_section :: fn (ctx: *Tokenizer, t: *Token) {
+	using Token.kind;
+	ctx.index += 1;
+	t.len     += 1;
+	t.kind     = SECTION;
+
+	t.len += eat_whitespace(ctx);
+
+	section_name :: eat_word(auto ctx);
+	t.len += cast(s32) section_name.len;
+
+	section_index :: std.str_first_match(section_name, PROJECT_SECTIONS);
+	if section_index == -1 || section_index == auto ProjectSection.NONE {
+		t.kind = INVALID;
+	} else {
+		ctx.current_section = auto section_index;
+	}
+}

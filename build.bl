@@ -1,0 +1,57 @@
+#import "extra/argparse"
+
+Args :: struct {
+    is_release: bool;
+}
+
+args: Args;
+
+build :: fn () #build_entry {
+    using argparse;
+    defer temporary_release();
+
+	opt := get_builder_options();
+	opt.full_path_reports = true;
+	set_builder_options(opt);
+
+    parser: Parser;
+    init(&parser, "The Editor.");
+    defer terminate(&parser);
+
+    set_executable_name(&parser, "blc -build");
+    add_usage(&parser, "[options]");
+
+    add(&parser, &args.is_release, "--release", "", "Compile in release mode.");
+
+    _, parse_error :: parse(&parser, command_line_arguments, 0);
+    if parse_error {
+        print_err(parse_error);
+        print_help(&parser);
+        return;
+    }
+
+    if parser.help {
+        return;
+    }
+
+	exe: *Target;
+
+    if args.is_release {
+		exe = add_executable("Tine");
+        exe.build_mode = BuildMode.RELEASE_FAST;
+		append_linker_options(exe, "/SUBSYSTEM:WINDOWS");
+    } else {
+		exe = add_executable("Tine-Debug");
+	}
+    add_unit(exe, "src/main.bl");
+
+	set_module_dir(exe, "modules", ModuleImportPolicy.SYSTEM);
+	compile(exe);
+
+#if PLATFORM == Platform.WINDOWS {
+    if args.is_release {
+		cmd :: tprint("icon\\rcedit.exe \"Tine.exe\" --set-icon \"icon\\icon.ico\"");
+		os_execute(cmd);
+	}
+}
+}

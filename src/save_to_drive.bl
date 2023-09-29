@@ -1,0 +1,170 @@
+save_to_drive_mode_init :: fn () {
+	// Activate command buffer.
+	active_editor = command_editor;
+	buf :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.TEXT;
+	may_override_file = false;
+
+	base_path = std.get_cwd();
+	err :: list_directory(tprint("%/", base_path));
+	if err {
+		print_err(err);
+	}
+}
+
+save_to_drive_mode_terminate :: fn () {
+	active_editor = command_editor;
+	std.str_delete(&base_path);
+}
+
+draw_save_to_drive_mode :: fn () {
+	get_title :: fn () string_view #inline {
+		if base_path.len == 0 {
+			return "Save as: ";
+		}
+		return tprint("Save as: %/", base_path);
+	};
+
+	assert(active_editor == command_editor);
+	w, h :: get_command_editor_size();
+
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, get_title());
+
+	using DrawListCols;
+	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE);
+	draw_last_status_message(0.f, h + list_h, w);
+	if clicked { commit(); }
+}
+
+//
+// Commands
+//
+
+invoke_command_save_to_drive_mode :: fn (buf: *Buffer, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+	editor :: &editors[active_editor];
+
+	using Command;
+
+	switch cmd {
+		INSERT_NEW_LINE  { commit(); }
+
+		DELETE_CHAR_LEFT {
+			position :: get_cursor_position(buf, editor.cursor_index);
+			if position != 0 {
+				// Command not handled.
+				return false;
+			}
+			dir_up(&base_path);
+		}
+
+		MOVE_UP   { list_item_up();   }
+		MOVE_DOWN { list_item_down(); }
+
+		// Not handled.
+		default { return false; }
+	}
+
+	return true;
+}
+
+save_to_drive_cmd_changed :: fn () {
+	may_override_file = false;
+}
+
+save_to_drive_list_select_changed :: fn () {
+	assert(active_editor == command_editor);
+	buf :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+
+	item :: get_selected_item_in_list();
+	if !item { return; }
+	if (item.flags & ItemFlags.DIRECTORY) == ItemFlags.DIRECTORY { return; }
+	insert_string(buf, 0, item.title);
+}
+
+dir_up :: fn (path: *string) {
+	using std;
+	lhs: string_view;
+	// This is why we don't keep the last path separator in the base_path string. Yes, ugly, but it works...
+	if str_split_by_last(@path, '/', &lhs) {
+		assert(lhs.len > 0);
+		path.len = lhs.len;
+		err :: list_directory(tprint("%/", @path));
+		if err {
+			print_err(err);
+		}
+	} else {
+		// Directory or root on UNIX.
+		err :: list_logical_drives();
+		if err {
+			print_err(err);
+		}
+		path.len = 0;
+	}
+}
+
+#private
+
+base_path: string;
+may_override_file: bool;
+
+commit :: fn () {
+	buf :: get_active_buffer_and_editor();
+
+	filename :: peek_row(buf, 0);
+	if filename.len > 0 {
+		if base_path.len == 0 {
+			print_err("Destination path is invalid, select the drive first.");
+			clear_buffer(buf);
+			return;
+		}
+		filepath :: tprint("%/%", base_path, filename);
+		is_dir :: std.is_directory(filepath);
+		if is_dir {
+			print_err("Directory with the same name already exists at the destination.");
+			return;
+		}
+		if std.file_exist(filepath) && may_override_file == false {
+			print_warn("File exists, press [ENTER] again to override it, [ESC] to cancel or change the file name and try again.");
+			may_override_file = true;
+			return;
+		}
+		may_override_file = false;
+		set_mode(Mode.TEXT_EDIT);
+
+		{
+			buf :: get_active_buffer_and_editor();
+			save_err :: save(buf, filepath);
+			if save_err {
+				print_err(save_err);
+				return;
+			}
+		}
+		return;
+	}
+
+	item :: get_selected_item_in_list();
+	if !item { return; }
+
+	path: string_view #noinit;
+	if base_path.len == 0 {
+		path = tprint(item.title);
+	} else {
+		path = tprint("%/%", base_path, item.title);
+	}
+	assert((item.flags & ItemFlags.DIRECTORY) == ItemFlags.DIRECTORY);
+
+	err :: list_directory(tprint("%/", path));
+	if err {
+		print_err(err);
+		return;
+	}
+
+	base_path.len = 0;
+	std.str_append(&base_path, path);
+
+	//std.set_cwd(base_path); // Not sure about this...
+}

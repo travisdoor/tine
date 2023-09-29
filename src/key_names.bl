@@ -1,0 +1,96 @@
+key_name :: fn (code: s32) string_view {
+	if code >= cast(s32) '!' && code <= cast(s32) '~' && code != cast(s32) ';' {
+		c :: C.toupper(auto code);
+		return tprint("%", string_view.{ 1, auto &c });
+	}
+	loop i := 0; i < KEYCODE_TO_NAME.len; i += 1 {
+		if KEYCODE_TO_NAME[i].code == code {
+			return KEYCODE_TO_NAME[i].name;
+		}
+	}
+	return "";
+}
+
+key_from_name :: fn (name: string_view) s32 {
+	if name.len == 1 {
+		code := cast(s32) name[0];
+		if code >= cast(s32) '!' && code <= cast(s32) '~' && code != cast(s32) ';' {
+			code = C.toupper(code);
+			return code;
+		}
+	}
+	loop i := 0; i < KEYCODE_TO_NAME.len; i += 1 {
+		if str_match_ignore_case(KEYCODE_TO_NAME[i].name, name) {
+			return KEYCODE_TO_NAME[i].code;
+		}
+	}
+	return -1;
+}
+
+mod_name :: fn (mod: s32) string_view {
+	using glfw;
+
+	switch mod {
+		MOD_SHIFT           { return "Shift";    }
+		MOD_CONTROL         { return "Ctrl";     }
+		MOD_ALT             { return "Alt";      }
+		MOD_SUPER           { return "Super";    }
+		MOD_CAPS_LOCK       { return "CapsLock"; }
+		MOD_NUM_LOCK        { return "NumLock";  }
+		default;
+	}
+	return "";
+}
+
+mod_from_name :: fn (mod: string_view) s32 {
+	using glfw;
+	using std;
+
+	if str_match_ignore_case(mod, "alt")      { return MOD_ALT;       }
+	if str_match_ignore_case(mod, "ctrl")     { return MOD_CONTROL;   }
+	if str_match_ignore_case(mod, "shift")    { return MOD_SHIFT;     }
+	if str_match_ignore_case(mod, "super")    { return MOD_SUPER;     }
+	if str_match_ignore_case(mod, "numlock")  { return MOD_NUM_LOCK;  }
+	if str_match_ignore_case(mod, "capslock") { return MOD_CAPS_LOCK; }
+
+	return -1;
+}
+
+#private
+KeyName :: struct { code: s32; name: string_view };
+
+KEYCODE_TO_NAME :: [33]KeyName.{
+	KeyName.{ glfw.KEY_SEMICOLON    ,"Semicolon"   },
+	KeyName.{ glfw.KEY_SPACE        ,"Space"       },
+	KeyName.{ glfw.KEY_ESCAPE       ,"Escape"      },
+	KeyName.{ glfw.KEY_ENTER        ,"Enter"       },
+	KeyName.{ glfw.KEY_TAB          ,"Tab"         },
+	KeyName.{ glfw.KEY_BACKSPACE    ,"Backspace"   },
+	KeyName.{ glfw.KEY_INSERT       ,"Insert"      },
+	KeyName.{ glfw.KEY_DELETE       ,"Delete"      },
+	KeyName.{ glfw.KEY_RIGHT        ,"ArrowRight"  },
+	KeyName.{ glfw.KEY_LEFT         ,"ArrowLeft"   },
+	KeyName.{ glfw.KEY_DOWN         ,"ArrowDown"   },
+	KeyName.{ glfw.KEY_UP           ,"ArrowUp"     },
+	KeyName.{ glfw.KEY_PAGE_UP      ,"PageUp"      },
+	KeyName.{ glfw.KEY_PAGE_DOWN    ,"PageDown"    },
+	KeyName.{ glfw.KEY_HOME         ,"Home"        },
+	KeyName.{ glfw.KEY_END          ,"End"         },
+	KeyName.{ glfw.KEY_CAPS_LOCK    ,"CapsLock"    },
+	KeyName.{ glfw.KEY_SCROLL_LOCK  ,"ScrollLock"  },
+	KeyName.{ glfw.KEY_NUM_LOCK     ,"NumLock"     },
+	KeyName.{ glfw.KEY_PRINT_SCREEN ,"PrintScreen" },
+	KeyName.{ glfw.KEY_PAUSE        ,"Pause"       },
+	KeyName.{ glfw.KEY_F1           ,"F1"          },
+	KeyName.{ glfw.KEY_F2           ,"F2"          },
+	KeyName.{ glfw.KEY_F3           ,"F3"          },
+	KeyName.{ glfw.KEY_F4           ,"F4"          },
+	KeyName.{ glfw.KEY_F5           ,"F5"          },
+	KeyName.{ glfw.KEY_F6           ,"F6"          },
+	KeyName.{ glfw.KEY_F7           ,"F7"          },
+	KeyName.{ glfw.KEY_F8           ,"F8"          },
+	KeyName.{ glfw.KEY_F9           ,"F9"          },
+	KeyName.{ glfw.KEY_F10          ,"F10"         },
+	KeyName.{ glfw.KEY_F11          ,"F11"         },
+	KeyName.{ glfw.KEY_F12          ,"F12"         },
+};

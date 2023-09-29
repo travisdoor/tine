@@ -1,0 +1,88 @@
+// @Incomplete: Currently we highlight only headers...
+
+highlight_syntax_md :: fn (buf: *Buffer) {
+	using std;
+
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		switch token.kind {
+			EOF { break; }
+			default;
+		}
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+		}
+	}
+}
+
+#private
+
+kind_to_color :: fn (kind: Token.kind) u8 #inline {
+	using Token.kind;
+	switch kind {
+		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
+		HEADER    { return CODE_COLOR_KEYWORD_INDEX;   }
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+Tokenizer :: struct #base TokenizerBase {
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		INVALID;
+		HEADER;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == '#' {
+			parse_header(ctx, &t);
+			return t;
+		}
+		ctx.index += 1;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_header :: fn (ctx: *Tokenizer, t: *Token) {
+	header :: eat_line(ctx);
+	t.len  = auto header.len;
+	t.kind = Token.kind.HEADER;
+}

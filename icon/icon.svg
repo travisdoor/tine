@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke: #000;
+        stroke-width: 1px;
+        fill: url(#linear-gradient);
+      }
+
+      .cls-2 {
+        font-size: 833.333px;
+        fill: #fff;
+        font-family: Cookie;
+      }
+
+      .cls-3 {
+        font-size: 300px;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="812.435" y1="1000" x2="187.565" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#263335"/>
+      <stop offset="1" stop-color="#8e3fc5"/>
+    </linearGradient>
+  </defs>
+  <circle class="cls-1" cx="500" cy="500" r="500"/>
+  <text id="Tine" class="cls-2" x="230.635" y="745.11">T<tspan class="cls-3">ine</tspan></text>
+</svg>

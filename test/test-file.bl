@@ -1,0 +1,472 @@
+Editor :: struct {
+	index: s32;
+	buffer_index: s32;
+	cursor_index: s32;
+	split: Split;
+
+	offset_col:    s32;
+	offset_row:    s32;
+	visible_lines: s32;
+
+	is_removed: bool;
+}
+
+add_editor :: fn (buffer_index: s32, split := Split.FLOATING) s32 {
+	editor: *Editor;
+
+	// Find the free editor slot in the array first
+	loop i := 0; i < editors.len; i += 1 {
+		e :: &editors[i];
+		if e.is_removed {
+			editor            = e;
+			editor.is_removed = false;
+			assert(editor.buffer_index == -1);
+			break;
+		}
+	}
+	if !editor {
+		// Create new one
+		index :: cast(s32) editors.len;
+		editor = zeroinit(array_push(&editors));
+		editor.index        = index;
+		editor.buffer_index = -1;
+	}
+
+	assert(buffer_index != -1);
+	assert(!buffers[buffer_index].is_removed);
+	editor.buffer_index    = buffer_index;
+	editor.split           = split;
+	editor.cursor_index    = add_cursor(&buffers[buffer_index]);
+	return editor.index;
+}
+
+remove_editor :: fn (index: s32) {
+	assert(index >= 0 && index < editors.len);
+	editor :: &editors[index];
+	if editor.is_removed { return; }
+	zeroinit(editor);
+	editor.index        = index;
+	editor.buffer_index = -1;
+	editor.cursor_index = -1;
+	editor.is_removed   = true;
+}
+
+set_editor_buffer :: fn (editor: *Editor, buffer_index: s32) {
+	editor.buffer_index = buffer_index;
+}
+
+get_editor_buffer :: fn (editor: *Editor) *Buffer {
+	assert(editor);
+	assert(editor.buffer_index >= 0 && editor.buffer_index < buffers.len);
+	buf :: &buffers[editor.buffer_index];
+	assert(buf.is_removed == false);
+	return buf;
+}
+
+draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
+	using draw;
+	using Metric;
+	using std;
+
+	editor :: &editors[index];
+	if editor.buffer_index == -1 { return; }
+	buf :: &buffers[editor.buffer_index];
+
+	lock_buffer(buf);
+	defer unlock_buffer(buf);
+
+	if buf.dirty_syntax {
+		using FileType;
+		switch buf.file_type {
+			BL   { highlight_syntax_bl(buf);   }
+			C    { highlight_syntax_cpp(buf);  }
+			PROJ { highlight_syntax_proj(buf); }
+			default;
+		}
+		if buf.index == messages_buffer_index {
+			messages_syntax_bl(buf);
+		}
+		buf.dirty_syntax = false;
+	}
+
+	is_active    :: active_editor == editor.index;
+
+	line_height     :: metrics[auto LINE_HEIGHT    ];
+	text_padding    :: metrics[auto TEXT_PADDING   ];
+	item_spacing    :: metrics[auto ITEM_SPACING   ];
+	font_correction :: metrics[auto FONT_CORRECTION];
+	icon_correction :: metrics[auto ICON_CORRECTION];
+
+	// Draw background
+	set_shader_color();
+	rect(x, y, w, h, colors.background_color);
+
+	tx :: x + text_padding;
+	ty :: y + text_padding;
+
+	cursor :: get_cursor(buf, editor.cursor_index);
+
+	title_bar_height :: line_height;
+
+	visible_lines :: cast(s32) std.ceil(h / line_height);
+
+	first_line_index := editor.offset_row;
+	last_line_index  := first_line_index + visible_lines;
+
+	if cursor.row < first_line_index {
+		first_line_index = std.max(0, cursor.row);
+		last_line_index  = first_line_index + visible_lines;
+	} else if cursor.row > last_line_index - BOTTOM_SCROLL_TRIGGER {
+		first_line_index = std.max(0, first_line_index + cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
+		last_line_index  = first_line_index + visible_lines;
+	}
+
+	// Cache some values.
+	editor.offset_row    = first_line_index;
+	editor.visible_lines = visible_lines;
+
+	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
+	if is_active {
+		// current line highlight
+		rect(x, current_line_y, w, line_height, colors.current_line_background_color);
+	}
+
+	_, first_position :: peek_row(buf, first_line_index);
+	_, last_position  :: peek_row(buf, std.min(cast(s32) buf.lines.len - 2, last_line_index) );
+
+	// draw selection
+	{
+		start := cursor.selection_start;
+		if start != -1 {
+			end := cursor.position;
+			if start > end { swap(&start, &end); }
+			if end > start {
+				color := colors.selection_background_color;
+				if !is_active { color = colors.selection_background_inactive_color; }
+				draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, color);
+			}
+		}
+	}
+
+	// draw search highlights
+	if mode == Mode.SEARCH_FILE && last_active_text_editor == editor.index {
+		drawn_count := 0;
+		loop i := 0; i < search_results.len; i += 1 {
+			start :: search_results[i].start;
+			end   :: search_results[i].end;
+
+			if end   < first_position { continue; }
+			if start > last_position  { break;    }
+
+			draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, colors.search_result_background_color);
+
+			drawn_count += 1;
+			if drawn_count > MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR {
+				break;
+			}
+		}
+	}
+
+	// cursor
+	char_under_cursor :: peek_position(buf, cursor.position);
+	line, start_index :: peek_row(buf, cursor.row);
+
+	cursor_x :: text_size(line, &font, auto (cursor.position - start_index));
+	cursor_w := text_size(char_under_cursor, &font);
+
+	if cursor_w == 0.f {
+		w :: text_size("X", &font);
+		cursor_w = w;
+	}
+
+	// cursor
+	rect(ceil(tx + cursor_x), current_line_y, cursor_w, line_height, colors.cursor_background_color);
+	if !is_active {
+		rect(ceil(tx + cursor_x + 2.f), current_line_y + 2.f, cursor_w - 4.f, line_height - 4.f, colors.background_color);
+	}
+
+
+	set_shader_font(&font);
+	line_base_y := ty;
+	loop i := first_line_index; i < last_line_index; i += 1 {
+		line, row_start_index :: peek_row(buf, i);
+		if line.len == 0 { break; }
+		ly :: line_base_y + line_height * 0.2f;
+
+		line_colors: [1024]u8 #noinit;
+		if buf.colors.len == 0 {
+			memset(line_colors.ptr, 0, auto std.min(line.len, line_colors.len));
+		} else {
+			memcpy(line_colors.ptr, &buf.colors[row_start_index], auto std.min(line.len, line_colors.len));
+		}
+
+		if i == cursor.row  && is_active {
+			cursor_position :: cursor.position - start_index;
+			if cursor_position < line_colors.len {
+				line_colors[cursor_position] = CODE_COLOR_CURSOR_INDEX;
+			}
+		}
+
+		code(tx, ly, line, line_colors, code_color_table);
+		line_base_y += line_height;
+	}
+
+	if is_active && draw_last_status_message(x, h - title_bar_height, w) {
+		return;
+	}
+	// file info bar
+	has_changes :: buf.saved_top != buf.undo_top;
+	line_ending_name := "UNKNOWN";
+	using LineEnding;
+	switch buf.line_ending {
+		CRLF { line_ending_name = "CRLF"; }
+		LF   { line_ending_name = "LF";   }
+		default;
+	}
+	title_bar_color := colors.title_bar_color;
+	if is_active { title_bar_color = colors.title_bar_active; }
+
+	// Status bar background
+	set_shader_color();
+	rect(x, y + h - title_bar_height, w, title_bar_height, title_bar_color);
+	set_shader_font(&font);
+
+	status_x := x + text_padding;
+	status_y :: y + h - title_bar_height;
+
+	set_shader_font(&icons);
+	text(status_x, status_y + icon_correction, icon(ICON_FILE), colors.title_bar_text_color);
+	status_x += item_spacing;
+
+	if has_changes {
+		text(status_x, status_y + icon_correction, icon(ICON_CHANGES), colors.modification_indicator_color);
+		status_x += item_spacing;
+	}
+	if (buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
+		text(status_x, status_y + icon_correction, icon(ICON_READONLY), colors.modification_indicator_color);
+		status_x += item_spacing;
+	}
+
+	set_shader_font(&font);
+
+	title := str_new(256, application_context.temporary_allocator);
+
+	str_concat(&title, buf.name, "  ", icon(CHAR_BULLET), "  ");
+	str_concat(&title, "ln: ", cursor.row+1, " cl: ", cursor.col+1);
+
+	selected_chars :: count_characters_in_selection(buf, editor.cursor_index);
+	if selected_chars > 0 {
+		str_concat(&title, " [", selected_chars, "]  ", icon(CHAR_BULLET), "  ");
+	} else {
+		str_concat(&title, "  ", icon(CHAR_BULLET), "  ");
+	}
+	str_concat(&title, FILE_TYPE_NAME[auto buf.file_type], "  ", icon(CHAR_BULLET), "  ", line_ending_name);
+	text(status_x, status_y + font_correction, title, colors.title_bar_text_color);
+
+#if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
+}
+
+draw_command_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32, title := "", hint := "") {
+	using draw;
+	using Metric;
+
+	editor :: &editors[index];
+	if editor.buffer_index == -1 { return; }
+	buf :: &buffers[editor.buffer_index];
+
+	is_active    :: active_editor == editor.index;
+	line_height  :: metrics[auto LINE_HEIGHT ];
+	text_padding :: metrics[auto TEXT_PADDING];
+
+	// Draw background
+	set_shader_color();
+	rect(x, y+h, w, SHADOW_SIZE, TOP_DOWN_SHADOW);
+	rect(x, y, w, h, colors.command_background_color);
+
+	title_size :: text_size(title, &font);
+
+	tx0 :: x + text_padding;
+	tx1 :: x + text_padding + title_size;
+	ty  :: y + text_padding;
+
+	cursor :: get_cursor(buf, editor.cursor_index);
+	line :: peek_row(buf, 0);
+
+	// draw selection
+	{
+		start, end :: get_selection_range(buf, editor.cursor_index);
+		if end > start {
+			color := colors.selection_background_color;
+			if !is_active { color = colors.selection_background_inactive_color; }
+
+			draw_highlight_range(buf, editor, tx1, ty, start, end, 0, line.len, color);
+		}
+	}
+
+	// draw cursor
+	char_under_cursor :: peek_position(buf, cursor.position);
+
+	cursor_x :: text_size(line, &font, auto cursor.position);
+	cursor_w := text_size(char_under_cursor, &font);
+
+	if cursor_w == 0.f {
+		w :: text_size("X", &font);
+		cursor_w = w;
+	}
+
+	if is_active {
+		rect(std.ceil(tx1 + cursor_x), ty, cursor_w, line_height, colors.cursor_background_color);
+	}
+
+	set_shader_font(&font);
+	ly :: ty + line_height * 0.2f;
+
+	// title:
+	text(tx0, ly, title, colors.command_title_color);
+	if hint.len > 0 {
+		hint_w :: text_size(hint, &font);
+		text(x + w - hint_w - text_padding, ly, hint, colors.command_title_color);
+	}
+
+	{ // Edit line (just current one).
+		if line.len > 0 {
+			lhs, rhs: string_view;
+			std.str_split_at_index(line, auto cursor.position, &lhs, &rhs);
+			std.str_split_at_index(rhs, auto char_under_cursor.len, null, &rhs);
+			lhs_size :: text_size(lhs, &font);
+
+			text(tx1, ly, lhs, colors.command_foreground_color);
+			text(tx1 + lhs_size, ly, char_under_cursor, colors.cursor_foreground_color);
+			text(tx1 + lhs_size + cursor_w, ly, rhs, colors.command_foreground_color);
+ 		}
+	}
+}
+
+draw_last_status_message :: fn (x: f32, y: f32, w: f32) bool {
+	using draw;
+	using Metric;
+
+	has_one, kind, text :: last_message();
+	if !has_one { return false; }
+
+	title_bar_height :: metrics[auto LINE_HEIGHT    ];
+	item_spacing     :: metrics[auto ITEM_SPACING   ];
+	font_correction  :: metrics[auto FONT_CORRECTION];
+	icon_correction  :: metrics[auto ICON_CORRECTION];
+	text_padding     :: metrics[auto TEXT_PADDING   ];
+
+	background_color, foreground_color :: get_status_bar_colors(kind);
+
+	set_shader_color();
+	rect(x, y+title_bar_height, w, SHADOW_SIZE, TOP_DOWN_SHADOW);
+	rect(x, y, w, title_bar_height, background_color);
+
+	set_shader_font(&icons);
+	draw.text(x + text_padding, y + icon_correction, icon(ICON_BELL), foreground_color);
+
+	set_shader_font(&font_ui);
+	draw.text(x + text_padding + item_spacing, y + font_correction, text, foreground_color);
+	return true;
+}
+
+center_view :: fn (editor: *Editor) {
+	assert(editor);
+	buf :: &buffers[editor.buffer_index];
+	assert(!buf.is_removed);
+
+	cursor :: get_cursor(buf, editor.cursor_index);
+
+	first_row    :: editor.offset_row;
+	visible_rows :: editor.visible_lines;
+	if visible_rows < 2 { return; }
+
+	editor.offset_row = std.max(0, first_row + (cursor.row - (first_row + visible_rows / 2)));
+}
+
+#private
+
+draw_highlight_range :: fn (
+	buf: *Buffer,
+	editor: *Editor,
+	tx: f32, ty: f32, // True base position of the visible code block.
+	start: s64, end: s64, // Hightlight positions in the buffer bytes.
+	first_visible_position: s64, last_visible_position: s64, // Visible range of code to limit overdraw.
+	color: glm.v4)
+{
+	using draw;
+
+	assert(end > start);
+	line_height :: metrics[auto Metric.LINE_HEIGHT];
+
+	first_line_index := editor.offset_row;
+
+	first_selection_row_index :: find_row_for_position(buf, start, 0);
+	last_selection_row_index  :: find_row_for_position(buf, end, first_selection_row_index);
+
+	loop row_index := first_selection_row_index; row_index <= last_selection_row_index; row_index += 1 {
+		row, row_start_position :: peek_row(buf, row_index);
+		if row_start_position < first_visible_position { continue; }
+		if row_start_position > last_visible_position  { break;    }
+
+		y :: ty + line_height * auto (row_index - first_line_index);
+		if row_index == first_selection_row_index {
+			// first line
+			x_offset :: text_size(row, &font, auto start - row_start_position);
+			w        :: text_size(string_view.{ std.min(end, auto row_start_position + row.len) - start, &row[start - row_start_position] }, &font);
+			rect(tx + x_offset, y, w, line_height, color);
+		} else if row_index == last_selection_row_index {
+			// last line
+			w :: text_size(row, &font, auto end - row_start_position);
+			rect(tx, y, w, line_height, color);
+		} else {
+			// middle
+			w :: text_size(row, &font);
+			rect(tx, y, w, line_height, color);
+		}
+	}
+}
+
+get_status_bar_colors :: fn (kind: PrintLogKind) (bg: glm.v4, fg: glm.v4) #inline {
+	using PrintLogKind;
+	white :: rgb(0xffffff);
+	black :: rgb(0x0);
+	switch kind {
+		INFO    { return colors.message_color, white; }
+		WARNING { return colors.warning_color, black; }
+		ERROR   { return colors.error_color,   white; }
+		default;
+	}
+	return rgb(0xff00ff), white;
+}
+
+draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32) #maybe_unused {
+	using draw;
+	set_shader_font(&font);
+
+	ux :: x + w - 600.f;
+	uy := y + 10.f;
+	color := rgb(0xff00ff);
+
+	position :: get_cursor_position(buf, editor.cursor_index);
+
+	text(ux, uy, tprint("Position:  %", position), color); uy += font.height;
+	text(ux, uy, tprint("Cursor ID: %", editor.cursor_index), color); uy += font.height;
+	text(ux, uy, tprint("Undo len:  %", buf.undo.len), color); uy += font.height;
+	text(ux, uy, tprint("Undo top:  %", buf.undo_top), color); uy += font.height;
+	text(ux, uy, tprint("Rows:      %", get_row_count(buf)), color); uy += font.height;
+
+	uy += 20.f;
+
+	loop i := buf.undo.len-1; i >= 0; i -= 1 {
+		if i > buf.undo_top {
+			color = rgb(0xbbbbbb);
+		} else {
+			color = rgb(0xff00ff);
+		}
+
+		rec :: &buf.undo[i];
+		text(ux, uy, tprint("[%]", rec.kind), color); uy += font.height;
+	}
+}
+
+

@@ -1,0 +1,47 @@
+goto_mode_init :: fn () {
+	// Activate command buffer.
+	active_editor = command_editor;
+	buf :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.NUMBERS;
+}
+
+draw_goto_mode :: fn () {
+	assert(active_editor == command_editor);
+
+	w, h :: get_command_editor_size();
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Goto Line: ");
+}
+
+//
+// Commands
+//
+
+invoke_command_goto_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
+	using Command;
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	switch cmd {
+		INSERT_NEW_LINE { commit(buf); }
+		INSERT_TAB;
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+#private
+
+commit :: fn (buf: *Buffer) {
+	line_str :: peek_row(buf, 0);
+	line, err := std.strtos64(line_str);
+	if err { return; }
+
+	set_mode(Mode.TEXT_EDIT);
+	// Note we changed mode back to previous text editor, we need to apply jump to it!
+	target_buf, target_editor :: get_active_buffer_and_editor();
+	goto_line(target_editor, target_buf, line-1);
+}
+

@@ -1,0 +1,1313 @@
+Command :: enum {
+	UNKNOWN;
+	DEBUG_REPORT;
+	_PUBLIC;
+
+	// Navigation
+	MOVE_RIGHT;
+	MOVE_LEFT;
+	MOVE_UP;
+	MOVE_DOWN;
+	JUMP_BEGIN;
+	JUMP_END;
+	JUMP_NEXT_PARAGRAPH;
+	JUMP_PREV_PARAGRAPH;
+	JUMP_LINE_END;
+	JUMP_LINE_BEGIN;
+	JUMP_INDENT_BEGIN;
+	JUMP_NEXT_WORD;
+	JUMP_PREV_WORD;
+	JUMP_PAGE_UP;
+	JUMP_PAGE_DOWN;
+	CENTER_VIEW;
+	NEXT_ERROR;
+	PREV_ERROR;
+	LSP_GOTO_DECLARATION;
+	LSP_OTHER_FILE;
+
+	// Editation
+	INSERT_NEW_LINE;
+	INSERT_TAB;
+	DELETE_CHAR_LEFT;
+	DELETE_CHAR_RIGHT;
+	DELETE_WORD_LEFT;
+	DELETE_LINE;
+	SET_SELECTION_MARKER;
+	SMART_SELECTION;
+	SELECT_ALL;
+	SELECT_WORD;
+	SELECT_LINE;
+	SELECT_WHOLE_LINE;
+	SELECT_PARAGRAPH;
+	COPY;
+	PASTE;
+	CUT;
+	TRIM_TRAILING_WHITESPACE;
+	TO_LOWER;
+	TO_UPPER;
+	INDENT;
+	CLANG_FORMAT;
+	TOGGLE_COMMENT;
+
+	// Splits
+	OTHER_SPLIT;
+	CLOSE_SPLIT;
+	CLOSE_OTHER_SPLIT;
+
+	// Buffers
+	CLOSE_BUFFER;
+	FORCE_CLOSE_BUFFER;
+	SAVE;
+	NEW_BUFFER;
+
+	// Modes
+	OPEN_FILE;
+	QUICK_OPEN;
+	SAVE_AS;
+	GOTO_LINE;
+	CANCEL_MODE;
+	RUN_COMMAND;
+	SEARCH_FILE;
+	OPEN_PROJECT;
+	SEARCH_IN_PROJECT;
+
+	// MISC
+	INCREASE_FONT_SIZE;
+	DECREASE_FONT_SIZE;
+	UNDO;
+	REDO;
+	GOOGLE_SELECTION;
+	OPEN_PROJECTS_DIRECTORY;
+	OPEN_PROJECT_CONFIG;
+	OPEN_DEFAULT_CONFIG;
+	OPEN_MESSAGES;
+	KILL_ASYNC_JOBS;
+	BUILD;
+	BUILD_KILL;
+	LSP_KILL_SERVER;
+	LSP_RESTART_SERVER;
+	LSP_COMPLETION;
+}
+
+COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
+
+KeyMapEntry :: struct {
+	cmd:  Command;
+	mods: s32;
+	key:  s32;
+};
+
+key_binding: [..]KeyMapEntry;
+
+invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
+	using Command;
+	defer set_prev_executed_command(cmd);
+
+	if prev_executed_command != cmd { commit_undo(buf); }
+
+	handled := false;
+
+	switch mode {
+		Mode.TEXT_EDIT         { handled = invoke_command_text_edit_mode         (buf, cmd); }
+		Mode.GOTO_LINE         { handled = invoke_command_goto_line_mode         (buf, cmd); }
+		Mode.OPEN_FROM_DRIVE   { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
+		Mode.QUICK_OPEN        { handled = invoke_command_quick_open_mode        (buf, cmd); }
+		Mode.SAVE_TO_DRIVE     { handled = invoke_command_save_to_drive_mode     (buf, cmd); }
+		Mode.RUN_COMMAND       { handled = invoke_command_run_command_mode       (buf, cmd); }
+		Mode.SEARCH_FILE       { handled = invoke_command_search_mode            (buf, cmd); }
+		Mode.OPEN_PROJECT      { handled = invoke_command_open_project_mode      (buf, cmd); }
+		Mode.SEARCH_IN_PROJECT { handled = invoke_command_search_in_project_mode (buf, cmd); }
+		Mode.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
+
+		default;
+	}
+
+	// Command was handled by current mode.
+	if handled { return; }
+
+	// handle general commands used in all modes
+	switch cmd {
+		MOVE_LEFT            { move_left             (editor, buf); }
+		MOVE_RIGHT           { move_right            (editor, buf); }
+		JUMP_LINE_END        { jump_line_end         (editor, buf); }
+		JUMP_LINE_BEGIN      { jump_line_begin       (editor, buf); }
+		JUMP_NEXT_WORD       { jump_next_word        (editor, buf); }
+		JUMP_PREV_WORD       { jump_prev_word        (editor, buf); }
+		INSERT_TAB           { insert_tab            (editor, buf); }
+		DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
+		DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
+		DELETE_LINE          { delete_line           (editor, buf); }
+		DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
+		SMART_SELECTION      { smart_selection       (editor, buf); }
+		SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
+		SELECT_ALL           { select_all            (editor, buf); }
+		SELECT_WORD          { select_word           (editor, buf); }
+		SELECT_LINE          { select_line           (editor, buf); }
+		SELECT_WHOLE_LINE    { select_whole_line     (editor, buf); }
+		SELECT_PARAGRAPH     { select_paragraph      (editor, buf); }
+		COPY                 { copy_selection        (editor, buf); }
+		PASTE                { paste                 (editor, buf); }
+		CUT                  { cut_selection         (editor, buf); }
+		GOOGLE_SELECTION     { google_selection      (editor, buf); }
+
+		TO_LOWER {
+			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.LOWER);
+		}
+
+		TO_UPPER {
+			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.UPPER);
+		}
+
+		// Does nothing in case we're already in default mode (TEXT_EDIT).
+		CANCEL_MODE {
+			set_default_mode();
+			clear_selection(buf, editor.cursor_index);
+		}
+
+		// Not handled...
+		default;
+	}
+}
+
+lookup_command_keymap_index :: fn (cmd: Command, start_index := 0) s32 {
+	loop i := start_index; i < key_binding.len; i += 1 {
+		if key_binding[i].cmd == cmd {
+			return i;
+		}
+	}
+	return -1;
+}
+
+keymap_entry_to_string :: fn (keymap_index: s32) string_view {
+	if keymap_index < 0 { return ""; }
+	e :: &key_binding[keymap_index];
+	if e.key < 0 { return ""; }
+
+	using std;
+	using glfw;
+
+	tmp :: str_new(application_context.temporary_allocator);
+
+	MODS :: [4]s32.{ MOD_CONTROL, MOD_ALT, MOD_SHIFT, MOD_SUPER };
+	loop i := 0; i < MODS.len; i += 1 {
+		name :: mod_name(e.mods & MODS[i]);
+		if name.len == 0 { continue; }
+		if tmp.len > 0 { str_append(&tmp, "+"); }
+		str_append(&tmp, name);
+	}
+
+	if tmp.len > 0 { str_append(&tmp, "+"); }
+	str_append(&tmp, key_name(e.key));
+	return tmp;
+}
+
+// Just to make it deferable;
+set_prev_executed_command :: fn (cmd: Command) #inline {
+	prev_executed_command = cmd;
+}
+
+select_all :: fn (editor: *Editor, buf: *Buffer) {
+	jump_begin(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_end(editor, buf);
+}
+
+copy_selection :: fn (editor: *Editor, buf: *Buffer) {
+	text :: peek_selection(buf, editor.cursor_index);
+	if text.len == 0 {
+		return;
+	}
+	err :: clipboard.set(text);
+	if err {
+		print_err(err);
+		return;
+	}
+	clear_selection(buf, editor.cursor_index);
+}
+
+cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
+	start, end :: get_selection_range(buf, editor.cursor_index);
+	if start == end { return; }
+	if maybe_report_readonly(buf) { return; }
+
+	text :: string_view.{ end - start, &buf.bytes[start] };
+	if std.str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
+		err :: clipboard.set(text);
+		if err {
+			print_err(err);
+			return;
+		}
+	}
+	clear_selection(buf, editor.cursor_index);
+	delete_range(buf, start, end);
+}
+
+paste :: fn (editor: *Editor, buf: *Buffer) {
+	text :: clipboard.get();
+	if text.len == 0 { return; }
+	if maybe_report_readonly(buf) { return; }
+
+	commit_undo(buf);
+	defer commit_undo(buf);
+
+	cut_selection(editor, buf);
+	start :: get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, start, text);
+
+	if has_indentation_info(buf) && settings.indent_on_paste {
+		end :: get_cursor_position(buf, editor.cursor_index);
+		indent_range(buf, start, end);
+	}
+}
+
+goto_line :: fn (editor: *Editor, buf: *Buffer, line: s64) {
+	l := line;
+	if l < 0 {
+		l = 0;
+	} else if l >= buf.lines.len {
+		l = buf.lines.len-1;
+	}
+	set_cursor_position(buf, editor.cursor_index, buf.lines[l]);
+}
+
+move_right_by_num_characters :: fn (editor: *Editor, buf: *Buffer, char_num: s32) {
+	loop i := 0; i < char_num; i += 1 {
+		if !move_right(editor, buf) { break; }
+	}
+}
+
+jump_line_begin :: fn (editor: *Editor, buf: *Buffer) bool {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	_, start_position := peek_row(buf, cursor.row);
+	set_cursor_position(buf, editor.cursor_index, start_position);
+	return true;
+}
+
+jump_line_end :: fn (editor: *Editor, buf: *Buffer) bool {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	row, start_position :: peek_row_without_new_line(buf, cursor.row);
+	if row.len == 0 { return false; }
+	set_cursor_position(buf, editor.cursor_index, start_position + row.len);
+	return true;
+}
+
+select_word :: fn (editor: *Editor, buf: *Buffer) {
+	position :: get_cursor_position(buf, editor.cursor_index);
+	prev_char :: peek_before_position(buf, position);
+	if is_ident(buf, prev_char) {
+		jump_prev_word(editor, buf);
+	}
+	start_selection(buf, editor.cursor_index);
+	jump_next_word(editor, buf);
+}
+
+select_line :: fn (editor: *Editor, buf: *Buffer) {
+	jump_indent_begin(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_line_end(editor, buf);
+}
+
+select_whole_line :: fn (editor: *Editor, buf: *Buffer) {
+	jump_line_begin(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_line_end(editor, buf);
+}
+
+select_paragraph :: fn (editor: *Editor, buf: *Buffer) {
+	jump_prev_paragraph(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_next_paragraph(editor, buf);
+}
+
+// The range is expanded to cover whole line.
+indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
+	using std;
+	if maybe_report_readonly(buf) { return false; }
+	assert(end >= start);
+
+	// Update the indentation info, note that this is internally skipped in case the buffer syntax
+	// is not dirty...
+	rebuild_coloring_and_indentation_info(buf);
+
+	s, e :: expand_range_to_whole_rows(buf, start, end);
+
+	str       :: peek_range(buf, s, e);
+	new_line  :: get_line_ending(buf.line_ending);
+
+	// we assume new line everytime ending with '\n'.
+	assert(new_line[new_line.len-1] == '\n');
+	lines :: str_split_by(str, '\n');
+	defer array_terminate(&lines);
+
+	indented := str_new(max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
+	defer str_delete(&indented);
+
+	position := s;
+	loop i := 0; i < lines.len; i += 1 {
+		line :: lines[i];
+		trimmed_line := trim_left(line, " \t");
+		trimmed_line  = trim_right(trimmed_line, " \t\r");
+
+		nesting :: find_indentation_for_range(buf, position, position + line.len);
+		if trimmed_line.len > 0 || i == 0 {
+			append_indentation(&indented, nesting);
+			str_append(&indented, trimmed_line);
+		}
+		if i + 1 < lines.len {
+			str_append(&indented, new_line);
+		}
+
+		position += line.len + 1; // +1 \n
+	}
+
+	if indented.len == 0 || str_match(indented, str) { return false; }
+
+	batch_begin(buf);
+	delete_range(buf, s, s + str.len);
+	insert_string(buf, s, indented);
+	batch_end(buf);
+
+	return true;
+}
+
+#private
+
+SmartSelectionLevel :: enum {
+	WORD;
+	LINE;
+	WHOLE_LINE;
+	PARAGRAPH;
+}
+
+smart_selection_level: SmartSelectionLevel;
+
+vertical_move_cursor_offset: s32;
+prev_executed_command:       Command;
+
+invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
+	_, editor :: get_active_buffer_and_editor();
+
+	using Command;
+	switch cmd {
+		MOVE_UP             { move_up             (editor, buf);                           }
+		MOVE_DOWN           { move_down           (editor, buf);                           }
+		JUMP_BEGIN          { jump_begin          (editor, buf);                           }
+		JUMP_END            { jump_end            (editor, buf);                           }
+		JUMP_INDENT_BEGIN   { jump_indent_begin   (editor, buf);                           }
+		JUMP_NEXT_PARAGRAPH { jump_next_paragraph (editor, buf);                           }
+		JUMP_PREV_PARAGRAPH { jump_prev_paragraph (editor, buf);                           }
+		JUMP_PAGE_UP        { jump_page_up        (editor, buf);                           }
+		JUMP_PAGE_DOWN      { jump_page_down      (editor, buf);                           }
+		CENTER_VIEW         { center_view         (editor);                                }
+		NEXT_ERROR          { next_error          ();                                      }
+		PREV_ERROR          { prev_error          ();                                      }
+		LSP_GOTO_DECLARATION{ lsp_goto_declaration(editor, buf);                           }
+		LSP_OTHER_FILE      { lsp_switch_header_source(buf);                               }
+		INSERT_NEW_LINE     { insert_new_line     (editor, buf);                           }
+		INDENT              { indent              (editor, buf);                           }
+		CLANG_FORMAT        { clang_format        (buf);                                   }
+		TOGGLE_COMMENT      { toggle_comment      (editor, buf);                           }
+		OTHER_SPLIT         { other_split         (buf);                                   }
+		CLOSE_SPLIT         { close_split         ();                                      }
+		CLOSE_OTHER_SPLIT   { close_other_split   ();                                      }
+		CLOSE_BUFFER        { close_buffer_command(buf);                                   }
+		FORCE_CLOSE_BUFFER  { force_close_buffer  (buf);                                   }
+		SAVE                { save_command        (buf);                                   }
+		NEW_BUFFER          { create_new_buffer   ();                                      }
+		INCREASE_FONT_SIZE  { increase_font_size  ();                                      }
+		DECREASE_FONT_SIZE  { decrease_font_size  ();                                      }
+		UNDO                { undo                (editor, buf);                           }
+		REDO                { redo                (editor, buf);                           }
+		OPEN_FILE           { set_mode            (Mode.OPEN_FROM_DRIVE);                  }
+		QUICK_OPEN          { set_mode            (Mode.QUICK_OPEN);                       }
+		SAVE_AS             { set_mode            (Mode.SAVE_TO_DRIVE);                    }
+		GOTO_LINE           { set_mode            (Mode.GOTO_LINE);                        }
+		RUN_COMMAND         { set_mode            (Mode.RUN_COMMAND);                      }
+		SEARCH_FILE         { set_mode            (Mode.SEARCH_FILE);                      }
+		OPEN_PROJECT        { set_mode            (Mode.OPEN_PROJECT);                     }
+		SEARCH_IN_PROJECT   { set_mode            (Mode.SEARCH_IN_PROJECT);                }
+		DEBUG_REPORT        { debug_report        ();                                      }
+		OPEN_PROJECT_CONFIG { open_project_config ();                                      }
+		OPEN_DEFAULT_CONFIG { open_default_config ();                                      }
+		OPEN_MESSAGES       { open_messages       ();                                      }
+		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
+		BUILD               { build               ();                                      }
+		BUILD_KILL          { kill_build          ();                                      }
+		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
+		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
+		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
+
+		OPEN_PROJECTS_DIRECTORY {
+			open_path(tprint("\"%/%\"", exec_dir, PROJECTS_DIRECTORY));
+		}
+
+		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
+
+		// Not handled.
+	    default { return false; }
+	}
+	return true;
+}
+
+debug_report :: fn () bool {
+	err :: list_async_search("s32");
+	if err { print_err(err); }
+
+	return true;
+}
+
+save_command :: fn (buf: *Buffer) bool {
+	if buf.filepath.len == 0 {
+		set_mode(Mode.SAVE_TO_DRIVE);
+		return false;
+	}
+
+	if settings.trim_trailing_whitespace_on_save {
+		trim_trailing_whitespace(buf);
+	}
+
+	// Move this outside...
+	if buf.saved_top == buf.undo_top {
+		print_info("No changes to be saved.");
+		return OK;
+	}
+
+	err :: save_buffer_to_file(buf, buf.filepath);
+	if err {
+		print_err(err);
+		return false;
+	}
+	return true;
+}
+
+
+undo :: fn (editor: *Editor, buf: *Buffer) bool {
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return false; }
+	if buf.undo_top == 0 {
+		print_warn("No further undo change.");
+		return false;
+	}
+
+	clear_selection(buf);
+
+	batch_begin(buf);
+	defer batch_end(buf);
+
+	commit_count := 0;
+	loop ; buf.undo_top > 0; buf.undo_top -= 1 {
+		rec :: &buf.undo[buf.undo_top];
+		using Rec.kind;
+		switch rec.kind {
+			DELETE {
+				// transform to insert
+				data :: rec.data.delete; // copy
+				text :: peek_range(buf, data.start, data.end);
+				assert(text.len > 0);
+
+				if get_character_len(text[0]) == text.len {
+					c :: utf8_to_utf32_single_char(text);
+					rec.kind = INSERT_CHAR;
+					rec.data.insert_char.position = data.start;
+					rec.data.insert_char.char     = c;
+				} else {
+					rec.kind = INSERT;
+					rec.data.insert.position = data.start;
+					rec.data.insert.str      = std.str_new(text);
+				}
+
+				set_cursor_position(buf, editor.cursor_index, data.start);
+				delete_range_impl(buf, data.start, data.end);
+			}
+			INSERT_CHAR {
+				data :: rec.data.insert_char; // copy
+				str :: unicode_char_to_utf8_with_fallback(data.char);
+				set_cursor_position(buf, editor.cursor_index, data.position);
+				insert_string_impl(buf, data.position, str);
+
+				rec.kind = DELETE;
+				rec.data.delete.start = data.position;
+				rec.data.delete.end   = data.position + str.len;
+			}
+			INSERT {
+				data :: rec.data.insert; // copy
+				set_cursor_position(buf, editor.cursor_index, data.position);
+				insert_string_impl(buf, data.position, data.str);
+
+				rec.kind = DELETE;
+				rec.data.delete.start = data.position;
+				rec.data.delete.end   = data.position + data.str.len;
+
+				std.str_delete(&data.str);
+			}
+			COMMIT   {
+				if commit_count > 0 { break; }
+				commit_count += 1;
+			}
+			default { panic(); }
+		}
+	}
+
+	return true;
+}
+
+redo :: fn (editor: *Editor, buf: *Buffer) bool {
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return false; }
+	if buf.undo_top == buf.undo.len - 1 {
+		print_warn("No further redo change.");
+		return false;
+	}
+
+	clear_selection(buf);
+
+	batch_begin(buf);
+	defer batch_end(buf);
+
+	commit_count := 0;
+	loop ;buf.undo_top < buf.undo.len; buf.undo_top += 1 {
+		rec :: &buf.undo[buf.undo_top];
+		using Rec.kind;
+		switch rec.kind {
+			INSERT_CHAR {
+				data :: rec.data.insert_char; // copy
+				set_cursor_position(buf, editor.cursor_index, data.position);
+				str :: unicode_char_to_utf8_with_fallback(data.char);
+				insert_string_impl(buf, data.position, str);
+
+				rec.kind = DELETE;
+				rec.data.delete.start = data.position;
+				rec.data.delete.end   = data.position + str.len;
+			}
+			INSERT {
+				data :: rec.data.insert; // copy
+				set_cursor_position(buf, editor.cursor_index, data.position);
+				insert_string_impl(buf, data.position, data.str);
+
+				rec.kind = DELETE;
+				rec.data.delete.start = data.position;
+				rec.data.delete.end   = data.position + data.str.len;
+
+				std.str_delete(&data.str);
+			}
+			DELETE {
+				data :: rec.data.delete; // copy
+				text :: peek_range(buf, data.start, data.end);
+				assert(text.len > 0);
+
+				if get_character_len(text[0]) == text.len {
+					c :: utf8_to_utf32_single_char(text);
+
+					rec.kind = INSERT_CHAR;
+					rec.data.insert_char.position = data.start;
+					rec.data.insert_char.char     = c;
+				} else {
+					rec.kind = INSERT;
+					rec.data.insert.position = data.start;
+					rec.data.insert.str      = std.str_new(text);
+				}
+
+				set_cursor_position(buf, editor.cursor_index, data.start);
+				delete_range_impl(buf, data.start, data.end);
+			}
+			COMMIT {
+				if commit_count > 0 { break; }
+				commit_count += 1;
+			}
+			default { panic(); }
+		}
+	}
+
+	return true;
+}
+
+delete_left :: fn (editor: *Editor, buf: *Buffer) {
+	if maybe_report_readonly(buf) { return; }
+	if has_selection(buf, editor.cursor_index) {
+		if editor.index == command_editor {
+			start, end :: get_selection_range(buf, editor.cursor_index);
+			delete_range(buf, start, end);
+			clear_selection(buf);
+		} else {
+			cut_selection(editor, buf);
+		}
+		return;
+	}
+
+	position :: get_cursor_position(buf, editor.cursor_index);
+	char :: peek_before_position(buf, position);
+	if char.len == 0 { return; }
+	delete_range(buf, position - char.len, position);
+}
+
+delete_right :: fn (editor: *Editor, buf: *Buffer) {
+	if maybe_report_readonly(buf) { return; }
+	if has_selection(buf, editor.cursor_index) {
+		if editor.index == command_editor {
+			start, end :: get_selection_range(buf, editor.cursor_index);
+			delete_range(buf, start, end);
+			clear_selection(buf);
+		} else {
+			cut_selection(editor, buf);
+		}
+		return;
+	}
+
+	position :: get_cursor_position(buf, editor.cursor_index);
+	char :: peek_position(buf, position);
+	if char.len == 0 { return; }
+	delete_range(buf, position, position + char.len);
+}
+
+insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	if maybe_report_readonly(buf) { return false; }
+	commit_undo(buf);
+
+	if has_selection(buf, editor.cursor_index) {
+		cut_selection(editor, buf);
+	}
+
+	position := get_cursor_position(buf, editor.cursor_index);
+	nl :: get_line_ending(buf.line_ending);
+	insert_string(buf, position, nl);
+
+	indent_enabled :: has_indentation_info(buf) && settings.indent_on_new_line;
+	position = get_cursor_position(buf, editor.cursor_index);
+
+	if indent_enabled {
+		indent_range(buf, position, position);
+		jump_indent_begin(editor, buf);
+	}
+
+	commit_undo(buf);
+	return true;
+}
+
+indent :: fn (editor: *Editor, buf: *Buffer) {
+	commit_undo(buf);
+	defer commit_undo(buf);
+
+	restore_position: s64 = -1;
+	if has_selection(buf, editor.cursor_index) {
+		// Reindent selection range
+		start, end :: get_selection_range(buf, editor.cursor_index);
+		clear_selection(buf, editor.cursor_index);
+		if indent_range(buf, start, end) {
+			restore_position = start;
+		}
+	} else {
+		// Reindent current line if not empty, otherwise just append indentation chars.
+		cursor :: get_cursor(buf, editor.cursor_index);
+		line, start :: peek_row_without_new_line(buf, cursor.row);
+		if indent_range(buf, start, start + cast(s32)line.len) {
+			restore_position = start;
+		}
+	}
+
+	if restore_position > 0 {
+		set_cursor_position(buf, editor.cursor_index, restore_position);
+		jump_indent_begin(editor, buf);
+	}
+}
+
+move_left :: fn (editor: *Editor, buf: *Buffer) bool {
+	position :: get_cursor_position(buf, editor.cursor_index);
+	c :: peek_before_position(buf, position);
+	if c.len == 0 { return false; }
+	set_cursor_position(buf, editor.cursor_index, position - c.len);
+	return true;
+}
+
+move_right :: fn (editor: *Editor, buf: *Buffer) bool {
+	position :: get_cursor_position(buf, editor.cursor_index);
+	c :: peek_position(buf, position);
+	if c.len == 0 { return false; }
+	set_cursor_position(buf, editor.cursor_index, position + c.len);
+	return true;
+}
+
+
+// Note: We use "visual" columns to solve the problem with vertical navigation in case lines
+// contains tabs, in general, each tab is represented as settings.tab_size column count. The
+// vertical navigation is more visually stable then.
+move_by_visual_cols :: fn (editor: *Editor, buf: *Buffer, num_cols: s64) {
+	position := get_cursor_position(buf, editor.cursor_index);
+	loop i := 0; i < num_cols; {
+		char :: peek_position(buf, position);
+		if char.len == 0              { break; }
+		if is_line_end(buf, char) > 0 { break; }
+		if char[0] == '\t' {
+			i += settings.tab_size;
+		} else {
+			i += 1;
+		}
+		position += char.len;
+	}
+	set_cursor_position(buf, editor.cursor_index, position);
+}
+
+get_row_visual_indentation_cols :: fn (editor: *Editor, buf: *Buffer) s32 {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	line :: peek_row_without_new_line(buf, cursor.row);
+	num := 0;
+	loop i := 0; i < line.len; i += 1 {
+		c :: line[i];
+		switch c {
+			' '  { num += 1; }
+			'\t' { num += settings.tab_size; }
+			default { break; }
+		}
+	}
+	return num;
+}
+
+move_down :: fn (editor: *Editor, buf: *Buffer) bool {
+	using Command;
+	if prev_executed_command != MOVE_DOWN && prev_executed_command != MOVE_UP {
+		position :: get_cursor_position(buf, editor.cursor_index);
+		vertical_move_cursor_offset = count_visual_cols_to_position(buf, position);
+	}
+	num_cols := vertical_move_cursor_offset;
+	if !jump_next_line(editor, buf) { return false; }
+
+	if settings.vertical_move_tries_follow_indentation {
+		// Moves the cursor to the indentation in case we end up in whitespace.
+		indent_cols :: get_row_visual_indentation_cols(editor, buf);
+		num_cols = std.max(num_cols, indent_cols);
+	}
+	move_by_visual_cols(editor, buf, num_cols);
+	return true;
+}
+
+move_up :: fn (editor: *Editor, buf: *Buffer) bool {
+	if prev_executed_command != Command.MOVE_DOWN && prev_executed_command != Command.MOVE_UP {
+		position :: get_cursor_position(buf, editor.cursor_index);
+		vertical_move_cursor_offset = count_visual_cols_to_position(buf, position);
+	}
+	num_cols := vertical_move_cursor_offset;
+	if !jump_prev_line(editor, buf) { return false; }
+	if settings.vertical_move_tries_follow_indentation {
+		// Moves the cursor to the indentation in case we end up in whitespace.
+		indent_cols :: get_row_visual_indentation_cols(editor, buf);
+		num_cols = std.max(num_cols, indent_cols);
+	}
+	move_by_visual_cols(editor, buf, num_cols);
+	return true;
+}
+
+jump_page_down :: fn (editor: *Editor, buf: *Buffer) bool {
+	jump_lines :: editor.visible_lines - 4;
+	assert(jump_lines > 0);
+	loop i := 0; i < jump_lines; i += 1 {
+		if !move_down(editor, buf) { break; }
+	}
+	return true;
+}
+
+jump_page_up :: fn (editor: *Editor, buf: *Buffer) bool {
+	jump_lines :: editor.visible_lines - 4;
+	assert(jump_lines > 0);
+	loop i := 0; i < jump_lines; i += 1 {
+		if !move_up(editor, buf) { break; }
+	}
+	return true;
+}
+
+append_indentation :: fn (str: *string, n := 1) s64 {
+	using std;
+	orig_len :: str.len;
+	if settings.insert_spaces_instead_tabs {
+		loop i := 0; i < settings.tab_size * n; i += 1 {
+			str_append(str, " ");
+		}
+	} else {
+		loop i := 0; i < n; i += 1 {
+			str_append(str, "\t");
+		}
+	}
+	return str.len - orig_len;
+}
+
+insert_tab :: fn (editor: *Editor, buf: *Buffer) {
+	if maybe_report_readonly(buf) { return; }
+
+	if has_indentation_info(buf) && settings.indent_on_tab {
+		indent(editor, buf);
+		return;
+	}
+
+	tmp :: std.str_new(64, application_context.temporary_allocator);
+	append_indentation(&tmp);
+
+	position :: get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, tmp);
+}
+
+delete_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	if maybe_report_readonly(buf) { return false; }
+	jump_line_begin(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_next_line(editor, buf);
+	cut_selection(editor, buf);
+	return true;
+}
+
+delete_word_left :: fn (editor: *Editor, buf: *Buffer) bool {
+	if maybe_report_readonly(buf) { return false; }
+	start_selection(buf, editor.cursor_index);
+	jump_prev_word(editor, buf);
+	cut_selection(editor, buf);
+	return true;
+}
+
+smart_selection :: fn (editor: *Editor, buf: *Buffer) {
+	using SmartSelectionLevel;
+
+	if prev_executed_command != Command.SMART_SELECTION {
+		start_selection(buf, editor.cursor_index);
+		smart_selection_level = WORD;
+		return;
+	}
+
+	switch smart_selection_level {
+		WORD {
+			select_word(editor, buf);
+			smart_selection_level = LINE;
+		}
+		LINE {
+			select_line(editor, buf);
+
+			start :: get_selection_range(buf, editor.cursor_index);
+			cols :: count_cols_to_position(buf, start);
+			if cols > 0 {
+				smart_selection_level = WHOLE_LINE;
+			} else {
+				smart_selection_level = PARAGRAPH;
+			}
+		}
+		WHOLE_LINE {
+			select_whole_line(editor, buf);
+			smart_selection_level = PARAGRAPH;
+		}
+		PARAGRAPH {
+			start, end :: get_selection_range(buf, editor.cursor_index);
+			if start == end {
+				select_paragraph(editor, buf);
+				return;
+			}
+			set_cursor_position(buf, editor.cursor_index, start);
+			jump_prev_paragraph(editor, buf);
+			start_selection(buf, editor.cursor_index);
+			set_cursor_position(buf, editor.cursor_index, end);
+			jump_next_paragraph(editor, buf);
+		}
+	}
+}
+
+jump_next_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	row, start_position := peek_row(buf, cursor.row);
+	if row.len == 0 { return false; }
+	set_cursor_position(buf, editor.cursor_index, start_position + row.len);
+	return true;
+}
+
+
+jump_prev_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	if cursor.row == 0 { return false; }
+	_, start_position := peek_row(buf, cursor.row-1);
+	set_cursor_position(buf, editor.cursor_index, start_position);
+	return true;
+}
+
+jump_begin :: fn (editor: *Editor, buf: *Buffer) bool {
+	set_cursor_position(buf, editor.cursor_index, 0);
+	return true;
+}
+
+jump_end :: fn (editor: *Editor, buf: *Buffer) bool {
+	set_cursor_position(buf, editor.cursor_index, get_last_position_in_buffer(buf));
+	return true;
+}
+
+jump_indent_begin :: fn (editor: *Editor, buf: *Buffer) bool {
+	if !jump_line_begin(editor, buf) { return false; }
+	num_whitespace :: get_row_visual_indentation_cols(editor, buf);
+	move_by_visual_cols(editor, buf, num_whitespace);
+	return true;
+}
+
+jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
+	cursor := get_cursor(buf, editor.cursor_index);
+
+	// in case the current position is already empty line
+	row, start_index, row_len :: peek_row_without_new_line(buf, cursor.row);
+	position := start_index;
+	if row.len == 0 {
+		cursor.row += 1;
+		position   += row_len;
+	}
+
+	loop row_index := cursor.row;; row_index += 1 {
+		row, start_position :: peek_row_without_new_line(buf, row_index);
+		if start_position < position { break; } // The end
+		position = start_position;
+		if row.len == 0 {
+			break;
+		}
+	}
+	set_cursor_position(buf, editor.cursor_index, position);
+	return true;
+}
+
+jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
+	cursor := get_cursor(buf, editor.cursor_index);
+	if cursor.row == 0 { return false; }
+
+	// in case the current position is already empty line
+	row, start_index :: peek_row_without_new_line(buf, cursor.row);
+	position := start_index;
+	if row.len == 0 {
+		cursor.row -= 1;
+	}
+	loop row_index := cursor.row; row_index >= 0; row_index -= 1 {
+		row, start_position :: peek_row_without_new_line(buf, row_index);
+		position = start_position;
+		if row.len == 0 {
+			break;
+		}
+	}
+	set_cursor_position(buf, editor.cursor_index, position);
+	return true;
+}
+
+jump_next_word :: fn (editor: *Editor, buf: *Buffer) bool {
+	position := get_cursor_position(buf, editor.cursor_index);
+	defer set_cursor_position(buf, editor.cursor_index, position);
+	if !is_ident(buf, peek_position(buf, position)) {
+		loop {
+			char :: peek_position(buf, position);
+			if char.len == 0 { return true; } // End of the file...
+			if !is_ident(buf, char) {
+				position += char.len;
+			} else {
+				break;
+			}
+		}
+		return true;
+	}
+	loop {
+		char :: peek_position(buf, position);
+		if char.len == 0 { return true; } // End of the file...
+		if is_ident(buf, char) {
+			position += char.len;
+		} else {
+			break;
+		}
+	}
+	return true;
+}
+
+jump_prev_word :: fn (editor: *Editor, buf: *Buffer) bool {
+	position := get_cursor_position(buf, editor.cursor_index);
+	defer set_cursor_position(buf, editor.cursor_index, position);
+	char := peek_before_position(buf, position);
+	if !is_ident(buf, char) {
+		loop {
+			position -= char.len;
+			char = peek_before_position(buf, position);
+			if char.len == 0 { break; }
+			if is_ident(buf, char) { break; }
+		}
+		return true;
+	}
+	loop {
+		char :: peek_before_position(buf, position);
+		if char.len == 0 { break; }
+		if is_ident(buf, char) {
+			position -= char.len;
+		} else {
+			break;
+		}
+	}
+	return true;
+}
+
+increase_font_size :: fn () bool {
+	settings.font_size = std.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	rebuild_fonts();
+	return true;
+}
+
+decrease_font_size :: fn () bool {
+	settings.font_size = std.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	rebuild_fonts();
+	return true;
+}
+
+// Switch to other split or create one by duplicating current active editor and swith.
+other_split :: fn (buf: *Buffer) bool {
+	using Split;
+
+	assert(left != -1);
+	if right == -1 {
+		// no right editor, create one!
+		find_or_create_editor_in_split(RIGHT, buf.index);
+		return true;
+	}
+
+	active_split :: get_active_split();
+	switch active_split {
+		LEFT    { active_editor = right; }
+		RIGHT   { active_editor = left;  }
+		default { panic();               }
+	}
+	assert(active_editor != -1);
+	assert(active_editor != command_editor);
+	return true;
+}
+
+// Close all editors in the current split and focus to the other split. Note this is not
+// intended for closing buffers (files). All opened buffers stays open, also we must have
+// a split active.
+close_split :: fn () bool {
+	if left != -1 && right != -1 {
+		close_all_in_split(get_active_split());
+		return true;
+	}
+	print_warn("No split active.");
+	return false;
+}
+
+close_other_split :: fn () bool {
+	using Split;
+	if left != -1 && right != -1 {
+		active_split :: get_active_split();
+		close_split := RIGHT;
+		if active_split == RIGHT { close_split = LEFT; }
+		close_all_in_split(close_split);
+		return true;
+	}
+	print_warn("No split active.");
+	return true;
+}
+
+close_buffer_command :: fn (buf: *Buffer) bool {
+	buffer_name :: tprint("%", buf.name); // make copy because we'll delete it later
+	if buf.saved_top != buf.undo_top {
+		print_warn("Buffer contains unsaved changes. Use [%] command to ignore it.", COMMAND_NAMES[auto Command.FORCE_CLOSE_BUFFER]);
+		return false;
+	}
+	close_buffer(buf.index);
+
+	print_info("Buffer '%' closed.", buffer_name);
+	return true;
+}
+
+force_close_buffer :: fn (buf: *Buffer) bool {
+	buffer_name :: tprint("%", buf.name);
+	close_buffer(buf.index);
+
+	print_info("Buffer '%' closed.", buffer_name);
+	return true;
+}
+
+create_new_buffer :: fn () {
+	set_default_mode();
+	find_or_create_editor_in_split(get_active_split(), add_buffer("New File"));
+}
+
+google_selection :: fn (editor: *Editor, buf: *Buffer) {
+	selection := peek_selection(buf, editor.cursor_index);
+	if selection.len == 0 {
+		print_warn("Nothing selected in the buffer.");
+		return;
+	}
+	if selection.len > 1024 {
+		print_warn("Selection too long!");
+		selection.len = 1024;
+	}
+	url :: tprint("\"https://www.google.com/search?q=%\"", string_to_url(selection));
+	open_path(url);
+}
+
+open_project_config :: fn () {
+	if project.filepath.len == 0 || project.is_default {
+		print_warn("No project is open. Use 'open-project' command first to open one.");
+		return;
+	}
+	err :: open(project.filepath, true);
+	if err {
+		print_err("Cannot open project file with error: %", err);
+	}
+}
+
+open_default_config :: fn () {
+	err :: open(tprint("%/%", exec_dir, DEFAULT_CONFIG_FILE), true);
+	if err {
+		print_err("Cannot open default config file with error: %", err);
+	}
+}
+
+open_messages :: fn () {
+	active_editor = find_or_create_editor_in_split(get_active_split(), messages_buffer_index);
+}
+
+ToUpperOrLower :: enum {
+	UPPER;
+	LOWER;
+}
+
+selection_to_upper_or_lower :: fn (editor: *Editor, buf: *Buffer, op: ToUpperOrLower) {
+	using std;
+	using ToUpperOrLower;
+
+	if maybe_report_readonly(buf) { return; }
+
+	selection :: peek_selection(buf, editor.cursor_index);
+	if selection.len == 0 {
+		print_warn("Nothing selected in the buffer.");
+		return;
+	}
+
+	temp :: application_context.temporary_allocator;
+	// duplicate the selection first
+	dup :: str_new(selection, temp);
+	switch op {
+		UPPER {
+			if str_upper(&dup) == 0 { return; }
+		}
+		LOWER {
+			if str_lower(&dup) == 0 { return; }
+		}
+	}
+
+	commit_undo(buf);
+	cut_selection(editor, buf);
+
+	position :: get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, dup);
+
+	commit_undo(buf);
+}
+
+clang_format :: fn (buf: *Buffer) {
+	err :: request_format(buf);
+	if err { print_err(err); }
+}
+
+build :: fn () {
+	err :: request_build();
+	if err { print_err(err); }
+}
+
+toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
+	using std;
+	if maybe_report_readonly(buf) { return; }
+
+	comment_with :: FILE_TYPE_COMMENT_WITH[auto buf.file_type];
+	if comment_with.len == 0 { return; }
+
+	start, end: s64;
+	if has_selection(buf, editor.cursor_index) {
+		s, e :: get_selection_range(buf, editor.cursor_index);
+		clear_selection(buf, editor.cursor_index);
+		sx, ex :: expand_range_to_whole_rows(buf, s, e);
+		start = sx;
+		end   = ex;
+	} else {
+		cursor :: get_cursor(buf, editor.cursor_index);
+		line, s :: peek_row_without_new_line(buf, cursor.row);
+		start = s;
+		end   = s + cast(s32)line.len;
+	}
+
+	str :: peek_range(buf, start, end);
+	new_line   :: get_line_ending(buf.line_ending);
+
+	// we assume new line everytime ending with '\n'.
+	assert(new_line[new_line.len-1] == '\n');
+	lines :: str_split_by(str, '\n');
+	defer array_terminate(&lines);
+
+	if lines.len == 0 { return; }
+
+	commented := str_new(max(str.len, 32));
+	defer str_delete(&commented);
+
+	nesting := 1000;
+	position := start;
+	loop i := 0; i < lines.len; i += 1 {
+		line :: lines[i];
+		if line.len > 0 {
+			nesting = min(nesting, find_indentation_for_range(buf, position, position + line.len));
+		}
+		position += line.len + 1;
+	}
+
+	loop i := 0; i < lines.len; i += 1 {
+		line := trim_right(lines[i], " \t\r");
+		line  = trim_left(line, " \t", nesting);
+
+		if line.len > 0 {
+			trimmed_line :: trim_left(line, " \t"); // remove all leading whitespace
+			if str_match(string_view.{ comment_with.len, trimmed_line.ptr }, comment_with) {
+				line = trimmed_line;
+				line.len -= comment_with.len;
+				line.ptr  = &line[comment_with.len];
+				line = trim_left(line, " ", 1);
+				append_indentation(&commented, nesting);
+				str_append(&commented, line);
+			} else {
+				append_indentation(&commented, nesting);
+				str_append(&commented, comment_with);
+				str_append(&commented, " ");
+				str_append(&commented, line);
+			}
+		}
+		if i + 1 < lines.len {
+			str_append(&commented, new_line);
+		}
+	}
+
+	if str.len < 1 { return; }
+
+	set_cursor_position(buf, editor.cursor_index, start);
+
+	commit_undo(buf);
+
+	batch_begin(buf);
+	delete_range(buf, start, start + str.len);
+	insert_string(buf, start, commented);
+	batch_end(buf);
+
+	commit_undo(buf);
+}
+
+open_error_location :: fn (loc: *ErrorLocation) {
+	using std;
+	filepath :: str_new(loc.file);
+	defer str_delete(&filepath);
+	str_replace_all(&filepath, '\\', '/'); // we love windows
+
+	err :: open_location(filepath, loc.line-1, loc.col-1);
+	if err {
+		print_err(err);
+		return;
+	}
+
+	error_marker_visible = true;
+}
+
+next_error :: fn () {
+	if error_list.len == 0 { print_warn("No errors in current error list."); return; }
+	error_list_index += 1;
+	if error_list_index >= error_list.len { error_list_index = 0; }
+	open_error_location(&error_list[error_list_index]);
+}
+
+prev_error :: fn () {
+	if error_list.len == 0 { print_warn("No errors in current error list."); return; }
+	error_list_index -= 1;
+	if error_list_index < 0 { error_list_index = error_list.len - 1; }
+	open_error_location(&error_list[error_list_index]);
+}

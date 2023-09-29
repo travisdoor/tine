@@ -1,0 +1,168 @@
+search_mode_init :: fn () {
+	active_editor = command_editor;
+	buf, editor :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.TEXT;
+	search_result_index = 0;
+
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+	start_position = get_cursor_position(target_buf, target_editor.cursor_index);
+	start_top      = target_editor.top;
+
+	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
+	clear_selection(target_buf, target_editor.cursor_index);
+	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
+		last_search_subject.len = 0;
+		std.str_append(&last_search_subject, initial_subject);
+	} else {
+		initial_subject = last_search_subject;
+	}
+
+	if initial_subject.len > 0 {
+		insert_string(buf, 0, initial_subject);
+		select_all(editor, buf);
+	}
+
+	array_init(&search_results, 1024);
+
+	search_cmd_changed();
+}
+
+search_mode_terminate :: fn () {
+	array_terminate(&search_results);
+}
+
+draw_search_mode :: fn () {
+	assert(active_editor == command_editor);
+	w, h :: get_command_editor_size();
+
+	target_buf :: get_last_active_buffer_and_editor();
+
+	hint: string_view;
+	if search_results.len > 0 {
+		hint = tprint("[%/%]", search_result_index+1, search_results.len);
+	}
+
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search in '%': ", target_buf.name), hint);
+	draw_last_status_message(0.f, h, w);
+}
+
+//
+// Commands
+//
+
+invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	using std;
+	using Command;
+
+	switch cmd {
+		MOVE_UP   { prev_match(); }
+
+		SEARCH_FILE,
+		MOVE_DOWN { next_match(); }
+
+		INSERT_NEW_LINE {
+			// Lets store the current search subject for later reuse.
+			buf :: get_active_buffer_and_editor();
+			subject :: peek_row(buf, 0);
+
+			last_search_subject.len = 0;
+			std.str_append(&last_search_subject, subject);
+
+			set_mode(Mode.TEXT_EDIT);
+		}
+
+		CANCEL_MODE {
+			target_buf, target_editor :: get_last_active_buffer_and_editor();
+			// reset buffer to the starting position
+			set_cursor_position(target_buf, target_editor.cursor_index, start_position);
+			// Restore also top position in the editor to prevent annoying jumps.
+			target_editor.top = start_top;
+			return false;
+		}
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+search_cmd_changed :: fn () {
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	buf :: get_active_buffer_and_editor();
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+	subject :: peek_row(buf, 0);
+
+	search_results.len  = 0;
+	search_result_index = 0;
+
+	// reset buffer to the starting position
+	set_cursor_position(target_buf, target_editor.cursor_index, start_position);
+
+	if subject.len == 0 { return; }
+
+	first_hit_set := false;
+	start_index : s64 = 0;
+	loop {
+		hit_position :: find_matching(target_buf, subject, start_index);
+		if hit_position == -1 { break; }
+
+		if first_hit_set == false && hit_position >= start_position {
+			first_hit_set = true;
+			search_result_index = search_results.len;
+		}
+		array_push(&search_results, Range.{ hit_position, hit_position + subject.len });
+
+		start_index = hit_position + subject.len;
+	}
+
+	if search_results.len > 0 {
+		assert(search_result_index >= 0 && search_result_index < search_results.len);
+		set_cursor_position(target_buf, target_editor.cursor_index, search_results[search_result_index].start);
+		center_view(target_editor);
+	} else {
+		print_warn("No match!");
+	}
+}
+
+search_results: [..]Range;
+
+#private
+
+search_result_index: s64;
+start_position:      s64;
+start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
+
+next_match :: fn () {
+	if search_results.len == 0 {
+		print_warn("No match!");
+		return;
+	}
+
+	search_result_index += 1;
+	if search_result_index >= search_results.len { search_result_index = 0; }
+
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+	set_cursor_position(target_buf, target_editor.cursor_index, search_results[search_result_index].start);
+	center_view(target_editor);
+}
+
+prev_match :: fn () {
+	if search_results.len == 0 {
+		print_warn("No match!");
+		return;
+	}
+
+	search_result_index -= 1;
+	if search_result_index < 0 { search_result_index = search_results.len - 1; }
+
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+	set_cursor_position(target_buf, target_editor.cursor_index, search_results[search_result_index].start);
+	center_view(target_editor);
+}
+

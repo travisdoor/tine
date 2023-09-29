@@ -1,0 +1,72 @@
+;keys
+
+# Navigation
+move-right           ArrowRight     Ctrl+F
+move-left            ArrowLeft      Ctrl+B
+move-down            ArrowDown      Ctrl+N
+move-up              ArrowUp        Ctrl+P
+jump-begin           Shift+Alt+,    Ctrl+Home
+jump-end             Shift+Alt+.    Ctrl+End
+jump-next-paragraph  Alt+Shift+]    Ctrl+ArrowDown
+jump-prev-paragraph  Alt+Shift+[    Ctrl+ArrowUp
+jump-line-begin      Ctrl+A
+jump-line-end        Ctrl+E         End
+jump-indent-begin    Alt+M          Home
+jump-next-word       Alt+F          Ctrl+ArrowRight
+jump-prev-word       Alt+B          Ctrl+ArrowLeft
+jump-page-up         PageUp
+jump-page-down       PageDown
+center-view          Ctrl+L
+next-error           Alt+N
+prev-error           Alt+P
+
+# LSP
+lsp-goto-declaration F12
+lsp-other-file       Alt+H
+lsp-completion       Alt+Space
+
+# Editing
+insert-new-line      Enter
+insert-tab           Tab
+delete-char-left     Backspace      Shift+Backspace
+delete-char-right    Delete         Shift+Delete
+delete-line          Ctrl+K
+delete-word-left     Ctrl+Backspace Alt+Backspace
+toggle-comment       Ctrl+/
+
+smart-selection      Ctrl+Space
+copy                 Ctrl+C
+paste                Ctrl+V
+cut                  Ctrl+X
+select-all           Ctrl+H
+
+# Split
+other-split          Alt+`
+close-split          Alt+1
+close-other-split    Alt+2
+
+close-buffer         Alt+Q
+force-close-buffer   Alt+Shift+Q
+
+save                 F2             Ctrl+W
+new-buffer           Ctrl+Alt+N
+open-file            Ctrl+O
+open-buffer          Alt+O
+open-project         Ctrl+Shift+O
+
+quick-open           Ctrl+Alt+O     F3
+save-as              # No mapping
+goto-line            Alt+G
+run-command          Alt+X
+search-file          Ctrl+S
+search-in-project    Ctrl+Alt+S
+cancel-mode          Escape
+
+increase-font-size   Ctrl+=
+decrease-font-size   Ctrl+-
+undo                 Ctrl+Z
+redo                 Ctrl+Y
+
+# Special
+clang-format         F1
+build                F4

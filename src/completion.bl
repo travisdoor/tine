@@ -1,0 +1,109 @@
+completion_mode_init :: fn () {
+}
+
+completion_mode_terminate :: fn () {
+}
+
+draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32) {
+	using Metric;
+	buf, editor :: get_active_buffer_and_editor();
+
+	text_padding :: metrics[auto TEXT_PADDING   ];
+	line_height  :: metrics[auto LINE_HEIGHT    ];
+
+	x :: active_editor_x;
+	y :: active_editor_y + text_padding;
+
+	first_line_index :: editor.top;
+
+	cursor :: initial_cursor;
+	line, start_index :: peek_row(buf, cursor.row);
+	line_w :: draw.text_size(line, &font, auto (cursor.position - start_index));
+	px :: x + line_w; // no pedding to precisely match the text columns
+	py := y * 2.f + line_height * auto (cursor.row - first_line_index + 1); // +1 one line down
+
+	h :: get_list_height();
+	if py + h > auto WINDOW_HEIGHT {
+		py -= h + line_height + y * 2.f;
+	}
+
+	_, clicked :: draw_list(px, py, 300.f, DrawListCols.PREVIEW, ListerMode.FLOATING);
+	if clicked { commit(); }
+}
+
+show_completion_popup_for_active_editor :: fn (list: []string) {
+	list_completion(list);
+
+	if set_mode(Mode.COMPLETION) {
+		buf, editor :: get_active_buffer_and_editor();
+		position := get_cursor_position(buf, editor.cursor_index);
+		loop {
+			char :: peek_before_position(buf, position);
+			if char.len == 0 { break; }
+			if is_ident(buf, char) {
+				position -= char.len;
+			} else {
+				break;
+			}
+		}
+		initial_cursor = get_cursor_for_position(buf, position);
+	}
+}
+
+//
+// Commands
+//
+
+invoke_command_completion_mode :: fn (_: *Buffer, cmd: Command) bool { // @Cleanup: Buffer is not needed...
+	using Command;
+	switch cmd {
+		INSERT_NEW_LINE { commit(); }
+
+		MOVE_UP   { list_item_up();   }
+		MOVE_DOWN { list_item_down(); }
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+completion_target_buffer_changed :: fn () {
+	assert(mode == Mode.COMPLETION);
+	buf, editor :: get_active_buffer_and_editor();
+
+	start_index :: initial_cursor.position;
+	end_index   :: get_cursor_position(buf, editor.cursor_index);
+	if start_index >= end_index {
+		set_mode(Mode.TEXT_EDIT);
+		return;
+	}
+
+	lsp_completion(editor, buf);
+}
+
+#private
+
+initial_cursor: Cursor;
+
+commit :: fn () {
+	set_mode(Mode.TEXT_EDIT);
+
+	buf, editor :: get_active_buffer_and_editor();
+
+	item :: get_selected_item_in_list();
+	if !item { return; }
+
+	start_index :: initial_cursor.position;
+	end_index   :: get_cursor_position(buf, editor.cursor_index);
+	if start_index >= end_index { return; }
+
+	commit_undo(buf);
+	defer commit_undo(buf);
+
+	batch_begin(buf);
+	delete_range(buf, start_index, end_index);
+	insert_string(buf, start_index, item.preview);
+	batch_end(buf);
+}
+

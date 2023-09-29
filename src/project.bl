@@ -1,0 +1,599 @@
+ProjectSection   :: enum { NONE; INCLUDE; EXCLUDE; SETTINGS; COLORS; INCLUDE_FILE_EXTENSIONS; KEYS; };
+PROJECT_SECTIONS :: get_enum_variants_as_redable_list(ProjectSection, false);
+
+init_project :: fn () {
+	project = typeof(project).{};
+	project.string_cache = std.pool_make(null, 2048);
+	std.mutex_init(&project.mutex);
+}
+
+terminate_project :: fn () {
+	using std;
+	clear_project();
+
+	mutex_terminate(&project.mutex);
+	release_allocator(&project.string_cache);
+
+	array_terminate(&project.included_directories);
+	array_terminate(&project.included_extensions);
+	array_terminate(&project.excluded_directories);
+	array_terminate(&project.indexed_files);
+}
+
+create_default_project_file :: fn (directory: string_view, filename: string_view) Error {
+	filepath :: tprint("%/%", directory, filename);
+
+	using std;
+	stream, err_open :: open_file(filepath, OpenFileMode.WRITE | OpenFileMode.CREATE);
+	if err_open { return err_open; }
+	defer close_file(&stream);
+
+	_, err_write :: write_string(&stream, DEFAULT_PROJECT_FILE_TEMPLATE_DATA);
+	return err_write;
+}
+
+load_default_project_file :: fn () Error #inline {
+	return load_project_file(exec_dir, DEFAULT_CONFIG_FILE, true);
+}
+
+load_project_file :: fn (directory: string_view, filename: string_view, is_default := false) Error {
+	filepath :: tprint("%/%", directory, filename);
+
+	clear_project();
+
+	using std;
+	stream, err_open :: open_file(filepath, OpenFileMode.READ);
+	if err_open { return err_open; }
+	defer close_file(&stream);
+
+	bytes: [..]u8;
+	defer array_terminate(&bytes);
+
+	err_load :: load_whole_file(&bytes, &stream);
+	if err_load { return err_load; }
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = bytes,
+		},
+		file       = filepath,
+	};
+
+	err :: parse(&ctx);
+	if err {
+		// In case of error we have to restore the default settings.
+		load_default_project_from_template();
+	} else {
+		name :: path_splitext(filename);
+		project.name       = str_new(name, &project.string_cache);
+		project.filepath   = str_new(filepath, &project.string_cache);
+		project.is_default = is_default;
+	}
+
+	do_the_stuff_after_project_load();
+
+	return err;
+}
+
+load_default_project_from_template :: fn () {
+	clear_project();
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = DEFAULT_PROJECT_FILE_TEMPLATE_DATA,
+		},
+		file = "TEMPLATE",
+	};
+
+	err :: parse(&ctx);
+	if err { panic(err); } // This is really bad! Even the template project file is broken.
+	print_log("Using default setting from the project template file data.");
+
+	project.is_default = true;
+	do_the_stuff_after_project_load();
+}
+
+check_project_changes :: fn (changed_directory: string_view, change_kind: WatchFor) bool {
+	check_main_thread();
+	if (change_kind & WATCH_FLAGS_FOR_REINDEX) == WATCH_FLAGS_FOR_REINDEX {
+		loop i := 0; i < project.included_directories.len; i += 1 {
+			project_directory :: project.included_directories[i];
+			if std.str_match(changed_directory, project_directory) {
+				indexed_files_ditry = true;
+			}
+		}
+	}
+
+	if (change_kind & WATCH_FLAGS_FOR_RELOAD) == WATCH_FLAGS_FOR_RELOAD {
+		reload_changed_open_buffer_in_tree(changed_directory);
+		return true;
+	}
+
+	return false;
+}
+
+maybe_reindex_current_project :: fn () {
+	if !indexed_files_ditry { return; }
+	indexed_files_ditry = false;
+	index_included_directories();
+}
+
+get_project_main_directory :: fn () string_view #inline {
+	if project.included_directories.len > 0 {
+		return project.included_directories[0];
+	}
+
+	return "";
+}
+
+#private
+
+WATCH_FLAGS_FOR_REINDEX :: WatchFor.FILE_CHANGES | WatchFor.DIRECTORY_CHANGES;
+WATCH_FLAGS_FOR_RELOAD  :: WatchFor.MODIFICATIONS;
+
+//
+// Indexing
+//
+
+indexed_files_ditry := false;
+
+IndexWorkerContext :: struct {
+	cancel: bool;
+}
+
+indexing: struct {
+	job: std.Async(*IndexWorkerContext, s32);
+	ctx: IndexWorkerContext;
+}
+
+index_included_directories :: fn () {
+	using std;
+
+	check_main_thread();
+	cancel_indexing();
+	if project.included_directories.len == 0 {
+		print_log("Indexing skipped, no directories included in the project.");
+		return;
+	}
+
+	indexing.ctx = IndexWorkerContext.{};
+	async(&indexing.job, &indexing.ctx, &index_worker);
+}
+
+cancel_indexing :: fn () {
+	using std;
+	if !project.is_indexing { return; }
+	indexing.ctx.cancel = true;
+	async_wait(&indexing.job);
+}
+
+index_worker :: fn (ctx: *IndexWorkerContext) s32 {
+	using std;
+	print_log("Indexing started.");
+
+	tracy.init("indexer");
+	defer tracy.terminate();
+
+	// List all project files first.
+	file_visitor :: fn (info: *std.FileVisitInfo) Error {
+		using std;
+
+		if info.is_directory {
+			if str_match_one_of(info.filename, project.excluded_directories) {
+				info.step_into_directory = false;
+			}
+			return OK;
+		}
+		_, ext :: path_splitext(info.filename);
+		// @Incomplete: Case sensitive!?
+		if ext.len == 0 { return OK; }
+		if project.included_extensions.len > 0 && str_match_one_of(ext, project.included_extensions) == false {
+			return OK;
+		}
+
+		filepath :: str_new(info.filepath, &project.string_cache);
+		array_push(&project.indexed_files, filepath);
+		return OK;
+	};
+
+	// Locking must be done here in the indexer thread, odtherwise we might get some lags in UI especially when async
+	// search is in progress...
+	mutex_lock(&project.mutex);
+	defer mutex_unlock(&project.mutex);
+	project.is_indexing = true;
+	project.indexed_files.len = 0;
+
+	loop i := 0; i < project.included_directories.len && ctx.cancel == false; i += 1 {
+		dirpath :: project.included_directories[i];
+		print_log("Index directory '%'.", dirpath);
+		err_visit :: visit_files(dirpath, VisitOpt.{ recursive = true }, &file_visitor);
+		if err_visit {
+			print_err(err_visit);
+			continue;
+		}
+	}
+
+	project.is_indexing = false;
+	print_log("Indexing DONE (indexed % files).", project.indexed_files.len);
+	return 0;
+};
+
+clear_project :: fn () {
+	loop i := 0; i < project.included_directories.len; i += 1 {
+		unwatch_changes(project.included_directories[i], WATCH_FLAGS_FOR_REINDEX);
+		unwatch_changes(project.included_directories[i], WATCH_FLAGS_FOR_RELOAD);
+	}
+
+	cancel_indexing();
+
+	project.name     = "";
+	project.filepath = "";
+	project.included_directories.len = 0;
+	project.included_extensions.len  = 0;
+	project.excluded_directories.len = 0;
+	project.indexed_files.len        = 0;
+	reset_allocator(&project.string_cache);
+}
+
+do_the_stuff_after_project_load :: fn () {
+	// Apply loaded changes, new ones or restored ones.
+	rebuild_fonts();
+
+	// map color codes for source code syntax
+	code_color_table[auto CODE_COLOR_DEFAULT_INDEX  ] = colors.foreground_color;
+	code_color_table[auto CODE_COLOR_CURSOR_INDEX   ] = colors.cursor_foreground_color;
+	code_color_table[auto CODE_COLOR_KEYWORD_INDEX  ] = colors.code_keyword;
+	code_color_table[auto CODE_COLOR_COMMENT_INDEX  ] = colors.code_comment;
+	code_color_table[auto CODE_COLOR_DIRECTIVE_INDEX] = colors.code_directive;
+	code_color_table[auto CODE_COLOR_STRING_INDEX   ] = colors.code_string;
+	code_color_table[auto CODE_COLOR_INVALID_INDEX  ] = colors.code_invalid;
+	code_color_table[auto CODE_COLOR_NUMBER_INDEX   ] = colors.code_number;
+	code_color_table[auto CODE_COLOR_ERROR_INDEX    ] = colors.code_error;
+	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
+
+	indexed_files_ditry = true;
+
+	loop i := 0; i < project.included_directories.len; i += 1 {
+		using WatchFor;
+		err := watch_changes(project.included_directories[i], WATCH_FLAGS_FOR_REINDEX);
+		if err { print_err(err); }
+
+		err = watch_changes(project.included_directories[i], WATCH_FLAGS_FOR_RELOAD);
+		if err { print_err(err); }
+	}
+}
+
+add_include_directory :: fn (dir: string_view) {
+	array_push(&project.included_directories, std.str_new(dir, &project.string_cache));
+}
+
+add_exclude_directory :: fn (dir: string_view) {
+	array_push(&project.excluded_directories, std.str_new(dir, &project.string_cache));
+}
+
+add_include_file_extension :: fn (ext: string_view) {
+	array_push(&project.included_extensions, std.str_new(ext, &project.string_cache));
+}
+
+//
+// Hotload operations
+//
+
+reload_changed_open_buffer_in_tree :: fn (changed_directory: string_view) {
+	check_main_thread();
+	loop i := 0; i < buffers.len; i += 1 {
+		b :: &buffers[i];
+		if b.is_removed           { continue; }
+		if b.filepath.len == 0    { continue; }
+		if b.last_write_time == 0 { continue; }
+		if !is_under_directory(changed_directory, b.filepath) { continue; }
+
+		time, err :: get_file_last_write_time(b.filepath);
+		if err {
+			print_err(err);
+			continue;
+		}
+		if b.last_write_time != time {
+			print_log("Reload '%' due to content changed on disk.", b.filepath);
+			err :: load_buffer_from_file(b, b.filepath);
+			if err { print_err(err); }
+			print_info("Buffer '%' reloaded from disk.", b.name);
+		}
+	}
+}
+
+//
+// Parsing
+//
+
+Tokenizer :: struct #base TokenizerBase {
+	current_section: ProjectSection;
+	file:            string_view;
+	line:            s32;
+}
+
+parse :: fn (ctx: *Tokenizer) Error {
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		c :: ctx.bytes[ctx.index];
+		if c == '\n' { ctx.index += 1; ctx.line += 1; continue;  }
+		if c == '\r' { ctx.index += 1; continue;                 }
+		if c == '#'  { eat_till_new_line(ctx); continue;         }
+
+		err_sec, section_changed :: maybe_change_section(ctx);
+		if err_sec         { return err_sec; }
+		if section_changed { continue;       }
+
+		err := OK;
+
+		using ProjectSection;
+		switch ctx.current_section {
+			NONE                    { err = report(ctx, "Unexpected characters!"); }
+			INCLUDE                 { err = parse_include(ctx);                    }
+			EXCLUDE                 { err = parse_exclude(ctx);                    }
+			INCLUDE_FILE_EXTENSIONS { err = parse_include_extension(ctx);          }
+			SETTINGS                { err = parse_settings_entry(ctx);             }
+			KEYS                    { err = parse_keymap_entry(ctx);               }
+			COLORS                  { err = parse_color_entry(ctx);                }
+
+			default;
+		}
+
+		if err { return err; }
+	}
+
+	return OK;
+}
+
+maybe_change_section :: fn (ctx: *Tokenizer) (err: Error, changed: bool) {
+	if ctx.bytes[ctx.index] != ';' { return OK, false; }
+	ctx.index += 1; // eat ;
+	eat_whitespace(ctx);
+	section_name :: eat_word(ctx);
+
+	section_index :: std.str_first_match(section_name, PROJECT_SECTIONS);
+	if section_index == -1 || section_index == auto ProjectSection.NONE {
+		return report(ctx, "Expected section name after ';'."), false;
+	} else {
+		ctx.current_section = auto section_index;
+	}
+
+	return OK, true;
+}
+
+parse_whole_line_as_string :: fn (ctx: *Tokenizer) string_view #inline {
+	line :: eat_till(ctx, "\n\r\t#");
+	return trim_right(line, [1]u8.{ ' ' });
+}
+
+parse_include :: fn (ctx: *Tokenizer) Error {
+	include :: parse_whole_line_as_string(ctx);
+	if include.len > 0 {
+		assert(include[0] != ' ');
+		add_include_directory(include);
+	}
+	return OK;
+}
+
+parse_exclude :: fn (ctx: *Tokenizer) Error {
+	exclude :: parse_whole_line_as_string(ctx);
+	if exclude.len > 0 {
+		assert(exclude[0] != ' ');
+		add_exclude_directory(exclude);
+	}
+	return OK;
+}
+
+parse_include_extension :: fn (ctx: *Tokenizer) Error {
+	ext :: eat_till(ctx, " #\n\r\t");
+	if ext.len > 0 {
+		add_include_file_extension(ext);
+	}
+	return OK;
+}
+
+parse_settings_entry :: fn (ctx: *Tokenizer) Error {
+	// entry name
+	name :: eat_word(ctx);
+	if name.len == 0 { return report(ctx, "Expected settings entry name!"); }
+	eat_whitespace(ctx);
+
+	info :: cast(*TypeInfoStruct) typeinfo(settings);
+	member_ptr, member_type, member_hash :: find_member_in_struct(auto &settings, info, name);
+	if !member_ptr {
+		return report(ctx, "Unknown settings entry name '%'.", name);
+	}
+
+	if member_type == typeinfo(s32) {
+		err, n :: parse_number(ctx);
+		if err { return err; }
+		// Some validation...
+		switch member_hash {
+			lit_hash("font_size") {
+				if n < MIN_FONT_SIZE || n > MAX_FONT_SIZE {
+					return report(ctx, "Font size is expected to be in range <%, %>.", MIN_FONT_SIZE, MAX_FONT_SIZE);
+				}
+			}
+			lit_hash("tab_size") {
+				if n < 1 {
+					return report(ctx, "Tab size is expected to be greater than 0.");
+				}
+			}
+		}
+		s32_ptr :: cast(*s32) member_ptr;
+		@s32_ptr = cast(s32)  n;
+	} else if member_type == typeinfo(bool) {
+		err, v :: parse_bool(ctx);
+		if err { return err; }
+		bool_ptr :: cast(*bool) member_ptr;
+		@bool_ptr = v;
+	} else {
+		panic(report(ctx, "Unsupported settings entry type '%'!", @member_type));
+	}
+	return OK;
+}
+
+parse_color_entry :: fn (ctx: *Tokenizer) Error {
+	// entry name
+	name :: eat_word(ctx);
+	if name.len == 0 { return report(ctx, "Expected color entry name!"); }
+	eat_whitespace(ctx);
+
+	info :: cast(*TypeInfoStruct) typeinfo(colors);
+	member_ptr :: find_member_in_struct(auto &colors, info, name);
+	if !member_ptr { return report(ctx, "Unknown colors entry name '%'.", name); }
+
+	// value
+	err, n :: parse_number(ctx, FmtIntBase.HEX);
+	if err { return err; }
+	dest :: cast(*glm.v4) member_ptr;
+	@dest = rgb2(cast(u32) n);
+
+	return OK;
+}
+
+parse_keymap_entry :: fn (ctx: *Tokenizer) Error {
+	// entry name
+	name :: eat_word(ctx);
+	if name.len == 0 { return report(ctx, "Expected command name!"); }
+
+	command_id :: std.str_first_match(name, COMMAND_NAMES);
+	if command_id <= auto Command._PUBLIC {
+		return report(ctx, "Invalid command name '%'.", name);
+	}
+
+	unmap_binding_for_command(auto command_id);
+
+	key_code := -1;
+	mods     :=  0;
+
+	loop {
+		eat_whitespace(ctx);
+		key_name :: eat_till(ctx, " \n\r\t#+");
+		if key_name.len == 0 {
+			break;
+		}
+		mod :: mod_from_name(key_name);
+		if mod != -1 {
+			mods |= mod;
+		} else {
+			key :: key_from_name(key_name);
+			if key == -1 {
+				return report(ctx, "Invalid key name '%'!", key_name);
+			}
+			if key_code != -1 {
+				return report(ctx, "Key chord can contain only one non-modifier key!");
+			}
+			key_code = key;
+		}
+
+		eat_whitespace(ctx);
+
+		c :: ctx.bytes[ctx.index];
+		if c == '+' {
+			// Multiple keys in chord.
+			ctx.index += 1;
+			continue;
+		} else if c != '#' && c != '\r' && c != '\n' {
+			if key_code == -1 { return report(ctx, "Invalid key binding."); }
+			map_key_binding(ctx, auto command_id, key_code, mods);
+			// New entry.
+			key_code   = -1;
+			mods       =  0;
+			continue;
+		}
+		break;
+	}
+
+	if key_code != -1 {
+		map_key_binding(ctx, auto command_id, key_code, mods);
+	} else if mods != 0 {
+		return report(ctx, "Invalid key binding.");
+	}
+
+	return OK;
+}
+
+// key == -1 -> unmap all command bindings
+map_key_binding :: fn (ctx: *Tokenizer, command_id: Command, key: s32, mods: s32) {
+	assert((cast(s32) command_id) > (cast(s32) Command._PUBLIC));
+	print_log("Add key mapping: % -> %+%.", COMMAND_NAMES[auto command_id], key, mods);
+	loop i := 0; i < key_binding.len; i += 1 {
+		if key_binding[i].key == key && key_binding[i].mods == mods {
+			warning(ctx, "Duplicate key-binding for command '%' the same key combination is already set for command '%'.",
+			              COMMAND_NAMES[auto command_id], COMMAND_NAMES[auto key_binding[i].cmd]);
+		}
+	}
+	array_push(&key_binding, KeyMapEntry.{
+		cmd  = command_id,
+		mods = mods,
+		key  = key
+	});
+}
+
+unmap_binding_for_command :: fn (command_id: Command) {
+	loop i := 0; i < key_binding.len; {
+		if key_binding[i].cmd == command_id {
+			array_erase(&key_binding, i);
+			continue;
+		}
+		i += 1;
+	}
+}
+
+parse_number :: fn (ctx: *Tokenizer, base := FmtIntBase.DEC) (err: Error, n: s64) {
+	using std;
+	c := ctx.bytes[ctx.index];
+	if !is_digit(c, base) { return report(ctx, "Expected number!"), 0; }
+	start_index :: ctx.index;
+	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
+		c = ctx.bytes[ctx.index];
+		if !is_digit(c, base) {
+			break;
+		}
+	}
+	len :: ctx.index - start_index;
+	str :: string_view.{ len, &ctx.bytes[start_index] };
+	v, err :: strtos64(str, base);
+	if err {
+		return report(ctx, tprint("Invalid number: %", err)), 0;
+	}
+	return OK, v;
+}
+
+parse_bool :: fn (ctx: *Tokenizer) (err: Error, v: bool) {
+	str :: eat_till(ctx, " \t\n\r#");
+	v :: std.str_first_match(str, [2]string_view.{ "false", "true" });
+	if v == -1 {
+		return report(ctx, "Expected boolean value <true|false>!"), false;
+	}
+	if v == 0 { return OK, false; }
+	return OK, true;
+}
+
+find_member_in_struct :: fn (base_ptr: *u8, info: *TypeInfoStruct, name: string_view) (ptr: *u8, member_type: *TypeInfo, hash: u32) #inline {
+	using std;
+	assert(info.kind == TypeKind.STRUCT);
+	loop i := 0; i < info.members.len; i += 1 {
+		member :: &info.members[i];
+		if str_match(member.name, name) {
+			return ptr_shift_bytes(base_ptr, member.offset_bytes), member.base_type, str_hash(member.name);
+		}
+	}
+	return null, null, 0;
+}
+
+lit_hash :: fn (lit: string_view) u32 #comptime {
+	return std.str_hash(lit);
+}
+
+report :: fn (ctx: *Tokenizer, fmt: string_view, args: ...) Error {
+	msg :: tprint(fmt, args);
+	return error("Project configuration %:% %", ctx.file, ctx.line+1, msg);
+}
+
+warning :: fn (ctx: *Tokenizer, fmt: string_view, args: ...) {
+	msg :: tprint(fmt, args);
+	print_warn("Project configuration %:% %", ctx.file, ctx.line+1, msg);
+}
+

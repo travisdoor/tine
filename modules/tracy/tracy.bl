@@ -1,0 +1,60 @@
+#scope tracy
+
+#load "tracy_impl.bl"
+
+init :: fn (thread_name: string_view) #enable_if TRACY_ENABLE {
+	set_thread_name(thread_name);
+}
+
+terminate :: fn () #enable_if TRACY_ENABLE {
+	array_terminate(&stack);
+}
+
+set_thread_name :: fn (name: string_view) #inline #enable_if TRACY_ENABLE {
+	tracy_impl.___tracy_set_thread_name(std.strtoc(name));
+}
+
+zone_begin :: fn (name := "", loc := #call_location) #inline #enable_if TRACY_ENABLE {
+	using tracy_impl;
+	using std;
+
+	tracy_name: string_view #noinit;
+	if name.len > 0 {
+		tracy_name = name;
+	} else {
+		tracy_name = loc.function;
+	}
+
+	tracy_loc :: ___tracy_alloc_srcloc(auto loc.line, auto loc.file.ptr, auto loc.file.len, auto tracy_name.ptr, auto tracy_name.len);
+	tracy_ctx :: ___tracy_emit_zone_begin_alloc(tracy_loc, 1);
+
+	array_push(&stack, tracy_ctx);
+}
+
+zone_end :: fn () #inline #enable_if TRACY_ENABLE {
+	using tracy_impl;
+	assert(stack.len > 0);
+	tracy_ctx: TracyCZoneCtx #noinit;
+	array_pop(&stack, &tracy_ctx);
+	___tracy_emit_zone_end(tracy_ctx);
+}
+
+mark_frame :: fn () #inline #enable_if TRACY_ENABLE {
+	tracy_impl.___tracy_emit_frame_mark(null);
+}
+
+frame_begin :: fn (name := "frame") #inline #enable_if TRACY_ENABLE {
+	tracy_impl.___tracy_emit_frame_mark_start(std.strtoc(name));
+}
+
+frame_end :: fn (name := "frame") #inline #enable_if TRACY_ENABLE {
+	tracy_impl.___tracy_emit_frame_mark_end(std.strtoc(name));
+}
+
+plot :: fn (name: string_view, v: ?T) #inline #enable_if TRACY_ENABLE {
+	tracy_impl.___tracy_emit_plot(std.strtoc(name), cast(f64) v);
+}
+
+#private
+
+stack: [..]tracy_impl.TracyCZoneCtx #thread_local;

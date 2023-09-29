@@ -1,0 +1,484 @@
+TokenizerBase :: struct {
+	bytes: []u8;
+	index: s32;
+}
+
+eat_whitespace :: fn (ctx: *TokenizerBase) s32 #inline {
+	n := 0;
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c != ' ' && c != '\t' { break; }
+		ctx.index += 1;
+		n += 1;
+	}
+	return n;
+}
+
+eat_till_whitespace :: fn (ctx: *TokenizerBase) string_view {
+	start_index :: ctx.index;
+	len := 0;
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		switch c {
+			'\n', '\r', '\t', ' ' { break; }
+		    default;
+		}
+		len       += 1;
+		ctx.index += 1;
+	}
+
+	return string_view.{ len, &ctx.bytes[start_index] };
+}
+
+eat_string_in_quotes :: fn (ctx: *TokenizerBase, trim_quotes := false) string_view {
+	start_index :: ctx.index;
+	len := 0;
+
+	pc: u8;
+	sc, qc: s32;
+	in_string := true;
+	loop in_string && ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if pc == '\\' {
+			sc += 1;
+		} else {
+			sc = 0;
+		}
+		escape :: sc > 0 && (sc % 2 > 0);
+		if c == '\"' && escape == false {
+			qc += 1;
+			in_string = qc != 2;
+		}
+		len       += 1;
+		ctx.index += 1;
+		pc = c;
+	}
+	str :: string_view.{ len, &ctx.bytes[start_index] };
+	if !trim_quotes { return str; }
+	q :: [1]u8.{ '\"' };
+	return trim_left(trim_right(str, q), q);
+}
+
+eat_line_and_trim_eol :: fn (ctx: *TokenizerBase) string_view {
+	line :: eat_line(ctx);
+	return trim_right(line, "\r\n");
+}
+
+eat_line :: fn (ctx: *TokenizerBase) string_view {
+	start_index :: ctx.index;
+	len := 0;
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		len       += 1;
+		ctx.index += 1;
+		if c == '\n' { break; }
+	}
+
+	return string_view.{ len, &ctx.bytes[start_index] };
+}
+
+eat_till_new_line :: fn (ctx: *TokenizerBase) string_view {
+	start_index :: ctx.index;
+	len := 0;
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\n' || c == '\r' { break; }
+		len       += 1;
+		ctx.index += 1;
+	}
+
+	return string_view.{ len, &ctx.bytes[start_index] };
+}
+
+// -, _ or alpha characters
+eat_word :: fn (ctx: *TokenizerBase) string_view {
+	start_index :: ctx.index;
+	len := 0;
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c != '_' && c != '-' && std.is_alpha(c) == false { break; }
+		len       += 1;
+		ctx.index += 1;
+	}
+	return string_view.{ len, &ctx.bytes[start_index] };
+}
+
+eat_till :: fn (ctx: *TokenizerBase, delimiters: []u8) string_view {
+	start_index :: ctx.index;
+	len := 0;
+	br := false;
+	loop ctx.index < ctx.bytes.len && br == false {
+		c :: ctx.bytes[ctx.index];
+		loop i := 0; i < delimiters.len; i += 1 {
+			if c == delimiters[i] {
+				br = true;
+				break;
+			}
+		}
+		if br { break; }
+		len       += 1;
+		ctx.index += 1;
+	}
+	return string_view.{ len, &ctx.bytes[start_index] };
+}
+
+get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_underscore := true) [enum_count(TEnum)]string_view #comptime {
+	tmp: [enum_count(TEnum)]string_view #noinit;
+	info :: cast(*TypeInfoEnum) typeinfo(TEnum);
+	loop i := 0; i < tmp.len; i += 1 {
+		using std;
+		name :: str_new(info.variants[i].name);
+		str_lower(&name);
+		if replace_underscore {
+			str_replace_all(&name, '_', '-');
+		}
+
+		tmp[i] = name;
+	}
+	return tmp;
+}
+
+get_struct_members_as_list :: fn (TStruct: type #comptime) [struct_count(TStruct)]string_view #comptime {
+	tmp: [struct_count(TStruct)]string_view #noinit;
+	info :: cast(*TypeInfoStruct) typeinfo(TStruct);
+	loop i := 0; i < tmp.len; i += 1 {
+		using std;
+		name :: str_new(info.members[i].name);
+		str_lower(&name);
+		//str_replace_all(&name, '_', '-');
+
+		tmp[i] = name;
+	}
+	return tmp;
+}
+
+rgb :: fn (c: u32) glm.v4 #comptime {
+	using std;
+	T :: union {
+		v: u32;
+		ch: [4]u8;
+	};
+	tmp: T #noinit;
+	tmp.v = c;
+
+	result: glm.v4 #noinit;
+	result.x = cast(f32) tmp.ch[2] / 255.f;
+	result.y = cast(f32) tmp.ch[1] / 255.f;
+	result.z = cast(f32) tmp.ch[0] / 255.f;
+	result.w = 1.f;
+	return result;
+}
+
+rgb2 :: fn (c: u32) glm.v4 {
+	using std;
+	T :: union {
+		v: u32;
+		ch: [4]u8;
+	};
+	tmp: T #noinit;
+	tmp.v = c;
+
+	result: glm.v4 #noinit;
+	result.x = cast(f32) tmp.ch[2] / 255.f;
+	result.y = cast(f32) tmp.ch[1] / 255.f;
+	result.z = cast(f32) tmp.ch[0] / 255.f;
+	result.w = 1.f;
+	return result;
+}
+
+rgba :: fn (c: u32) glm.v4 #comptime {
+	using std;
+	T :: union {
+		v: u32;
+		ch: [4]u8;
+	};
+	tmp: T #noinit;
+	tmp.v = c;
+
+	result: glm.v4 #noinit;
+	result.x = cast(f32) tmp.ch[3] / 255.f;
+	result.y = cast(f32) tmp.ch[2] / 255.f;
+	result.z = cast(f32) tmp.ch[1] / 255.f;
+	result.w = cast(f32) tmp.ch[0] / 255.f;
+	return result;
+}
+
+// Converts the unicode icone ID to utf8 string in the compile time.
+icon :: fn (unicode: u32) string_view #inline #comptime {
+	using std;
+	tmp :: str_new();
+	err :: utf32_to_utf8_single_char(unicode, &tmp);
+	if err { panic(err); }
+	return tmp;
+}
+
+load_whole_file :: fn (dest: *[..]u8, stream: *std.Stream, size_limit_bytes : s64 = -1) Error {
+	using std;
+	using StreamLocator;
+
+	prev_location, err1  :: seek(stream, CURRENT);
+	if err1 { return err1; }
+	defer seek(stream, CURRENT, prev_location);
+
+	_, err2 :: seek(stream, BEGIN);
+	if err2 { return err2; }
+
+	size, err3 :: seek(stream, END);
+	if err3 { return err3; }
+
+	_, err4 :: seek(stream, BEGIN);
+	if err4 { return err4; }
+
+	if size_limit_bytes != -1 && size > size_limit_bytes {
+		return error(-1, "File bigger than specified limit %B.", size_limit_bytes);
+	}
+
+	assert(dest.len == 0, "Expected to be cleared out to reduce copying!");
+	array_resize(dest, size);
+
+	return read_all(stream, dest.ptr, size, 2048);
+}
+
+string_to_url :: fn (src: string_view) string_view {
+	using std;
+	url := str_new(src.len * 2, application_context.temporary_allocator);
+	start := 0;
+	len   := 0;
+	loop j := 0; j < src.len; j += 1 {
+		c :: src[j];
+		if c >= 'a' && c <= 'z' { len += 1; continue; }
+		if c >= 'A' && c <= 'Z' { len += 1; continue; }
+
+		str_append(&url, string_view.{ len, &src[start] });
+		start = j + 1;
+		len   = 0;
+
+		// eh...
+		replacement := tprint("%", fmt_int(c, FmtIntBase.HEX, false));
+		assert(replacement.len < 3);
+		if replacement.len == 1 {
+			str_concat(&url, "%0", replacement);
+		} else {
+			str_concat(&url, "%", replacement);
+		}
+	}
+
+	if len > 0 { str_append(&url, string_view.{ len, &src[start] }); }
+	return url;
+}
+
+open_path :: fn (path: string_view) {
+#if PLATFORM == Platform.WINDOWS {
+	using win32;
+	using std;
+	ShellExecuteA(null, strtoc("open"), strtoc(path), null, null, SW_SHOWDEFAULT);
+} else {
+	// @Incomplete: Maybe something else on Linux?
+	os_execute(tprint("open \"%\"", path));
+}
+}
+
+trim_right :: fn (str: string_view, chars: []u8) string_view #inline {
+	result := str;
+	loop i := str.len-1; i >= 0; i -= 1 {
+		c :: str[i];
+		stop := true;
+		loop j := 0; j < chars.len; j += 1 {
+			if c == chars[j] {
+				result.len -= 1;
+				stop        = false;
+				break;
+			}
+		}
+		if stop { break; }
+	}
+	return result;
+}
+
+trim_left :: fn (str: string_view, chars: []u8, max_num := std.S32_MAX) string_view #inline {
+	start  := 0;
+	len    := str.len;
+	loop i := 0; i < str.len && i < max_num; i += 1 {
+		c :: str[i];
+		stop := true;
+		loop j := 0; j < chars.len; j += 1 {
+			if c == chars[j] {
+				len   -= 1;
+				start += 1;
+				stop   = false;
+				break;
+			}
+		}
+		if stop { break; }
+	}
+	assert(len >= 0 && len <= str.len);
+	return string_view.{ len, &str[start] };
+}
+
+find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0) s64 {
+	assert(subject.len > 0);
+	match_start : s64 = -1;
+	subject_index: s32;
+	position := start_position;
+	loop position < data.len {
+		a :: data[position];
+		b :: subject[subject_index];
+
+		al :: get_character_len(a);
+		bl :: get_character_len(b);
+		if al == 0 { return -1; }
+
+		if al == bl && (a == b || (bl == 1 && a == cast(u8) C.toupper(cast(s32) b))) {
+			if subject_index == 0 {
+				match_start = position;
+			}
+			subject_index += bl;
+			if subject_index >= subject.len { break; }
+		} else {
+			subject_index =  0;
+			match_start   = -1;
+		}
+
+		position += al;
+	}
+
+	return match_start;
+}
+
+get_default_line_ending_for_platform :: fn () string_view #inline {
+#if PLATFORM == Platform.WINDOWS {
+	return "\r\n";
+} else {
+	return "\n";
+}
+}
+
+is_under_directory :: fn (directory: string_view, filepath: string_view) bool #inline {
+	using std;
+	root :: string_view.{ min(filepath.len, directory.len), filepath.ptr };
+	return str_match(root, directory);
+}
+
+get_timestamp :: fn () s64 {
+	c_time :: fn (destTime: *s64) s64 #extern "time";
+	return c_time(null);
+}
+
+unicode_char_to_utf8_with_fallback :: fn (c: u32, fallback: string_view = "?") string_view #inline {
+	tmp :: std.str_new(4, application_context.temporary_allocator);
+	err :: utf32_to_utf8_single_char(c, &tmp);
+	if err {
+		print_err(err);
+		return fallback;
+	}
+	return tmp;
+}
+
+get_file_hash :: fn (filepath: string_view) u32 {
+	using std;
+	tmp :: str_new(filepath, application_context.temporary_allocator);
+	#if PLATFORM == Platform.WINDOWS {
+		str_lower(&tmp);
+	}
+	str_replace_all(&tmp, '\\', '/');
+	return str_hash(tmp);
+}
+
+new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+	using win32;
+	using std;
+
+	url_dup :: tprint(url); // Might not be zero-terminated...
+	buf: [MAX_PATH]u8 #noinit;
+	len : DWORD = auto url_dup.len;
+	status :: PathCreateFromUrlA(std.strtoc(url_dup), auto buf.ptr, &len, 0);
+	if status != S_OK {
+		return error("Url '%' cannot be converted to file path.", url), string.{};
+	}
+	result :: str_new(string_view.{ auto len, buf.ptr });
+	str_replace_all(&result, '\\', '/');
+	return OK, result;
+}
+
+ShadowMode :: enum {
+	NONE;
+	ALL;
+	TOP;
+	BOTTOM;
+}
+
+draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
+	using draw;
+	using glm;
+	r :: metrics[auto Metric.CORNER_ROUNDING];
+	s :: metrics[auto Metric.SHADOW_SIZE];
+
+	set_shader_color();
+	inner_color :: rgba(0x00000060);
+	outer_color :: rgba(0x0);
+	using ShadowMode;
+	switch mode {
+		NONE { return; }
+		ALL {
+			rect_rounded(x - s + r, y - s + r, w + s * 2.f - r * 2.f, h + s * 2.f - r * 2.f, s, inner_color, outer_color);
+		}
+		TOP {
+			rect_rounded(x - s, y - s, w + s * 2.f, h + s, s, inner_color, outer_color);
+		}
+		BOTTOM {
+			rect_rounded(x - s, y, w + s * 2.f, h + s, s, inner_color, outer_color);
+		}
+	}
+}
+
+is_ident :: fn (buf: *Buffer, char: string_view) bool #inline {
+	NON_IDENT_CHARS :: " ()[]{}.-+:;\"',!@#$%^&*~`<>/?\t\r\n";
+
+	if char.len == 0              { return false; }
+	if is_line_end(buf, char) > 0 { return false; }
+	loop i := 0; i < NON_IDENT_CHARS.len; i += 1 {
+		if char[0] == NON_IDENT_CHARS[i] { return false; }
+	}
+	return true;
+}
+
+is_whitespace :: fn (char: u8) bool #inline {
+	WHITESPACE :: " \t\n\r";
+	loop i := 0; i < WHITESPACE.len; i += 1 {
+		if char == WHITESPACE[i] { return true; }
+	}
+	return false;
+}
+
+insert_all :: fn (tbl: *?T, v: []string_view) #inline {
+	using std;
+	loop i := 0; i < v.len; i += 1 {
+		tbl_insert(tbl, v[i], 0);
+	}
+}
+
+str_match_ignore_case :: fn (a: string_view, b: string_view) bool {
+	if a.len != b.len { return false; }
+	loop i := 0; i < a.len; i += 1 {
+		if a[i] == b[i] { continue; }
+		if C.tolower(auto a[i]) == C.tolower(auto b[i]) { continue; }
+		return false;
+	}
+	return true;
+}
+
+is_point_in_rect :: fn (rx: f32, ry: f32, rw: f32, rh: f32, px: f32, py: f32) bool #inline {
+	rxw :: rx + rw;
+	ryh :: ry + rh;
+	return px > rx && px < rxw && py > ry && py < ryh;
+}
+
+get_icon_for_buffer :: fn (buf: *Buffer) string_view {
+	ic := icon(ICON_FILE);
+	if buf.index == build.buffer_index {
+		ic = icon(ICON_BUILD);
+	} else if buf.index == messages_buffer_index {
+		ic = icon(ICON_MESSAGES);
+	}
+	return ic;
+}

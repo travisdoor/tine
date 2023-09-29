@@ -1,0 +1,132 @@
+start_process :: fn (cmd: string_view, ctx: *?TContext) Error {
+	using win32;
+
+	static_assert(has_member2(TContext, "pid"));
+	static_assert(has_member2(TContext, "stdin"));
+	static_assert(has_member2(TContext, "stdout"));
+
+	stdin_read:   win32.HANDLE;
+	stdin_write:  win32.HANDLE;
+	stdout_read:  win32.HANDLE;
+	stdout_write: win32.HANDLE;
+
+	security_attributes :: SECURITY_ATTRIBUTES.{
+		nLength = auto sizeof(SECURITY_ATTRIBUTES),
+		bInheritHandle = TRUE,
+		lpSecurityDescriptor = null
+	};
+
+	if CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0) == 0 {
+		return os_get_last_error2();
+	}
+
+	if SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0) == 0 {
+		return os_get_last_error2();
+	}
+
+	if CreatePipe(&stdin_read, &stdin_write, &security_attributes, 0) == 0 {
+		return os_get_last_error2();
+	}
+
+	if SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0) == 0 {
+		return os_get_last_error2();
+	}
+
+	// Create process
+	process_info: PROCESS_INFORMATION;
+
+	startup_info :: STARTUPINFOA.{
+		cb          = auto sizeof(STARTUPINFOA),
+		hStdError   = stdout_write,
+		hStdOutput  = stdout_write,
+		hStdInput   = stdin_read,
+		dwFlags     = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW,
+		wShowWindow = auto SW_HIDE,
+	};
+
+	state :: CreateProcessA(null, std.strtoc(cmd), null, null, TRUE, 0, null, null, &startup_info, &process_info);
+	if state == 0 {
+		return os_get_last_error2();
+	}
+
+	CloseHandle(process_info.hProcess);
+	CloseHandle(process_info.hThread);
+	CloseHandle(stdout_write);
+	CloseHandle(stdin_read);
+
+	ctx.pid    = process_info.dwProcessId;
+	ctx.stdin  = stdin_write;
+	ctx.stdout = stdout_read;
+
+	return OK;
+}
+
+kill_process :: fn (pid: win32.DWORD, exit_code: s32) Error {
+	using win32;
+	handle :: OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+	if !handle {
+		return os_get_last_error2();
+	}
+	defer CloseHandle(handle);
+
+	if TerminateProcess(handle, auto exit_code) == 0 {
+		return os_get_last_error2();
+	}
+
+	return OK;
+}
+
+peek_pipe :: fn (stream: win32.HANDLE, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
+	using win32;
+
+	available_bytes: u32 #noinit;
+	if PeekNamedPipe(stream, null, 0, null, &available_bytes, null) == 0 {
+		code, desc :: os_get_last_error();
+		if error_on_close == false && code == ERROR_BROKEN_PIPE { return OK, 0, true; }
+		return error(code, desc), 0, false;
+	}
+	return OK, available_bytes, false;
+}
+
+read_pipe :: fn (stream: win32.HANDLE, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
+	using win32;
+	using std;
+
+	str_reserve(dest, auto bytes_to_read);
+
+	total_read : u32 = 0;
+	loop total_read < bytes_to_read {
+		buf:  [2048]u8 #noinit;
+		read: DWORD;
+		state :: ReadFile(stream, buf.ptr, auto buf.len, &read, null);
+		if state == 0 {
+			code, desc :: os_get_last_error();
+			if error_on_close == false && code == ERROR_BROKEN_PIPE { return OK, true; }
+			return error(code, desc), false;
+		}
+		if read == 0 { break; }
+		str_append(dest, string_view.{ auto read, buf.ptr });
+		total_read += read;
+	}
+
+	return OK, false;
+}
+
+write_pipe :: fn (stream: win32.HANDLE, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
+	using std;
+	using win32;
+
+	tmp := msg;
+	loop tmp.len > 0 {
+		written: DWORD;
+		state :: WriteFile(stream, tmp.ptr, auto tmp.len, &written, null);
+		if state == 0 {
+			code, desc :: os_get_last_error();
+			if error_on_close == false && code == ERROR_BROKEN_PIPE { return OK, true; }
+			return error(code, desc), false;
+		}
+		tmp.ptr = &tmp[auto written];
+		tmp.len -= cast(s32) written;
+	}
+	return OK, false;
+}

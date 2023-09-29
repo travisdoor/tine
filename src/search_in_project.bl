@@ -1,0 +1,108 @@
+search_in_project_mode_init :: fn () {
+	using std;
+
+	active_editor = command_editor;
+	buf, editor :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.TEXT;
+
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+
+	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
+	clear_selection(target_buf, target_editor.cursor_index);
+
+	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
+		subject.len = 0;
+		str_append(&subject, initial_subject);
+		insert_string(buf, 0, initial_subject);
+		select_all(editor, buf);
+	}
+
+	err :: list_async_search(subject, true);
+	if err { print_err(err); }
+}
+
+search_in_project_mode_terminate :: fn () {
+	using std;
+	cancel_async_search();
+	str_delete(&subject);
+}
+
+draw_search_in_project_mode :: fn () {
+	assert(active_editor == command_editor);
+
+	if project.is_indexing {
+		print_warn(PROJECT_IS_INDEXING_MESSAGE);
+		set_mode(Mode.TEXT_EDIT);
+		return;
+	}
+
+	w, h :: get_command_editor_size();
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search in %: ", project.name));
+
+	is_running, progress :: get_async_search_progress();
+	if is_running {
+		using draw;
+		set_shader_color();
+		rect(0.f, h-2.f, w * progress, 2.f, colors.warning_color);
+	}
+
+	using DrawListCols;
+	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT | PREVIEW);
+	draw_last_status_message(0.f, h + list_h, w);
+	if clicked { commit(); }
+}
+
+//
+// Commands
+//
+
+invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	using std;
+	using Command;
+
+	switch cmd {
+		INSERT_NEW_LINE { commit(); }
+
+		MOVE_UP   { list_item_up();   }
+		MOVE_DOWN { list_item_down(); }
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+search_in_project_cmd_changed :: fn () {
+	using std;
+
+	buf :: get_active_buffer_and_editor();
+	new_subject :: peek_row(buf, 0);
+	subject.len = 0;
+	str_append(&subject, new_subject);
+	err :: list_async_search(subject);
+	if err { print_err(err); }
+}
+
+#private
+
+subject: string;
+
+commit :: fn () {
+	item :: get_selected_item_in_list();
+	if !item { return; }
+
+	set_mode(Mode.TEXT_EDIT);
+	err :: open(tprint("%/%", item.hint, item.title), true);
+	if err {
+		print_err(err);
+		return;
+	}
+	target_buffer, target_editor :: get_active_buffer_and_editor();
+	target_buffer.cursors[target_editor.cursor_index].position = item.index;
+}
+
+

@@ -1,0 +1,1184 @@
+// Data representation of the text content draw/edited in the editors.
+Buffer :: struct {
+	index: s32;
+
+	name:            string;
+	filepath:        string;
+	last_write_time: u64;
+	hash:            u32;
+	file_type:       FileType;
+	flags:           BufferFlags;
+
+	line_ending:  LineEnding;
+
+	cursors: [..]struct {
+		position:        s64;
+		selection_start: s64;
+		is_removed:      bool;
+	};
+
+	bytes:  [..]u8;
+	colors: [..]u8;
+
+	dirty_syntax: bool;
+	batch_active: bool;
+
+	mutex: std.Mutex;
+
+	lines:  [..]s64;
+	indent: [..]Indent;
+
+	undo:          [..]Rec;
+	undo_top:      s64;
+	saved_top:     s64;
+
+	tmp_string:      string;
+	has_pending_job: s32; // 0 = no pending jobs
+	pending_t:       f32;
+
+	lsp: struct {
+		version:            s32; // 0 = not tracked by lsp
+		published_top:      s64;
+		dia:            [..]ErrorLocation;
+		dia_strs:       [..]string;
+	};
+
+	is_removed:      bool;
+}
+
+is_file_open :: fn (filepath: string_view) bool {
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed { continue; }
+		if buf.hash == get_file_hash(filepath) {
+			return true;
+		}
+	}
+	return false;
+}
+
+BufferFlags :: enum #flags {
+	NONE     = 0;
+	NO_UNDO  = 1;
+	READONLY = NO_UNDO  | 2;
+}
+
+Cursor :: struct {
+	position:        s32; // We support only reasonably large files...
+	selection_start: s32;
+	row:             s32;
+	col:             s32;
+}
+
+Range :: struct {
+	start: s64;
+	end:   s64;
+}
+
+Indent :: struct {
+	position: s64;
+	nesting:  s32;
+}
+
+Rec :: struct {
+	kind: enum { INSERT_CHAR; INSERT; DELETE; COMMIT; };
+	data: union {
+		insert_char: struct {
+			position: s64;
+			char:     u32;
+		};
+		insert: struct {
+			position: s64;
+			str:      string;
+		};
+		delete: struct {
+			start: s64;
+			end:   s64;
+		};
+	};
+}
+
+add_buffer :: fn (name := "") s32 {
+	check_main_thread();
+	buf: *Buffer;
+	loop i := 0; i < buffers.len; i += 1 {
+		b :: &buffers[i];
+		if b.is_removed {
+			buf            = b;
+			buf.is_removed = false;
+			break;
+		}
+	}
+	if !buf {
+		index :: cast(s32) buffers.len;
+		buf       = zeroinit(array_push(&buffers));
+		buf.index = index;
+	}
+
+	if name.len > 0 {
+		buf.name = std.str_new(name);
+	} else {
+		buf.name = std.str_new("scratch");
+	}
+	buf.line_ending = detect_line_ending(buf.bytes);
+	rebuild_lines(buf);
+
+	reset_undo(buf);
+	std.mutex_init(&buf.mutex);
+	return buf.index;
+}
+
+add_command_buffer :: fn () s32 {
+	index :: add_buffer();
+	buf :: &buffers[index];
+
+	buf.line_ending = detect_line_ending(buf.bytes);
+	buf.flags       = BufferFlags.NO_UNDO;
+
+	std.str_clear(&buf.name);
+	std.str_append(&buf.name, "cmd");
+	return index;
+}
+
+add_messages_buffer :: fn (name: string_view) s32 {
+	index :: add_buffer();
+	buf :: &buffers[index];
+
+	buf.line_ending   = LineEnding.LF;
+	buf.flags = BufferFlags.READONLY;
+
+	std.str_clear(&buf.name);
+	std.str_append(&buf.name, name);
+	return index;
+}
+
+remove_buffer :: fn (index: s32) {
+	using std;
+	assert(index >= 0 && index < buffers.len);
+	check_main_thread();
+
+	buf :: &buffers[index];
+	if buf.is_removed { return; }
+
+	array_terminate(&buf.bytes);
+	array_terminate(&buf.colors);
+
+	str_delete(&buf.tmp_string);
+	str_delete(&buf.name);
+	str_delete(&buf.filepath);
+
+	clear_undo(buf);
+
+	array_terminate(&buf.lines);
+	array_terminate(&buf.undo);
+	array_terminate(&buf.cursors);
+	array_terminate(&buf.indent);
+	mutex_terminate(&buf.mutex);
+
+	terminate_buffer_diagnostics(buf);
+
+	zeroinit(buf);
+	buf.index      = index;
+	buf.is_removed = true;
+}
+
+lock_buffer :: fn (buf: *Buffer) {
+	std.mutex_lock(&buf.mutex);
+}
+
+unlock_buffer :: fn (buf: *Buffer) {
+	std.mutex_unlock(&buf.mutex);
+}
+
+add_cursor :: fn (buf: *Buffer) s32 {
+	check_main_thread();
+
+	loop i := 0; i < buf.cursors.len; i += 1 {
+		if buf.cursors[i].is_removed {
+			c :: &buf.cursors[i];
+			c.position        = 0;
+			c.selection_start = -1;
+			c.is_removed      = false;
+			return i;
+		}
+	}
+	index :: cast(s32) buf.cursors.len;
+	c :: array_push(&buf.cursors);
+	c.position        =  0;
+	c.selection_start = -1;
+	c.is_removed      = false;
+	return index;
+}
+
+remove_cursor :: fn (buf: *Buffer, cursor_index: s32) {
+	check_main_thread();
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	buf.cursors[cursor_index].is_removed = true;
+}
+
+get_cursor :: fn (buf: *Buffer, cursor_index: s32) Cursor #inline {
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	c :: buf.cursors[cursor_index]; // copy since cursor is small
+	assert(c.is_removed == false);
+	return Cursor.{
+		position        = auto c.position,
+		selection_start = auto c.selection_start,
+		row             = count_rows_to_position(buf, c.position),
+		col             = count_cols_to_position(buf, c.position)
+	};
+}
+
+// Does not include selection start.
+get_cursor_for_position :: fn (buf: *Buffer, position: s64) Cursor #inline {
+	return Cursor.{
+		position        = auto position,
+		selection_start = -1,
+		row             = count_rows_to_position(buf, position),
+		col             = count_cols_to_position(buf, position)
+	};
+}
+
+get_cursor_position :: fn (buf: *Buffer, cursor_index: s32) s64 #inline {
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	c :: buf.cursors[cursor_index];
+	assert(c.is_removed == false);
+	return c.position;
+}
+
+set_cursor_position :: fn (buf: *Buffer, cursor_index: s32, position: s64) #inline {
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	c :: &buf.cursors[cursor_index];
+	assert(c.is_removed == false);
+	c.position = position;
+}
+
+try_set_cursor_row_col :: fn (buf: *Buffer, cursor_index: s32, row: s32, col: s32) {
+	line, start_index := peek_row(buf, row);
+	if line.len == 0 { return; }
+
+	valid_cols: s32;
+	loop i := 0; i < line.len && valid_cols < col; valid_cols += 1 {
+		char_len :: std.min(get_character_len(line[i]), 1);
+		i += char_len;
+		start_index += char_len;
+	}
+
+	set_cursor_position(buf, cursor_index, start_index);
+}
+
+start_selection :: fn (buf: *Buffer, cursor_index: s32) #inline {
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	c :: &buf.cursors[cursor_index];
+	assert(c.is_removed == false);
+	c.selection_start = c.position;
+}
+
+clear_selection :: fn {
+	fn (buf: *Buffer, cursor_index: s32) #inline {
+		assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+		c :: &buf.cursors[cursor_index];
+		assert(c.is_removed == false);
+		c.selection_start = -1;
+	};
+	fn (buf: *Buffer) {
+		loop i := 0; i < buf.cursors.len; i += 1 {
+			c :: &buf.cursors[i];
+			if c.is_removed { continue; }
+			c.selection_start = -1;
+		}
+	};
+}
+
+get_selection_start :: fn (buf: *Buffer, cursor_index: s32) s64 #inline {
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	c :: &buf.cursors[cursor_index];
+	assert(c.is_removed == false);
+	return c.selection_start;
+}
+
+get_selection_range :: fn (buf: *Buffer, cursor_index: s32) (start: s64, end: s64) #inline {
+	start :: get_selection_start(buf, cursor_index);
+	end   :: get_cursor_position(buf, cursor_index);
+	if start == -1 { return 0, 0; }
+	if start > end {
+		swap(&start, &end);
+	}
+	return start, end;
+}
+
+peek_selection :: fn (buf: *Buffer, cursor_index: s32) (text: string_view, start_index: s64) #inline {
+	start, end :: get_selection_range(buf, cursor_index);
+	return string_view.{ end - start, &buf.bytes[start] }, start;
+}
+
+has_selection :: fn (buf: *Buffer, cursor_index: s32) bool #inline {
+	start, end :: get_selection_range(buf, cursor_index);
+	return end > start;
+}
+
+count_characters_in_selection :: fn (buf: *Buffer, cursor_index: s32) s64 #inline {
+	selected :: peek_selection(buf, cursor_index);
+	return count_characters(buf, selected);
+}
+
+commit_undo :: fn (buf: *Buffer) {
+	using Rec.kind;
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return; }
+	if buf.undo.len > 0 && buf.undo[buf.undo.len-1].kind == COMMIT { return; }
+
+	reset_undo_top_before_inserting(buf);
+	buf.undo_top = buf.undo.len;
+
+	rec :: array_push(&buf.undo);
+	rec.kind = COMMIT;
+
+	// Update document in lsp
+	if is_lsp_running() && buf.lsp.version > 0 &&  lsp_buffer_needs_update(buf) {
+		lsp_change_document(buf);
+	}
+}
+
+reset_undo :: fn (buf: *Buffer) {
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return; }
+	clear_undo(buf);
+	buf.undo_top = -1;
+
+	commit_undo(buf);
+}
+
+clear_buffer :: fn (buf: *Buffer) {
+	buf.bytes.len       = 0;
+	buf.last_write_time = 0;
+
+	loop i := 0; i < buf.cursors.len; i += 1 {
+		c :: &buf.cursors[i];
+		if c.is_removed { continue; }
+		c.position        =  0;
+		c.selection_start = -1;
+	}
+
+	rebuild_lines(buf);
+}
+
+load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
+	using std;
+	check_main_thread();
+
+	assert(filepath.len > 0);
+
+	{
+		stream, open_err :: open_file(filepath);
+		defer close_file(&stream);
+		if open_err { return open_err; }
+
+		buf_error :: load_buffer_bytes(buf, &stream);
+		if buf_error { return buf_error; }
+	}
+
+	set_buffer_file_info(buf, filepath);
+
+	return OK;
+}
+
+save_buffer_to_file :: fn (buf: *Buffer, filepath: string_view) Error {
+	using std;
+	check_main_thread();
+
+	assert(filepath.len > 0);
+
+	{
+		stream, open_err :: open_file(filepath, OpenFileMode.WRITE | OpenFileMode.CREATE);
+		defer close_file(&stream);
+		if open_err { return open_err; }
+
+		buf_error :: save_buffer_bytes(buf, &stream);
+		if buf_error { return buf_error; }
+	}
+
+	// Messages can be saved but we don't want to associate with the file.
+	if buf.index != messages_buffer_index {
+		set_buffer_file_info(buf, filepath);
+	}
+
+	if buf.lsp.version > 0 {
+		lsp_save_document(buf);
+	}
+
+	print_info("File saved to: '%'.", filepath);
+	return OK;
+}
+
+// @Cleanup: Similar to count_rows_to_position...
+find_row_for_position :: fn (buf: *Buffer, position: s64, start_row_index: s32 = 0) s32 #inline {
+	assert(!buf.batch_active);
+	i := start_row_index;
+	loop ; i < buf.lines.len-1; i += 1 {
+		if buf.lines[i+1] > position { break; }
+	}
+	return i;
+}
+
+peek_row :: fn (buf: *Buffer, row_index: s32) (text: string_view, start_index: s64) {
+	assert(!buf.batch_active);
+	start_index, end_index: s64;
+	if row_index < buf.lines.len {
+		start_index = buf.lines[row_index];
+	} else {
+		start_index = buf.lines[buf.lines.len-1];
+	}
+	if row_index+1 < buf.lines.len {
+		end_index = buf.lines[row_index+1];
+	} else {
+		end_index = buf.lines[buf.lines.len-1];
+	}
+
+	if start_index == -1        { return "", 0;           }
+	if start_index == end_index { return "", start_index; }
+	result :: string_view.{ end_index - start_index, &buf.bytes[start_index] };
+	return result, start_index;
+}
+
+peek_row_without_new_line :: fn (buf: *Buffer, row_index: s32) (text: string_view, start_index: s64, len_with_new_line: s32) {
+	row, start_index  := peek_row(buf, row_index);
+	len_with_new_line :: cast(s32) row.len;
+	row  = trim_right(row, "\r\n");
+	return row, start_index, len_with_new_line;
+}
+
+peek_range :: fn (buf: *Buffer, start: s64, end: s64) string_view #inline {
+	assert(end >= start);
+	if end == start { return ""; }
+	return string_view.{ end - start, &buf.bytes[start] };
+}
+
+peek_position :: fn (buf: *Buffer, position: s64) string_view {
+	if position < 0 || position >= buf.bytes.len { return ""; }
+
+	char_len := is_line_end(buf, &buf.bytes[position]);
+	if char_len == 0 {
+		char_len = get_character_len(buf.bytes[position]);
+	} else {
+		return get_line_ending(buf.line_ending);
+	}
+	return string_view.{ char_len, &buf.bytes[position] };
+}
+
+// Peek current character before cursor.
+peek_before_position :: fn (buf: *Buffer, position: s64) string_view {
+	line_ending :: get_line_ending(buf.line_ending);
+	if position < 0 || position > buf.bytes.len { return ""; }
+
+	if position-line_ending.len >= 0 && is_line_end(buf, &buf.bytes[position-line_ending.len]) > 0 {
+		return line_ending;
+	}
+	i := position;
+	loop {
+		if i <= 0 { break; }
+		i -= 1;
+		if (buf.bytes[i] & 0xC0) != 0x80 { break; }
+	}
+	unicode_char_len :: auto (position - i);
+	if unicode_char_len <= 0 { return ""; }
+	assert(unicode_char_len < 5);
+
+	return string_view.{ unicode_char_len, &buf.bytes[position-unicode_char_len] };
+}
+
+batch_begin :: fn (buf: *Buffer) {
+	assert(buf.batch_active == false);
+	buf.batch_active = true;
+}
+
+batch_end :: fn (buf: *Buffer) {
+	assert(buf.batch_active);
+	buf.batch_active = false;
+
+	rebuild_lines(buf);
+	notify(buf);
+	buf.dirty_syntax = true;
+}
+
+insert_ascii_character :: fn (buf: *Buffer, position: s64, c: u8) #inline {
+	insert_unicode_character(buf, position, auto c);
+}
+
+insert_unicode_character :: fn (buf: *Buffer, position: s64, c: u32) string_view {
+	str :: unicode_char_to_utf8_with_fallback(c);
+	add_undo_delete(buf, position, position + str.len);
+	insert_string_impl(buf, position, str);
+	return str;
+}
+
+insert_string :: fn (buf: *Buffer, position: s64, str: string_view) {
+	add_undo_delete(buf, position, position + str.len);
+	insert_string_impl(buf, position, str);
+}
+
+delete_range :: fn (buf: *Buffer, start: s64, end: s64) {
+	if start == end { return; }
+	assert(end > start);
+	assert(start >= 0 && start <  buf.bytes.len);
+	assert(end   >= 0 && end   <= buf.bytes.len);
+
+	len :: end - start;
+	str :: string_view.{ len, &buf.bytes[start] };
+	if get_character_len(str[0]) == str.len {
+		c :: utf8_to_utf32_single_char(str);
+		add_undo_insert_char(buf, start, c);
+	} else {
+		add_undo_insert(buf, start, str);
+	}
+
+	delete_range_impl(buf, start, end);
+}
+
+// Change the whole content of the buffer with respect to undo and cursor positions.
+change_content :: fn (buf: *Buffer, content: string_view) {
+	// Remember positions of all cursors before changes.
+	cursors:        [..]Cursor;
+	cursor_indices: [..]s32;
+	defer array_terminate(&cursors);
+	defer array_terminate(&cursor_indices);
+
+	loop i := 0; i < editors.len; i += 1 {
+		e :: &editors[i];
+		if e.is_removed { continue; }
+		if e.buffer_index == buf.index {
+			array_push(&cursors, get_cursor(buf, e.cursor_index));
+			array_push(&cursor_indices, e.cursor_index);
+		}
+	}
+	assert(cursors.len == cursor_indices.len);
+
+	last_position :: get_last_position_in_buffer(buf);
+
+	commit_undo(buf);
+
+	batch_begin(buf);
+	delete_range(buf, 0, last_position);
+	insert_string(buf, 0, content);
+	batch_end(buf);
+
+	commit_undo(buf);
+
+	// Restore cursor positions.
+	loop i := 0; i < cursors.len; i += 1 {
+		try_set_cursor_row_col(buf, cursor_indices[i], cursors[i].row, cursors[i].col);
+	}
+}
+
+append_readonly_buffer :: fn (buf: *Buffer, str: string_view) {
+	if str.len == 0 { return; }
+	position : s64 = 0;
+	if buf.lines.len > 0 {
+		position = buf.lines[buf.lines.len - 1];
+	}
+	insert_string_impl(buf, position, str);
+
+	position = get_last_position_in_buffer(buf);
+	// Move all existing cursors to the end of a new content.
+	loop i := 0; i < buf.cursors.len; i += 1 {
+		c :: &buf.cursors[i];
+		if c.is_removed { continue; }
+		c.position        = position;
+		c.selection_start = -1;
+	}
+}
+
+get_line_ending :: fn (line_ending: LineEnding) string_view {
+	using LineEnding;
+	switch line_ending {
+		CRLF { return "\r\n"; }
+		LF   { return "\n";   }
+	    default;
+	}
+	return "";
+}
+
+is_line_end :: fn {
+	is_line_end_ptr;
+	is_line_end_str;
+}
+
+count_rows_to_position :: fn (buf: *Buffer, position: s64) s32 {
+	assert(position >= 0);
+	assert(!buf.batch_active);
+	count := 0;
+	loop i := 1; i < buf.lines.len-1; i += 1 {
+		if buf.lines[i] > position {
+			break;
+		}
+		count += 1;
+	}
+	return count;
+}
+
+count_cols_to_position :: fn (buf: *Buffer, position: s64) s32 {
+	count := 0;
+	p := position;
+	loop {
+		char :: peek_before_position(buf, p);
+		if char.len == 0              { break; }
+		if is_line_end(buf, char) > 0 { break; }
+
+		count += 1;
+		p -= char.len;
+	}
+	return count;
+}
+
+// Counts the tab character as settings.tab_size.
+count_visual_cols_to_position :: fn (buf: *Buffer, position: s64) s32 {
+	count := 0;
+	p := position;
+	loop {
+		char :: peek_before_position(buf, p);
+		if char.len == 0              { break; }
+		if is_line_end(buf, char) > 0 { break; }
+		if char[0] == '\t' { count += settings.tab_size; }
+		else { count += 1; }
+		p -= char.len;
+	}
+	return count;
+}
+
+find_matching :: fn (buf: *Buffer, subject: string_view, start_position : s64 = 0) s64 {
+	assert(subject.len > 0);
+	return find_matching_subject_in_data(buf.bytes, subject, start_position);
+}
+
+get_character_len :: fn (c: u8) s32 #inline {
+	if c < 0x80           { return 1; }
+	if (c & 0xE0) == 0xC0 { return 2; }
+	if (c & 0xE0) == 0xE0 { return 3; }
+	if (c & 0xF8) == 0xF0 { return 4; }
+	return 0;
+}
+
+is_multiline :: fn (str: string_view) bool #inline {
+	loop i := 0; i < str.len; i += 1 {
+		if str[i] == '\n' { return true; }
+	}
+	return false;
+}
+
+trim_trailing_whitespace :: fn (buf: *Buffer) {
+	using std;
+
+	if buf.bytes.len == 0 {
+		print_info("No traling whitespace in '%'.", buf.name);
+		return;
+	}
+
+	changed := false;
+	line_end :: get_line_ending(buf.line_ending);
+	assert(line_end.len > 0);
+
+	content :: str_new(buf.bytes.len);
+	defer str_delete(&content);
+
+	row_count :: get_row_count(buf);
+	loop i := 0; i < row_count; i += 1 {
+		line :: peek_row_without_new_line(buf, i);
+		trimmed :: trim_right(line, " \t");
+		if line.len - trimmed.len == 0 {
+			str_append(&content, line);
+			if i + 1 < row_count {
+				str_append(&content, line_end);
+			}
+			continue;
+		}
+		str_append(&content, trimmed);
+		if i + 1 < row_count {
+			str_append(&content, line_end);
+		}
+		changed = true;
+	}
+
+	if !changed {
+		print_info("No traling whitespace in '%'.", buf.name);
+		return;
+	}
+
+	change_content(buf, content);
+	print_info("Traling whitespace removed in '%'.", buf.name);
+}
+
+get_last_position_in_buffer :: fn (buf: *Buffer) s64 {
+	assert(!buf.batch_active);
+	if buf.lines.len > 0 {
+		return buf.lines[buf.lines.len - 1];
+	}
+	return 0;
+}
+
+maybe_report_readonly :: fn (buf: *Buffer) bool #inline {
+	assert(buf);
+	if (buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
+		print_warn("Buffer '%' is readonly.", buf.name);
+		return true;
+	}
+	return false;
+}
+
+insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
+	assert(str.len > 0);
+
+	lock_buffer(buf);
+	defer unlock_buffer(buf);
+
+	orig_bytes_len :: buf.bytes.len;
+	array_resize(&buf.bytes, buf.bytes.len + str.len);
+
+	memmove(&buf.bytes[position + str.len], &buf.bytes[position], auto orig_bytes_len - position);
+	memcpy (&buf.bytes[position], str.ptr, auto str.len);
+
+	adjust_all_cursors_from_position(buf, position, str.len);
+
+	if buf.batch_active { return; }
+
+	if str.len <= SMALL_STRING_EDIT {
+		scan_position := position;
+		loop i := 0; i < str.len; {
+			new_line := false;
+			char_len := is_line_end(buf, &str[i]);
+			if char_len == 0 {
+				char_len = get_character_len(str[i]);
+			} else {
+				new_line = true;
+			}
+			row :: shift_lines_after_position(buf, scan_position, char_len) + 1;
+			scan_position += char_len;
+			if new_line {
+				array_insert(&buf.lines, row, scan_position);
+			}
+			i += char_len;
+		}
+	} else {
+		rebuild_lines(buf);
+	}
+
+	rebuild_lines(buf);
+
+	notify(buf);
+	buf.dirty_syntax = true;
+}
+
+delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
+	assert(end > start);
+	assert(start >= 0 && start <  buf.bytes.len);
+	assert(end   >= 0 && end   <= buf.bytes.len);
+
+	lock_buffer(buf);
+	defer unlock_buffer(buf);
+
+	len :: end - start;
+	str :: string_view.{ len, &buf.bytes[start] };
+	adjust_all_cursors_from_position(buf, end, -len);
+
+	if buf.batch_active == false && str.len <= SMALL_STRING_EDIT {
+		loop i := 0; i < str.len; {
+			new_line := false;
+			char_len := is_line_end(buf, &str[i]);
+			if char_len == 0 {
+				char_len = get_character_len(str[i]);
+			} else {
+				new_line = true;
+			}
+			row :: shift_lines_after_position(buf, start, -char_len) + 1;
+			if new_line {
+				array_erase_keep_order(&buf.lines, row);
+			}
+			i += char_len;
+		}
+	}
+
+	memmove(&buf.bytes[start], &buf.bytes[end], auto buf.bytes.len - end);
+	buf.bytes.len -= len;
+
+	if buf.batch_active { return; }
+
+	if str.len > SMALL_STRING_EDIT {
+		rebuild_lines(buf);
+	}
+
+	notify(buf);
+	buf.dirty_syntax = true;
+}
+
+reset_undo_top_before_inserting :: fn (buf: *Buffer) {
+	using Rec.kind;
+	if buf.undo.len == buf.undo_top+1 { return; }
+	loop i := buf.undo.len-1; i > buf.undo_top; i -= 1 {
+		rec :: &buf.undo[i];
+		if rec.kind == INSERT {
+			std.str_delete(&rec.data.insert.str);
+		}
+	}
+	assert(buf.undo_top >= 0);
+	buf.undo.len = buf.undo_top + 1;
+}
+
+add_undo_delete :: fn (buf: *Buffer, start: s64, end: s64) {
+	using Rec.kind;
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return; }
+	assert(end > start);
+
+	reset_undo_top_before_inserting(buf);
+	buf.undo_top = buf.undo.len;
+
+	rec :: array_push(&buf.undo);
+	rec.kind = DELETE;
+	rec.data.delete.start = start;
+	rec.data.delete.end   = end;
+}
+
+add_undo_insert :: fn (buf: *Buffer, position: s64, str: string_view) {
+	using Rec.kind;
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return; }
+	assert(str.len > 0);
+
+	reset_undo_top_before_inserting(buf);
+	buf.undo_top = buf.undo.len;
+
+	rec :: array_push(&buf.undo);
+	rec.kind = INSERT;
+	data :: &rec.data.insert;
+	data.position = position;
+	data.str      = std.str_new(str);
+}
+
+add_undo_insert_char :: fn (buf: *Buffer, position: s64, c: u32) {
+	using Rec.kind;
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return; }
+
+	reset_undo_top_before_inserting(buf);
+	buf.undo_top = buf.undo.len;
+
+	rec :: array_push(&buf.undo);
+	rec.kind = INSERT_CHAR;
+	data :: &rec.data.insert_char;
+	data.position = position;
+	data.char     = c;
+}
+
+// Does not contain line terminator for the last line.
+expand_range_to_whole_rows :: fn (buf: *Buffer, start: s64, end: s64) (start: s64, end: s64) {
+	start_row :: get_row_begin_position(buf, start);
+	end_row   :: get_row_end_position(buf, end);
+	return start_row, end_row;
+}
+
+// Returns the line begin position based on the current position in the buffer.
+get_row_begin_position :: fn (buf: *Buffer, position: s64) s64 #inline {
+	assert(position >= 0);
+	if position > buf.bytes.len { return position; }
+	loop i := position; i > 1; i -= 1 {
+		if buf.bytes[i-1] == '\n' { return i; }
+	}
+	return 0;
+}
+
+// Does not include line terminator.
+get_row_end_position :: fn (buf: *Buffer, position: s64) s64 #inline {
+	assert(position >= 0);
+	ending :: get_line_ending(buf.line_ending);
+	loop i := position; i < buf.bytes.len; i += 1 {
+		if buf.bytes[i] == ending[0] { return i; }
+	}
+	return buf.bytes.len;
+}
+
+// Expand the position to the whole row and checks if it's empty, new line characters are ignored.
+is_row_empty :: fn (buf: *Buffer, position: s64) bool #inline {
+	start, end :: expand_range_to_whole_rows(buf, position, position);
+	return start == end;
+}
+
+get_row_count :: fn (buf: *Buffer) s64 #inline {
+	assert(buf.lines.len >= 2);
+	return buf.lines.len - 1;
+}
+
+has_indentation_info :: fn (buf: *Buffer) bool #inline {
+	return buf.indent.len > 0;
+}
+
+find_indentation_for_cursor :: fn (buf: *Buffer, cursor_index: s32) s32 {
+	position :: get_cursor_position(buf, cursor_index);
+	n := 0;
+	loop i := 0 ; i < buf.indent.len; i += 1 {
+		indent :: &buf.indent[i];
+		if indent.position >= position { break; }
+		n = indent.nesting;
+	}
+	return std.max(n, 0);
+}
+
+find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
+	n := 0;
+	i := 0;
+	loop ; i < buf.indent.len; i += 1 {
+		indent :: &buf.indent[i];
+		if indent.position >= start { break; }
+		n = indent.nesting;
+	}
+	if i < buf.indent.len && buf.indent[i].position <= end {
+		n = std.min(n, buf.indent[i].nesting);
+	}
+	return std.max(n, 0);
+}
+
+terminate_buffer_diagnostics :: fn (buf: *Buffer) {
+	loop i := 0; i < buf.lsp.dia_strs.len; i += 1 {
+		std.str_delete(&buf.lsp.dia_strs[i]);
+	}
+	array_terminate(&buf.lsp.dia);
+	array_terminate(&buf.lsp.dia_strs);
+}
+
+get_diagnostic_for_line :: fn (buf: *Buffer, line: s32) *ErrorLocation #inline {
+	loop i := 0; i < buf.lsp.dia.len; i += 1 {
+		d :: &buf.lsp.dia[i];
+		if d.line == line { return d; }
+	}
+	return null;
+}
+
+rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
+	if !buf.dirty_syntax { return; }
+
+	using FileType;
+	switch buf.file_type {
+		BL   { highlight_syntax_bl(buf);   }
+		C    { highlight_syntax_cpp(buf);  }
+		PROJ { highlight_syntax_proj(buf); }
+		MD   { highlight_syntax_md(buf);   }
+		default;
+	}
+	if buf.index == messages_buffer_index {
+		highlight_messages_syntax(buf);
+	} else if buf.index == build.buffer_index {
+		highlight_build_syntax(buf);
+	}
+
+	buf.dirty_syntax = false;
+}
+
+#private
+
+SMALL_STRING_EDIT :: 16;
+
+clear_undo :: fn (buf: *Buffer) {
+	loop i := 0; i < buf.undo.len; i += 1 {
+		r :: &buf.undo[i];
+		if r.kind == Rec.kind.INSERT {
+			std.str_delete(&r.data.insert.str);
+		}
+	}
+	buf.undo.len = 0;
+}
+
+adjust_all_cursors_from_position :: fn (buf: *Buffer, position: s64, offset: s64) {
+	loop i := 0; i < buf.cursors.len; i += 1 {
+		c :: &buf.cursors[i];
+		if c.is_removed { continue; }
+		if c.position >= position {
+			c.position += offset;
+			assert(c.position >= 0);
+			if c.selection_start != -1 { c.selection_start += offset; }
+		}
+	}
+}
+
+// Count unicode characters in the string. (the new line is always counted as a one character).
+count_characters :: fn (buf: *Buffer, str: string_view) s64 {
+	count: s64;
+	loop i := 0; i < str.len; {
+		nll :: is_line_end(buf, &str[i]);
+		l: s32 #noinit;
+		if nll > 0 {
+			l = nll;
+		} else {
+			l = get_character_len(str[i]);
+		}
+		i += std.max(1, l); // To prevent looping!
+		count += 1;
+	}
+	return count;
+}
+
+is_line_end_ptr :: fn (buf: *Buffer, start: *u8) s32 #inline {
+	ending :: get_line_ending(buf.line_ending);
+	return is_line_end_str(buf, string_view.{ ending.len, start });
+}
+
+is_line_end_str :: fn (buf: *Buffer, str: string_view) s32 #inline {
+	ending :: get_line_ending(buf.line_ending);
+	if std.str_match(ending, str) { return auto ending.len; }
+	return 0;
+}
+
+shift_lines_after_position :: fn (buf: *Buffer, position: s64, n : s64 = 1) s32 {
+	row :: count_rows_to_position(buf, position);
+    loop i := row+1; i < buf.lines.len; i += 1 {
+        buf.lines[i] += n;
+    }
+	return row;
+}
+
+detect_line_ending :: fn (bytes: []u8) LineEnding {
+    loop i := 0; i < bytes.len; i += 1 {
+        if bytes[i] == '\r' {
+            if i+1 < bytes.len && bytes[i+1] == '\n' {
+                return LineEnding.CRLF;
+            } else {
+                return LineEnding.UNKNOWN;
+            }
+        }
+		if bytes[i] == '\n' {
+			return LineEnding.LF;
+		}
+    }
+
+    #if PLATFORM == Platform.WINDOWS {
+        return LineEnding.CRLF;
+    } else {
+		return LineEnding.LF;
+	}
+}
+
+notify :: fn (buf: *Buffer) {
+	using Mode;
+	if active_editor == -1 { return; }
+
+	active_buf :: get_active_buffer_and_editor();
+	if active_buf != buf { return; }
+
+	switch mode {
+		OPEN_FROM_DRIVE   { open_from_drive_cmd_changed();      }
+		SAVE_TO_DRIVE     { save_to_drive_cmd_changed();        }
+		QUICK_OPEN        { quick_open_cmd_changed();           }
+		RUN_COMMAND       { run_command_cmd_changed();          }
+		SEARCH_FILE       { search_cmd_changed();               }
+		OPEN_PROJECT      { open_project_cmd_changed();         }
+		SEARCH_IN_PROJECT { search_in_project_cmd_changed();    }
+		COMPLETION        { completion_target_buffer_changed(); }
+
+		default;
+	}
+}
+
+set_buffer_file_info :: fn (buf: *Buffer, filepath: string_view) {
+	using std;
+
+	_, name :: path_split(filepath);
+
+	buf.dirty_syntax = true;
+
+	buf.name.len = 0;
+	buf.filepath.len = 0;
+	str_append(&buf.name, name);
+	str_append(&buf.filepath, filepath);
+	buf.hash = get_file_hash(filepath);
+
+	time, err :: get_file_last_write_time(filepath);
+	if err {
+		buf.last_write_time = 0;
+		print_err(err);
+	} else {
+		print_log("Write time for '%' is %.", filepath, time);
+		buf.last_write_time = time;
+	}
+
+	buf.file_type = detect_filetype(name);
+}
+
+rebuild_lines :: fn (buf: *Buffer) {
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	buf.lines.len = 0;
+	array_push(&buf.lines, 0);
+
+	// Following solution seems to be almost 2x faster on my machine, we basically exclude
+	// all 8 bytes in case there is no new line. Note that there is also simplification since
+	// we assume \r\n and \n both ends with \n.
+	loop i : s64 = 0; i < buf.bytes.len; {
+		ptr: *u64 = auto &buf.bytes[i];
+		data :: (@ptr ^ 0x0a0a0a0a0a0a0a0a);
+        if ((data - 0x0101010101010101) & (~data) & 0x8080808080808080) > 0 {
+			loop c := 0; c < 8 && i < buf.bytes.len; c += 1 {
+				if buf.bytes[i] == '\n' {
+					i += 1;
+					array_push(&buf.lines, i);
+				} else {
+					i += 1;
+				}
+			}
+		} else {
+			i += 8;
+		}
+	}
+	array_push(&buf.lines, buf.bytes.len);
+
+/*
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	buf.lines.len = 0;
+	array_push(&buf.lines, 0);
+
+	// Following solution seems to be almost 3x faster on my machine, we basically exclude
+	// all 8 bytes in case there is no new line. Note that there is also simplification since
+	// we assume \r\n and \n both ends with \n.
+	loop i : s64 = 0; i < buf.bytes.len; {
+		c :: buf.bytes[i];
+		if c == '\n' {
+			i += 1;
+			array_push(&buf.lines, i);
+		} else {
+			i += 1;
+		}
+	}
+
+	array_push(&buf.lines, buf.bytes.len);
+*/
+}
+
+load_buffer_bytes :: fn (buf: *Buffer, stream: *std.Stream) Error {
+	if buf.bytes.len > 0 {
+		// Reload and keep undo and stuff...
+		bytes: [..]u8;
+		defer array_terminate(&bytes);
+
+		err :: load_whole_file(&bytes, stream);
+		if err { return err; }
+
+		change_content(buf, bytes);
+		buf.saved_top = buf.undo_top;
+
+		return OK;
+	}
+
+	clear_buffer(buf);
+	err :: load_whole_file(&buf.bytes, stream);
+	if err { return err; }
+
+	buf.line_ending = detect_line_ending(buf.bytes);
+	rebuild_lines(buf);
+
+	return OK;
+}
+
+save_buffer_bytes :: fn (buf: *Buffer, stream: *std.Stream) Error {
+	using std;
+	assert(stream);
+
+	_, err :: write_data(stream, buf.bytes);
+	if err { return err; }
+
+	buf.saved_top = buf.undo_top;
+
+	return OK;
+}

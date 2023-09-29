@@ -1,0 +1,10 @@
+.vs
+projects
+/*.pdb
+/*.lib
+/*.obj
+/*.o
+/*.a
+/*.exe
+default.proj
+build.bat

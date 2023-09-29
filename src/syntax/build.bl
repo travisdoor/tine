@@ -1,0 +1,170 @@
+highlight_build_syntax :: fn (buf: *Buffer) {
+	using std;
+
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	clear_error_list();
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		if token.kind == EOF { break; }
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], auto token.kind, auto token.len);
+		}
+	}
+}
+
+#private
+
+Tokenizer :: struct #base TokenizerBase {
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		ERROR   = CODE_COLOR_ERROR_INDEX;
+		WARNING = CODE_COLOR_WARNING_INDEX;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		if parse_line(ctx, &t) { return t; }
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using std;
+	using Token.kind;
+
+	line := eat_line_and_trim_eol(ctx);
+	orig_len :: line.len;
+
+	loc: ErrorLocation #noinit;
+
+	valid := try_location_clang_like(line, &loc, &line);
+	if !valid { valid = try_location_cl_like(line, &loc, &line); }
+
+	if !valid { return false; }
+
+	line = trim_left(line, " ");
+	if line.len == 0 { return false; }
+
+	if str_match(string_view.{ 5, &line[0] }, "error") {
+		t.kind = ERROR;
+		t.len  = auto orig_len;
+
+		loc.kind      = ErrorLocation.kind.ERROR;
+		loc.message   = line;
+		loc.file_hash = get_file_hash(loc.file);
+
+		array_push(&error_list, loc);
+		return true;
+	} else if str_match(string_view.{ 7, &line[0] }, "warning") {
+		t.kind = WARNING;
+		t.len  = auto orig_len;
+
+		loc.kind      = ErrorLocation.kind.WARNING;
+		loc.message   = line;
+		loc.file_hash = get_file_hash(loc.file);
+
+		array_push(&error_list, loc);
+		return true;
+	}
+	return false;
+}
+
+try_location_clang_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_line: *string_view) bool #inline {
+	using std;
+
+	l := line;
+
+	lhs: string_view;
+	if !str_split_by_first(l, ':', &lhs, &l) { return false; }
+	// Special case on Windows if we have the full file path...
+	if lhs.len == 1 && is_alpha(lhs[0]) && str_split_by_first(l, ':', &lhs, &l) {
+		lhs.len += 2; // C:
+		lhs.ptr  = line.ptr;
+	}
+
+	// lsh filename
+	file :: lhs;
+
+	if !str_split_by_first(l, ':', &lhs, &l) { return false; }
+	// lhs line
+	ln, err_line :: strtos64(lhs);
+	if err_line { return false; }
+
+	if !str_split_by_first(l, ':', &lhs, &l) { return false; }
+	// lhs column
+	col :: strtos64(lhs);
+
+	loc.file = file;
+	loc.line = auto ln;
+	loc.col  = auto col;
+	@rest_of_the_line = l;
+
+	return true;
+}
+
+try_location_cl_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_line: *string_view) bool #inline {
+	using std;
+
+	l := line;
+
+	lhs: string_view;
+	if !str_split_by_first(l, ':', &lhs, &l) { return false; }
+	// Special case on Windows if we have the full file path...
+	if lhs.len == 1 && is_alpha(lhs[0]) && str_split_by_first(l, ':', &lhs, &l) {
+		lhs.len += 2; // C:
+		lhs.ptr  = line.ptr;
+	}
+
+	if lhs.len == 0          { return false; }
+	if lhs[lhs.len-1] != ')' { return false; }
+	@rest_of_the_line = l;
+
+	if !str_split_by_last(lhs, '(', &lhs, &l) { return false; }
+
+	// lsh filename
+	file :: lhs;
+	if !str_split_by_last(l, ')', &lhs, &l) { return false; }
+
+	ln, err_line :: strtos64(lhs);
+	if err_line { return false; }
+
+	col :: 0; // No such information in the string.
+
+	loc.file = file;
+	loc.line = auto ln;
+	loc.col  = auto col;
+
+	return true;
+}

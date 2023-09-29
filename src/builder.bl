@@ -1,0 +1,142 @@
+build: struct {
+	job_index:    s32;
+	buffer_index: s32;
+};
+
+build_init :: fn () {
+	build.job_index    = -1;
+	build.buffer_index = -1;
+}
+
+request_build :: fn () Error {
+	using std;
+	clear_error_list();
+
+	if !file_exist(BUILD_SCRIPT) {
+		cwd :: get_cwd();
+		defer str_delete(&cwd);
+		return error("Build script '%' not found in '%' (current working directory).", BUILD_SCRIPT, cwd);
+	}
+
+	if build.job_index != -1 {
+		return error("Build is already in progress, use 'build-kill' for interruption and try again.");
+	}
+
+	buf, editor := get_active_buffer_and_editor();
+	if buf.index != build.buffer_index {
+		if build.buffer_index == -1 {
+			build.buffer_index = add_messages_buffer("build");
+		}
+		buf = &buffers[build.buffer_index];
+
+		split := Split.LEFT;
+		if get_active_split() == Split.LEFT {
+			split = Split.RIGHT;
+		}
+		find_or_create_editor_in_split(split, build.buffer_index);
+	}
+
+	active_editor = editor.index;
+	clear_buffer(buf);
+	build.job_index = start_async_job(JobKind.BUILD, "build", &worker);
+	return OK;
+}
+
+apply_build :: fn (_: JobContext.state, request: *Request) {
+	if build.buffer_index == -1 { return; }
+	assert(build.buffer_index >= 0 && build.buffer_index < buffers.len);
+	buf :: &buffers[build.buffer_index];
+	assert(!buf.is_removed);
+
+	rd :: &request.data.build;
+	append_readonly_buffer(buf, rd.text);
+}
+
+kill_build :: fn () {
+	if build.job_index == -1 {
+		print_warn("Build is not running.");
+		return;
+	}
+	assert(build.job_index >= 0 && build.job_index < jobs.len);
+	assert(!jobs[build.job_index].worker_context.is_removed);
+	assert(jobs[build.job_index].worker_context.kind == JobKind.BUILD);
+	remove_async_job(build.job_index);
+}
+
+#private
+
+worker :: fn (ctx: *JobContext) s32 {
+	using std;
+	using JobContext.state;
+
+	err :: start_process(tprint("cmd.exe /c %", BUILD_SCRIPT), ctx);
+	if err {
+		print_err(err);
+		ctx.state = FAILED;
+		return 1;
+	}
+
+	result :: Request.{ job_kind = JobKind.BUILD };
+	rd :: &result.data.build;
+
+	rd.text = sprint("Building project '%'.\n", project.name);
+	push_result(ctx, &result);
+
+	loop !ctx.kill {
+		err_peek, bytes, is_closed :: peek_pipe(ctx.stdout);
+		if err_peek {
+			print_err(err_peek);
+			ctx.state = FAILED;
+			break;
+		}
+		if is_closed {
+			ctx.state = DONE;
+			break;
+		}
+
+		if bytes > 0 {
+			// @Performance: We allocate for each read, maybe there is better approach, but this one
+			// is safer.
+			rd.text = str_new(cast(s32) bytes);
+			defer push_result(ctx, &result);
+
+			err_read, is_closed :: read_pipe(ctx.stdout, &rd.text, bytes);
+			if err_read {
+				print_err(err_read);
+				ctx.state = FAILED;
+				break;
+			}
+			if is_closed {
+				ctx.state = DONE;
+				break;
+			}
+		} else {
+			os_sleep_ms(10);
+		}
+	}
+
+	switch ctx.state {
+		DONE {
+			rd.text = str_new("\nDONE!\n");
+			push_result(ctx, &result);
+			return 0;
+		}
+		FAILED {
+			return 0;
+		}
+		default;
+	}
+
+	err_kill :: kill_process(ctx.pid, 0);
+	if err_kill {
+		print_err(err_kill);
+		ctx.state = FAILED;
+		return 0;
+	}
+
+	rd.text = str_new("\nJob killed.\n");
+	push_result(ctx, &result);
+
+	ctx.state = KILLED;
+	return 0;
+}

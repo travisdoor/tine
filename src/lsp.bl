@@ -1,0 +1,1335 @@
+LspRequestKind :: enum {
+	UNKNOWN;
+	INITIALIZE;
+	DOCUMENT_OPEN;
+	DOCUMENT_CHANGE;
+	DOCUMENT_SAVE;
+	DOCUMENT_CLOSE;
+	GOTO_DECLARATION;
+	SWITCH_HEADER_SOURCE;
+	PUBLISH_DIAGNOSTICS;
+	COMPLETION;
+}
+
+LSP_MAX_DIAG_MESSAGE_COUNT :: 1000;
+
+lsp: struct {
+	job_index:   s32;
+	server_name: string;
+}
+
+lsp_init :: fn () {
+	lsp.job_index = -1;
+}
+
+lsp_terminate :: fn () {
+	std.str_delete(&lsp.server_name);
+}
+
+start_lsp_server :: fn () Error {
+	using std;
+
+	print_info("LSP: Starting server.");
+	lsp.job_index  = start_async_job(JobKind.LSP, "lsp", &worker);
+
+	request := Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind     = LspRequestKind.INITIALIZE;
+	rd.filepath = str_new(get_project_main_directory());
+
+	push_request(get_job_context(lsp.job_index), &request);
+	add_all_supported_buffers_to_lsp();
+
+	return OK;
+}
+
+kill_lsp_server :: fn () {
+	if !check_running() {
+		return;
+	}
+
+	assert(lsp.job_index >= 0 && lsp.job_index < jobs.len);
+	assert(!jobs[lsp.job_index].worker_context.is_removed);
+	assert(jobs[lsp.job_index].worker_context.kind == JobKind.LSP);
+	remove_async_job(lsp.job_index);
+}
+
+restart_lsp_server :: fn () {
+	if lsp.job_index != -1 {
+		kill_lsp_server();
+	}
+	assert(lsp.job_index == -1);
+	err :: start_lsp_server();
+	if err { print_err(err); }
+}
+
+lsp_is_supported_document_type :: fn (buf: *Buffer) bool #inline {
+	// Right now only clangd is supported as LSP server.
+	return buf.file_type == FileType.C;
+}
+
+lsp_open_document :: fn (buf: *Buffer) {
+	using std;
+
+	if !check_running() {
+		return;
+	}
+
+	assert(lsp_is_supported_document_type(buf));
+
+	print_log("LSP: Add file '%'.", buf.name);
+	buf.lsp.version += 1;
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind     = LspRequestKind.DOCUMENT_OPEN;
+	rd.filepath = str_new(buf.filepath);
+	rd.src      = str_new(buf.bytes); // @Performance
+	rd.version  = buf.lsp.version;
+
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_change_document :: fn (buf: *Buffer) {
+	using std;
+
+	if !check_running() {
+		return;
+	}
+	assert(lsp_is_supported_document_type(buf));
+
+	print_log("LSP: File '%' changed.", buf.name);
+	buf.lsp.version       += 1;
+	buf.lsp.published_top  = buf.undo_top;
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind      = LspRequestKind.DOCUMENT_CHANGE;
+	rd.filepath  = str_new(buf.filepath);
+	rd.src       = str_new(buf.bytes);
+	rd.version   = buf.lsp.version;
+
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_save_document :: fn (buf: *Buffer) {
+	using std;
+	if !check_running() {
+		return;
+	}
+	assert(lsp_is_supported_document_type(buf));
+	print_log("LSP: Save file '%'.", buf.name);
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind     = LspRequestKind.DOCUMENT_SAVE;
+	rd.filepath = str_new(buf.filepath);
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_close_document :: fn (buf: *Buffer) {
+	using std;
+
+	if !check_running() {
+		return;
+	}
+	assert(lsp_is_supported_document_type(buf));
+	print_log("LSP: Close file '%'.", buf.name);
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind     = LspRequestKind.DOCUMENT_CLOSE;
+	rd.filepath = str_new(buf.filepath);
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer) {
+	using std;
+
+	if !check_running() {
+		return;
+	}
+
+	if !lsp_is_supported_document_type(buf) {
+		print_warn("LSP: Buffer type not supported.");
+		return;
+	}
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind      = LspRequestKind.GOTO_DECLARATION;
+	rd.cursor    = get_cursor(buf, editor.cursor_index);
+	rd.filepath  = str_new(buf.filepath);
+
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_switch_header_source :: fn (buf: *Buffer) {
+	using std;
+
+	if !lsp_is_supported_document_type(buf) {
+		print_warn("LSP: Buffer type not supported.");
+		return;
+	}
+
+	if !check_running() {
+		return;
+	}
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
+	rd.filepath  = str_new(buf.filepath);
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_completion :: fn (editor: *Editor, buf: *Buffer) {
+	using std;
+
+	if !check_running() {
+		return;
+	}
+
+	if !lsp_is_supported_document_type(buf) {
+		print_warn("LSP: Buffer type not supported.");
+		return;
+	}
+
+	if lsp_buffer_needs_update(buf) {
+		lsp_change_document(buf);
+	}
+
+	request :: Request.{ job_kind = JobKind.LSP };
+	rd :: &request.data.lsp;
+	rd.kind         = LspRequestKind.COMPLETION;
+	rd.filepath     = str_new(buf.filepath);
+	rd.cursor       = get_cursor(buf, editor.cursor_index);
+	rd.buffer_index = buf.index;
+
+	push_request(get_job_context(lsp.job_index), &request);
+}
+
+apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
+	check_main_thread();
+
+	using std;
+
+	rd :: &request.data.lsp;
+	using LspRequestKind;
+	switch rd.kind {
+		INITIALIZE {
+			lsp.server_name.len = 0;
+			str_append(&lsp.server_name, rd.filepath);
+		}
+		GOTO_DECLARATION {
+			err :: open_location(rd.filepath, rd.cursor.row, rd.cursor.col);
+			if err { print_err(err); }
+		}
+		SWITCH_HEADER_SOURCE {
+			err :: open(rd.filepath, true);
+			if err { print_err(err); }
+		}
+		PUBLISH_DIAGNOSTICS {
+			buf :: get_buffer_by_filepath(rd.filepath);
+			if !buf {
+				//print_err("LSP: Buffer '%' not found! Cannot publish diagnostics.", rd.filepath);
+				// This might be simple caused by the user closing the buffer before publishing.
+				return;
+			}
+			if rd.version != buf.lsp.version || mode == Mode.COMPLETION {
+				// New version of the document was pushed already for processing so current results might be
+				// outdated.
+				terminate_buffer_diagnostics(buf);
+				return;
+			}
+			// Just move results...
+			swap(&buf.lsp.dia, &rd.dia);
+			swap(&buf.lsp.dia_strs, &rd.strs);
+			loop i := 0; i < buf.lsp.dia.len; i += 1 {
+				loc :: &buf.lsp.dia[i];
+				line :: peek_row(buf, loc.line);
+				loc.line_hash = std.str_hash(line);
+			}
+		}
+		COMPLETION {
+			buf :: get_active_buffer_and_editor();
+			if rd.buffer_index != buf.index {
+				return;
+			}
+
+			items :: rd.strs;
+			if items.len == 0 {
+				print_warn("No completion available.");
+			} else {
+				show_completion_popup_for_active_editor(items);
+			}
+		}
+
+		default;
+	}
+}
+
+is_lsp_running :: fn () bool #inline {
+	return lsp.job_index != -1;
+}
+
+add_all_supported_buffers_to_lsp :: fn () {
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed { continue; }
+		if !lsp_is_supported_document_type(buf) { continue; }
+		assert(buf.lsp.version == 0, "Buffer not removed from previous session.");
+		lsp_open_document(buf);
+	}
+}
+
+remove_all_buffers_from_lsp :: fn () {
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed { continue; }
+		if !lsp_is_supported_document_type(buf) { continue; }
+		assert(buf.lsp.version > 0, "Buffer not added to LSP session.");
+		buf.lsp.version = 0;
+		terminate_buffer_diagnostics(buf);
+	}
+}
+
+lsp_buffer_needs_update :: fn (buf: *Buffer) bool #inline {
+	assert(buf.lsp.version > 0, "Buffer not tracked by LSP!");
+	return buf.lsp.published_top != buf.undo_top;
+}
+
+#private
+
+local: struct {
+	temp_string: string;
+	current: struct {
+		kind:         LspRequestKind;
+		buffer_index: s32;
+	}
+} #thread_local;
+
+check_running :: fn () bool #inline {
+	if lsp.job_index != -1 { return true; }
+	print_warn("LSP: Server is not running.");
+	return false;
+}
+
+worker :: fn (ctx: *JobContext) s32 {
+	using std;
+	using JobContext.state;
+
+	// Maybe customizable?
+	err :: start_process("clangd.exe --log=error -j=8 -background-index --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders", ctx); // verbose for debugging
+	if err {
+		print_err(err);
+		ctx.state = FAILED;
+		return 1;
+	}
+
+	defer str_delete(&local.temp_string);
+
+	loop !ctx.kill {
+		// Process requests
+		request: Request #noinit;
+
+		is_processing_request :: local.current.kind != LspRequestKind.UNKNOWN;
+		if is_processing_request == false && pop_request(ctx, &request) {
+			err, expect_response :: process_request(ctx, &request);
+			if err {
+				print_err(err);
+			} else if expect_response {
+				local.current.kind         = request.data.lsp.kind;
+				local.current.buffer_index = request.data.lsp.buffer_index;
+			}
+		}
+
+		err :: process_response(ctx);
+		if err {
+			print_err(err);
+			ctx.state = FAILED;
+			return 0;
+		}
+		os_sleep_ms(10);
+		temporary_reset();
+	}
+
+	err_kill :: kill_process(ctx.pid, 0);
+	if err_kill {
+		print_err(err_kill);
+		ctx.state = FAILED;
+		return 0;
+	}
+
+	ctx.state = KILLED;
+	return 0;
+}
+
+process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_response: bool) {
+	using LspRequestKind;
+	rd :: &request.data.lsp;
+	defer terminate_request(request);
+
+	expect_response := false;
+
+	err: Error;
+	switch rd.kind {
+		INITIALIZE {
+			err = write_request(ctx, "initialize", LspInitialize.{ rootPath = rd.filepath });
+			expect_response = true;
+		}
+
+		DOCUMENT_OPEN {
+			params :: LspDidOpenTextDocumentParams.{
+				textDocument = LspTextDocumentItem.{
+					uri        = tprint("file:///%", rd.filepath),
+					languageId = "c",
+					text       = rd.src,
+					version    = rd.version,
+				},
+			};
+			err = write_notification(ctx, "textDocument/didOpen", params);
+		}
+
+		DOCUMENT_CLOSE {
+			params :: LspDidCloseTextDocumentParams.{
+				textDocument = LspTextDocumentIdentifier.{
+					uri        = tprint("file:///%", rd.filepath),
+				},
+			};
+			err = write_notification(ctx, "textDocument/didClose", params);
+		}
+
+		GOTO_DECLARATION {
+			params :: LspTextDocumentPositionParams.{
+				textDocument = LspTextDocumentIdentifier.{ uri = tprint("file:///%", rd.filepath) },
+				position     = LspPosition.{
+					line      = rd.cursor.row,
+					character = rd.cursor.col,
+				},
+			};
+			err = write_request(ctx, "textDocument/declaration", params);
+			expect_response = true;
+		}
+
+		SWITCH_HEADER_SOURCE {
+			params :: LspTextDocumentIdentifier.{
+				uri = tprint("file:///%", rd.filepath),
+			};
+			err = write_request(ctx, "textDocument/switchSourceHeader", params);
+			expect_response = true;
+		}
+
+		DOCUMENT_CHANGE {
+			changes: [1]LspTextDocumentContentChangeEvent #noinit;
+			// changes[0].range = LspRange.{
+			// 	start = LspPosition.{ line = rd.cursor[0].row, character = rd.cursor[0].col },
+			// 	end   = LspPosition.{ line = rd.cursor[1].row, character = rd.cursor[1].col },
+			// };
+			changes[0].text = rd.src;
+
+			params :: LspDidChangeTextDocumentParams.{
+				textDocument   = LspVersionedTextDocumentIdentifier.{
+					uri     = tprint("file:///%", rd.filepath),
+					version = rd.version,
+				},
+				contentChanges = changes,
+			};
+			err = write_notification(ctx, "textDocument/didChange", params);
+		}
+
+		DOCUMENT_SAVE {
+			params :: LspDidSaveTextDocumentParams.{
+				textDocument   = LspTextDocumentIdentifier.{
+					uri     = tprint("file:///%", rd.filepath),
+				},
+			};
+			err = write_notification(ctx, "textDocument/didSave", params);
+		}
+
+		COMPLETION {
+			params :: LpsCompletionParams.{
+				textDocument = LspTextDocumentIdentifier.{
+					uri = tprint("file:///%", rd.filepath),
+				},
+				position = LspPosition.{
+					line      = rd.cursor.row,
+					character = rd.cursor.col,
+				},
+				triggerKind   = LSP_COMPLETION_KIND_INVOKED,
+			};
+			err = write_request(ctx, "textDocument/completion", params);
+			expect_response = true;
+		}
+
+		default { print_warn("Unknown request."); }
+	}
+	return err, expect_response;
+}
+
+process_response :: fn (ctx: *JobContext) Error {
+	using std;
+
+	err_peek, bytes :: peek_pipe(ctx.stdout, true);
+	if err_peek {
+		return err_peek;
+	}
+	if bytes == 0 { return OK; }
+
+	local.temp_string.len = 0;
+	err_read :: read_pipe(ctx.stdout, &local.temp_string, bytes, true);
+	if err_read {
+		return err_read;
+	}
+
+	Tokenizer :: TokenizerBase;
+	tok := Tokenizer.{ bytes = local.temp_string };
+
+	loop tok.index < tok.bytes.len {
+		filter :: "Content-Length";
+		if std.str_match(string_view.{ filter.len, &tok.bytes[tok.index] }, filter) {
+			header :: eat_line_and_trim_eol(&tok);
+			size_str: string_view;
+			if !str_split_by_first(header, ' ', null, &size_str) {
+				return error("Expected content size of the LSP response message!");
+			}
+			json_size, err :: strtos64(size_str);
+			if err { return error("Cannot parse size of the LSP response message!"); }
+			eat_line(&tok); // eat \r\n after header
+
+			loop (tok.bytes.len - tok.index < json_size) {
+				// Wait for more data from the pipe!!!
+				err_peek, bytes :: peek_pipe(ctx.stdout, true);
+				if err_peek {
+					return err_peek;
+				}
+				if bytes > 0 {
+					err_read :: read_pipe(ctx.stdout, &local.temp_string, bytes, true);
+					if err_read {
+						return err_read;
+					}
+					tok.bytes = local.temp_string;
+				}
+				os_sleep_ms(10);
+			}
+
+			content :: string_view.{ json_size, &tok.bytes[tok.index] };
+			tok.index += cast(s32) json_size;
+
+			json :: JsonTokenizer.{ bytes = content };
+
+			// Diagnostics messages somes from time to time...
+			if maybe_process_diagnostics(ctx, &json) { continue; }
+
+			if !maybe_process_error(&json) {
+				using LspRequestKind;
+
+				switch local.current.kind {
+					INITIALIZE {
+						initialize_result: RpcResponse(LspInitializeResult);
+						err :: deserialize_object(initialize_result, &json);
+						if err { print_err(err); }
+
+						result :: Request.{ job_kind = JobKind.LSP };
+						rd :: &result.data.lsp;
+						rd.kind      = INITIALIZE;
+						rd.filepath  = str_new(initialize_result.result.serverInfo.name);
+						push_result(ctx, &result);
+
+						print_log("INITIALIZE: %", initialize_result);
+					}
+
+					GOTO_DECLARATION {
+						goto_declaration_result: RpcResponse([]LspLocation);
+						err :: deserialize_object(goto_declaration_result, &json);
+						if err { print_err(err); }
+
+						if goto_declaration_result.result.len == 0 {
+							print_warn("LSP: Declaration not found.");
+						} else {
+							loc :: goto_declaration_result.result[0];
+							err_uri, filepath :: new_filepath_from_url(loc.uri);
+							if err_uri {
+								print_err(err_uri);
+							} else {
+								result :: Request.{ job_kind = JobKind.LSP };
+								rd :: &result.data.lsp;
+								rd.kind      = GOTO_DECLARATION;
+								rd.cursor    = Cursor.{ row = loc.range.start.line, col = loc.range.start.character };
+								rd.filepath  = filepath;
+								push_result(ctx, &result);
+							}
+						}
+						print_log("GOTO_DECLARATION result %", goto_declaration_result);
+					}
+
+					SWITCH_HEADER_SOURCE {
+						switch_result: RpcResponse(string_view);
+						err :: deserialize_object(switch_result, &json);
+						if err { print_err(err); }
+
+						if switch_result.result.len == 0 {
+							print_warn("LSP: Other file not found.");
+						} else {
+							err_uri, filepath :: new_filepath_from_url(switch_result.result);
+							if err_uri {
+								print_err(err_uri);
+							} else {
+								result :: Request.{ job_kind = JobKind.LSP };
+								rd :: &result.data.lsp;
+								rd.kind      = SWITCH_HEADER_SOURCE;
+								rd.filepath  = filepath;
+								push_result(ctx, &result);
+							}
+						}
+					}
+
+					COMPLETION {
+						completion_result: RpcResponse(LspCompletionList);
+						err :: deserialize_object(completion_result, &json);
+						if err { print_err(err); }
+
+						result :: Request.{ job_kind = JobKind.LSP };
+						rd :: &result.data.lsp;
+						rd.kind         = COMPLETION;
+						rd.buffer_index = local.current.buffer_index;
+
+						items :: completion_result.result.items;
+						loop i := 0; i < items.len; i += 1 {
+							item :: &items[i];
+							if item.label.len > 0 {
+								title :: zeroinit(array_push(&rd.strs));
+								str_append(title, trim_left(item.label, [1]u8.{ ' ' }));
+							}
+						}
+						push_result(ctx, &result);
+					}
+
+					default {
+						print_log("Unexpected LSP result: %", string_view.{ std.min(content.len, 128), content.ptr });
+					}
+				}
+			}
+			local.current.kind = LspRequestKind.UNKNOWN;
+		}
+
+		line :: eat_line_and_trim_eol(&tok);
+		if line.len == 0 { continue; }
+		msg: string_view;
+		if str_split_by_first(line, ' ', null, &msg) {
+			if line[0] == 'E' {
+				print_err("LSP: %", msg);
+			} else {
+				print_log("LSP: %", msg);
+			}
+		}
+	}
+
+	return OK;
+}
+
+write_request :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
+	local.temp_string.len = 0;
+	json :: &local.temp_string;
+
+	{
+		using std;
+		str_append(json, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"");
+		str_append(json, method);
+		str_append(json, "\",\"params\":");
+		serialize_object(data, json);
+		str_append(json, "}");
+	}
+
+	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len), true);
+	if err1 { return err1; }
+	err2 :: write_pipe(ctx.stdin, @json, true);
+	return err2;
+}
+
+write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
+	local.temp_string.len = 0;
+	json :: &local.temp_string;
+
+	{
+		using std;
+		str_append(json, "{\"jsonrpc\":\"2.0\",\"method\":\"");
+		str_append(json, method);
+		str_append(json, "\",\"params\":");
+		serialize_object(data, json);
+		str_append(json, "}");
+	}
+	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len), true);
+	if err1 { return err1; }
+	err2 :: write_pipe(ctx.stdin, @json, true);
+	return err2;
+}
+
+maybe_process_error :: fn (json: *JsonTokenizer) bool {
+	// @Incomplete: Use json parser to detect method...
+	maybe_error :: "{\"error\":";
+	if !std.str_match(string_view.{ maybe_error.len, &json.bytes[json.index] }, maybe_error) { return false; }
+	lsp_error: LspError;
+	err :: deserialize_object(lsp_error, json);
+	if err { print_err(err); }
+
+	print_err("LSP: %", lsp_error.error.message);
+	return true;
+}
+
+maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
+	// @Incomplete: Use json parser to detect method...
+	maybe_dia :: "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\"";
+	if !std.str_match(string_view.{ maybe_dia.len, &json.bytes[json.index] }, maybe_dia) { return false; }
+
+	dia_result: RpcParams(LspPublishDiagnosticsParams);
+	err :: deserialize_object(dia_result, json);
+	if err { print_err(err); }
+
+	// This might be disabled, but we still have to consume the json data...
+	if !settings.show_lsp_inline_diagnostics { return true; }
+
+	err_uri, filepath :: new_filepath_from_url(dia_result.params.uri);
+	if err_uri {
+		print_err(err_uri);
+	} else {
+		result :: Request.{ job_kind = JobKind.LSP };
+		rd :: &result.data.lsp;
+		rd.kind      = LspRequestKind.PUBLISH_DIAGNOSTICS;
+		rd.filepath  = filepath;
+		rd.version   = dia_result.params.version;
+		array_reserve(&rd.strs, 128);
+
+		loop i := 0; i < dia_result.params.diagnostics.len; i += 1 {
+			using std;
+			d :: &dia_result.params.diagnostics[i];
+
+			using ErrorLocation.kind;
+			kind: ErrorLocation.kind;
+			if d.severity == 1 {
+				kind = ERROR;
+			} else if d.severity == 2 {
+				kind = WARNING;
+			} else {
+				continue;
+			}
+
+			// Limit to some maximum value...
+			if rd.dia.len+1 > LSP_MAX_DIAG_MESSAGE_COUNT { break; }
+
+			message :: zeroinit(array_push(&rd.strs));
+			first_line: string_view;
+
+			json_source_to_str(message, d.message);
+			str_split_by_first(@message, '\n', &first_line, null);
+
+			loc :: ErrorLocation.{
+				kind    = kind,
+				message = first_line,
+				line    = d.range.start.line,
+				col     = d.range.start.character,
+			};
+			array_push(&rd.dia, loc);
+		}
+
+		push_result(ctx, &result);
+	}
+
+	//print_log("DIA: %", dia_result);
+	return true;
+}
+
+//
+// JSON bullshit
+//
+
+TAG_SOURCE : u64 : 1;
+
+serialize_object :: fn (obj: Any, json: *string) {
+	using std;
+	info :: cast(*TypeInfoStruct) obj.type_info;
+	assert(info.kind == TypeKind.STRUCT);
+
+	str_append(json, "{");
+	loop i := 0; i < info.members.len; i += 1 {
+		m :: &info.members[i];
+		src :: ptr_shift_bytes(obj.data, m.offset_bytes);
+
+		str_append(json, "\"");
+		str_append(json, m.name);
+		str_append(json, "\":");
+		if m.base_type == typeinfo(s32) {
+			tmp :: cast(*s32) src;
+			str_append(json, @tmp);
+		} else if m.base_type == typeinfo(string_view) {
+			tmp :: @(cast(*string_view) src);
+
+			str_append(json, "\"");
+			if (m.tag & TAG_SOURCE) == TAG_SOURCE {
+				// This is crazy bullshit, thank you json...
+				start := 0;
+				len   := 0;
+				loop j := 0; j < tmp.len; j += 1 {
+					c :: tmp[j];
+					replacement: string_view;
+					switch c {
+						'\n' { replacement = "\\n";  }
+						'\r' { replacement = "\\r";  }
+						'\"' { replacement = "\\\""; }
+						'\t' { replacement = "\\t";  }
+						'\\' { replacement = "\\\\"; }
+						default;
+					}
+					if replacement.len > 0 {
+						str_append(json, string_view.{ len, &tmp[start] });
+						str_append(json, replacement);
+						start = j + 1;
+						len   = 0;
+						continue;
+					}
+					len += 1;
+				}
+
+				if len > 0 { str_append(json, string_view.{ len, &tmp[start] }); }
+			} else {
+				str_append(json, tmp);
+			}
+			str_append(json, "\"");
+		} else if m.base_type == typeinfo(bool) {
+			tmp :: @(cast(*bool) src);
+			if tmp { str_append(json, "true"); }
+			else { str_append(json, "false");  }
+		} else if m.base_type.kind == TypeKind.STRUCT {
+			info :: cast(*TypeInfoStruct) m.base_type;
+			if info.is_slice {
+				arr :: cast(*[]u8) src;
+				elem_type_ptr :: cast(*TypeInfoPtr) info.members[1].base_type;
+				assert(elem_type_ptr.kind == TypeKind.PTR);
+				elem_type :: elem_type_ptr.pointee_type;
+				elem_size :: elem_type.size_bytes;
+
+				str_append(json, "[");
+				loop i := 0; i < arr.len; i += 1 {
+					tmp :: Any.{ elem_type, ptr_shift_bytes(arr.ptr, cast(s64) elem_size * cast(s64) i) };
+					serialize_object(tmp, json);
+					if i + 1 < arr.len { str_append(json, ","); }
+				}
+				str_append(json, "]");
+
+			} else {
+				tmp :: Any.{ m.base_type, src };
+				serialize_object(tmp, json);
+			}
+		} else {
+			panic("Unsupported type for JSON serialization");
+		}
+		if i + 1 < info.members.len { str_append(json, ","); }
+	}
+	str_append(json, "}");
+}
+
+JsonTokenizer :: TokenizerBase;
+
+Token :: struct {
+	kind: enum {
+		EOF;
+		INVALID;
+
+		STRING;
+		NUMBER;
+		FLOAT;
+		BOOL;
+		ARRAY_BEGIN;
+		ARRAY_END;
+		OBJECT_BEGIN;
+		OBJECT_END;
+	};
+
+	data: union {
+		n:   s32;
+		f:   f32;
+		str: string_view;
+		b:   bool;
+	};
+}
+
+// We suppose the input json is valid!
+deserialize_object :: fn (obj: Any, json: *JsonTokenizer, top_level := true) Error {
+	using Token.kind;
+
+	find_member :: fn (base_ptr: *u8, info: *TypeInfoStruct, name: string_view) (info: *TypeInfoStructMember, ptr: *u8) #inline {
+		member: *TypeInfoStructMember;
+		loop i := 0; i < info.members.len; i += 1 {
+			m :: &info.members[i];
+			if std.str_match(m.name, name) {
+				member = m;
+				break;
+			}
+		}
+		if !member { return null, null; }
+		return member, ptr_shift_bytes(base_ptr, member.offset_bytes);
+	};
+
+	info :: cast(*TypeInfoStruct) obj.type_info;
+	assert(info.kind == TypeKind.STRUCT);
+
+	if top_level {
+		tok_obj_start :: next_token(json);
+		if tok_obj_start.kind != OBJECT_BEGIN {
+			return error("Expected begin of the object got '%'!", tok_obj_start.kind);
+		}
+	}
+
+	loop {
+		ident: string_view;
+		tok_ident :: next_token(json);
+		switch tok_ident.kind {
+			OBJECT_END { break; }
+			STRING     { ident = tok_ident.data.str; }
+			default    { error("Expected value identificator got '%'!", tok_ident.kind); }
+		}
+
+		member_info, member_ptr :: find_member(obj.data, info, ident);
+		tmp: Any;
+		if member_info {
+			tmp.type_info = member_info.base_type;
+			tmp.data = member_ptr;
+		}
+
+		err :: deserialize_value(ident, tmp, json);
+		if err { return err; }
+	}
+
+	return OK;
+}
+
+deserialize_array :: fn (ident: string_view, arr: Any, json: *JsonTokenizer) Error {
+	ARRAY_CHUNK_SIZE : usize : 64;
+
+	allocator :: application_context.temporary_allocator;
+
+	using Token.kind;
+	info :: cast(*TypeInfoStruct) arr.type_info;
+	assert(info.kind == TypeKind.STRUCT && info.is_slice == true);
+
+	elem_type_ptr :: cast(*TypeInfoPtr) info.members[1].base_type;
+	assert(elem_type_ptr.kind == TypeKind.PTR);
+
+	elem_type      :: elem_type_ptr.pointee_type;
+	elem_size      :: elem_type.size_bytes;
+	elem_alignment :: elem_type.alignment;
+
+	dest := cast(*[]u8) arr.data;
+	assert(dest.len == 0);
+
+	allocated : usize = 0;
+
+	loop i : usize = 0;; i += 1 {
+		if i == allocated {
+			new_allocated :: std.max(ARRAY_CHUNK_SIZE, allocated * 2);
+			mem, err :: realloc(dest.ptr, elem_size * new_allocated, elem_alignment, allocator);
+			if err { return err; }
+			allocated = new_allocated;
+			dest.ptr = mem;
+		}
+
+		tmp :: Any.{ elem_type, ptr_shift_bytes(dest.ptr, auto elem_size * cast(usize) i) };
+		zeromem(tmp.data, elem_size);
+		err, is_arr_end :: deserialize_value(ident, tmp, json, true);
+		if err { return err; }
+		if is_arr_end { break; }
+		dest.len += 1;
+	}
+	return OK;
+}
+
+deserialize_value :: fn (ident: string_view, val: Any, json: *JsonTokenizer, is_array := false) (err: Error, is_end_of_array: bool) {
+	using Token.kind;
+
+	tok_value :: next_token(json);
+	member_info :: val.type_info;
+	member_ptr  :: val.data;
+
+	switch tok_value.kind {
+		STRING {
+			if member_info {
+				if member_info != typeinfo(string_view) { return error("Invalid type of '%' value, expected string got %.", ident, member_info.kind), false; }
+				memcpy(member_ptr, auto &tok_value.data.str, sizeof(string_view));
+			}
+		}
+		BOOL {
+			if member_info {
+				if member_info != typeinfo(bool) { return error("Invalid type of '%' value, expected boolean got %.", ident, member_info.kind), false; }
+				memcpy(member_ptr, auto &tok_value.data.b, sizeof(bool));
+			}
+		}
+
+		NUMBER {
+			if member_info {
+				if member_info != typeinfo(s32) { return error("Invalid type of '%' value, expected number got %.", ident, member_info.kind), false; }
+				memcpy(member_ptr, auto &tok_value.data.n, sizeof(s32));
+			}
+		}
+
+		FLOAT {
+			if member_info {
+				if member_info != typeinfo(f32) { return error("Invalid type of '%' value, expected float got %.", ident, member_info.kind), false; }
+				memcpy(member_ptr, auto &tok_value.data.f, sizeof(f32));
+			}
+		}
+
+		OBJECT_BEGIN {
+			if !member_info {
+				err :: ignore_object(json);
+				if err { return err, false; }
+			} else {
+				tmp :: Any.{ member_info, member_ptr };
+				err :: deserialize_object(tmp, json, false);
+				if err { return err, false; }
+			}
+		}
+		ARRAY_BEGIN {
+			if !member_info {
+				err :: ignore_array(json);
+				if err { return err, false; }
+			} else {
+				tmp :: Any.{ member_info, member_ptr };
+				err :: deserialize_array(ident, tmp, json);
+				if err { return err, false; }
+			}
+		}
+		ARRAY_END {
+			if !is_array { return error("Unexpected array end!"), false; }
+			return OK, true;
+		}
+
+		default {
+			return error("Expected value of the entry '%' got '%'!", ident, tok_value.kind), false;
+		}
+	}
+
+	return OK, false;
+}
+
+ignore_object :: fn (json: *JsonTokenizer) Error {
+	using Token.kind;
+	nesting := 1;
+	loop {
+		tok :: next_token(json);
+		switch tok.kind {
+			OBJECT_BEGIN { nesting += 1; }
+			OBJECT_END {
+				nesting -= 1;
+				if nesting == 0 { break; }
+			}
+			EOF { return error("Unterminated object!"); }
+			default;
+		}
+	}
+	return OK;
+}
+
+ignore_array :: fn (json: *JsonTokenizer) Error {
+	using Token.kind;
+	nesting := 1;
+	loop {
+		tok :: next_token(json);
+		switch tok.kind {
+			ARRAY_BEGIN { nesting += 1; }
+			ARRAY_END {
+				nesting -= 1;
+				if nesting == 0 { break; }
+			}
+			EOF { return error("Unterminated array!"); }
+			default;
+		}
+	}
+	return OK;
+}
+
+next_token :: fn (ctx: *JsonTokenizer) Token {
+	using Token.kind;
+
+	parse_bool :: fn (ctx: *JsonTokenizer, t: *Token) bool {
+		if std.str_match(string_view.{ 4, &ctx.bytes[ctx.index] }, "true") {
+			t.kind     = Token.kind.BOOL;
+			t.data.b   = true;
+			ctx.index += 4;
+			return true;
+		}
+		if std.str_match(string_view.{ 5, &ctx.bytes[ctx.index] }, "false") {
+			t.kind     = Token.kind.BOOL;
+			t.data.b   = false;
+			ctx.index += 5;
+			return true;
+		}
+		return false;
+	};
+
+	parse_number :: fn (ctx: *JsonTokenizer, t: *Token) bool {
+		using Token.kind;
+		start_index :: ctx.index;
+		len := 0;
+		is_float := false;
+		loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
+			c :: ctx.bytes[ctx.index];
+			if std.is_digit(c) == false && c != '-' && c != '.' {
+				break;
+			}
+			if c == '.' {
+				is_float = true;
+			}
+			len += 1;
+		}
+
+		if len == 0 { return false; }
+		if is_float {
+			t.kind = FLOAT;
+			f, err :: std.strtof64(string_view.{ len, &ctx.bytes[start_index] });
+			if !err {
+				t.data.f = auto f;
+			}
+		} else {
+			t.kind = NUMBER;
+			n, err :: std.strtos64(string_view.{ len, &ctx.bytes[start_index] });
+			if !err {
+				t.data.n = auto n;
+			}
+		}
+
+		return true;
+	};
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t := Token.{
+			kind  = INVALID,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == ',' || c == ':' { ctx.index += 1; continue; }
+		if c == '{' {
+			t.kind = OBJECT_BEGIN;
+			ctx.index += 1;
+			return t;
+		}
+		if c == '}' {
+			t.kind = OBJECT_END;
+			ctx.index += 1;
+			return t;
+		}
+		if c == '[' {
+			t.kind = ARRAY_BEGIN;
+			ctx.index += 1;
+			return t;
+		}
+		if c == ']' {
+			t.kind = ARRAY_END;
+			ctx.index += 1;
+			return t;
+		}
+		if c == '\"' {
+			t.kind = STRING;
+			t.data.str = eat_string_in_quotes(ctx, true);
+			return t;
+		}
+		if parse_bool(ctx, &t)   { return t; }
+		if parse_number(ctx, &t) { return t; }
+
+		return t;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+json_source_to_str :: fn (dest: *string, src: string_view) {
+	using std;
+	start := 0;
+	len   := 0;
+	loop j := 0; j < src.len; {
+		replacement: u8;
+		sub :: string_view.{ 2, &src[j] };
+		if str_match(sub, "\\n") {
+			replacement = '\n';
+		} else if str_match(sub, "\\r") {
+			replacement = '\r';
+		} else if str_match(sub, "\\\"") {
+			replacement = '\"';
+		} else if str_match(sub, "\\t") {
+			replacement = '\t';
+		} else if str_match(sub, "\\\\") {
+			replacement = '\\';
+		}
+
+		if replacement != 0 {
+			str_append(dest, string_view.{ len, &src[start] });
+			str_append(dest, string_view.{ 1, &replacement });
+			j += 2;
+			start = j;
+			len   = 0;
+			continue;
+		}
+		len += 1;
+		j   += 1;
+	}
+
+	if len > 0 { str_append(dest, string_view.{ len, &src[start] }); }
+}
+
+//
+// LSP Objects
+//
+
+LspInitialize :: struct {
+	rootPath: string_view;
+}
+
+LspTextDocumentItem :: struct {
+	uri:        string_view;
+	languageId: string_view;
+	version:    s32;
+	text:       string_view #tag TAG_SOURCE;
+}
+
+LspDidOpenTextDocumentParams :: struct {
+	textDocument: LspTextDocumentItem;
+}
+
+LspDidCloseTextDocumentParams :: struct {
+	textDocument: LspTextDocumentIdentifier;
+}
+
+LspTextDocumentIdentifier :: struct {
+	uri: string_view;
+}
+
+LspVersionedTextDocumentIdentifier :: struct {
+	uri: string_view;
+	version: s32;
+}
+
+LspDidChangeTextDocumentParams :: struct {
+	textDocument:     LspVersionedTextDocumentIdentifier;
+	contentChanges: []LspTextDocumentContentChangeEvent;
+}
+
+LspDidSaveTextDocumentParams :: struct {
+	textDocument: LspTextDocumentIdentifier;
+}
+
+// LspTextDocumentContentChangeEvent :: struct {
+// 	range: LspRange;
+// 	text:  string_view #tag TAG_SOURCE;
+// }
+
+LspTextDocumentContentChangeEvent :: struct {
+	text:  string_view #tag TAG_SOURCE;
+}
+
+LspPosition :: struct {
+	line: s32;
+	character: s32;
+}
+
+LspRange :: struct {
+	end:   LspPosition;
+	start: LspPosition;
+}
+
+LspLocation :: struct {
+	uri: string_view;
+	range: LspRange;
+}
+
+LspTextDocumentPositionParams :: struct {
+	textDocument: LspTextDocumentIdentifier;
+	position:     LspPosition;
+}
+
+LSP_COMPLETION_KIND_INVOKED :: 1;
+
+LpsCompletionParams :: struct {
+	textDocument: LspTextDocumentIdentifier;
+	position:     LspPosition;
+	triggerKind:  s32;
+	//triggerCharacter: string_view;
+}
+
+RpcResponse :: fn (TResponse: type #comptime) type #comptime {
+	return struct {
+		id:      s32;
+		jsonrpc: string_view;
+		result:  TResponse;
+	};
+}
+
+RpcParams :: fn (TResponse: type #comptime) type #comptime {
+	return struct {
+		jsonrpc: string_view;
+		method:  string_view;
+		params:  TResponse;
+	};
+}
+
+LspInitializeResult :: struct {
+	capabilities: LspServerCapabilities;
+	serverInfo: struct {
+		name:    string_view;
+		version: string_view;
+	}
+}
+
+LspServerCapabilities :: struct {
+	completionProvider:  LspCompletionOptions;
+	declarationProvider: bool;
+	definitionProvider:  bool;
+}
+
+LspCompletionOptions :: struct {
+	triggerCharacters: []string_view;
+	resolveProvider:   bool;
+}
+
+LspDiagnostic :: struct {
+	code:     string_view;
+	message:  string_view;
+	range:    LspRange;
+	severity: s32;
+	source:   string_view;
+}
+
+LspPublishDiagnosticsParams :: struct {
+	diagnostics: []LspDiagnostic;
+	uri:           string_view;
+	version:       s32;
+}
+
+LspError :: struct {
+	error: struct {
+		code:    s32;
+		message: string_view;
+	};
+	id:      s32;
+	jsonrpc: string_view;
+}
+
+LspTextEdit :: struct {
+	range:   LspRange;
+	newText: string_view;
+}
+
+LspCompletionItem :: struct {
+	detail:           string_view;
+	filterText:       string_view;
+	insertText:       string_view;
+	insertTextFormat: s32;
+	kind:             s32;
+	label:            string_view;
+	score:            f32;
+	textEdit:         LspTextEdit;
+}
+
+LspCompletionList :: struct {
+	isComplete: bool;
+	items:    []LspCompletionItem;
+}

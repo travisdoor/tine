@@ -1,0 +1,103 @@
+#scope tracy_impl
+// Generated file, do not edit unless you know what you are doing!
+
+___tracy_set_thread_name :: fn (name: *C.char) #extern;
+TracyCZoneCtx :: C.void_ptr;
+___tracy_source_location_data :: struct {
+	name: *C.char;
+	function: *C.char;
+	file: *C.char;
+	line: C.int;
+	color: C.int;
+}
+___tracy_c_zone_context :: struct {
+	id: C.int;
+	active: C.int;
+}
+___tracy_gpu_time_data :: struct {
+	gpuTime: C.int;
+	queryId: C.int;
+	context: C.int;
+}
+___tracy_gpu_zone_begin_data :: struct {
+	srcloc: C.int;
+	queryId: C.int;
+	context: C.int;
+}
+___tracy_gpu_zone_begin_callstack_data :: struct {
+	srcloc: C.int;
+	depth: C.int;
+	queryId: C.int;
+	context: C.int;
+}
+___tracy_gpu_zone_end_data :: struct {
+	queryId: C.int;
+	context: C.int;
+}
+___tracy_gpu_new_context_data :: struct {
+	gpuTime: C.int;
+	period: f32;
+	context: C.int;
+	flags: C.int;
+	t: C.int;
+}
+___tracy_gpu_context_name_data :: struct {
+	context: C.int;
+	name: *C.char;
+	len: C.int;
+}
+___tracy_gpu_calibration_data :: struct {
+	gpuTime: C.int;
+	cpuDelta: C.int;
+	context: C.int;
+}
+___tracy_alloc_srcloc :: fn (line: C.int, source: *C.char, sourceSz: usize, function: *C.char, functionSz: usize) u64 #extern;
+___tracy_alloc_srcloc_name :: fn (line: C.int, source: *C.char, sourceSz: usize, function: *C.char, functionSz: usize, name: *C.char, nameSz: usize) u64 #extern;
+___tracy_emit_zone_begin :: fn (srcloc: *___tracy_source_location_data, active: C.int) TracyCZoneCtx #extern;
+___tracy_emit_zone_begin_callstack :: fn (srcloc: *___tracy_source_location_data, depth: C.int, active: C.int) TracyCZoneCtx #extern;
+___tracy_emit_zone_begin_alloc :: fn (srcloc: u64, active: C.int) TracyCZoneCtx #extern;
+___tracy_emit_zone_begin_alloc_callstack :: fn (srcloc: u64, depth: C.int, active: C.int) TracyCZoneCtx #extern;
+___tracy_emit_zone_end :: fn (ctx: TracyCZoneCtx) #extern;
+___tracy_emit_zone_text :: fn (ctx: TracyCZoneCtx, txt: *C.char, size: usize) #extern;
+___tracy_emit_zone_name :: fn (ctx: TracyCZoneCtx, txt: *C.char, size: usize) #extern;
+___tracy_emit_zone_color :: fn (ctx: TracyCZoneCtx, color: C.int) #extern;
+___tracy_emit_zone_value :: fn (ctx: TracyCZoneCtx, value: C.int) #extern;
+___tracy_emit_gpu_zone_begin :: fn (_0: ___tracy_gpu_zone_begin_data) #extern;
+___tracy_emit_gpu_zone_begin_callstack :: fn (_0: ___tracy_gpu_zone_begin_callstack_data) #extern;
+___tracy_emit_gpu_zone_begin_alloc :: fn (_0: ___tracy_gpu_zone_begin_data) #extern;
+___tracy_emit_gpu_zone_begin_alloc_callstack :: fn (_0: ___tracy_gpu_zone_begin_callstack_data) #extern;
+___tracy_emit_gpu_zone_end :: fn (data: ___tracy_gpu_zone_end_data) #extern;
+___tracy_emit_gpu_time :: fn (_0: ___tracy_gpu_time_data) #extern;
+___tracy_emit_gpu_new_context :: fn (_0: ___tracy_gpu_new_context_data) #extern;
+___tracy_emit_gpu_context_name :: fn (_0: ___tracy_gpu_context_name_data) #extern;
+___tracy_emit_gpu_calibration :: fn (_0: ___tracy_gpu_calibration_data) #extern;
+___tracy_emit_gpu_zone_begin_serial :: fn (_0: ___tracy_gpu_zone_begin_data) #extern;
+___tracy_emit_gpu_zone_begin_callstack_serial :: fn (_0: ___tracy_gpu_zone_begin_callstack_data) #extern;
+___tracy_emit_gpu_zone_begin_alloc_serial :: fn (_0: ___tracy_gpu_zone_begin_data) #extern;
+___tracy_emit_gpu_zone_begin_alloc_callstack_serial :: fn (_0: ___tracy_gpu_zone_begin_callstack_data) #extern;
+___tracy_emit_gpu_zone_end_serial :: fn (data: ___tracy_gpu_zone_end_data) #extern;
+___tracy_emit_gpu_time_serial :: fn (_0: ___tracy_gpu_time_data) #extern;
+___tracy_emit_gpu_new_context_serial :: fn (_0: ___tracy_gpu_new_context_data) #extern;
+___tracy_emit_gpu_context_name_serial :: fn (_0: ___tracy_gpu_context_name_data) #extern;
+___tracy_emit_gpu_calibration_serial :: fn (_0: ___tracy_gpu_calibration_data) #extern;
+___tracy_connected :: fn () C.int #extern;
+___tracy_emit_memory_alloc :: fn (ptr: C.void_ptr, size: usize, secure: C.int) #extern;
+___tracy_emit_memory_alloc_callstack :: fn (ptr: C.void_ptr, size: usize, depth: C.int, secure: C.int) #extern;
+___tracy_emit_memory_free :: fn (ptr: C.void_ptr, secure: C.int) #extern;
+___tracy_emit_memory_free_callstack :: fn (ptr: C.void_ptr, depth: C.int, secure: C.int) #extern;
+___tracy_emit_memory_alloc_named :: fn (ptr: C.void_ptr, size: usize, secure: C.int, name: *C.char) #extern;
+___tracy_emit_memory_alloc_callstack_named :: fn (ptr: C.void_ptr, size: usize, depth: C.int, secure: C.int, name: *C.char) #extern;
+___tracy_emit_memory_free_named :: fn (ptr: C.void_ptr, secure: C.int, name: *C.char) #extern;
+___tracy_emit_memory_free_callstack_named :: fn (ptr: C.void_ptr, depth: C.int, secure: C.int, name: *C.char) #extern;
+___tracy_emit_message :: fn (txt: *C.char, size: usize, callstack: C.int) #extern;
+___tracy_emit_messageL :: fn (txt: *C.char, callstack: C.int) #extern;
+___tracy_emit_messageC :: fn (txt: *C.char, size: usize, color: C.int, callstack: C.int) #extern;
+___tracy_emit_messageLC :: fn (txt: *C.char, color: C.int, callstack: C.int) #extern;
+___tracy_emit_frame_mark :: fn (name: *C.char) #extern;
+___tracy_emit_frame_mark_start :: fn (name: *C.char) #extern;
+___tracy_emit_frame_mark_end :: fn (name: *C.char) #extern;
+___tracy_emit_frame_image :: fn (image: C.void_ptr, w: C.int, h: C.int, offset: C.int, flip: C.int) #extern;
+___tracy_emit_plot :: fn (name: *C.char, val: f64) #extern;
+___tracy_emit_message_appinfo :: fn (txt: *C.char, size: usize) #extern;
+___tracy_fiber_enter :: fn (fiber: *C.char) #extern;
+___tracy_fiber_leave :: fn () #extern;

@@ -1,0 +1,120 @@
+request_format :: fn (buf: *Buffer) Error {
+	using std;
+
+	if buf.file_type != FileType.C {
+		return error("Buffer '%' is not recognized as C/C++ source file.", buf.name);
+	}
+
+	// set buffer temporarily as readonly
+	buf.flags |= BufferFlags.READONLY;
+
+	job_index :: start_async_job(JobKind.CLANG_FORMAT, "clang-format", &worker);
+
+	request := Request.{ job_kind = JobKind.CLANG_FORMAT };
+	rd :: &request.data.clang_format;
+	rd.filepath     = str_new(buf.filepath);
+	rd.src          = str_new(buf.bytes);
+	rd.buffer_index = buf.index;
+	rd.buffer_hash  = buf.hash;
+
+	buf.has_pending_job += 1;
+
+	push_request(get_job_context(job_index), &request);
+
+	return OK;
+}
+
+apply_format :: fn (job_state: JobContext.state, request: *Request) {
+	check_main_thread();
+
+	rd :: &request.data.clang_format;
+
+	// If clang-format took long time, it's possible the target buffer was removed or
+	// the buffer slot was reused for a different file...
+	buf :: &buffers[rd.buffer_index];
+	if buf.is_removed                  { return; }
+	if buf.hash != rd.buffer_hash { return; }
+
+	clr_flag(&buf.flags, BufferFlags.READONLY);
+
+	buf.has_pending_job -= 1;
+
+	if job_state == JobContext.state.DONE {
+		change_content(buf, rd.src);
+	}
+}
+
+#private
+
+worker :: fn (ctx: *JobContext) s32 {
+	using std;
+	using JobContext.state;
+
+	// wait for request
+	request: Request #noinit;
+	loop !pop_request(ctx, &request) {
+		os_sleep_ms(10);
+	}
+	rd :: &request.data.clang_format;
+
+	err :: start_process(tprint("clang-format.exe --assume-filename=\"%\"", rd.filepath), ctx);
+	if err {
+		print_err(err);
+		ctx.state = FAILED;
+		return 1;
+	}
+
+	err_write, write_closed :: write_pipe(ctx.stdin, rd.src);
+	if err_write {
+		print_err(err_write);
+		ctx.state = FAILED;
+		return 0;
+	}
+	if write_closed {
+		ctx.state = DONE;
+		return 0;
+	}
+
+	// Submit the source to the clang-format.
+	win32.CloseHandle(ctx.stdin);
+
+	rd.src.len = 0;
+	defer push_result(ctx, &request);
+
+	loop !ctx.kill {
+		err_peek, bytes, peek_closed :: peek_pipe(ctx.stdout);
+		if err_peek {
+			print_err(err_peek);
+			ctx.state = FAILED;
+
+			return 0;
+		}
+		if peek_closed {
+			ctx.state = DONE;
+			return 0;
+		}
+
+		err_read, read_closed :: read_pipe(ctx.stdout, &rd.src, bytes);
+		if err_read {
+			print_err(err_read);
+			ctx.state = FAILED;
+			return 0;
+		}
+		if read_closed {
+			ctx.state = DONE;
+			return 0;
+		}
+
+		os_sleep_ms(10);
+	}
+
+	err_kill :: kill_process(ctx.pid, 0);
+	if err_kill {
+		print_err(err_kill);
+		ctx.state = FAILED;
+		return 0;
+	}
+
+	ctx.state = KILLED;
+	return 0;
+}

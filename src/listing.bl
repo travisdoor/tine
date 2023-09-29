@@ -1,0 +1,873 @@
+ListItem :: struct {
+	score:   s32;
+	icon:    string_view;
+	title:   string_view;
+	preview: string_view;
+	hint:    string_view;
+	flags:   ItemFlags;
+	index:   s32;
+}
+
+ItemFlags :: enum #flags {
+	NONE;
+	DIRECTORY;
+	HIGHLIGHT;
+}
+
+listing_init :: fn () {
+	using std;
+	string_cache[0] = std.pool_make(null, 2048);
+	string_cache[1] = std.pool_make(null, 2048);
+
+	array_reserve(&list[DEFAULT_LIST_INDEX], 1024*4);
+	array_reserve(&list[FILTER_LIST_INDEX],  1024*4);
+
+	mutex_init(&async_search.mutex);
+	mutex_init(&visible_list_mutex);
+}
+
+listing_terminate :: fn () {
+	using std;
+	cancel_async_search();
+	mutex_terminate(&async_search.mutex);
+
+	release_allocator(&string_cache[0]);
+	release_allocator(&string_cache[1]);
+	array_terminate(&list[DEFAULT_LIST_INDEX]);
+	array_terminate(&list[FILTER_LIST_INDEX]);
+	mutex_terminate(&visible_list_mutex);
+}
+
+DrawListCols :: enum #flags {
+	NO_COLS = 0;
+	ICON;
+	TITLE;
+	HINT;
+	PREVIEW;
+}
+
+ListerMode :: enum { TOP_DOWN; FLOATING }
+
+get_list_height :: fn () (h: f32, visible_lines: s32) {
+	using Metric;
+	line_height     :: metrics[auto LINE_HEIGHT    ];
+	text_padding    :: metrics[auto TEXT_PADDING   ];
+
+	visible_lines := cast(s32) ((cast(f32) WINDOW_HEIGHT * 0.3f) / line_height);
+	visible_lines = std.min(visible_lines, auto list[visible_list_index].len);
+
+	return text_padding * 2.f + line_height * auto visible_lines, visible_lines;
+}
+
+draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.TOP_DOWN, loc := #call_location) (w: f32, clicked: bool) {
+	using draw;
+	using Metric;
+	using DrawListCols;
+
+	std.mutex_lock(&visible_list_mutex);
+	defer std.mutex_unlock(&visible_list_mutex);
+
+	if list[visible_list_index].len == 0 { return 0.f, false; }
+
+	line_height     :: metrics[auto LINE_HEIGHT    ];
+	text_padding    :: metrics[auto TEXT_PADDING   ];
+	title_max_size  :: metrics[auto TITLE_MAX_SIZE ];
+	item_spacing    :: metrics[auto ITEM_SPACING   ];
+	rounding        :: metrics[auto CORNER_ROUNDING];
+
+	h, visible_lines :: get_list_height();
+	list_w := w;
+
+	// scrolling
+	if top_index + visible_lines >= list[visible_list_index].len {
+		top_index = std.max(list[visible_list_index].len - visible_lines, 0);
+	}
+
+	if last_selected_index != selected_index {
+		if selected_index >= top_index + visible_lines {
+			top_index = selected_index - visible_lines + 1;
+		}
+		if selected_index < top_index {
+			top_index = selected_index;
+		}
+	}
+	start_index = top_index;
+
+	end_index :: start_index + visible_lines;
+
+	tx := x + text_padding;
+	ty :: y + text_padding;
+
+	if mode == ListerMode.FLOATING {
+		loop i := start_index; i < end_index; i += 1 {
+			item :: &list[visible_list_index][i];
+			preview_w :: text_size(item.preview, &font);
+			list_w = std.max(list_w, preview_w + item_spacing);
+		}
+	}
+
+	aval_width := list_w - text_padding * 2.f;
+
+	// Draw background
+	set_shader_color();
+	if mode == ListerMode.TOP_DOWN {
+		draw_shadow(x, y, list_w, h, ShadowMode.BOTTOM);
+		rect(x, y, list_w, h, colors.command_list_background_color);
+	} else {
+		draw_shadow(x, y, list_w, h, ShadowMode.ALL);
+		r :: metrics[auto Metric.CORNER_ROUNDING];
+		c :: colors.command_list_background_color;
+		rect_rounded(x, y, list_w, h, r, c, c);
+	}
+
+	// Selected line
+	if selected_index >= start_index && selected_index < start_index + visible_lines {
+		selected_y :: ty + line_height * auto (selected_index - start_index);
+		rect_rounded(x, selected_y, list_w, line_height, rounding, colors.command_select_color, colors.command_select_color);
+	}
+
+	hover_index : s64 = -1;
+	if mouse.last_hover_elem_id == loc.hash {
+		ly := ty;
+		loop i := start_index; i < end_index; i += 1 {
+			if is_point_in_rect(x, ly, list_w, line_height, mouse.px, mouse.py) {
+				rect_rounded(x, ly, list_w, line_height, rounding, colors.selection_background_color, colors.selection_background_color);
+				hover_index = i;
+				break;
+			}
+			ly += line_height;
+		}
+	}
+
+	// draw icons
+	if (cols & ICON) == ICON {
+		set_shader_font(&icons);
+		line_base_y := ty;
+		loop i := start_index; i < end_index; i += 1 {
+			ly :: line_base_y + (line_height * 0.5f - icons.height * 0.5f);
+			item :: &list[visible_list_index][i];
+			color := colors.foreground_color;
+			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
+				color = colors.modification_indicator_color;
+			}
+			text(tx, ly, item.icon, color);
+			line_base_y += line_height;
+		}
+		tx         += item_spacing;
+		aval_width -= item_spacing;
+	}
+
+	set_shader_font(&font_ui);
+
+	if (cols & TITLE) == TITLE {
+		title_w := aval_width;
+		if (cols & (HINT | PREVIEW)) != NO_COLS {
+			title_w = std.min(title_max_size, aval_width*0.1f);
+		}
+		title_w -= item_spacing;
+		title_w  = std.clamp(title_w, 0.f, aval_width);
+		set_scissor(tx, y, title_w, h);
+		defer clear_scissor();
+		defer flush();
+
+		line_base_y := ty;
+		loop i := start_index; i < end_index; i += 1 {
+			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
+
+			item :: &list[visible_list_index][i];
+			text(tx, ly, item.title, colors.foreground_color);
+			line_base_y += line_height;
+		}
+		tx         += title_w + item_spacing;
+		aval_width -= title_w;
+	}
+
+	if (cols & HINT) == HINT {
+		hint_w := aval_width;
+		if (cols & PREVIEW) != NO_COLS {
+			hint_w = aval_width * 0.2f;
+		}
+		hint_w -= item_spacing;
+		hint_w  = std.clamp(hint_w, 0.f, aval_width);
+		set_scissor(tx, y, hint_w, h);
+		defer clear_scissor();
+		defer flush();
+
+		line_base_y := ty;
+		loop i := start_index; i < end_index; i += 1 {
+			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
+
+			item :: &list[visible_list_index][i];
+			text(tx, ly, item.hint, colors.code_comment);
+			line_base_y += line_height;
+		}
+		tx         += hint_w + item_spacing;
+		aval_width -= hint_w;
+	}
+
+	set_shader_font(&font);
+
+	if (cols & PREVIEW) == PREVIEW {
+		set_scissor(tx, y, aval_width, h);
+		defer clear_scissor();
+		defer flush();
+
+		line_base_y := ty;
+		loop i := start_index; i < end_index; i += 1 {
+			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
+			item :: &list[visible_list_index][i];
+			text(tx, ly, item.preview, colors.foreground_color);
+			line_base_y += line_height;
+		}
+	}
+
+	// Mouse input
+	if is_point_in_rect(x, y, list_w, h, mouse.px, mouse.py) {
+		mouse.hover_elem_id = loc.hash;
+	}
+
+	clicked := false;
+	if mouse.last_hover_elem_id == loc.hash {
+		set_mouse_cursor();
+		if is_lmb_press() && hover_index != -1 {
+			clicked        = true;
+			selected_index = hover_index;
+		}
+		if std.abs(mouse.scroll) > 0.f {
+			top_index -= auto mouse.scroll * 3.f;
+			if top_index < 0 {
+				top_index = 0;
+			}
+			else if top_index >= list[visible_list_index].len {
+				top_index = list[visible_list_index].len - 1;
+			}
+		}
+	}
+
+	last_selected_index = selected_index;
+	return h, clicked;
+}
+
+list_completion :: fn (strs: []string) {
+	reset_listing();
+	loop i := 0; i < strs.len; i += 1 {
+		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+			preview = std.str_new(strs[i], &string_cache[DEFAULT_CACHE_INDEX]),
+			index = i,
+		});
+	}
+}
+
+list_commands :: fn () {
+	reset_listing();
+
+	loop i := 0; i < COMMAND_NAMES.len; i += 1 {
+		if i <= auto Command._PUBLIC { continue; }
+
+		using std;
+
+		command_name : string_view : COMMAND_NAMES[i];
+		title :: str_new(command_name, &string_cache[DEFAULT_CACHE_INDEX]);
+		hint  :: str_new(&string_cache[DEFAULT_CACHE_INDEX]);
+
+		loop keymap_index := 0;; keymap_index += 1 {
+			keymap_index = lookup_command_keymap_index(auto i, keymap_index);
+			if keymap_index == -1 { break; }
+
+			if hint.len > 0 {
+				str_append(&hint, " | ");
+			}
+			str_append(&hint, keymap_entry_to_string(keymap_index));
+		}
+
+		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+			title = title,
+			hint  = hint,
+			index = i,
+		});
+	}
+
+	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+}
+
+list_directory :: fn (dirpath: string_view, file_extension_filter := []string_view.{}, dirs_only := false, as_projects := false) Error {
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	file_visitor :: fn (info: *std.FileVisitInfo, ctx: *FileVisitorContext) Error {
+		using std;
+
+		if !info.is_directory {
+			if ctx.dirs_only { return OK; }
+			_, ext :: path_splitext(info.filename);
+			// @Incomplete: Case sensitive!?
+			if ext.len == 0 { return OK; }
+			if ctx.file_extension_filter.len > 0 && str_match_one_of(ext, ctx.file_extension_filter) == false { return OK; }
+		} else {
+			// Ignore hidden directories.
+			if info.filename.len > 0 && info.filename[0] == '.' { return OK; }
+		}
+
+		title := str_new(info.filename, &string_cache[DEFAULT_CACHE_INDEX]);
+		the_icon: string_view;
+
+		if ctx.as_projects {
+			// strip the extension
+			title.len -= 5;
+			assert(title.len > 0);
+			the_icon  = icon(ICON_PROJECT);
+		} else {
+			the_icon = get_icon_for_file_type(info);
+		}
+
+		flags := ItemFlags.NONE;
+		if info.is_directory {
+			flags = ItemFlags.DIRECTORY;
+		}
+		array_push(ctx.list, ListItem.{
+			title = title,
+			icon  = the_icon,
+			flags = flags
+		});
+		return OK;
+	};
+
+	using std;
+
+	// Check the directory first.
+	valid, err1 :: is_directory(dirpath);
+	if err1 { return err1; }
+	if !valid { return error("Not directory."); }
+
+	reset_listing();
+
+	ctx :: FileVisitorContext.{
+		list                  = &list[DEFAULT_LIST_INDEX],
+		dirs_only             = dirs_only,
+		as_projects           = as_projects,
+		file_extension_filter = file_extension_filter,
+	};
+
+    err2 :: visit_files(dirpath, VisitOpt.{}, &ctx, &file_visitor);
+    if err2 { return err2; }
+
+	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+
+    return OK;
+}
+
+list_projects :: fn () Error #inline {
+	projects_dir :: tprint("%/%", exec_dir, PROJECTS_DIRECTORY);
+	return list_directory(projects_dir, [1]string_view.{ ".proj" }, false, true);
+}
+
+list_logical_drives :: fn () Error {
+	drives :: win32.GetLogicalDrives();
+	if drives == 0 {
+		return os_get_last_error2();
+	}
+
+	reset_listing();
+
+	DRIVE_LETTERS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	loop i := 0; i < DRIVE_LETTERS.len; i += 1 {
+		if (drives & (1 << cast(u32) i)) > 0 {
+			using std;
+
+			title :: str_new(2, &string_cache[DEFAULT_CACHE_INDEX]);
+			str_append(&title, string_view.{ 1, &DRIVE_LETTERS[i] });
+			str_append(&title, ":");
+			array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+				title = title,
+				flags = ItemFlags.DIRECTORY,
+				icon  = icon(ICON_DRIVE),
+			});
+		}
+	}
+
+	return OK;
+}
+
+// Note the index of each list entry is index into the project included directory list, this might be used
+// to resolve te full file path.
+list_project :: fn () {
+	using std;
+
+	reset_listing();
+
+	is_locked, err_lock :: mutex_try_lock(&project.mutex);
+	if err_lock { panic(err_lock); }
+	if !is_locked {
+		print_warn(PROJECT_IS_INDEXING_MESSAGE);
+		return;
+	}
+	defer mutex_unlock(&project.mutex);
+
+	list_buffers();
+
+	{ // listing
+		tracy.zone_begin();
+		defer tracy.zone_end();
+
+		array_reserve(&list[DEFAULT_LIST_INDEX], project.indexed_files.len);
+		loop i := 0; i < project.indexed_files.len; i += 1 {
+			filepath :: project.indexed_files[i];
+			if is_file_open(filepath) { continue; }
+			dirpath, filename := path_split(filepath);
+			if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
+			array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+				title = filename,
+				hint  = dirpath,
+				icon  = icon(ICON_FILE),
+			});
+		}
+	}
+
+	quick_sort_by_title(list[DEFAULT_LIST_INDEX], auto list[DEFAULT_LIST_INDEX].len - 1, auto list[DEFAULT_LIST_INDEX].len - 1);
+}
+
+list_buffers :: fn () {
+	reset_listing();
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed { continue; }
+		if buf.index == editors[command_editor].buffer_index { continue; }
+
+		dirpath := std.path_split(buf.filepath);
+		if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
+
+		ic :: get_icon_for_buffer(buf);
+
+		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+			title = buf.name,
+			hint  = dirpath,
+			icon  = ic,
+			index = buf.index,
+			flags = ItemFlags.HIGHLIGHT,
+		});
+	}
+
+	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+}
+
+clear_list_filters :: fn () {
+	visible_list_index = DEFAULT_LIST_INDEX;
+}
+
+filter_list :: fn (filter: string_view) {
+	assert(filter.len > 0);
+	selected_index = 0;
+	start_index    = 0;
+	list[FILTER_LIST_INDEX].len = 0;
+	loop i := 0; i < list[DEFAULT_LIST_INDEX].len; i += 1 {
+		item :: &list[DEFAULT_LIST_INDEX][i];
+
+		search_for := item.title;
+		if search_for.len == 0 {
+			search_for = item.preview;
+		}
+		// trim just filename
+		_, tail :: std.path_split(search_for);
+		if tail.len > 0 {
+			search_for = tail;
+		}
+
+		item.score = fuzzy_cmp(search_for, filter);
+		if item.score >= 0 {
+			// Copy valid item into filtered list.
+			array_push(&list[FILTER_LIST_INDEX], @item);
+		}
+	}
+
+	quick_sort_by_score(list[FILTER_LIST_INDEX], 0, auto list[FILTER_LIST_INDEX].len - 1);
+
+	visible_list_index = FILTER_LIST_INDEX;
+}
+
+get_selected_item_in_list :: fn () *ListItem #inline {
+	if list[visible_list_index].len == 0 { return null; }
+	assert(selected_index >= 0 && selected_index < list[visible_list_index].len);
+	return &list[visible_list_index][selected_index];
+}
+
+list_item_up :: fn () {
+	selected_index -= 1;
+	if selected_index < 0 { selected_index = list[visible_list_index].len - 1; }
+	notify();
+}
+
+list_item_down :: fn () {
+	selected_index += 1;
+	if selected_index >= list[visible_list_index].len { selected_index = 0; }
+	notify();
+}
+
+// Do the cleanup of the current vidible list in case the first_call is true. We use both list buffers as double-buffers
+// one is visible, other one is filled with a new data; when new data is ready we just swap them.
+list_async_search :: fn (subject: string_view, first_call := false) Error {
+	if first_call || subject.len < 2 {
+		list[visible_list_index].len = 0;
+		selected_index               = 0;
+		start_index                  = 0;
+		release_allocator(&string_cache[visible_list_index]);
+
+		if subject.len < 2 {
+			return OK;
+		}
+	}
+
+	using std;
+
+	is_locked, err_lock :: mutex_try_lock(&project.mutex);
+	if err_lock { panic(err_lock); }
+	if !is_locked {
+		print_warn(PROJECT_IS_INDEXING_MESSAGE);
+		return OK;
+	}
+	// We have to keep the mutex locked through the whole search process, and unlock it when search is done to prevent
+	// the indexer override data we're working with. Anyway the indexing might be started again (e.g. in case of directory
+	// content changes) but it will not block the main thread even if we're in middle of search here, because the wait for
+	// project mutex is done in indexer thread.
+
+	if project.indexed_files.len == 0 {
+		mutex_unlock(&project.mutex);
+		return OK;
+	}
+
+	// Also waits for all threads to finish.
+	cancel_async_search();
+
+	// Fire up searching in multiple threads...
+	job_count := MAX_JOB_COUNT;
+	loop job_count > 1 {
+		batch_count := project.indexed_files.len / job_count;
+		if batch_count > 1 { break; }
+		job_count -= 1;
+	}
+
+	files_per_job :: project.indexed_files.len / job_count;
+	print_log("Found % files will be processed in % threads.", project.indexed_files.len, job_count);
+
+	async_search.jobs_started = job_count;
+	async_search.jobs_running = job_count;
+	async_search.start_time   = os_ftick_ms();
+
+	// cleanup
+	list_index :: (visible_list_index + 1) % 2;
+	list[list_index].len = 0;
+	selected_index       = 0;
+	start_index          = 0;
+	release_allocator(&string_cache[list_index]);
+	async_search.dest_list_index = list_index;
+
+	first_in_batch: s64;
+	loop i := 0; i < job_count; i += 1 {
+		len := files_per_job;
+		if i + 1 == job_count {
+			// The last one includes the rest of files.
+			len = project.indexed_files.len - first_in_batch;
+		}
+		async_search.jobs_data[i] = WorkerContext.{
+			subject      = subject,
+			files        = []string_view.{ len, &project.indexed_files[first_in_batch] },
+		};
+
+		async(&async_search.jobs[i], &async_search.jobs_data[i], &search_worker);
+		first_in_batch += files_per_job;
+	}
+	return OK;
+}
+
+cancel_async_search :: fn () {
+	using std;
+	loop i := 0; i < async_search.jobs_started; i += 1 {
+		async_search.jobs_data[i].cancel = true;
+	}
+	loop i := 0; i < async_search.jobs_started; i += 1 {
+		async_wait(&async_search.jobs[i]);
+	}
+	assert(async_search.jobs_started == 0);
+	assert(async_search.jobs_running == 0);
+}
+
+get_async_search_progress :: fn () (is_running: bool, progress: f32) #inline {
+	using std;
+	// This might be dirty, but whatever...
+	//mutex_lock(&async_search.mutex);
+	//defer mutex_unlock(&async_search.mutex);
+	if async_search.jobs_started == 0 {
+		return false, 0.f;
+	}
+	return true, 1.f - (cast(f32) async_search.jobs_running / cast(f32) async_search.jobs_started);
+}
+
+#private
+
+MAX_JOB_COUNT :: 16;
+
+WorkerContext :: struct {
+	subject: string_view;
+	files:   []string_view;
+	cancel:  bool;
+
+	result: [..]ListItem;
+}
+
+async_search: struct {
+	using std;
+
+	jobs:         [MAX_JOB_COUNT]Async(*WorkerContext, s32);
+	jobs_data:    [MAX_JOB_COUNT]WorkerContext;
+	jobs_started: s32;
+	jobs_running: s32;
+
+	start_time:      f64;
+	dest_list_index: s32;
+
+	mutex: Mutex;
+};
+
+on_worker_done :: fn (ctx: *WorkerContext) {
+	using std;
+	mutex_lock(&async_search.mutex);
+	defer mutex_unlock(&async_search.mutex);
+
+	if !ctx.cancel {
+		// Copy results.
+		list_index :: async_search.dest_list_index;
+		dest :: &list[list_index];
+		array_reserve(dest, ctx.result.len);
+		loop i := 0; i < ctx.result.len; i += 1 {
+			item :: array_push(dest, ctx.result[i]);
+			item.preview = str_new(item.preview, &string_cache[list_index]);
+		}
+	}
+
+	array_terminate(&ctx.result);
+
+	async_search.jobs_running -= 1;
+	assert(async_search.jobs_running >= 0);
+	if async_search.jobs_running > 0 {
+		return;
+	}
+	err_unlock :: mutex_unlock(&project.mutex);
+	if err_unlock { panic(err_unlock); }
+
+	async_search.jobs_started = 0;
+
+	{
+		mutex_lock(&visible_list_mutex);
+		visible_list_index = async_search.dest_list_index;
+		selected_index     = 0;
+		start_index        = 0;
+		mutex_unlock(&visible_list_mutex);
+
+		async_search.dest_list_index = -1;
+	}
+
+	print_log("Search done in %ms.", os_ftick_ms() - async_search.start_time);
+}
+
+search_worker :: fn (ctx: *WorkerContext) s32 {
+	using std;
+	assert(ctx.subject.len > 0);
+
+	tracy.init("search-worker");
+	defer tracy.terminate();
+
+	tracy.zone_begin();
+	defer tracy.zone_end();
+
+	file_buffer: [..]u8;
+	array_reserve(&file_buffer, 1024);
+	defer array_terminate(&file_buffer);
+
+	array_reserve(&ctx.result, 1024);
+
+	loop i := 0; i < ctx.files.len && ctx.cancel == false; i += 1 {
+		filepath :: ctx.files[i];
+		stream, err_open :: open_file(filepath, OpenFileMode.READ);
+		if err_open {
+			close_file(&stream);
+			print_err(err_open);
+			continue;
+		}
+
+		file_buffer.len = 0;
+		err_read :: load_whole_file(&file_buffer, &stream, 1048576); // LIMIT TO 1MB !!!
+		close_file(&stream);
+		if err_read {
+			if err_read.code == -1 {
+				//print_warn("File '%' skipped with error: %", filepath, err_read.msg);
+			} else {
+				print_err(err_read);
+			}
+			continue;
+		}
+
+		// search file
+		start_index : s64 = 0;
+		loop ctx.cancel == false {
+			hit_position :: find_matching_subject_in_data(file_buffer, ctx.subject, start_index);
+			if hit_position == -1 { break; }
+
+			// File name is valid until the list of all files is valid!
+			dirpath, filename := std.path_split(filepath);
+			if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
+			line :: expand_position_to_whole_line(file_buffer, hit_position);
+
+			array_push(&ctx.result, ListItem.{
+				title    = filename,
+				icon     = icon(ICON_FILE),
+				index    = auto hit_position,
+				preview  = tprint("%", line),
+				hint     = dirpath,
+			});
+			start_index = hit_position + ctx.subject.len;
+		}
+	}
+	on_worker_done(ctx);
+	return 0;
+}
+
+FileVisitorContext :: struct {
+	// Index to the current project included directories used to resolve the root path for each entry.
+	// We also use it to strip the path shown to user in the list.
+	project_include_directory_index: s32;
+	list:                           *[..]ListItem;
+	dirs_only:                       bool;
+	as_projects:                     bool;
+	file_extension_filter:           []string_view;
+}
+
+DEFAULT_LIST_INDEX :: 0;
+FILTER_LIST_INDEX  :: 1;
+
+// We have two lists 0 contains raw sorted items directly from disk. 1 contains filtered items in case some fuzzy search
+// was applied.
+list:                [2][..]ListItem;
+visible_list_index:  s32;
+start_index:         s64;
+selected_index:      s64;
+top_index:           s64;
+last_selected_index: s64;
+
+DEFAULT_CACHE_INDEX :: 0;
+
+// We have two caches, for single threaded simple lists we use just the first one, but in case of
+// multithreaded (async search) we need two. We show previous results untile we have a new ones
+// so it's kind of double buffer approach.
+string_cache: [2]std.PoolAllocator;
+
+visible_list_mutex: std.Mutex;
+
+get_icon_for_file_type :: fn (file_info: *std.FileVisitInfo) string_view #inline {
+	if file_info.is_directory { return icon(ICON_FOLDER); }
+	return icon(ICON_FILE);
+}
+
+// utf8 version?
+first_from_left_in_path :: fn (str: string_view, c: u8, start: s64) s64 {
+	using std;
+
+	if start >= str.len { return -1; }
+	loop i := start; i < str.len; i += 1 {
+		if C.toupper(auto str[i]) == C.toupper(auto c) { return i; }
+	}
+	return -1;
+}
+
+reset_listing :: fn () {
+	list[DEFAULT_LIST_INDEX].len = 0;
+	list[FILTER_LIST_INDEX].len  = 0;
+
+	reset_allocator(&string_cache[0]);
+	reset_allocator(&string_cache[1]);
+	visible_list_index  =  DEFAULT_LIST_INDEX;
+	selected_index      =  0;
+	start_index         =  0;
+	top_index           =  0;
+	last_selected_index = -1;
+}
+
+fuzzy_cmp :: fn (str: string_view, other: string_view) s32 {
+	if other.len == 0 { return 0; }
+	MAX :: 256;
+	score: s32;
+	loop i := 0; i < other.len; i += 1 {
+		index :: cast(s32) first_from_left_in_path(str, other[i], i);
+		if index < 0 { return -1; }
+		score += MAX - index;
+	}
+	return score;
+}
+
+// We have two almost identical sorts here, but we can gain some speed by not using pointer to comparator callbacks.
+quick_sort_by_title :: fn (arr: []ListItem, low: s32, high: s32) {
+	partition :: fn (arr: []ListItem, low: s32, high: s32) s32 {
+		pivot :: &arr[high];
+		i := low - 1;
+		loop j := low; j <= high - 1; j += 1 {
+			if std.str_compare(arr[j].title, pivot.title) > 0 {
+				i += 1;
+				swap(&arr[i], &arr[j]);
+			}
+		}
+		swap(&arr[i + 1], &arr[high]);
+		return i + 1;
+	};
+
+	if low < high {
+		pi :: partition (arr, low, high);
+		quick_sort_by_title(arr, low, pi - 1);
+		quick_sort_by_title(arr, pi + 1, high);
+    }
+}
+
+quick_sort_by_score :: fn (arr: []ListItem, low: s32, high: s32) {
+	partition :: fn (arr: []ListItem, low: s32, high: s32) s32 {
+		pivot :: &arr[high];
+		i := low - 1;
+		loop j := low; j <= high - 1; j += 1 {
+			if arr[j].score > pivot.score {
+				i += 1;
+				swap(&arr[i], &arr[j]);
+			}
+		}
+		swap(&arr[i + 1], &arr[high]);
+		return i + 1;
+	};
+
+	if low < high {
+		pi :: partition (arr, low, high);
+		quick_sort_by_score(arr, low, pi - 1);
+		quick_sort_by_score(arr, pi + 1, high);
+    }
+}
+
+notify :: fn () {
+	using Mode;
+	switch mode {
+		SAVE_TO_DRIVE { save_to_drive_list_select_changed(); }
+    	default;
+	}
+}
+
+expand_position_to_whole_line :: fn (buf: []u8, index: s64, max_distance := 120) string_view {
+	begin := index;
+	end   := index;
+	distance := 0;
+	loop i := index; i > 0 && distance < max_distance; i -= 1 {
+		c :: buf[i-1];
+		if c == '\n' { break; }
+		begin    -= 1;
+		distance += 1;
+	}
+	loop i := index; i < buf.len && distance < max_distance; i += 1 {
+		c :: buf[i];
+		if c == '\n' || c == '\r' { break; }
+		end      += 1;
+		distance += 1;
+	}
+	return string_view.{ end - begin, &buf[begin] };
+}
