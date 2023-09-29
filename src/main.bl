@@ -1555,8 +1555,11 @@ window_focus_callback :: fn (_: *glfw.Window, focused: s32) {
 drop_callback :: fn (_: *glfw.Window, count: s32, paths: **u8) {
 	p :: []*u8.{ count, paths };
 	loop i := 0; i < p.len; i += 1 {
-		path :: std.ctostr(auto p[i]);
-		print_log("%", path);
+		filepath :: std.ctostr(auto p[i]);
+		buf_error :: open(filepath);
+		if buf_error {
+			print_err(buf_error);
+		}
 	}
 }
 
