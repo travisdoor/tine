@@ -3,9 +3,7 @@
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
-#import "clipboard"
 #import "std/async"
-#import "tracy"
 
 #load "buffer.bl"
 #load "commands.bl"
@@ -22,8 +20,6 @@
 #load "project.bl"
 #load "open_project.bl"
 #load "search_in_project.bl"
-#load "file_watch.bl"
-#load "process.bl"
 #load "clang_format.bl"
 #load "builder.bl"
 #load "lsp.bl"
@@ -35,9 +31,6 @@
 #load "syntax/messages.bl"
 #load "syntax/build.bl"
 #load "syntax/md.bl"
-
-// Toggle to enable profiling.
-TRACY_ENABLE :: false;
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -356,9 +349,6 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
-	tracy.init("main");
-	defer tracy.terminate();
-
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
 
@@ -411,7 +401,7 @@ main :: fn () s32 {
 
 	WindowHint(DOUBLEBUFFER, TRUE);
 	WindowHint(RESIZABLE, TRUE);
-	WindowHint(MAXIMIZED, TRUE);
+	//WindowHint(MAXIMIZED, TRUE);
 	WindowHint(SAMPLES, 2);
 
 	window = CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, strtoc(WINDOW_TITLE), null, null);
@@ -476,9 +466,6 @@ main :: fn () s32 {
 	listing_init();
 	defer listing_terminate();
 
-	clipboard.init();
-	defer clipboard.terminate();
-
 	// Initialize async job system.
 	jobs_init();
 
@@ -523,6 +510,8 @@ main :: fn () s32 {
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
 
+		fps = 1000.f/frame_delta_time;
+
 		PollEvents();
 
 		update_mouse();
@@ -544,15 +533,19 @@ main :: fn () s32 {
 		draw_frame();
 		scaling_changed = false;
 
-		buf :: get_active_buffer_and_editor();
+		buf :: get_active_buffer_and_editor() #maybe_unused;
 		title: string_view;
-		if project.is_default {
-			title = buf.name;
+		#if IS_DEBUG {
+			title = tprint("fps: %", fps);
+			SetWindowTitle(window, auto std.strtoc(title));
 		} else {
-			title = tprint("% - %", project.name, buf.name);
+			if project.is_default {
+				title = buf.name;
+			} else {
+				title = tprint("% - %", project.name, buf.name);
+			}
+			SetWindowTitle(window, auto std.strtoc(title));
 		}
-
-		SetWindowTitle(window, auto std.strtoc(title));
 		clear_mouse_events();
     }
 
@@ -1009,16 +1002,14 @@ detect_filetype :: fn (filename: string_view) FileType {
 // @Cleanup: Move to separate file?
 
 JobContext :: struct {
-	using win32;
-
 	state: enum { RUNNING; DONE; FAILED; KILLED; };
 	kind: JobKind;
 	name: string_view;
 
-	pid: DWORD;
+	pid: Pid;
 
-	stdin:  HANDLE;
-	stdout: HANDLE;
+	stdin:  IoStream;
+	stdout: IoStream;
 
 	pending:  [..]Request;
 	complete: [..]Request;
@@ -1345,6 +1336,20 @@ reset_caret_blinking :: fn () #inline {
 	caret.no_binking = false;
 }
 
+clipboard_read :: fn () string_view {
+	cstr :: glfw.GetClipboardString(window);
+	if !cstr { return ""; }
+	return std.ctostr(auto cstr);
+}
+
+clipboard_write :: fn (str: string_view) {
+	using std;
+	if str.len == 0 { return; }
+	// The input string might not be zero terminated.
+	dup :: str_new(str, application_context.temporary_allocator);
+	glfw.SetClipboardString(window, auto std.strtoc(dup));
+}
+
 #private
 
 MAIN_THREAD_ID: u64;
@@ -1355,17 +1360,14 @@ control_pressed: bool;
 // Might be changed when window is not focused.
 low_power_mode: bool;
 
+fps: f32;
+
 draw_frame :: fn () {
 	using draw;
-	tracy.zone_begin();
-	defer tracy.zone_end();
 
 	clear_color(colors.foreground_color);
 
 	{
-		tracy.zone_begin("frame");
-		defer tracy.zone_end();
-
 		active_x: f32;
 		x :: 0.f;
 		y := 0.f;
@@ -1701,15 +1703,21 @@ update_mouse :: fn () {
 	mpx, mpy: f64;
 	GetCursorPos(window, &mpx, &mpy);
 
-	mouse.px = auto mpx;
-	mouse.py = auto mpy;
+	scale: f32;
+	#if PLATFORM == Platform.DARWIN {
+		GetWindowContentScale(window, &scale, null);
+	} else {
+		scale = 1.f;
+	}
+
+	mouse.px = (cast(f32) mpx) * scale;
+	mouse.py = (cast(f32) mpy) * scale;
 	mouse.last_hover_elem_id = mouse.hover_elem_id;
 	mouse.hover_elem_id = 0;
 
 	using glm;
 	if is_lmb_press() {
 		mouse.prev_mouse_pos = v2.{ mouse.px, mouse.py };
-
 	}
 
 	if is_lmb_down() && is_lmb_dragging() == false && distance(v2.{ mouse.px, mouse.py }, mouse.prev_mouse_pos) > MOUSE_DRAG_OFFSET {

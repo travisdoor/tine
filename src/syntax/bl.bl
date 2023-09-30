@@ -1,9 +1,6 @@
 highlight_syntax_bl :: fn (buf: *Buffer) {
 	using std;
 
-	tracy.zone_begin();
-	defer tracy.zone_end();
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	buf.colors.len = 0;

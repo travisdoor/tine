@@ -91,9 +91,6 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 }
 
 search_cmd_changed :: fn () {
-	tracy.zone_begin();
-	defer tracy.zone_end();
-
 	buf :: get_active_buffer_and_editor();
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	subject :: peek_row(buf, 0);

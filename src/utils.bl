@@ -384,22 +384,6 @@ get_file_hash :: fn (filepath: string_view) u32 {
 	return str_hash(tmp);
 }
 
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	using win32;
-	using std;
-
-	url_dup :: tprint(url); // Might not be zero-terminated...
-	buf: [MAX_PATH]u8 #noinit;
-	len : DWORD = auto url_dup.len;
-	status :: PathCreateFromUrlA(std.strtoc(url_dup), auto buf.ptr, &len, 0);
-	if status != S_OK {
-		return error("Url '%' cannot be converted to file path.", url), string.{};
-	}
-	result :: str_new(string_view.{ auto len, buf.ptr });
-	str_replace_all(&result, '\\', '/');
-	return OK, result;
-}
-
 ShadowMode :: enum {
 	NONE;
 	ALL;

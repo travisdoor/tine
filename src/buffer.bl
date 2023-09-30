@@ -724,8 +724,8 @@ maybe_report_readonly :: fn (buf: *Buffer) bool #inline {
 insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
 	assert(str.len > 0);
 
-	lock_buffer(buf);
-	defer unlock_buffer(buf);
+	// lock_buffer(buf);
+	// defer unlock_buffer(buf);
 
 	orig_bytes_len :: buf.bytes.len;
 	array_resize(&buf.bytes, buf.bytes.len + str.len);
@@ -769,8 +769,8 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 	assert(start >= 0 && start <  buf.bytes.len);
 	assert(end   >= 0 && end   <= buf.bytes.len);
 
-	lock_buffer(buf);
-	defer unlock_buffer(buf);
+	// lock_buffer(buf);
+	// defer unlock_buffer(buf);
 
 	len :: end - start;
 	str :: string_view.{ len, &buf.bytes[start] };
@@ -1095,9 +1095,6 @@ set_buffer_file_info :: fn (buf: *Buffer, filepath: string_view) {
 }
 
 rebuild_lines :: fn (buf: *Buffer) {
-	tracy.zone_begin();
-	defer tracy.zone_end();
-
 	buf.lines.len = 0;
 	array_push(&buf.lines, 0);
 
@@ -1123,9 +1120,6 @@ rebuild_lines :: fn (buf: *Buffer) {
 	array_push(&buf.lines, buf.bytes.len);
 
 /*
-	tracy.zone_begin();
-	defer tracy.zone_end();
-
 	buf.lines.len = 0;
 	array_push(&buf.lines, 0);
 

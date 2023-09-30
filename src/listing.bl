@@ -162,7 +162,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	if (cols & TITLE) == TITLE {
 		title_w := aval_width;
 		if (cols & (HINT | PREVIEW)) != NO_COLS {
-			title_w = std.min(title_max_size, aval_width*0.1f);
+			title_w = std.min(title_max_size, aval_width*0.2f);
 		}
 		title_w -= item_spacing;
 		title_w  = std.clamp(title_w, 0.f, aval_width);
@@ -291,9 +291,6 @@ list_commands :: fn () {
 }
 
 list_directory :: fn (dirpath: string_view, file_extension_filter := []string_view.{}, dirs_only := false, as_projects := false) Error {
-	tracy.zone_begin();
-	defer tracy.zone_end();
-
 	file_visitor :: fn (info: *std.FileVisitInfo, ctx: *FileVisitorContext) Error {
 		using std;
 
@@ -362,7 +359,7 @@ list_projects :: fn () Error #inline {
 }
 
 list_logical_drives :: fn () Error {
-	drives :: win32.GetLogicalDrives();
+	drives :: get_logical_drives();
 	if drives == 0 {
 		return os_get_last_error2();
 	}
@@ -406,9 +403,6 @@ list_project :: fn () {
 	list_buffers();
 
 	{ // listing
-		tracy.zone_begin();
-		defer tracy.zone_end();
-
 		array_reserve(&list[DEFAULT_LIST_INDEX], project.indexed_files.len);
 		loop i := 0; i < project.indexed_files.len; i += 1 {
 			filepath :: project.indexed_files[i];
@@ -671,12 +665,6 @@ on_worker_done :: fn (ctx: *WorkerContext) {
 search_worker :: fn (ctx: *WorkerContext) s32 {
 	using std;
 	assert(ctx.subject.len > 0);
-
-	tracy.init("search-worker");
-	defer tracy.terminate();
-
-	tracy.zone_begin();
-	defer tracy.zone_end();
 
 	file_buffer: [..]u8;
 	array_reserve(&file_buffer, 1024);

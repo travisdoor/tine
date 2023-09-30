@@ -8,3 +8,6 @@ projects
 /*.exe
 default.proj
 build.bat
+.DS_Store
+Tine
+Tine-Debug

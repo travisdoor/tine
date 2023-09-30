@@ -76,7 +76,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	// Submit the source to the clang-format.
-	win32.CloseHandle(ctx.stdin);
+	close_stream(ctx.stdin);
 
 	rd.src.len = 0;
 	defer push_result(ctx, &request);

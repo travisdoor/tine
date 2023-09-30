@@ -171,9 +171,6 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 	using std;
 	print_log("Indexing started.");
 
-	tracy.init("indexer");
-	defer tracy.terminate();
-
 	// List all project files first.
 	file_visitor :: fn (info: *std.FileVisitInfo) Error {
 		using std;

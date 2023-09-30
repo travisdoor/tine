@@ -217,11 +217,7 @@ copy_selection :: fn (editor: *Editor, buf: *Buffer) {
 	if text.len == 0 {
 		return;
 	}
-	err :: clipboard.set(text);
-	if err {
-		print_err(err);
-		return;
-	}
+	clipboard_write(text);
 	clear_selection(buf, editor.cursor_index);
 }
 
@@ -232,18 +228,14 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 
 	text :: string_view.{ end - start, &buf.bytes[start] };
 	if std.str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
-		err :: clipboard.set(text);
-		if err {
-			print_err(err);
-			return;
-		}
+		clipboard_write(text);
 	}
 	clear_selection(buf, editor.cursor_index);
 	delete_range(buf, start, end);
 }
 
 paste :: fn (editor: *Editor, buf: *Buffer) {
-	text :: clipboard.get();
+	text :: clipboard_read();
 	if text.len == 0 { return; }
 	if maybe_report_readonly(buf) { return; }
 

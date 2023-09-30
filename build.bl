@@ -39,19 +39,27 @@ build :: fn () #build_entry {
     if args.is_release {
 		exe = add_executable("Tine");
         exe.build_mode = BuildMode.RELEASE_FAST;
-		append_linker_options(exe, "/SUBSYSTEM:WINDOWS");
     } else {
 		exe = add_executable("Tine-Debug");
 	}
     add_unit(exe, "src/main.bl");
 
+	#if PLATFORM == Platform.WINDOWS {
+		add_unit(exe, "src/platform/win32.bl");
+		if args.is_release {
+			append_linker_options(exe, "/SUBSYSTEM:WINDOWS");
+		}
+	} else if PLATFORM == Platform.DARWIN {
+		add_unit(exe, "src/platform/darwin.bl");
+	}
+
 	set_module_dir(exe, "modules", ModuleImportPolicy.SYSTEM);
 	compile(exe);
 
-#if PLATFORM == Platform.WINDOWS {
-    if args.is_release {
-		cmd :: tprint("icon\\rcedit.exe \"Tine.exe\" --set-icon \"icon\\icon.ico\"");
-		os_execute(cmd);
+	#if PLATFORM == Platform.WINDOWS {
+		if args.is_release {
+			cmd :: tprint("icon\\rcedit.exe \"Tine.exe\" --set-icon \"icon\\icon.ico\"");
+			os_execute(cmd);
+		}
 	}
-}
 }
