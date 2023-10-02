@@ -193,10 +193,18 @@ unlock_buffer :: fn (buf: *Buffer) {
 add_cursor :: fn (buf: *Buffer) s32 {
 	check_main_thread();
 
+	// Try to find some already existing valid cursor and use its position.
+	initial_position : s64 = 0;
+	loop i := 0; i < buf.cursors.len; i += 1 {
+		if buf.cursors[i].is_removed { continue; }
+		initial_position = buf.cursors[i].position;
+		break;
+	}
+
 	loop i := 0; i < buf.cursors.len; i += 1 {
 		if buf.cursors[i].is_removed {
 			c :: &buf.cursors[i];
-			c.position        = 0;
+			c.position        = initial_position;
 			c.selection_start = -1;
 			c.is_removed      = false;
 			return i;
@@ -204,7 +212,7 @@ add_cursor :: fn (buf: *Buffer) s32 {
 	}
 	index :: cast(s32) buf.cursors.len;
 	c :: array_push(&buf.cursors);
-	c.position        =  0;
+	c.position        =  initial_position;
 	c.selection_start = -1;
 	c.is_removed      = false;
 	return index;

@@ -1359,7 +1359,8 @@ MAIN_THREAD_ID: u64;
 
 message: Message;
 debug_allocator: std.DebugAllocator;
-control_pressed: bool;
+ignore_char_input: bool;
+
 // Might be changed when window is not focused.
 low_power_mode: bool;
 
@@ -1451,7 +1452,7 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 	}
 
 	if action == PRESS || action == REPEAT {
-		control_pressed = (mods & MOD_CONTROL) == MOD_CONTROL;
+		ignore_char_input = ((mods & MOD_CONTROL) == MOD_CONTROL) || ((mods & MOD_ALT) == MOD_ALT);
 		loop i := 0; i < key_binding.len; i += 1 {
 			m :: &key_binding[i];
 			if m.key == key && m.mods == mods {
@@ -1466,7 +1467,7 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 }
 
 character_callback :: fn (_: *glfw.Window, codepoint: u32) {
-	if control_pressed { return; }
+	if ignore_char_input { return; }
 	reset_caret_blinking();
 
 	if input_mode == InputMode.NUMBERS && ((codepoint < cast(u32) '0') || (codepoint > cast(u32) '9')) {
@@ -1799,7 +1800,7 @@ x indentation on the last line in the file is broken when typing
   - get status of the process (wait pid???)
 
 - focus into the build output only in case it failed compilation?
-- open file in a new split on the same position if it's already open in other split.
+x open file in a new split on the same position if it's already open in other split.
 x merge quick-open and buffer-open
 - Message should disapear after some time.
 x Experiment with toggle ctrl?
