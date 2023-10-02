@@ -62,8 +62,8 @@ is in the public domain.
 
 
 # Font Awesome
-# Liberation Mono
-# Inter
+# JetBrains-Mono
+# SourceSans3
 
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
 
