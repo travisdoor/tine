@@ -6,9 +6,9 @@ Version: 0.1
 To show this help again press `Ctrl+X` (to enter command mode), type "help" and press Enter.
 To close this help press `Alt+Q`.
 
-Download: https://travisdp.itch.io/tine
-
-Source code: https://github.com/travisdoor/tine
+- Download: https://travisdp.itch.io/tine
+- Source code: https://github.com/travisdoor/tine
+- Compiler: https://github.com/travisdoor/bl
 
 
 # Philosophy of Tine
