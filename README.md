@@ -7,6 +7,7 @@ To show this help again press `Ctrl+X` (to enter command mode), type "help" and 
 To close this help press `Alt+Q`.
 
 Download: https://travisdp.itch.io/tine
+
 Source code: https://github.com/travisdoor/tine
 
 
