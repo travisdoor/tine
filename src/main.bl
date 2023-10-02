@@ -540,6 +540,8 @@ main :: fn () s32 {
 	SwapInterval(1);
 	prev_time := GetTime();
 	prev_frame_delta := -1.f #maybe_unused;
+	fps, fps_sum: f32 #maybe_unused;
+	fps_num: s32 #maybe_unused;
 
 	if show_help {
 		help();
@@ -552,22 +554,20 @@ main :: fn () s32 {
 
 		#if PLATFORM == Platform.DARWIN {
 			// Limit maximum FPS on mac since vsync seems not work.
-			if prev_frame_delta < 16.f && prev_frame_delta > 0.f {
-				print("sleep %\n", cast(u32) (16.f - prev_frame_delta));
-				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
+			if prev_frame_delta <= 33.f && prev_frame_delta > 0.f {
+				os_sleep_ms(cast(u32) (33.f - prev_frame_delta));
 			}
 		}
 
-		wait_time := 0.100;
-		if low_power_mode || force_redraw == false {
-			wait_time = 0.5;
+		wait_s := 0.100;
+		if low_power_mode && force_redraw == false {
+			wait_s = 1.0;
 		} else if force_redraw {
-			wait_time = 0.;
+			wait_s = 0.016;
 		}
-
 		force_redraw = false;
 
-		WaitEventsTimeout(wait_time);
+		WaitEventsTimeout(wait_s);
 
 		update_mouse();
 		update_caret();
@@ -587,7 +587,14 @@ main :: fn () s32 {
 		buf :: get_active_buffer_and_editor() #maybe_unused;
 		title: string_view;
 		#if IS_DEBUG {
-			title = tprint("frame ms: %", frame_delta_time);
+			fps_num += 1;
+			fps_sum += 1000.f/frame_delta_time;
+			if fps_num == 10 {
+				fps = fps_sum / auto fps_num;
+				fps_sum = 0.f;
+				fps_num = 0;
+			}
+			title = tprint("FPS: %", fps);
 			SetWindowTitle(window, auto std.strtoc(title));
 		} else {
 			if project.is_default {
@@ -1606,6 +1613,7 @@ window_focus_callback :: fn (_: *glfw.Window, focused: s32) {
 	} else {
 		caret.no_binking = true;
 		low_power_mode   = true;
+		print_log("Focus out!");
 	}
 }
 

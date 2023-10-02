@@ -20,7 +20,7 @@ save_to_drive_mode_terminate :: fn () {
 
 draw_save_to_drive_mode :: fn () {
 	get_title :: fn () string_view #inline {
-		if base_path.len == 0 {
+		if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
 			return "Save as: ";
 		}
 		return tprint("Save as: %/", base_path);
@@ -87,22 +87,41 @@ save_to_drive_list_select_changed :: fn () {
 
 dir_up :: fn (path: *string) {
 	using std;
+
 	lhs: string_view;
-	// This is why we don't keep the last path separator in the base_path string. Yes, ugly, but it works...
-	if str_split_by_last(@path, '/', &lhs) {
-		assert(lhs.len > 0);
-		path.len = lhs.len;
-		err :: list_directory(tprint("%/", @path));
-		if err {
-			print_err(err);
+	#if PLATFORM == Platform.WINDOWS {
+		if str_split_by_last(@path, '/', &lhs) {
+			assert(lhs.len > 0);
+			tmp := str_new(lhs, application_context.temporary_allocator);
+			path.len = 0;
+			str_append(path, tmp);
+			err :: list_directory(tprint("%/", @path));
+			if err {
+				print_err(err);
+			}
+		} else {
+			err :: list_logical_drives();
+			if err {
+				print_err(err);
+			}
+			path.len = 0;
 		}
 	} else {
-		// Directory or root on UNIX.
-		err :: list_logical_drives();
-		if err {
-			print_err(err);
+		if str_split_by_last(@path, '/', &lhs) {
+			err := OK;
+			if lhs.len == 0 {
+				path.len = 0;
+				err = list_directory("/");
+			} else {
+				tmp := str_new(lhs, application_context.temporary_allocator);
+				path.len = 0;
+				str_append(path, tmp);
+				err = list_directory(tprint("%/", @path));
+			}
+			if err {
+				print_err(err);
+			}
 		}
-		path.len = 0;
 	}
 }
 
@@ -150,7 +169,7 @@ commit :: fn () {
 	if !item { return; }
 
 	path: string_view #noinit;
-	if base_path.len == 0 {
+	if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
 		path = tprint(item.title);
 	} else {
 		path = tprint("%/%", base_path, item.title);

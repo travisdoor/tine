@@ -19,7 +19,7 @@ open_from_drive_mode_terminate :: fn () {
 
 draw_open_from_drive_mode :: fn () {
 	get_title :: fn () string_view #inline {
-		if base_path.len == 0 {
+		if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
 			return "Open: ";
 		}
 		return tprint("Open: %/", base_path);
@@ -95,7 +95,7 @@ commit :: fn () {
 	if !item { return; }
 
 	path: string_view #noinit;
-	if base_path.len == 0 {
+	if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
 		path = tprint(item.title);
 	} else {
 		path = tprint("%/%", base_path, item.title);

@@ -359,7 +359,13 @@ list_projects :: fn () Error #inline {
 }
 
 list_logical_drives :: fn () Error {
-	drives :: get_logical_drives();
+	drives: u32;
+	#if PLATFORM == Platform.WINDOWS {
+		drives = win32.GetLogicalDrives();
+	} else {
+		panic("Not implemented.");
+	}
+
 	if drives == 0 {
 		return os_get_last_error2();
 	}

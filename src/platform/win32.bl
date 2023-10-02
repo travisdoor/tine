@@ -143,14 +143,6 @@ close_stream :: fn (handle: IoStream) {
 }
 
 //
-// File system specifics
-//
-
-get_logical_drives :: fn () u32 {
-	return win32.GetLogicalDrives();
-}
-
-//
 // MISC
 //
 
