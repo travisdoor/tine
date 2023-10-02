@@ -6,7 +6,7 @@ Version: 0.1
 To show this help again press `Ctrl+X` (to enter command mode), type "help" and press Enter.
 To close this help press `Alt+Q`.
 
-Consider supporting this project at: @Incomplete.
+Consider supporting this project at: https://travisdp.itch.io/tine
 
 
 # Philosophy of Tine
@@ -17,8 +17,8 @@ helpful for others.
 
 The main goal of this editor is to keep the focus on the text editing and not be distracted
 too much by buttons, tabs, menus, and animations. So there is almost no UI. Text navigation
-and the editor interactions are strictly designed for keyboard use only (since I hate moving
-my hand during typing and using the mouse); however, some basic mouse support was added after
+and the editor interactions are strictly designed for keyboard use (since I hate moving my
+hand during typing and using the mouse); however, some basic mouse support was added after
 some time (mostly for cases like a quick presentation of code to colleagues and similar
 things).
 
@@ -117,8 +117,13 @@ Shortcut: `Ctrl+Alt+S`
 Search text recursively in all files included in the projec as you type.
 
 
-## Build Buffer
+## Build
 Command: `build`
 Shortcut: `F4`
 
 **Currently Windows only.**
+
+When the `build` command is executed Tine will try to execute `build.bat` file in the project directory,
+result is presented in a read-only buffer. In case the output contains errors or warning in a known format
+(currently CL and Clang compiler outputs are supported), you can jump between reported source locations
+by pressing `Ctrl+.` and `Ctrl+,` shortcuts (`next-error` and `prev-error` commands).
