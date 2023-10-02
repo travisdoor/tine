@@ -342,6 +342,10 @@ mouse: struct {
 	prev_click_time_s: f64;
 };
 
+// We can speed up rendering and disable low-power mode in case some animation is running. Next
+// frame will not wait for inputs.
+force_redraw := false;
+
 main :: fn () s32 {
 	using glfw;
 	using std;
@@ -542,21 +546,27 @@ main :: fn () s32 {
 	}
 
     loop WindowShouldClose(window) == 0 {
-		#if PLATFORM == Platform.DARWIN {
-			if prev_frame_delta < 16.f && prev_frame_delta > 0.f {
-				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
-			}
-		}
 		current_time :: glfw.GetTime();
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
 
-		wait_time := 0.2; // seconds
-		if low_power_mode {
-			wait_time = 0.5;
+		#if PLATFORM == Platform.DARWIN {
+			// Limit maximum FPS on mac since vsync seems not work.
+			if prev_frame_delta < 16.f && prev_frame_delta > 0.f {
+				print("sleep %\n", cast(u32) (16.f - prev_frame_delta));
+				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
+			}
 		}
 
-		//PollEvents();
+		wait_time := 0.100;
+		if low_power_mode || force_redraw == false {
+			wait_time = 0.5;
+		} else if force_redraw {
+			wait_time = 0.;
+		}
+
+		force_redraw = false;
+
 		WaitEventsTimeout(wait_time);
 
 		update_mouse();

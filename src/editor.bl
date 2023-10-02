@@ -283,6 +283,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 		set_shader_color();
 		rect(x + w * buf.pending_t * 0.0005f, h-2.f-title_bar_height, w * 0.1f, 2.f, colors.warning_color);
+		force_redraw = true;
 	}
 
 	// file info bar
