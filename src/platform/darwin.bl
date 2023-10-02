@@ -65,7 +65,9 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 //
 
 Watcher :: struct {
-	_: u8;
+	using macos;
+
+	stream: FSEventStreamRef;
 }
 
 watch_init :: fn () {
@@ -81,8 +83,27 @@ WatchFor :: enum u32 #flags {
 }
 
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
-	directory;
-	flags;
+	using macos;
+	using std;
+
+	hash :: hash_combine(str_hash(directory), cast(u32) flags);
+
+	path :: CFStringCreateWithCString(null, auto strtoc(directory), CFStringEncoding.UTF8);
+	paths   :: CFArrayCreate(null, &path, 1, null);
+	latency :: 3.0;
+
+	w := tbl_lookup_ptr(&watched, hash);
+	if w { return OK; }
+
+	w = tbl_insert(&watched, hash);
+	w.stream = FSEventStreamCreate(null, &change_callback, auto w, paths, kFSEventStreamEventIdSinceNow, latency, kFSEventStreamCreateFlagNone);
+	run_loop :: CFRunLoopGetCurrent();
+	run_loop_mode :: CFStringCreateWithCString(null, auto strtoc("kCFRunLoopDefaultMode"), CFStringEncoding.UTF8);
+	defer CFRelease(run_loop_mode);
+
+	FSEventStreamScheduleWithRunLoop(w.stream, run_loop, run_loop_mode);
+	FSEventStreamStart(w.stream);
+
 	return OK;
 }
 
@@ -101,3 +122,23 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	filepath;
 	return 0, OK;
 }
+
+#private
+watched: std.Table(u32, Watcher);
+
+change_callback :: fn (
+    stream_ref: macos.ConstFSEventStreamRef,
+    client_callback_info: *u8,
+    num_events: usize,
+    event_paths: *u8,
+    event_flags: *macos.FSEventStreamEventFlags,
+    event_ids: *macos.FSEventStreamEventId
+) {
+	stream_ref;
+	client_callback_info;
+	num_events;
+	event_paths;
+	event_flags;
+	event_ids;
+	print_log("Changes!!!");
+};

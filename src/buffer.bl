@@ -144,11 +144,26 @@ add_messages_buffer :: fn (name: string_view) s32 {
 	index :: add_buffer();
 	buf :: &buffers[index];
 
-	buf.line_ending   = LineEnding.LF;
+	buf.line_ending = LineEnding.LF;
 	buf.flags = BufferFlags.READONLY;
 
 	std.str_clear(&buf.name);
 	std.str_append(&buf.name, name);
+	return index;
+}
+
+add_implicit_file_buffer :: fn (name: string_view, data: []u8, file_type := FileType.UNKNOWN) s32 {
+	index :: add_buffer();
+	buf :: &buffers[index];
+	buf.flags = BufferFlags.READONLY;
+	std.str_clear(&buf.name);
+	std.str_append(&buf.name, name);
+	array_push_all(&buf.bytes, data);
+	buf.line_ending = detect_line_ending(buf.bytes);
+	buf.file_type = file_type;
+	buf.dirty_syntax = true;
+
+	rebuild_lines(buf);
 	return index;
 }
 

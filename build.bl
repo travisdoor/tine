@@ -51,6 +51,7 @@ build :: fn () #build_entry {
 		}
 	} else if PLATFORM == Platform.DARWIN {
 		add_unit(exe, "src/platform/darwin.bl");
+		append_linker_options(exe, "-framework CoreFoundation -framework CoreServices");
 	}
 
 	set_module_dir(exe, "modules", ModuleImportPolicy.SYSTEM);

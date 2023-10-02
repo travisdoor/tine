@@ -33,7 +33,7 @@ create_default_project_file :: fn (directory: string_view, filename: string_view
 }
 
 load_default_project_file :: fn () Error #inline {
-	return load_project_file(exec_dir, DEFAULT_CONFIG_FILE, true);
+	return load_project_file(data_dir, DEFAULT_CONFIG_FILE, true);
 }
 
 load_project_file :: fn (directory: string_view, filename: string_view, is_default := false) Error {

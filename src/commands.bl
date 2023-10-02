@@ -87,6 +87,7 @@ Command :: enum {
 	LSP_KILL_SERVER;
 	LSP_RESTART_SERVER;
 	LSP_COMPLETION;
+	HELP;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
@@ -362,6 +363,13 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 	return true;
 }
 
+help :: fn () {
+	if help_buffer_index == -1 {
+		help_buffer_index = add_implicit_file_buffer("Help", HELP_FILE_DATA, FileType.MD);
+	}
+	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
+}
+
 #private
 
 SmartSelectionLevel :: enum {
@@ -428,9 +436,10 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
 		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
 		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
+		HELP                { help                ();                                      }
 
 		OPEN_PROJECTS_DIRECTORY {
-			open_path(tprint("\"%/%\"", exec_dir, PROJECTS_DIRECTORY));
+			open_path(tprint("\"%/%\"", data_dir, PROJECTS_DIRECTORY));
 		}
 
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
@@ -1134,7 +1143,7 @@ open_project_config :: fn () {
 }
 
 open_default_config :: fn () {
-	err :: open(tprint("%/%", exec_dir, DEFAULT_CONFIG_FILE), true);
+	err :: open(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE), true);
 	if err {
 		print_err("Cannot open default config file with error: %", err);
 	}

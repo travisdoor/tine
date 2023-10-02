@@ -97,6 +97,7 @@ FONT_UI_B                     :: "SourceSans3-Bold.ttf";
 ICONS                         :: "fa-solid-900.ttf";
 APPLICATION_ICON              :: "icon/icon-flip.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
+HELP_FILE                     :: "README.md";
 
 FONT_DATA                          :: file_to_stack(FONT);
 FONT_UI_DATA                       :: file_to_stack(FONT_UI);
@@ -104,6 +105,7 @@ FONT_UI_B_DATA                     :: file_to_stack(FONT_UI_B);
 ICON_DATA                          :: file_to_stack(ICONS);
 DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: file_to_stack(DEFAULT_PROJECT_FILE_TEMPLATE);
 APPLICATION_ICON_DATA              :: file_to_stack(APPLICATION_ICON);
+HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
 
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
@@ -128,6 +130,7 @@ command_editor : s32 = -1;
 
 // Used for logs/errors/warnings etc.
 messages_buffer_index : s32 = -1;
+help_buffer_index: s32 = -1;
 
 last_search_subject: string;
 
@@ -300,6 +303,9 @@ clear_error_list :: fn () {
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
 
+// Path where to store projects folder and default config, same as exec_dir on Windows.
+data_dir: string;
+
 //
 // Mouse
 //
@@ -351,6 +357,8 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
+	//debug_allocator_break(&debug_allocator, 3);
+
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
 
@@ -370,7 +378,24 @@ main :: fn () s32 {
 		print_log("Editor executable directory: '%'", exec_dir);
 	}
 
-	//debug_allocator_break(&debug_allocator, 145);
+	#if PLATFORM == Platform.WINDOWS {
+		data_dir = str_new(exec_dir);
+	} else {
+		data_dir = get_home();
+		str_append(&data_dir, "/.tine");
+		if !file_exist(data_dir) {
+			err :: create_dir(data_dir);
+			if err {
+				panic(err);
+			} else {
+				print_log("Tine directory created at '%'.", data_dir);
+			}
+		}
+	}
+
+	defer str_delete(&data_dir);
+
+	print_log("Editor data directory: '%'", data_dir);
 
 	default_logger :: set_logger(&logger);
 	defer set_logger(default_logger);
@@ -435,7 +460,7 @@ main :: fn () s32 {
 	draw.init(WINDOW_WIDTH, WINDOW_HEIGHT);
 	defer draw.terminate();
 
-	project_dir_path :: tprint("%/%", exec_dir, PROJECTS_DIRECTORY);
+	project_dir_path :: tprint("%/%", data_dir, PROJECTS_DIRECTORY);
 	if !file_exist(project_dir_path) {
 		err :: create_dir(project_dir_path);
 		if err {
@@ -445,11 +470,14 @@ main :: fn () s32 {
 		}
 	}
 
-	// Check whether the default project file exists.
-	if !file_exist(tprint("%/%", exec_dir, DEFAULT_CONFIG_FILE)) {
-		load_default_project_from_template();
+	show_help := false;
 
-		err :: create_default_project_file(exec_dir, DEFAULT_CONFIG_FILE);
+	// Check whether the default project file exists.
+	if !file_exist(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE)) {
+		load_default_project_from_template();
+		show_help = true;
+
+		err :: create_default_project_file(data_dir, DEFAULT_CONFIG_FILE);
 		if err { print_err(err); }
 		print_log("Default project file created since it was not found.");
 	} else {
@@ -507,15 +535,29 @@ main :: fn () s32 {
 
 	SwapInterval(1);
 	prev_time := GetTime();
+	prev_frame_delta := -1.f #maybe_unused;
+
+	if show_help {
+		help();
+	}
 
     loop WindowShouldClose(window) == 0 {
+		#if PLATFORM == Platform.DARWIN {
+			if prev_frame_delta < 16.f && prev_frame_delta > 0.f {
+				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
+			}
+		}
 		current_time :: glfw.GetTime();
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
 
-		fps = 1000.f/frame_delta_time;
+		wait_time := 0.2; // seconds
+		if low_power_mode {
+			wait_time = 0.5;
+		}
 
-		PollEvents();
+		//PollEvents();
+		WaitEventsTimeout(wait_time);
 
 		update_mouse();
 		update_caret();
@@ -529,17 +571,13 @@ main :: fn () s32 {
 		maybe_reindex_current_project();
 		update_jobs(); // Also process all responses...
 
-		if low_power_mode {
-			os_sleep_ms(200);
-		}
-
 		draw_frame();
 		scaling_changed = false;
 
 		buf :: get_active_buffer_and_editor() #maybe_unused;
 		title: string_view;
 		#if IS_DEBUG {
-			title = tprint("fps: %", fps);
+			title = tprint("frame ms: %", frame_delta_time);
 			SetWindowTitle(window, auto std.strtoc(title));
 		} else {
 			if project.is_default {
@@ -550,6 +588,7 @@ main :: fn () s32 {
 			SetWindowTitle(window, auto std.strtoc(title));
 		}
 		clear_mouse_events();
+		prev_frame_delta = frame_delta_time;
     }
 
 	// Terminate any possible active mode.
@@ -758,6 +797,8 @@ close_buffer :: fn (buffer_index: s32) {
 		build.buffer_index = -1;
 		// reset error list, we refer to the original buffer strings.
 		clear_error_list();
+	} else if buffer_index == help_buffer_index {
+		help_buffer_index = -1;
 	}
 
 	// We should not remove buffer for messages.
@@ -1364,8 +1405,6 @@ ignore_char_input: bool;
 // Might be changed when window is not focused.
 low_power_mode: bool;
 
-fps: f32;
-
 draw_frame :: fn () {
 	using draw;
 
@@ -1553,8 +1592,10 @@ window_scale_callback :: fn (_: *glfw.Window, xscale: f32, _: f32) {
 window_focus_callback :: fn (_: *glfw.Window, focused: s32) {
 	if focused > 0 {
 		reset_caret_blinking();
+		low_power_mode = false;
 	} else {
 		caret.no_binking = true;
+		low_power_mode   = true;
 	}
 }
 
@@ -1765,7 +1806,7 @@ TODO
   - add scroll indicators for lister
 
 x horizontal view switch if we go too far
-- help + readme
+x help + readme
 - find and replace in file
 x remap keyboard
 x cursor blinking
@@ -1817,7 +1858,7 @@ x autoindent on paste when enabled
   x allow this for the whole inserted block of code (we cannot do it right now, because the indentation
     info is not recomputed right away after insertion, so in case the clipboard text contains some chars changing
     indentation the result is invalid)
-- Reduce framerate after some period of idle time?
+x Reduce framerate after some period of idle time? (note we wait for events and also limit max frame rate on mac).
 x Open file from the command line sometimes fails, also filepath is not normalized.
 - recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).
 x markdown syntax
@@ -1852,7 +1893,6 @@ x parse keys in settings
 - move line up and down
 - dark/light colors switch
 - not all commands needs to return value...
-- create help file
 - add documentation into the global config file
 - hide mouse cursor after some time without movement
 - don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleGetInfoString</key>
+	<string>Tine</string>
+	<key>CFBundleExecutable</key>
+	<string>Tine</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.martindorazil.tine</string>
+	<key>CFBundleName</key>
+	<string>Tine</string>
+	<key>CFBundleIconFile</key>
+	<string>tine.icns</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>IFMajorVersion</key>
+	<integer>1</integer>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2023 Martin Dorazil</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>IFMinorVersion</key>
+	<integer>0</integer>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Tine want&apos;s to save and load files in desktop folder.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Tine want&apos;s to save and load files in documents folder.</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0</string>
+	<key>com.apple.security.app-sandbox</key>
+	<string>false</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Tine want&apos;s to save and load files in downloads folder.</string>
+</dict>
+</plist>

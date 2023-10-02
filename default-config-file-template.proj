@@ -1,7 +1,7 @@
 # Default configuration file for Tine text editor.
 
 # This configuration is used as a default "project" file in case no other project is loaded. The
-# project configuration files might override some of these settings.
+# actual project configuration files might override some of these settings.
 #
 # The configuration is split into sections, each section starts by ;section-name tag.
 
@@ -9,6 +9,9 @@
 # List of directories included into the project. The first one is supposed to be a project root and
 # is used as a current working directory.
 # Each directory path entry is supposed to be on a separate line and may contains spaces.
+#
+# Example:
+#   C:/my/project/root
 
 ;exclude
 # List of directories exluded from the project.

@@ -354,7 +354,7 @@ list_directory :: fn (dirpath: string_view, file_extension_filter := []string_vi
 }
 
 list_projects :: fn () Error #inline {
-	projects_dir :: tprint("%/%", exec_dir, PROJECTS_DIRECTORY);
+	projects_dir :: tprint("%/%", data_dir, PROJECTS_DIRECTORY);
 	return list_directory(projects_dir, [1]string_view.{ ".proj" }, false, true);
 }
 

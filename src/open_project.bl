@@ -62,7 +62,7 @@ commit :: fn () {
 	if !item { return; }
 
 	set_mode(Mode.TEXT_EDIT);
-	err :: open_project(tprint("%/%", exec_dir, PROJECTS_DIRECTORY), tprint("%.proj", item.title));
+	err :: open_project(tprint("%/%", data_dir, PROJECTS_DIRECTORY), tprint("%.proj", item.title));
 	if err { print_err(err); }
 }
 

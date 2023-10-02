@@ -3,8 +3,8 @@
 Author:  Martin Dorazil
 Version: 0.1
 
-To show this help again press Ctrl+X (to enter command mode), type "help" and press Enter.
-To close this help press Alt+Q.
+To show this help again press `Ctrl+X` (to enter command mode), type "help" and press Enter.
+To close this help press `Alt+Q`.
 
 Consider supporting this project at: @Incomplete.
 
@@ -22,14 +22,12 @@ my hand during typing and using the mouse); however, some basic mouse support wa
 some time (mostly for cases like a quick presentation of code to colleagues and similar
 things).
 
-I mostly use C/C++ at work so the editor is designed to be used with those languages; however,
-I prefer my own programming language I'm working on in my spare time (BL); the same language
-the editor is written in; so there is some support for it also.
+I mostly use C/C++ at work so the editor is designed to be used with those languages.
 
 I used Emacs a lot so my Ctrl key is remapped to CapsLock. I think such Control key position
 is way better and ergonomic, so consider do the same. Default Tine keybinding is a lot about
 pressing Control. Also right hand touch-type home position is used as a base for the cursor
-movement.
+movement (arrows can be used too).
 
 My default working OS is Windows, so the editor was designed according to it. However, porting
 to other platforms might be possible since the language API used for the editor supports also
@@ -39,28 +37,88 @@ process execution there.
 
 # First Run
 
+## Windows
 The editor is distributed as a single small executable containing all the data needed. I
 recommend putting the executable into a separate directory because the default configuration
 file `default.proj` and `projects` directory will be automatically generated for you next
 to the executable.
 
+## MacOS
+Default configuration file `default.proj` will be created in `~/.tine` directory together with
+`projects` folder.
 
 # Configuration
-
+The default configuration of the editor can be found in `default.proj` file. This file is created
+automatically on the first run. Use `open-default-config` command to open it.
 
 # Projects
-
+To enable some advanced features as "grep search" you need to create a new project file located
+in `projects` directory (use `open-projects-directory` to open the disk location in your file
+explorer). Each project is represented as a single configuration file with `.proj` extension.
+In general, a project file should contain at least `;include` section with a project root
+directory path. You also might need to override some settings from the `default.proj` configuration.
+For more details see documentation in the `default.proj` file (`open-default-config` command).
 
 # Modes
+Various editor features are implemented as "modes".
 
-## Goto Line
-## Open File
-## Open Project
-## Quick Open
-## Buffer Open
-## Save File
-## Run Command
-## Search
-## Search In Project
+### Run Command
+Command: `run-command`
+Shortcut: `Ctrl+X`
 
-# LSP
+The most fundamental mode serving as an entry point to all editor features. All possible interactions
+with the editor are build as commands. You can execute any command you want by choosing one from the
+command list.
+
+Use fuzzy-search for a quick lookup.
+
+### Goto Line
+Command: `goto-line`
+Shortcut: `Alt+G`
+
+Move the cursor in current editor to the line number.
+
+### Open File
+Command: `open-file`
+Shortcut: `Ctrl+O`
+
+Open the file from disk.
+
+### Open Project
+Command: `open-project`
+Shortcut: `Ctrl+Shift+O`
+
+Open project from `projects` directory.
+
+### Quick Open
+Command: `quick-open`
+Shortcut: `Ctrl+P`
+
+List recursively all files in the project directories specified in project config `;include` section.
+Only editable project files (with extensions listed in `;include_file_extension` section) will
+be present in the list.
+
+Use fuzzy-search for a quick lookup.
+
+### Search
+Command: `search-file`
+Shortcut: `Ctrl+S`
+
+Search in the current focused file buffer. All matching locations are dynamically highlighted
+as you type. Use `Ctrl+K` or `Ctrl+L` (or arrows) no jump between resuts, `Enter` to jump back
+to the editor at the found match location or `Escape` to cancel the search.
+
+The search currently does not support regex and match detection is not case sensitive.
+
+### Search In Project
+Command: `search-in-project`
+Shortcut: `Ctrl+Alt+S`
+
+Search text recursively in all files included in the projec as you type.
+
+
+## Build Buffer
+Command: `build`
+Shortcut: `F4`
+
+**Currently Windows only.**
