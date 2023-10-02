@@ -38,8 +38,9 @@ LineEnding :: enum {
 	LF;
 }
 
-WINDOW_WIDTH  := 1280;
-WINDOW_HEIGHT := 720;
+// @Incomplete: Set from settings?
+WINDOW_WIDTH  := 800;
+WINDOW_HEIGHT := 600;
 WINDOW_TITLE  :: "Tine"; // This is not Emacs
 
 WINDOW_SCALE: f32;
@@ -89,7 +90,7 @@ ICON_BUILD    : u32 : 0xF6E3;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
-FONT                          :: "SourceCodePro-Regular.ttf";
+FONT                          :: "JetBrainsMono-Regular.ttf";
 FONT_UI                       :: "SourceSans3-Regular.ttf";
 FONT_UI_B                     :: "SourceSans3-Bold.ttf";
 
@@ -226,6 +227,7 @@ Settings :: struct {
 	use_lsp:                                bool;
 	show_lsp_inline_diagnostics:            bool;
 	block_caret:                            bool;
+	word_wrap:                              bool;
 };
 
 settings: Settings;
@@ -414,6 +416,7 @@ main :: fn () s32 {
 
 	set_icon();
 
+	SetWindowSizeLimits(window, 640, 480, DONT_CARE, DONT_CARE);
 	GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
 	GetWindowContentScale(window, &WINDOW_SCALE, null);
 
@@ -1760,7 +1763,7 @@ TODO
   x scroling in the lists
   - add scroll indicators for lister
 
-- horizontal view switch if we go too far
+x horizontal view switch if we go too far
 - help + readme
 - find and replace in file
 x remap keyboard
@@ -1829,6 +1832,10 @@ x error in project config has invalid line number...
 x reduce override of the clipboard by stuff from command buffer
 - cut sometimes breaks new lines... (maybe breaks on paste when we have in clipboard different line endings?)
 - word wrap
+  - rendering lines
+  - rendering selection & highlights
+  - cursor navigation and position
+  - cursor mouse press position
 C list all running processes and kill them!
 - highlight current word after timeout
 - last search should stay in search in files command
@@ -1848,5 +1855,6 @@ x parse keys in settings
 - add documentation into the global config file
 - hide mouse cursor after some time without movement
 - don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
+x set window minimal size
 
 */

@@ -4,8 +4,7 @@ Editor :: struct {
 	cursor_index: s32;
 	split: Split;
 
-	top:    s32;
-	//left:   s32;
+	top:           s32;
 	visible_lines: s32;
 
 	prev_frame_cursor_position: s64;
@@ -91,15 +90,13 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	text_padding :: metrics[auto TEXT_PADDING];
 	item_spacing :: metrics[auto ITEM_SPACING ];
 
+	line_w :: w-text_padding*2.f;
+
 	// Draw background
 	set_shader_color();
 	rect(x, y, w, h, colors.background_color);
 
-	tx :: x + text_padding;
-	ty :: y + text_padding;
-
 	cursor :: get_cursor(buf, editor.cursor_index);
-
 	visible_lines :: cast(s32) std.ceil(h / line_height);
 
 	first_line_index := editor.top;
@@ -115,6 +112,33 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			last_line_index  = first_line_index + visible_lines;
 		}
 	}
+
+	// Cursor position and size.
+	char_under_cursor :: peek_position(buf, cursor.position);
+	line, start_index :: peek_row_without_new_line(buf, cursor.row);
+	cursor_x := text_size(line, &font, auto (cursor.position - start_index));
+	cursor_w := 2.f;
+	if settings.block_caret || !is_active {
+		cw :: text_size(char_under_cursor, &font);
+		cursor_w = cw;
+		if cursor_w == 0.f {
+			w :: text_size("X", &font);
+			cursor_w = ceil(w);
+		}
+	}
+
+	tx := x + text_padding;
+	ty :: y + text_padding;
+
+	// Adjust text x offset
+	if settings.word_wrap == false {
+		HORIZONTAL_SCROLL_TRIGGER :: 32.f;
+		vs :: round((line_w - HORIZONTAL_SCROLL_TRIGGER) / HORIZONTAL_SCROLL_TRIGGER);
+		if (cursor_x / HORIZONTAL_SCROLL_TRIGGER) > vs {
+			tx -= vs * HORIZONTAL_SCROLL_TRIGGER;
+		}
+	}
+
 	// Cache some values.
 	editor.top           = first_line_index;
 	editor.visible_lines = visible_lines;
@@ -195,22 +219,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	// cursor
-	char_under_cursor :: peek_position(buf, cursor.position);
-	line, start_index :: peek_row_without_new_line(buf, cursor.row);
-
-	cursor_x := text_size(line, &font, auto (cursor.position - start_index));
-	cursor_w := 2.f;
-
-	if settings.block_caret || !is_active {
-		cw :: text_size(char_under_cursor, &font);
-		cursor_w = cw;
-		if cursor_w == 0.f {
-			w :: text_size("X", &font);
-			cursor_w = ceil(w);
-		}
-	}
-
-	// cursor
 	if is_active && caret.visible {
 		color := colors.cursor_background_color;
 		rect(ceil(tx + cursor_x), current_line_y, cursor_w, line_height, color);
@@ -229,7 +237,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	loop i := first_line_index; i < last_line_index; i += 1 {
 		line, row_start_index :: peek_row(buf, i);
 		if line.len == 0 { break; }
-		ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
 
 		line_colors: [1024]u8 #noinit;
 		if buf.colors.len == 0 {
@@ -245,10 +252,22 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 		}
 
-		// wrap_len :: get_character_count_to_fit(line, &font, w-text_padding*2.f);
-		// wrapped_line :: slice_range(line, 0, wrap_len);
-		code(tx, ly, line, line_colors, code_color_table);
-		line_base_y += line_height;
+
+		if settings.word_wrap {
+			// @Incomplete
+			rest := line;
+			loop rest.len > 0 {
+				ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
+				left, right :: split_text_to_fit(rest, &font, line_w, true);
+				code(tx, ly, left, line_colors, code_color_table);
+				rest = right;
+				line_base_y += line_height;
+			}
+		} else {
+			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
+			code(tx, ly, line, line_colors, code_color_table);
+			line_base_y += line_height;
+		}
 	}
 
 
@@ -646,5 +665,3 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 		text(ux, uy, tprint("[%]", rec.kind), color); uy += font.height;
 	}
 }
-
-

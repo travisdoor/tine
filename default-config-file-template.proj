@@ -92,15 +92,15 @@ move-right           ArrowRight      Ctrl+Semicolon
 move-left            ArrowLeft       Ctrl+J
 move-down            ArrowDown       Ctrl+K
 move-up              ArrowUp         Ctrl+L
-jump-next-word       Ctrl+ArrowRight Ctrl+Alt+Semicolon
-jump-prev-word       Ctrl+ArrowLeft  Ctrl+Alt+J
-jump-next-paragraph  Ctrl+ArrowDown  Ctrl+Alt+K
-jump-prev-paragraph  Ctrl+ArrowUp    Ctrl+Alt+L
+jump-next-word       Ctrl+ArrowRight Ctrl+Alt+Semicolon Alt+Semicolon
+jump-prev-word       Ctrl+ArrowLeft  Ctrl+Alt+J         Alt+J
+jump-next-paragraph  Ctrl+ArrowDown  Ctrl+Alt+K         Alt+K
+jump-prev-paragraph  Ctrl+ArrowUp    Ctrl+Alt+L         Alt+L
 jump-line-end        End             Ctrl+E
 jump-indent-begin    Home            Ctrl+I
 jump-line-begin      Ctrl+B
-jump-begin           Ctrl+Home       Ctrl+Alt+B
-jump-end             Ctrl+End        Ctrl+Alt+E
+jump-begin           Ctrl+Home       Ctrl+Alt+B         Alt+B
+jump-end             Ctrl+End        Ctrl+Alt+E         Alt+E
 jump-page-up         PageUp
 jump-page-down       PageDown
 center-view          Ctrl+M
