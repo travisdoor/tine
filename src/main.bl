@@ -231,6 +231,7 @@ Settings :: struct {
 	show_lsp_inline_diagnostics:            bool;
 	block_caret:                            bool;
 	word_wrap:                              bool;
+	maximize_on_start:                      bool;
 };
 
 settings: Settings;
@@ -545,6 +546,10 @@ main :: fn () s32 {
 
 	if show_help {
 		help();
+	}
+
+	if settings.maximize_on_start {
+		MaximizeWindow(window);
 	}
 
     loop WindowShouldClose(window) == 0 {
@@ -1881,7 +1886,7 @@ x Open file from the command line sometimes fails, also filepath is not normaliz
 - recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).
 x markdown syntax
   - improve?
-- make startup maximization optional
+x make startup maximization optional
 - messages clear command
 - jump to previous position
 x add str_match_ignore_case

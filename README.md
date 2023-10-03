@@ -131,3 +131,21 @@ When the `build` command is executed Tine will try to execute `build.bat` file i
 result is presented in a read-only buffer. In case the output contains errors or warning in a known format
 (currently CL and Clang compiler outputs are supported), you can jump between reported source locations
 by pressing `Ctrl+.` and `Ctrl+,` shortcuts (`next-error` and `prev-error` commands).
+
+
+# Developer
+
+Tine text editor is written in a custom language called *Biscuit* (https://github.com/travisdoor/bl). The
+latest *master* compiler version is required.
+
+To compile debug version use:
+
+```
+blc -build
+```
+
+To compile release version use:
+
+```
+blc -build --release
+```
