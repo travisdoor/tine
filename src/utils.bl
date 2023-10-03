@@ -30,7 +30,11 @@ eat_till_whitespace :: fn (ctx: *TokenizerBase) string_view {
 	return string_view.{ len, &ctx.bytes[start_index] };
 }
 
-eat_string_in_quotes :: fn (ctx: *TokenizerBase, trim_quotes := false) string_view {
+eat_string_in_quotes :: fn (ctx: *TokenizerBase, trim_quotes := false) (str: string_view, valid: bool) {
+	// Index out of range.
+	if ctx.index >= ctx.bytes.len   { return "", false; }
+	// Missing first quote.
+	if ctx.bytes[ctx.index] != '\"' { return "", false; }
 	start_index :: ctx.index;
 	len := 0;
 
@@ -53,10 +57,13 @@ eat_string_in_quotes :: fn (ctx: *TokenizerBase, trim_quotes := false) string_vi
 		ctx.index += 1;
 		pc = c;
 	}
+	if in_string {
+		// Unterminated string.
+		return "", false;
+	}
 	str :: string_view.{ len, &ctx.bytes[start_index] };
-	if !trim_quotes { return str; }
-	q :: [1]u8.{ '\"' };
-	return trim_left(trim_right(str, q), q);
+	if !trim_quotes { return str, true; }
+	return trim_left(trim_right(str, "\""), "\""), true;
 }
 
 eat_line_and_trim_eol :: fn (ctx: *TokenizerBase) string_view {

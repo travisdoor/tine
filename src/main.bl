@@ -69,6 +69,7 @@ BOTTOM_SCROLL_TRIGGER          :: 5;
 DEFAULT_CONFIG_FILE :: "default.proj";
 PROJECTS_DIRECTORY  :: "projects";
 BUILD_SCRIPT        :: "build.bat";
+FONT_DIRECTORY: string;
 
 FONT_RESIZE_STEP :: 1;
 
@@ -221,6 +222,8 @@ Settings :: struct {
 	font_size: s32;
 	tab_size:  s32;
 
+	font: string;
+
 	insert_spaces_instead_tabs:             bool;
 	trim_trailing_whitespace_on_save:       bool;
 	indent_on_paste:                        bool;
@@ -351,8 +354,6 @@ main :: fn () s32 {
 	using glfw;
 	using std;
 
-	MAIN_THREAD_ID = get_thread_id();
-
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -363,6 +364,12 @@ main :: fn () s32 {
 	defer temporary_release();
 
 	//debug_allocator_break(&debug_allocator, 3);
+
+	MAIN_THREAD_ID = get_thread_id();
+	FONT_DIRECTORY = get_fonts_folder();
+	defer str_delete(&FONT_DIRECTORY);
+
+	print_log("Font directory: '%'", FONT_DIRECTORY);
 
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
@@ -493,7 +500,12 @@ main :: fn () s32 {
 		print_log("Default project file loaded from disk.");
 	}
 
-	rebuild_fonts();
+	defer str_delete(&settings.font);
+	if settings.font.len > 0 {
+		print_log("Using custom font: '%'.", settings.font);
+	}
+
+	// rebuild_fonts();
     defer draw.font_terminate(&font);
     defer draw.font_terminate(&font_ui);
     defer draw.font_terminate(&font_ui_b);
@@ -1863,6 +1875,7 @@ x indentation on the last line in the file is broken when typing
   - macos port
   - get status of the process (wait pid???)
 
+- save all command
 - focus into the build output only in case it failed compilation?
 x open file in a new split on the same position if it's already open in other split.
 x merge quick-open and buffer-open

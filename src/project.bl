@@ -424,6 +424,11 @@ parse_settings_entry :: fn (ctx: *Tokenizer) Error {
 		if err { return err; }
 		bool_ptr :: cast(*bool) member_ptr;
 		@bool_ptr = v;
+	} else if member_type == typeinfo(string) {
+		v :: eat_till(ctx, " #\n\r\t");
+		str_ptr :: cast(*string) member_ptr;
+		str_ptr.len = 0;
+		std.str_append(str_ptr, v);
 	} else {
 		panic(report(ctx, "Unsupported settings entry type '%'!", @member_type));
 	}
