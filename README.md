@@ -1,10 +1,9 @@
 # Welcome to the Tine text editor.
 
-Author:  Martin Dorazil
-Version: 0.1
+- Author:  Martin Dorazil
+- Version: 0.1 (ALPHA)
 
-To show this help again press `Ctrl+X` (to enter command mode), type "help" and press Enter.
-To close this help press `Alt+Q`.
+To show help use `Ctrl+X` (to enter command mode), type "help" and press Enter.
 
 - Download: https://travisdp.itch.io/tine
 - Source code: https://github.com/travisdoor/tine
@@ -58,8 +57,11 @@ To enable some advanced features as "grep search" you need to create a new proje
 in `projects` directory (use `open-projects-directory` to open the disk location in your file
 explorer). Each project is represented as a single configuration file with `.proj` extension.
 In general, a project file should contain at least `;include` section with a project root
-directory path. You also might need to override some settings from the `default.proj` configuration.
-For more details see documentation in the `default.proj` file (`open-default-config` command).
+directory path and `;include_file_extensions` section. You also might need to override some
+settings from the `default.proj` configuration. For more details see documentation in the
+`default.proj` file (`open-default-config` command).
+
+To open projects from the `projects` directory use `Ctrl+Shift+O` or `open-project-command`.
 
 # Modes
 Various editor features are implemented as "modes".
