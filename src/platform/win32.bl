@@ -146,7 +146,7 @@ close_stream :: fn (handle: IoStream) {
 // MISC
 //
 
-get_fonts_folder :: fn () string {
+get_fonts_directory :: fn () string {
 	path :: std.get_home();
 	std.str_append(&path, "/AppData/Local/Microsoft/Windows/Fonts");
 	return path;

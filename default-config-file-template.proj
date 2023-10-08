@@ -33,6 +33,10 @@
 ;settings
 font_size                              12
 
+# Customize editor font, default system font location is used for lookup of the ttf font
+# files. Full path can be used too.
+#font                                   font-name.ttf
+
 # Visual size of the tab character as if it was replaced by spaces. In case the
 # 'insert_spaces_instead_tabs' is false this value is used as a count of spaces for
 # indentation.

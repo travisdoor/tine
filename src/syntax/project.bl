@@ -103,8 +103,12 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			}
 			SETTINGS {
 				if ctx.prev_token == IDENT {
-					if std.is_alpha(c) && parse_bool(ctx, &t) { return t; }
-					if parse_number(ctx, &t) { return t; }
+					v :: eat_till(ctx, " #\n\r\t");
+					if v.len > 0 {
+						t.len  = auto v.len;
+						t.kind = VALUE;
+						return t;
+					}
 				} else if std.is_alpha(c) {
 					parse_entry_name (ctx, &t, SETTINGS_ENTRIES);
 					return t;
@@ -199,18 +203,6 @@ parse_entry_name :: fn (ctx: *Tokenizer, t: *Token, valid_names: []string_view) 
 	if !std.str_match_one_of(ident, valid_names) {
 		t.kind = INVALID;
 	}
-}
-
-parse_bool :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	ident :: eat_till(auto ctx, " \t\n\r#");
-	if !std.str_match_one_of(ident, [2]string_view.{ "true", "false" }) {
-		ctx.index -= cast(s32) ident.len;
-		return false;
-	}
-	t.len += cast(s32) ident.len;
-	t.kind = VALUE;
-	return true;
 }
 
 parse_number :: fn (ctx: *Tokenizer, t: *Token, base := FmtIntBase.DEC) bool {

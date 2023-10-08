@@ -47,8 +47,8 @@ close_stream :: fn (handle: IoStream) {
 // MISC
 //
 
-get_fonts_folder :: fn () string {
-	return std.str_new("/Library/Fonts");
+get_fonts_directory :: fn () string {
+	return std.str_new("/System/Library/Fonts");
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {

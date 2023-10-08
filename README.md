@@ -1,7 +1,7 @@
 # Welcome to the Tine text editor.
 
 - Author:  Martin Dorazil
-- Version: 0.1 (ALPHA)
+- Version: 0.2 (ALPHA)
 
 To show help use `Ctrl+X` (to enter command mode), type "help" and press Enter.
 

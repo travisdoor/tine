@@ -1130,8 +1130,7 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		}
 		if c == '\"' {
 			t.kind = STRING;
-			str, valid :: eat_string_in_quotes(ctx, true);
-			assert(valid);
+			str :: eat_string_in_quotes(ctx, true);
 			t.data.str = str;
 			return t;
 		}

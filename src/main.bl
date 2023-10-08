@@ -119,6 +119,8 @@ font_ui:   draw.Font;
 font_ui_b: draw.Font;
 icons:     draw.Font;
 
+current_font_hash: u32;
+
 buffers: [..]Buffer;
 editors: [..]Editor;
 
@@ -366,7 +368,7 @@ main :: fn () s32 {
 	//debug_allocator_break(&debug_allocator, 3);
 
 	MAIN_THREAD_ID = get_thread_id();
-	FONT_DIRECTORY = get_fonts_folder();
+	FONT_DIRECTORY = get_fonts_directory();
 	defer str_delete(&FONT_DIRECTORY);
 
 	print_log("Font directory: '%'", FONT_DIRECTORY);
@@ -501,11 +503,8 @@ main :: fn () s32 {
 	}
 
 	defer str_delete(&settings.font);
-	if settings.font.len > 0 {
-		print_log("Using custom font: '%'.", settings.font);
-	}
 
-	// rebuild_fonts();
+	rebuild_fonts();
     defer draw.font_terminate(&font);
     defer draw.font_terminate(&font_ui);
     defer draw.font_terminate(&font_ui_b);
@@ -645,10 +644,42 @@ in_bounds :: fn (arr: []?T, v: s64) bool #inline {
 	return v >= 0 && v < arr.len;
 }
 
+lookup_font :: fn (font_name: string_view) string_view {
+	using std;
+	assert(font_name.len > 0);
+	if file_exist(font_name)) {
+		return font_name;
+	}
+	if FONT_DIRECTORY.len == 0 { return ""; }
+	tmp :: tprint("%/%", FONT_DIRECTORY, font_name);
+	if file_exist(tmp)) {
+		return tmp;
+	}
+	return "";
+}
+
 rebuild_fonts :: fn () Error {
 	size := settings.font_size;
+	custom_font_path := "";
+	font_hash: u32 = 0;
+
+	if settings.font.len > 0 {
+		custom_font_path = lookup_font(settings.font);
+		if custom_font_path.len == 0 {
+			print_err("Custom font '%' not found. Default expected font file location"
+			    " is %. Note that the full path can be used too.",
+			    settings.font,
+			    FONT_DIRECTORY
+			);
+		} else {
+			font_hash = std.str_hash(custom_font_path);
+		}
+	}
+
 	assert(size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE);
-	if (size == auto font.size) && scaling_changed == false { return OK; }
+	if (size == auto font.size) && (scaling_changed == false) && (current_font_hash == font_hash) {
+		return OK;
+	}
 
 	print_log("Scale = %", WINDOW_SCALE);
 	scaled_size :: cast(s32) std.round(WINDOW_SCALE * auto size);
@@ -668,8 +699,24 @@ rebuild_fonts :: fn () Error {
 
 	err: Error;
 
-    err = draw.font_init_at_size_from_memory(&font, FONT_DATA, scaled_size, char_set);
-    if err { panic(err); }
+	// main font
+	use_custom_font := custom_font_path.len > 0;
+	if use_custom_font {
+		print_log("Using custom font: %", custom_font_path);
+		err = draw.font_init_at_size(&font, "", custom_font_path, scaled_size, char_set);
+		if err {
+			print_err(err);
+			use_custom_font = false;
+		} else {
+			current_font_hash = font_hash;
+		}
+	}
+
+	if !use_custom_font {
+		err = draw.font_init_at_size_from_memory(&font, FONT_DATA, scaled_size, char_set);
+		if err { panic(err); }
+		current_font_hash = 0;
+	}
 
 	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2);
     if err { panic(err); }
@@ -684,6 +731,7 @@ rebuild_fonts :: fn () Error {
 	defer array_terminate(&icon_set);
 
 	draw.font_generate_char_set("X", &icon_set);
+	// Use push all + array?
 	array_push(&icon_set, ICON_BELL);
 	array_push(&icon_set, ICON_FILE);
 	array_push(&icon_set, ICON_CHANGES);
