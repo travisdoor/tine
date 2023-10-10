@@ -9,6 +9,7 @@ To show help use `Ctrl+X` (to enter command mode), type "help" and press Enter.
 - Source code: https://github.com/travisdoor/tine
 - Compiler: https://github.com/travisdoor/bl
 
+<iframe frameborder="0" src="https://itch.io/embed/2235084" width="552" height="167"><a href="https://travisdp.itch.io/tine">Tine by travisdp</a></iframe>
 
 # Philosophy of Tine
 
