@@ -193,7 +193,7 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 		return OK;
 	};
 
-	// Locking must be done here in the indexer thread, odtherwise we might get some lags in UI especially when async
+	// Locking must be done here in the indexer thread, otherwise we might get some lags in UI especially when async
 	// search is in progress...
 	mutex_lock(&project.mutex);
 	defer mutex_unlock(&project.mutex);

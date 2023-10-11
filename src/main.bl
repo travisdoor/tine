@@ -442,7 +442,6 @@ main :: fn () s32 {
 
 	WindowHint(DOUBLEBUFFER, TRUE);
 	WindowHint(RESIZABLE, TRUE);
-	//WindowHint(MAXIMIZED, TRUE);
 	WindowHint(SAMPLES, 2);
 
 	window = CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, strtoc(WINDOW_TITLE), null, null);
@@ -588,10 +587,13 @@ main :: fn () s32 {
 		update_mouse();
 		update_caret();
 
-		changed_directory: string_view;
-		change_kind: WatchFor;
-		loop next_watcher_event(&changed_directory, &change_kind) {
-			if check_project_changes(changed_directory, change_kind) { continue; }
+		if build.job_index == -1 {
+			// Disable indexing in case there is ongoing compilation (which might produce multiple file-change events).
+			changed_directory: string_view;
+			change_kind: WatchFor;
+			loop next_watcher_event(&changed_directory, &change_kind) {
+				if check_project_changes(changed_directory, change_kind) { continue; }
+			}
 		}
 
 		maybe_reindex_current_project();

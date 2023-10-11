@@ -2,6 +2,7 @@
 ---------------------------------------------------------------------------------------
 Add maximize_on_start option.
 Add font customization.
+Disable project reindexing in case there is ongoing compilation.
 
 0.1 - ALPHA
 ---------------------------------------------------------------------------------------
