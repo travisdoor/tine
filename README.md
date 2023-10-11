@@ -1,13 +1,24 @@
 # Welcome to the Tine text editor.
+**To see the list of all available commands use `Ctrl+X` shortcut.**
 
 - Author:  Martin Dorazil
 - Version: 0.2 (ALPHA)
 
-To show help use `Ctrl+X` (to enter command mode), type "help" and press Enter.
+## Links
 
 - Download: https://travisdp.itch.io/tine
 - Source code: https://github.com/travisdoor/tine
 - Compiler: https://github.com/travisdoor/bl
+
+# Supported Languages
+
+  | Language | Syntax Highlight | LSP  |
+  | -------- | ---------------- | ---- |
+  | BL       | YES              | NO   |
+  | C        | YES              | YES  |
+  | C++      | YES              | YES  |
+  | Markdown | YES (basic)      | NO   |
+
 
 # Philosophy of Tine
 
@@ -61,6 +72,11 @@ settings from the `default.proj` configuration. For more details see documentati
 `default.proj` file (`open-default-config` command).
 
 To open projects from the `projects` directory use `Ctrl+Shift+O` or `open-project-command`.
+
+# Buffers
+Each file open in the editor is represented as a single unique buffer. There are some special buffer
+kinds like *Messages* (containing log of all notifications and errors) or *Build* (containing output of
+the last compilation) existing without any actual file on the disk.
 
 # Modes
 Various editor features are implemented as "modes".

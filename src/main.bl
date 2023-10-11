@@ -812,8 +812,11 @@ set_mode :: fn (m: Mode) bool #inline {
 		default;
 	}
 
-	print_log("Mode % set.", m);
 	mode = m;
+	// Note: The log here must be called after the actual mode is changed; in case we're in command-mode
+	// and last focused buffer is message buffer, the log here cause text change notification in the command-mode
+	// causing reset of the current list.
+	print_log("Mode % set.", m);
 
 	return true;
 }

@@ -88,6 +88,7 @@ Command :: enum {
 	LSP_RESTART_SERVER;
 	LSP_COMPLETION;
 	HELP;
+	CLEAR_MESSAGES;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
@@ -437,6 +438,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
 		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
 		HELP                { help                ();                                      }
+		CLEAR_MESSAGES      { clear_messages      ();                                      }
 
 		OPEN_PROJECTS_DIRECTORY {
 			open_path(tprint("\"%/%\"", data_dir, PROJECTS_DIRECTORY));
@@ -1311,4 +1313,14 @@ prev_error :: fn () {
 	error_list_index -= 1;
 	if error_list_index < 0 { error_list_index = error_list.len - 1; }
 	open_error_location(&error_list[error_list_index]);
+}
+
+clear_messages :: fn () {
+	index :: messages_buffer_index;
+	if index == -1 { return; }
+	assert(index >= 0 && index < buffers.len);
+	buf :: &buffers[index];
+	assert(!buf.is_removed);
+
+	clear_buffer(buf);
 }
