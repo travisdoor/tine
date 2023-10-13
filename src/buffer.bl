@@ -973,10 +973,11 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 
 	using FileType;
 	switch buf.file_type {
-		BL   { highlight_syntax_bl(buf);   }
-		C    { highlight_syntax_cpp(buf);  }
-		PROJ { highlight_syntax_proj(buf); }
-		MD   { highlight_syntax_md(buf);   }
+		BL      { highlight_syntax_bl(buf);   }
+		GLSL    { highlight_syntax_glsl(buf);  }
+		C       { highlight_syntax_cpp(buf);  }
+		PROJ    { highlight_syntax_proj(buf); }
+		MD      { highlight_syntax_md(buf);   }
 		default;
 	}
 	if buf.index == messages_buffer_index {

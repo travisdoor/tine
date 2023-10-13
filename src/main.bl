@@ -31,6 +31,7 @@
 #load "syntax/messages.bl"
 #load "syntax/build.bl"
 #load "syntax/md.bl"
+#load "syntax/glsl.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -195,11 +196,12 @@ FileType :: enum {
 	C;
 	PROJ;
 	MD;
+	GLSL;
 }
 
-FILE_TYPE_NAME ::         [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown" };
-FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""         };
-FILE_TYPE_REINDENT_ON ::  [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""         };
+FILE_TYPE_NAME ::         [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL" };
+FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//"   };
+FILE_TYPE_REINDENT_ON ::  [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}"    };
 
 project: struct {
 	using std;
@@ -1122,6 +1124,9 @@ detect_filetype :: fn (filename: string_view) FileType {
 	}
 	if str_match(extension, ".md") {
 		return MD;
+	}
+	if str_match(extension, ".glsl") {
+		return GLSL;
 	}
 	return FileType.UNKNOWN;
 }

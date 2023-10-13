@@ -18,7 +18,7 @@
   | C        | YES              | YES  |
   | C++      | YES              | YES  |
   | Markdown | YES (basic)      | NO   |
-
+  | GLSL     | YES              | NO   |
 
 # Philosophy of Tine
 
