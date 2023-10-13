@@ -394,10 +394,12 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	if set_cursor_under_mouse || is_lmb_dragging(loc.hash) {
 		// Calculate the position of cursor in the text based on the click position.
 		row :: (cast(s32) ((mouse.py - ty) / line_height)) + editor.top;
-		line :: peek_row(buf, row);
-		col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.px - tx);
-		try_set_cursor_row_col(buf, editor.cursor_index, row, col);
-		reset_caret_blinking();
+		if row >= 0 {
+			line :: peek_row(buf, row);
+			col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.px - tx);
+			try_set_cursor_row_col(buf, editor.cursor_index, row, col);
+			reset_caret_blinking();
+		}
 	}
 
 	editor.prev_frame_cursor_position = cursor.position;

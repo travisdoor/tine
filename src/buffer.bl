@@ -272,6 +272,7 @@ set_cursor_position :: fn (buf: *Buffer, cursor_index: s32, position: s64) #inli
 	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
 	c :: &buf.cursors[cursor_index];
 	assert(c.is_removed == false);
+	assert(c.position >= 0);
 	c.position = position;
 }
 

@@ -5,6 +5,7 @@ Add font customization.
 Add command to clear message buffer.
 Add GLSL syntax highlighting.
 Disable project reindexing in case there is ongoing compilation.
+Fix invalid selection range in case of mouse selection over empty buffer.
 
 0.1 - ALPHA
 ---------------------------------------------------------------------------------------
