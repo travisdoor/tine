@@ -69,7 +69,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	using std;
 	using JobContext.state;
 
-	err :: start_process(tprint("cmd.exe /c %", BUILD_SCRIPT), ctx);
+	err :: start_process(ctx, "cmd.exe", "/c", BUILD_SCRIPT);
 	if err {
 		print_err(err);
 		ctx.state = FAILED;

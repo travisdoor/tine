@@ -300,9 +300,6 @@ list_directory :: fn (dirpath: string_view, file_extension_filter := []string_vi
 			// @Incomplete: Case sensitive!?
 			if ext.len == 0 { return OK; }
 			if ctx.file_extension_filter.len > 0 && str_match_one_of(ext, ctx.file_extension_filter) == false { return OK; }
-		} else {
-			// Ignore hidden directories.
-			if info.filename.len > 0 && info.filename[0] == '.' { return OK; }
 		}
 
 		title := str_new(info.filename, &string_cache[DEFAULT_CACHE_INDEX]);

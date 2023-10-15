@@ -57,7 +57,14 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 	rd :: &request.data.clang_format;
 
-	err :: start_process(tprint("clang-format.exe --assume-filename=\"%\"", rd.filepath), ctx);
+	executable: string_view;
+	#if PLATFORM == Platform.WINDOWS {
+		executable = "clang-format.exe";
+	} else {
+		executable = "clang-format";
+	}
+
+	err :: start_process(ctx, executable, tprint("--assume-filename=\"%\"", rd.filepath));
 	if err {
 		print_err(err);
 		ctx.state = FAILED;

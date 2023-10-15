@@ -2,13 +2,56 @@
 // Process
 //
 
-IoStream :: *u8;
-Pid :: u32;
+IoStream :: C.int;
+Pid :: C.pid_t;
 
-start_process :: fn (cmd: string_view, ctx: *?TContext) Error {
-	// Implement this.
-	cmd;
-	ctx;
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Error {
+	parent_io: [2]s32 #noinit;
+	child_io:  [2]s32 #noinit;
+
+	print_log("Execute '%'.", cmd);
+
+	if C.pipe(&parent_io) != 0 {
+		return os_get_last_error2();
+	}
+	if C.pipe(&child_io) != 0 {
+		return os_get_last_error2();
+	}
+
+	pid :: C.fork();
+	if pid == -1 {
+		return os_get_last_error2();
+	}
+	if pid == 0 {
+		// child
+		C.close(child_io[0]);
+		C.close(parent_io[1]);
+		C.dup2(parent_io[0], 0);
+		C.dup2(child_io[1], 1);
+
+		argc :: args.len + 2; // +2 executable and null terminator
+		args_mem :: alloc(sizeof(*C.char) * auto argc);
+		defer free(args_mem);
+		cargs := []*C.char.{ ptr = auto args_mem, len = argc };
+		cargs[0] = std.strtoc(cmd);
+		cargs[cargs.len-1] = null;
+		loop i := 1; i < cargs.len; i += 1 {
+			cargs[i] = std.strtoc(args[i-1]);
+		}
+		C.execv(cargs[0], cargs.ptr);
+		C.exit(0);
+	} else {
+		// parent
+		print_log("Starting process with PID %.", pid);
+		ctx.pid = pid;
+
+		C.close(parent_io[0]);
+		C.close(child_io[1]);
+
+		ctx.stdin  = child_io[0];
+		ctx.stdout = parent_io[1];
+	}
+
 	return OK;
 }
 
@@ -19,6 +62,7 @@ kill_process :: fn (pid: Pid, exit_code: s32) Error {
 }
 
 peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
+	// We might use select function here or try to use non-blocking read (which might break current system).
 	stream;
 	error_on_close;
 	return OK, 0, true;
@@ -40,7 +84,7 @@ write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (
 }
 
 close_stream :: fn (handle: IoStream) {
-	handle;
+	C.close(handle);
 }
 
 //

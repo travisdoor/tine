@@ -1377,10 +1377,9 @@ push_result :: fn (ctx: *JobContext, request: *Request) {
 	memcpy(auto r, auto request, sizeof(@request));
 }
 
+// ctx.mutex should be locked before this is called
 pop_result :: fn (ctx: *JobContext, request: *Request) bool {
 	using std;
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
 	if array_pop_first(&ctx.complete, request) {
 		assert(request.job_kind == ctx.kind);
 		return true;

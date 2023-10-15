@@ -320,7 +320,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	using JobContext.state;
 
 	// Maybe customizable?
-	err :: start_process("clangd.exe --log=error -j=8 -background-index --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders", ctx); // verbose for debugging
+	err :: start_process(ctx, "clangd.exe", "--log=error", "-j=8", "-background-index", "--enable-config", "--offset-encoding=utf-32", "--header-insertion=never", "--function-arg-placeholders"); // verbose for debugging
 	if err {
 		print_err(err);
 		ctx.state = FAILED;

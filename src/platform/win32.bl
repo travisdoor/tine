@@ -5,7 +5,7 @@
 IoStream :: win32.HANDLE;
 Pid :: win32.DWORD;
 
-start_process :: fn (cmd: string_view, ctx: *?TContext) Error {
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Error {
 	using win32;
 
 	static_assert(has_member2(TContext, "pid"));
@@ -51,7 +51,12 @@ start_process :: fn (cmd: string_view, ctx: *?TContext) Error {
 		wShowWindow = auto SW_HIDE,
 	};
 
-	state :: CreateProcessA(null, std.strtoc(cmd), null, null, TRUE, 0, null, null, &startup_info, &process_info);
+	tmp := std.str_new(cmd, application_context.temporary_allocator);
+	loop i := 0; i < args.len; i += 1 {
+		std.str_append(&tmp, " ");
+		std.str_append(&tmp, args[i]);
+	}
+	state :: CreateProcessA(null, std.strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info);
 	if state == 0 {
 		return os_get_last_error2();
 	}
