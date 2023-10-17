@@ -11,13 +11,18 @@ search_in_project_mode_init :: fn () {
 	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
 	clear_selection(target_buf, target_editor.cursor_index);
 
-	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
-		subject.len = 0;
+	if initial_subject.len == 0 || is_multiline(initial_subject) {
+		initial_subject = search.last_subject;
+	}
+
+	subject.len = 0;
+	if initial_subject.len > 0 {
 		str_append(&subject, initial_subject);
 		insert_string(buf, 0, initial_subject);
 		select_all(editor, buf);
 	}
 
+	print_log("Search for: '%'", subject);
 	err :: list_async_search(subject, true);
 	if err { print_err(err); }
 }
@@ -92,6 +97,9 @@ search_in_project_cmd_changed :: fn () {
 subject: string;
 
 commit :: fn () {
+	search.last_subject.len = 0;
+	std.str_append(&search.last_subject, subject);
+
 	item :: get_selected_item_in_list();
 	if !item { return; }
 

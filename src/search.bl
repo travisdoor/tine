@@ -11,11 +11,12 @@ search_mode_init :: fn () {
 
 	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
 	clear_selection(target_buf, target_editor.cursor_index);
+
 	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
-		last_search_subject.len = 0;
-		std.str_append(&last_search_subject, initial_subject);
+		search.last_subject.len = 0;
+		std.str_append(&search.last_subject, initial_subject);
 	} else {
-		initial_subject = last_search_subject;
+		initial_subject = search.last_subject;
 	}
 
 	if initial_subject.len > 0 {
@@ -64,28 +65,41 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 		SEARCH_FILE,
 		MOVE_DOWN { next_match(); }
 
-		RESULTS_TO_BUFFER,
+		SEARCH_TO_BUFFER,
 		INSERT_NEW_LINE {
 			// Lets store the current search subject for later reuse.
 			buf :: get_active_buffer_and_editor();
 			subject :: peek_row(buf, 0);
 
-			last_search_subject.len = 0;
-			std.str_append(&last_search_subject, subject);
+			search.last_subject.len = 0;
+			std.str_append(&search.last_subject, subject);
 
-			if cmd == RESULTS_TO_BUFFER {
+			target_buf :: get_last_active_buffer_and_editor();
+
+			if cmd == SEARCH_TO_BUFFER {
 				tmp := str_new(1024, application_context.temporary_allocator);
 				loop i := 0; i < search_results.len; i += 1 {
-					str_append(&tmp, tprint("%\n", search_results[i].start));
+					position :: search_results[i].start;
+					cur :: get_cursor_for_position(target_buf, position);
+					filepath := target_buf.filepath;
+					if filepath.len == 0 {
+						filepath = target_buf.name;
+					}
+					line_sample :: expand_position_to_whole_line(target_buf.bytes, position);
+
+					// Tab is required for location parsing here!!!
+					str_append(&tmp, tprint("%:%:%\t%\n", filepath, cur.row+1, cur.col+1, line_sample));
 				}
 				set_mode(Mode.TEXT_EDIT);
 
 				print_log("Open results in the buffer!");
-				find_or_create_editor_with_buffer_in_other_split(&results_buffer_index, "search");
-				results_buf :: &buffers[results_buffer_index];
+				results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&results.buffer_index, "search");
+				results_buf    :: &buffers[results.buffer_index];
+				results_editor :: &editors[results_editor_index];
 
 				clear_buffer(results_buf);
 				append_readonly_buffer(results_buf, tmp);
+				set_cursor_position(results_buf, results_editor.cursor_index, 0);
 			} else {
 				set_mode(Mode.TEXT_EDIT);
 			}

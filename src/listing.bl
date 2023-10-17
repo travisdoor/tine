@@ -843,22 +843,3 @@ notify :: fn () {
     	default;
 	}
 }
-
-expand_position_to_whole_line :: fn (buf: []u8, index: s64, max_distance := 120) string_view {
-	begin := index;
-	end   := index;
-	distance := 0;
-	loop i := index; i > 0 && distance < max_distance; i -= 1 {
-		c :: buf[i-1];
-		if c == '\n' { break; }
-		begin    -= 1;
-		distance += 1;
-	}
-	loop i := index; i < buf.len && distance < max_distance; i += 1 {
-		c :: buf[i];
-		if c == '\n' || c == '\r' { break; }
-		end      += 1;
-		distance += 1;
-	}
-	return string_view.{ end - begin, &buf[begin] };
-}

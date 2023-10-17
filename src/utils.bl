@@ -473,3 +473,45 @@ get_icon_for_buffer :: fn (buf: *Buffer) string_view {
 	}
 	return ic;
 }
+
+expand_position_to_whole_line :: fn (buf: string_view, index: s64, max_distance := 120) string_view {
+	begin := index;
+	end   := index;
+	distance := 0;
+	loop i := index; i > 0 && distance < max_distance; i -= 1 {
+		c :: buf[i-1];
+		if c == '\n' { break; }
+		begin    -= 1;
+		distance += 1;
+	}
+	loop i := index; i < buf.len && distance < max_distance; i += 1 {
+		c :: buf[i];
+		if c == '\n' || c == '\r' { break; }
+		end      += 1;
+		distance += 1;
+	}
+	return string_view.{ end - begin, &buf[begin] };
+}
+
+get_location_from_search_result_string :: fn (str: string_view) (filepath: string_view, row: s32, col: s32) {
+	using std;
+	if str.len == 0 { return "", 0, 0; }
+	loc, path, row, col: string_view;
+	if !str_split_by_first(str, '\t', &loc) {
+		assert(false);
+		return "", 0, 0;
+	}
+	if !str_split_by_last(loc, ':', &row, &col) {
+		assert(false);
+		return "", 0, 0;
+	}
+	if !str_split_by_last(row, ':', &path, &row) {
+		assert(false);
+		return "", 0, 0;
+	}
+
+	r :: strtos64(row);
+	c :: strtos64(col);
+
+	return path, auto r, auto c;
+}

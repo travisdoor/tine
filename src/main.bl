@@ -135,9 +135,14 @@ command_editor : s32 = -1;
 // Used for logs/errors/warnings etc.
 messages_buffer_index := -1;
 help_buffer_index     := -1;
-results_buffer_index  := -1;
 
-last_search_subject: string;
+search: struct {
+	last_subject: string;
+}
+
+results: struct {
+	buffer_index: s32;
+}
 
 // Points to previous active text editor, this might be used in interactive modes where we need the text buffer
 // as context (e.g. search mode).
@@ -523,7 +528,10 @@ main :: fn () s32 {
 
 	build_init();
 
-	defer str_delete(&last_search_subject);
+	// Cleanup search...
+	defer str_delete(&search.last_subject);
+
+	// Cleanup error list...
 	defer array_terminate(&error_list);
 
 	// Create command editor.
@@ -564,6 +572,8 @@ main :: fn () s32 {
 	if settings.maximize_on_start {
 		MaximizeWindow(window);
 	}
+
+	results.buffer_index = -1;
 
     loop WindowShouldClose(window) == 0 {
 		current_time :: glfw.GetTime();
@@ -889,6 +899,8 @@ close_buffer :: fn (buffer_index: s32) {
 		clear_error_list();
 	} else if buffer_index == help_buffer_index {
 		help_buffer_index = -1;
+	} else if buffer_index == results.buffer_index {
+		results.buffer_index = -1;
 	}
 
 	// We should not remove buffer for messages.
@@ -2012,5 +2024,10 @@ x set window minimal size
 - horizontal view adjustements does not work in case the line is too long
 - jump to previous and next cursor locations (even in files)
 - implement file sections distinguished by different background color?
+- fullscreen mode
+- open project from command line
+- command to close all buffers
+- command to save all buffers
+- option to save all buffers before compilation is invoked
 
 */

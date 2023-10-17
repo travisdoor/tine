@@ -89,7 +89,8 @@ Command :: enum {
 	LSP_COMPLETION;
 	HELP;
 	CLEAR_MESSAGES;
-	RESULTS_TO_BUFFER;
+
+	SEARCH_TO_BUFFER;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
@@ -662,6 +663,15 @@ delete_right :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	if buf.index == results.buffer_index {
+		cur :: get_cursor(buf, editor.cursor_index);
+		line :: peek_row_without_new_line(buf, cur.row);
+		filepath, row, col :: get_location_from_search_result_string(line);
+		other_split(buf);
+		open_location(filepath, row-1, col-1);
+		return true;
+	}
+
 	if maybe_report_readonly(buf) { return false; }
 	commit_undo(buf);
 

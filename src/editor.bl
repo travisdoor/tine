@@ -520,12 +520,13 @@ draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOT
 	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
 	item_spacing     :: metrics[auto ITEM_SPACING    ];
 	text_padding     :: metrics[auto TEXT_PADDING    ];
+	rounding         :: metrics[auto CORNER_ROUNDING];
 
 	background_color, foreground_color :: get_status_bar_colors(kind);
 
 	set_shader_color();
 	draw_shadow(x, y, w, title_bar_height, shadow);
-	rect(x, y, w, title_bar_height, background_color);
+	rect_rounded(x, y, w, title_bar_height, rounding, background_color, background_color);
 
 	set_shader_font(&icons);
 	draw.text(x + text_padding, y + (title_bar_height*0.5f - icons.height*0.5f), icon(ICON_BELL), foreground_color);
