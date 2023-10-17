@@ -64,6 +64,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 		SEARCH_FILE,
 		MOVE_DOWN { next_match(); }
 
+		RESULTS_TO_BUFFER,
 		INSERT_NEW_LINE {
 			// Lets store the current search subject for later reuse.
 			buf :: get_active_buffer_and_editor();
@@ -72,7 +73,22 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 			last_search_subject.len = 0;
 			std.str_append(&last_search_subject, subject);
 
-			set_mode(Mode.TEXT_EDIT);
+			if cmd == RESULTS_TO_BUFFER {
+				tmp := str_new(1024, application_context.temporary_allocator);
+				loop i := 0; i < search_results.len; i += 1 {
+					str_append(&tmp, tprint("%\n", search_results[i].start));
+				}
+				set_mode(Mode.TEXT_EDIT);
+
+				print_log("Open results in the buffer!");
+				find_or_create_editor_with_buffer_in_other_split(&results_buffer_index, "search");
+				results_buf :: &buffers[results_buffer_index];
+
+				clear_buffer(results_buf);
+				append_readonly_buffer(results_buf, tmp);
+			} else {
+				set_mode(Mode.TEXT_EDIT);
+			}
 		}
 
 		CANCEL_MODE {

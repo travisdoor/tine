@@ -133,8 +133,9 @@ active_editor  : s32 = -1;
 command_editor : s32 = -1;
 
 // Used for logs/errors/warnings etc.
-messages_buffer_index : s32 = -1;
-help_buffer_index: s32 = -1;
+messages_buffer_index := -1;
+help_buffer_index     := -1;
+results_buffer_index  := -1;
 
 last_search_subject: string;
 
@@ -1106,6 +1107,24 @@ find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
 	return editor_index;
 }
 
+// Open or create editor for the buffer_index in the other split, in case the buffer_index is -1 new buffer
+// with name buffer_name is created. Returns id of editor.
+find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buffer_name: string_view) s32 {
+	buf, editor := get_active_buffer_and_editor();
+	if buf.index != @buffer_index {
+		if @buffer_index == -1 {
+			@buffer_index = add_messages_buffer(buffer_name);
+		}
+		buf = &buffers[@buffer_index];
+		split := Split.LEFT;
+		if get_active_split() == Split.LEFT {
+			split = Split.RIGHT;
+		}
+		return find_or_create_editor_in_split(split, @buffer_index);
+	}
+	return editor.index;
+}
+
 detect_filetype :: fn (filename: string_view) FileType {
 	using FileType;
 	using std;
@@ -1990,5 +2009,8 @@ x parse keys in settings
 - hide mouse cursor after some time without movement
 - don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
 x set window minimal size
+- horizontal view adjustements does not work in case the line is too long
+- jump to previous and next cursor locations (even in files)
+- implement file sections distinguished by different background color?
 
 */

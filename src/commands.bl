@@ -89,6 +89,7 @@ Command :: enum {
 	LSP_COMPLETION;
 	HELP;
 	CLEAR_MESSAGES;
+	RESULTS_TO_BUFFER;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
