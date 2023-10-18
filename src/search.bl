@@ -77,7 +77,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 			target_buf :: get_last_active_buffer_and_editor();
 
 			if cmd == SEARCH_TO_BUFFER {
-				if target_buf.index == results.buffer_index {
+				if target_buf.index == search_buffer_index {
 					print_warn("Search results buffer is already open.");
 				} else {
 					tmp := str_new(1024, application_context.temporary_allocator);
@@ -93,11 +93,15 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 						// Tab is required for location parsing here!!!
 						str_append(&tmp, tprint("%:%:%\t%\n", filepath, cur.row+1, cur.col+1, line_sample));
 					}
+					if search_results.len == 0 {
+						str_append(&tmp, tprint("No match for subject '%'", subject));
+					}
+
 					set_mode(Mode.TEXT_EDIT);
 
 					print_log("Open results in the buffer!");
-					results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&results.buffer_index, "search");
-					results_buf    :: &buffers[results.buffer_index];
+					results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&search_buffer_index, "search");
+					results_buf    :: &buffers[search_buffer_index];
 					results_editor :: &editors[results_editor_index];
 
 					clear_buffer(results_buf);

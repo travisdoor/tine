@@ -32,6 +32,7 @@
 #load "syntax/build.bl"
 #load "syntax/md.bl"
 #load "syntax/glsl.bl"
+#load "syntax/search.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -135,13 +136,10 @@ command_editor : s32 = -1;
 // Used for logs/errors/warnings etc.
 messages_buffer_index := -1;
 help_buffer_index     := -1;
+search_buffer_index   := -1;
 
 search: struct {
 	last_subject: string;
-}
-
-results: struct {
-	buffer_index: s32;
 }
 
 // Points to previous active text editor, this might be used in interactive modes where we need the text buffer
@@ -573,8 +571,6 @@ main :: fn () s32 {
 		MaximizeWindow(window);
 	}
 
-	results.buffer_index = -1;
-
     loop WindowShouldClose(window) == 0 {
 		current_time :: glfw.GetTime();
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
@@ -899,8 +895,8 @@ close_buffer :: fn (buffer_index: s32) {
 		clear_error_list();
 	} else if buffer_index == help_buffer_index {
 		help_buffer_index = -1;
-	} else if buffer_index == results.buffer_index {
-		results.buffer_index = -1;
+	} else if buffer_index == search_buffer_index {
+		search_buffer_index = -1;
 	}
 
 	// We should not remove buffer for messages.

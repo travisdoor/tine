@@ -498,15 +498,12 @@ get_location_from_search_result_string :: fn (str: string_view) (filepath: strin
 	if str.len == 0 { return "", 0, 0; }
 	loc, path, row, col: string_view;
 	if !str_split_by_first(str, '\t', &loc) {
-		assert(false);
 		return "", 0, 0;
 	}
 	if !str_split_by_last(loc, ':', &row, &col) {
-		assert(false);
 		return "", 0, 0;
 	}
 	if !str_split_by_last(row, ':', &path, &row) {
-		assert(false);
 		return "", 0, 0;
 	}
 

@@ -69,7 +69,7 @@ use_lsp                                false
 show_lsp_inline_diagnostics            false
 
 # Use large block caret when true.
-block_caret                            true
+block_caret                            false
 maximize_on_start                      false
 
 ;keys
@@ -159,9 +159,11 @@ quick-open           Ctrl+P F3
 save-as              # No mapping
 goto-line            Alt+G
 run-command          Alt+X
+cancel-mode          Escape Ctrl+Q
+
 search-file          Ctrl+S
 search-in-project    Ctrl+Alt+S
-cancel-mode          Escape Ctrl+Q
+search-to-buffer     Ctrl+Enter
 
 increase-font-size   Ctrl+=
 decrease-font-size   Ctrl+-

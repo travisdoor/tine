@@ -1,0 +1,96 @@
+highlight_search_syntax :: fn (buf: *Buffer) {
+	using std;
+
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+
+	print_log("Last subject: %", search.last_subject);
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		if token.kind == EOF { break; }
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], auto token.kind, auto token.len);
+		}
+	}
+}
+
+#private
+
+Tokenizer :: struct #base TokenizerBase {
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		LOCATION = CODE_COLOR_COMMENT_INDEX;
+		MATCH    = CODE_COLOR_WARNING_INDEX;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		if parse_message(ctx, &t) { return t; }
+		if parse_match(ctx, &t)   { return t; }
+		ctx.index += 1;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_message :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using std;
+	using Token.kind;
+
+	start_index := ctx.index;
+	line :: eat_line_and_trim_eol(ctx);
+	path: string_view;
+	if !str_split_by_first(line, '\t', &path) {
+		ctx.index = start_index;
+		return false;
+	}
+	ctx.index = auto start_index + path.len;
+	t.kind = LOCATION;
+	t.len  = auto path.len;
+	return true;
+}
+
+parse_match :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using std;
+	using Token.kind;
+
+	start_index :: ctx.index;
+	line :: eat_line_and_trim_eol(ctx);
+	position :: find_matching_subject_in_data(line, search.last_subject);
+	if position != -1 {
+		t.kind  = MATCH;
+		t.index = auto start_index + position;
+		t.len   = auto search.last_subject.len;
+		return true;
+	}
+	return false;
+}

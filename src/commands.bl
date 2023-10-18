@@ -441,6 +441,9 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
 		HELP                { help                ();                                      }
 		CLEAR_MESSAGES      { clear_messages      ();                                      }
+		SEARCH_TO_BUFFER    {
+			print_warn("Command 'search-to-buffer' is available only in search modes.");
+		}
 
 		OPEN_PROJECTS_DIRECTORY {
 			open_path(tprint("\"%/%\"", data_dir, PROJECTS_DIRECTORY));
@@ -663,7 +666,7 @@ delete_right :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
-	if buf.index == results.buffer_index {
+	if buf.index == search_buffer_index {
 		cur :: get_cursor(buf, editor.cursor_index);
 		line :: peek_row_without_new_line(buf, cur.row);
 		filepath, row, col :: get_location_from_search_result_string(line);
