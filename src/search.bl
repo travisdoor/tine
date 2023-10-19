@@ -143,9 +143,16 @@ search_cmd_changed :: fn () {
 
 	first_hit_set := false;
 	start_index : s64 = 0;
+	row, col: s32;
+
+	subject_cols :: count_unicode_characters(subject);
+
 	loop {
-		hit_position :: find_matching_subject_in_data(target_buf.bytes, subject, start_index);
+		hit_position :: find_matching_subject_in_data(target_buf.bytes, subject, start_index, &row, &col);
 		if hit_position == -1 { break; }
+
+		print("hit: %:%\n", row, col);
+		col += subject_cols;
 
 		if first_hit_set == false && hit_position >= start_position {
 			first_hit_set = true;
