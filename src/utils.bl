@@ -352,7 +352,7 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 			@row += 1;
 			if col { @col = 0; }
 		} else if col {
-			@col += al;
+			@col += 1; // We have to count unicode characters here!
 		}
 	}
 

@@ -70,11 +70,6 @@ Cursor :: struct {
 	col:             s32;
 }
 
-Range :: struct {
-	start: s64;
-	end:   s64;
-}
-
 Indent :: struct {
 	position: s64;
 	nesting:  s32;

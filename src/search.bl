@@ -82,16 +82,15 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 				} else {
 					tmp := str_new(1024, application_context.temporary_allocator);
 					loop i := 0; i < search_results.len; i += 1 {
-						position :: search_results[i].start;
-						cur :: get_cursor_for_position(target_buf, position);
+						hit :: &search_results[i];
 						filepath := target_buf.filepath;
 						if filepath.len == 0 {
 							filepath = target_buf.name;
 						}
-						line_sample :: expand_position_to_whole_line(target_buf.bytes, position);
+						line_sample :: expand_position_to_whole_line(target_buf.bytes, hit.start);
 
 						// Tab is required for location parsing here!!!
-						str_append(&tmp, tprint("%:%:%\t%\n", filepath, cur.row+1, cur.col+1, line_sample));
+						str_append(&tmp, tprint("%:%:%\t%\n", filepath, hit.row+1, hit.col+1, line_sample));
 					}
 					if search_results.len == 0 {
 						str_append(&tmp, tprint("No match for subject '%'", subject));
@@ -150,17 +149,20 @@ search_cmd_changed :: fn () {
 	loop {
 		hit_position :: find_matching_subject_in_data(target_buf.bytes, subject, start_index, &row, &col);
 		if hit_position == -1 { break; }
-
-		print("hit: %:%\n", row, col);
-		col += subject_cols;
-
 		if first_hit_set == false && hit_position >= start_position {
 			first_hit_set = true;
 			search_result_index = search_results.len;
 		}
-		array_push(&search_results, Range.{ hit_position, hit_position + subject.len });
+		hit :: SearchLocation.{
+			start = auto hit_position,
+			end   = auto hit_position + subject.len,
+			row   = row,
+			col   = col
+		};
+		array_push(&search_results, hit);
 
 		start_index = hit_position + subject.len;
+		col += subject_cols;
 	}
 
 	if search_results.len > 0 {
@@ -172,7 +174,14 @@ search_cmd_changed :: fn () {
 	}
 }
 
-search_results: [..]Range;
+SearchLocation :: struct {
+	start: s32;
+	end:   s32;
+	row:   s32;
+	col:   s32;
+}
+
+search_results: [..]SearchLocation;
 
 #private
 
