@@ -144,7 +144,7 @@ search_cmd_changed :: fn () {
 	first_hit_set := false;
 	start_index : s64 = 0;
 	loop {
-		hit_position :: find_matching(target_buf, subject, start_index);
+		hit_position :: find_matching_subject_in_data(target_buf.bytes, subject, start_index);
 		if hit_position == -1 { break; }
 
 		if first_hit_set == false && hit_position >= start_position {
