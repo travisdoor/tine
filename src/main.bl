@@ -2025,5 +2025,7 @@ x set window minimal size
 - command to close all buffers
 - command to save all buffers
 - option to save all buffers before compilation is invoked
+- multi-cursor edit (oh shit!)
+- make active buffer in split temporarily bigger
 
 */

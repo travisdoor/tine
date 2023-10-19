@@ -5,7 +5,10 @@ ListItem :: struct {
 	preview: string_view;
 	hint:    string_view;
 	flags:   ItemFlags;
+
 	index:   s32;
+	row:     s32;
+	col:     s32;
 }
 
 ItemFlags :: enum #flags {
@@ -581,7 +584,7 @@ format_async_search_results_to_string :: fn (str: *string) {
 
 	loop i := 0; i < list[visible_list_index].len; i += 1 {
 		item :: &list[visible_list_index][i];
-		str_append(str, tprint("%/%:X:X\t%\n", item.hint, item.title, item.preview));
+		str_append(str, tprint("%/%:%:%\t%\n", item.hint, item.title, item.row+1, item.col+1, item.preview));
 	}
 }
 
@@ -685,6 +688,8 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 
 	array_reserve(&ctx.result, 1024);
 
+	subject_cols :: count_unicode_characters(ctx.subject);
+
 	loop i := 0; i < ctx.files.len && ctx.cancel == false; i += 1 {
 		filepath :: ctx.files[i];
 		stream, err_open :: open_file(filepath, OpenFileMode.READ);
@@ -708,8 +713,9 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 
 		// search file
 		start_index : s64 = 0;
+		row, col: s32;
 		loop ctx.cancel == false {
-			hit_position :: find_matching_subject_in_data(file_buffer, ctx.subject, start_index);
+			hit_position :: find_matching_subject_in_data(file_buffer, ctx.subject, start_index, &row, &col);
 			if hit_position == -1 { break; }
 
 			// File name is valid until the list of all files is valid!
@@ -723,8 +729,11 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 				index    = auto hit_position,
 				preview  = tprint("%", line),
 				hint     = dirpath,
+				row      = row,
+				col      = col
 			});
 			start_index = hit_position + ctx.subject.len;
+			col += subject_cols;
 		}
 	}
 	on_worker_done(ctx);
