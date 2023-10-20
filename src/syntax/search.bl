@@ -90,6 +90,8 @@ parse_match :: fn (ctx: *Tokenizer, t: *Token) bool {
 		t.kind  = MATCH;
 		t.index = auto start_index + position;
 		t.len   = auto search.last_subject.len;
+
+		ctx.index = t.index + t.len;
 		return true;
 	}
 	return false;

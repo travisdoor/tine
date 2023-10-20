@@ -24,14 +24,11 @@ search_mode_init :: fn () {
 		select_all(editor, buf);
 	}
 
-	array_init(&search_results, 1024);
-
+	search_results.len = 0;
 	search_cmd_changed();
 }
 
-search_mode_terminate :: fn () {
-	array_terminate(&search_results);
-}
+search_mode_terminate :: fn () {}
 
 draw_search_mode :: fn () {
 	assert(active_editor == command_editor);
@@ -173,15 +170,6 @@ search_cmd_changed :: fn () {
 		print_warn("No match!");
 	}
 }
-
-SearchLocation :: struct {
-	start: s32;
-	end:   s32;
-	row:   s32;
-	col:   s32;
-}
-
-search_results: [..]SearchLocation;
 
 #private
 

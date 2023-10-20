@@ -163,6 +163,8 @@ cancel-mode          Escape Ctrl+Q
 
 search-file          Ctrl+S
 search-in-project    Ctrl+Alt+S
+
+# Works in the scope of search modes. Opens search results in separate file buffer.
 search-to-buffer     Ctrl+Enter
 
 increase-font-size   Ctrl+=

@@ -312,6 +312,15 @@ clear_error_list :: fn () {
 	error_marker_visible = false;
 }
 
+SearchLocation :: struct {
+	start: s32;
+	end:   s32;
+	row:   s32;
+	col:   s32;
+}
+
+search_results: [..]SearchLocation;
+
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
 
@@ -526,11 +535,14 @@ main :: fn () s32 {
 
 	build_init();
 
-	// Cleanup search...
-	defer str_delete(&search.last_subject);
-
 	// Cleanup error list...
 	defer array_terminate(&error_list);
+
+	// Search stuff
+	array_init(&search_results, 1024);
+
+	defer str_delete(&search.last_subject);
+	defer array_terminate(&search_results);
 
 	// Create command editor.
 	command_editor = add_editor(add_command_buffer());
@@ -1980,7 +1992,7 @@ x autoindent on paste when enabled
     indentation the result is invalid)
 x Reduce framerate after some period of idle time? (note we wait for events and also limit max frame rate on mac).
 x Open file from the command line sometimes fails, also filepath is not normalized.
-- recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).
+x recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).
 x markdown syntax
   - improve?
 x make startup maximization optional
@@ -2000,7 +2012,7 @@ x reduce override of the clipboard by stuff from command buffer
   - cursor mouse press position
 C list all running processes and kill them!
 - highlight current word after timeout
-- last search should stay in search in files command
+x last search should stay in search in files command
 x switch cpp/h (covered by LSP)
 x numpad enter should also work
 - filewatch reload opened files

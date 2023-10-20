@@ -7,6 +7,7 @@ Add GLSL syntax highlighting.
 Disable project reindexing in case there is ongoing compilation.
 Fix invalid selection range in case of mouse selection over empty buffer.
 Show hidden directories in lists.
+Add open search results in separate buffer.
 
 0.1 - ALPHA
 ---------------------------------------------------------------------------------------

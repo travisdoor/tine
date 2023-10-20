@@ -1,48 +1,48 @@
 #import "extra/argparse"
 
 Args :: struct {
-    is_release: bool;
+	is_release: bool;
 }
 
 args: Args;
 
 build :: fn () #build_entry {
-    using argparse;
-    defer temporary_release();
+	using argparse;
+	defer temporary_release();
 
 	opt := get_builder_options();
 	opt.full_path_reports = true;
 	set_builder_options(opt);
 
-    parser: Parser;
-    init(&parser, "The Editor.");
-    defer terminate(&parser);
+	parser: Parser;
+	init(&parser, "The Editor.");
+	defer terminate(&parser);
 
-    set_executable_name(&parser, "blc -build");
-    add_usage(&parser, "[options]");
+	set_executable_name(&parser, "blc -build");
+	add_usage(&parser, "[options]");
 
-    add(&parser, &args.is_release, "--release", "", "Compile in release mode.");
+	add(&parser, &args.is_release, "--release", "", "Compile in release mode.");
 
-    _, parse_error :: parse(&parser, command_line_arguments, 0);
-    if parse_error {
-        print_err(parse_error);
-        print_help(&parser);
-        return;
-    }
+	_, parse_error :: parse(&parser, command_line_arguments, 0);
+	if parse_error {
+		print_err(parse_error);
+		print_help(&parser);
+		return;
+	}
 
-    if parser.help {
-        return;
-    }
+	if parser.help {
+		return;
+	}
 
 	exe: *Target;
 
-    if args.is_release {
+	if args.is_release {
 		exe = add_executable("Tine");
-        exe.build_mode = BuildMode.RELEASE_FAST;
-    } else {
+		exe.build_mode = BuildMode.RELEASE_FAST;
+	} else {
 		exe = add_executable("Tine-Debug");
 	}
-    add_unit(exe, "src/main.bl");
+	add_unit(exe, "src/main.bl");
 
 	#if PLATFORM == Platform.WINDOWS {
 		add_unit(exe, "src/platform/win32.bl");

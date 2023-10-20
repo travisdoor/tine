@@ -325,6 +325,7 @@ trim_left :: fn (str: string_view, chars: []u8, max_num := std.S32_MAX) string_v
 find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 {
 	assert(subject.len > 0);
 	match_start : s64 = -1;
+	match_col: s32;
 	subject_index: s32;
 	position := start_position;
 	loop position < data.len {
@@ -338,6 +339,7 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 		if al == bl && (a == b || (bl == 1 && a == cast(u8) C.toupper(cast(s32) b))) {
 			if subject_index == 0 {
 				match_start = position;
+				if col { match_col = @col; }
 			}
 			subject_index += bl;
 			if subject_index >= subject.len { break; }
@@ -348,14 +350,17 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 
 		position += al;
 
-		if row && a == '\n' {
-			@row += 1;
-			if col { @col = 0; }
+		if a == '\n' {
+			if row { @row += 1; }
+			if col { @col = 0;  }
 		} else if col {
 			@col += 1; // We have to count unicode characters here!
 		}
 	}
 
+	if col && match_start != -1 {
+		@col = match_col;
+	}
 	return match_start;
 }
 
