@@ -129,12 +129,15 @@ to the editor at the found match location or `Escape` to cancel the search.
 
 The search currently does not support regex and match detection is not case sensitive.
 
+Use `Ctrl+Enter` to show search results in split buffer.
+
 ### Search In Project
 Command: `search-in-project`
 Shortcut: `Ctrl+Alt+S`
 
 Search text recursively in all files included in the projec as you type.
 
+Use `Ctrl+Enter` to show search results in split buffer.
 
 ## Build
 Command: `build`
