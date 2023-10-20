@@ -58,6 +58,7 @@ Command :: enum {
 	CLOSE_BUFFER;
 	FORCE_CLOSE_BUFFER;
 	SAVE;
+	SAVE_ALL;
 	NEW_BUFFER;
 
 	// Modes
@@ -416,6 +417,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		CLOSE_BUFFER        { close_buffer_command(buf);                                   }
 		FORCE_CLOSE_BUFFER  { force_close_buffer  (buf);                                   }
 		SAVE                { save_command        (buf);                                   }
+		SAVE_ALL            { save_all            ();                                      }
 		NEW_BUFFER          { create_new_buffer   ();                                      }
 		INCREASE_FONT_SIZE  { increase_font_size  ();                                      }
 		DECREASE_FONT_SIZE  { decrease_font_size  ();                                      }
@@ -488,6 +490,20 @@ save_command :: fn (buf: *Buffer) bool {
 	return true;
 }
 
+save_all :: fn () {
+	print_info("Save all.");
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed { continue; }
+		if buf.filepath.len == 0 { continue; }
+		if buf.saved_top == buf.undo_top { continue; }
+
+		err :: save_buffer_to_file(buf, buf.filepath);
+		if err {
+			print_err(err);
+		}
+	}
+}
 
 undo :: fn (editor: *Editor, buf: *Buffer) bool {
 	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return false; }
@@ -1215,6 +1231,9 @@ clang_format :: fn (buf: *Buffer) {
 }
 
 build :: fn () {
+	if settings.save_all_before_build {
+		save_all();
+	}
 	err :: request_build();
 	if err { print_err(err); }
 }

@@ -71,6 +71,7 @@ show_lsp_inline_diagnostics            false
 # Use large block caret when true.
 block_caret                            false
 maximize_on_start                      false
+save_all_before_build                  true
 
 ;keys
 # This section contains shortcuts for various commands in the editor.

@@ -8,6 +8,8 @@ Disable project reindexing in case there is ongoing compilation.
 Fix invalid selection range in case of mouse selection over empty buffer.
 Show hidden directories in lists.
 Add open search results in separate buffer.
+Add command to save all changed files.
+Add automatic save before build option.
 
 0.1 - ALPHA
 ---------------------------------------------------------------------------------------
