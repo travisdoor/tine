@@ -63,7 +63,7 @@ CODE_COLOR_ERROR_INDEX     : u8 : 9;
 CODE_COLOR_WARNING_INDEX   : u8 : 10;
 
 DEFAULT_FONT_SIZE              :: 20;
-MAX_FONT_SIZE                  :: 128;
+MAX_FONT_SIZE                  :: 64;
 MIN_FONT_SIZE                  :: 4;
 LINE_SPACING                   :: 1.3f;
 BOTTOM_SCROLL_TRIGGER          :: 5;
@@ -2029,10 +2029,10 @@ x parse keys in settings
 - hide mouse cursor after some time without movement
 - don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
 x set window minimal size
-- horizontal view adjustements does not work in case the line is too long
+x horizontal view adjustements does not work in case the line is too long
 - jump to previous and next cursor locations (even in files)
 - implement file sections distinguished by different background color?
-- fullscreen mode
+- fullscreen mode (no window decorations)
 - open project from command line
 - command to close all buffers
 x command to save all buffers

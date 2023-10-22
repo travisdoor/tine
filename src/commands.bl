@@ -240,12 +240,22 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 }
 
 paste :: fn (editor: *Editor, buf: *Buffer) {
-	text :: clipboard_read();
+	text := clipboard_read();
 	if text.len == 0 { return; }
 	if maybe_report_readonly(buf) { return; }
 
 	commit_undo(buf);
 	defer commit_undo(buf);
+	
+	if editor.index == command_editor {
+		// Pasted string might be multiline, this is not allowed for the single line command editor.
+		loop i := 0; i < text.len; i += 1 {
+			if text[i] == '\n' || text[i] == '\r' {
+				text.len = i;
+				break;
+			}
+		}
+	}
 
 	cut_selection(editor, buf);
 	start :: get_cursor_position(buf, editor.cursor_index);

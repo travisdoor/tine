@@ -56,7 +56,6 @@ next_token :: fn (ctx: *Tokenizer) Token {
 
 		if parse_message(ctx, &t) { return t; }
 		if parse_match(ctx, &t)   { return t; }
-		ctx.index += 1;
 	}
 
 	return Token.{ kind = EOF };

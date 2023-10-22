@@ -10,6 +10,8 @@ Show hidden directories in lists.
 Add open search results in separate buffer.
 Add command to save all changed files.
 Add automatic save before build option.
+Fix horizontal view offset calculation.
+Fix command buffer multiline handling.
 
 0.1 - ALPHA
 ---------------------------------------------------------------------------------------
