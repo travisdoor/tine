@@ -2,13 +2,14 @@
 **To see the list of all available commands use `Ctrl+X` shortcut.**
 
 - Author:  Martin Dorazil
-- Version: 0.2 (ALPHA)
+- Version: 0.3 (ALPHA)
 
 ## Links
 
 - Download: https://travisdp.itch.io/tine
 - Source code: https://github.com/travisdoor/tine
 - Compiler: https://github.com/travisdoor/bl
+- Discord: https://discord.gg/cmDSGMhwYT
 
 # Supported Languages
 
