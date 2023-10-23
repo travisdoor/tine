@@ -3,6 +3,11 @@ replace_mode_init :: fn () {
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 	input_mode = InputMode.TEXT;
+	
+	assert(search.last_subject.len > 0);
+	// @Cleanup: test
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+	set_cursor_position(target_buf, target_editor.cursor_index, search_results[0].start);
 }
 
 replace_mode_terminate :: fn () {}
