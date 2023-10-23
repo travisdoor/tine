@@ -238,7 +238,7 @@ inline_error_background_color       400809
 inline_warning_background_color     4F4F2D
 
 code_comment                        00FF80
-code_keyword                        FFFFFF
+code_keyword                        FFF200
 code_directive                      9B9B9B
 code_string                         4EC9B0
 code_number                         FFAC9C
