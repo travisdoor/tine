@@ -118,7 +118,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	// Cursor position and size.
 	char_under_cursor :: peek_position(buf, cursor.position);
 	line, start_index :: peek_row_without_new_line(buf, cursor.row);
-	text_line_w       :: text_size(line, &font);
 
 	cursor_x := text_size(line, &font, auto (cursor.position - start_index));
 	cursor_w := 2.f;
@@ -136,7 +135,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	// Adjust text x offset
 	if settings.word_wrap == false {
-		adjust_editor_x_offset(text_line_w, line_w, cursor_x, &editor.left);
+		adjust_editor_x_offset(line_w, cursor_x, &editor.left);
 	}
 
 	tx -= editor.left;
@@ -430,7 +429,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	title_x :: x + text_padding;
 	text_x  := x + text_padding + title_size;
 	text_y  :: y + text_padding;
-	
+
 	scissor_x :: text_x;
 
 	line_w :: w-text_padding*2.f-title_size;
@@ -439,7 +438,6 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	line   :: peek_row(buf, 0);
 
 	char_under_cursor :: peek_position(buf, cursor.position);
-	text_line_w       :: text_size(line, &font);
 
 	cursor_x :: text_size(line, &font, auto cursor.position);
 	cursor_w := 2.f;
@@ -451,9 +449,9 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 			cursor_w = w;
 		}
 	}
-	adjust_editor_x_offset(text_line_w, line_w, cursor_x, &editor.left);
+	adjust_editor_x_offset(line_w, cursor_x, &editor.left);
 	text_x -= editor.left;
-	
+
 	set_shader_font(&font);
 	text_base_line_y :: text_y + (line_height * 0.5f - font.height * 0.5f);
 
@@ -463,11 +461,11 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 		hint_w :: text_size(hint, &font);
 		text(x + w - hint_w - text_padding, text_base_line_y, hint, colors.command_title_color);
 	}
-	
+
 	set_scissor(scissor_x, y, line_w, h);
-	
+
 	set_shader_color();
-	
+
 	// draw selection
 	{
 		start, end :: get_selection_range(buf, editor.cursor_index);
@@ -484,9 +482,9 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 		color := colors.cursor_background_color;
 		rect(std.ceil(text_x + cursor_x), text_y, cursor_w, line_height, color);
 	}
-	
+
 	set_shader_font(&font);
-	
+
 	{ // Edit line (just current one).
 		if line.len > 0 {
 			if settings.block_caret && caret.visible {
@@ -570,8 +568,8 @@ center_view :: fn (editor: *Editor) {
 
 #private
 
-adjust_editor_x_offset :: fn (text_line_w: f32, line_w: f32, cursor_x: f32, off: *f32) {
-	if text_line_w > line_w && line_w > 0.f {
+adjust_editor_x_offset :: fn (line_w: f32, cursor_x: f32, off: *f32) {
+	if line_w > 0.f {
 		c :: cursor_x - @off;
 		pilot_char_w :: draw.text_size("X", &font);
 		t := pilot_char_w * 6.f;
