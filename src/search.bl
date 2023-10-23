@@ -55,7 +55,6 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 
 	using std;
 	using Command;
-
 	switch cmd {
 		MOVE_UP   { prev_match(); }
 
@@ -65,11 +64,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 		SEARCH_TO_BUFFER,
 		INSERT_NEW_LINE {
 			// Lets store the current search subject for later reuse.
-			buf :: get_active_buffer_and_editor();
-			subject :: peek_row(buf, 0);
-
-			search.last_subject.len = 0;
-			std.str_append(&search.last_subject, subject);
+			subject :: commit_current_subject();
 
 			target_buf :: get_last_active_buffer_and_editor();
 
@@ -107,6 +102,20 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 			} else {
 				set_mode(Mode.TEXT_EDIT);
 			}
+		}
+		
+		SEARCH_REPLACE {
+			// Replace uses last seached subject as string to be replaced.
+			subject :: commit_current_subject();
+			if subject.len == 0 {
+				print_warn("No subject to replace.");
+				return false;
+			}
+			if search_results.len == 0 {
+				print_warn("No match to be replaced!");
+				return false;
+			}
+			set_mode(Mode.REPLACE);
 		}
 
 		CANCEL_MODE {
@@ -176,6 +185,18 @@ search_cmd_changed :: fn () {
 search_result_index: s64;
 start_position:      s64;
 start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
+
+// Store current subject into global cache as a last one we performed search for. And return cached
+// string.
+commit_current_subject :: fn () string_view #inline {
+	buf :: get_active_buffer_and_editor();
+	subject :: peek_row(buf, 0);
+	if subject.len == 0 { return ""; }
+	search.last_subject.len = 0;
+	std.str_append(&search.last_subject, subject);
+	
+	return search.last_subject;
+}
 
 next_match :: fn () {
 	if search_results.len == 0 {

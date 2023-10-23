@@ -71,6 +71,7 @@ Command :: enum {
 	SEARCH_FILE;
 	OPEN_PROJECT;
 	SEARCH_IN_PROJECT;
+	SEARCH_REPLACE;
 
 	// MISC
 	INCREASE_FONT_SIZE;
@@ -123,6 +124,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		Mode.OPEN_PROJECT      { handled = invoke_command_open_project_mode      (buf, cmd); }
 		Mode.SEARCH_IN_PROJECT { handled = invoke_command_search_in_project_mode (buf, cmd); }
 		Mode.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
+		Mode.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
 
 		default;
 	}

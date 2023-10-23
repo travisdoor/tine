@@ -201,7 +201,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	// draw search highlights
-	if mode == Mode.SEARCH_FILE && last_active_text_editor == editor.index {
+	highlight_last_search_results :: mode == Mode.SEARCH_FILE || mode == Mode.REPLACE;
+	if highlight_last_search_results && last_active_text_editor == editor.index {
 		drawn_count := 0;
 		loop i := 0; i < search_results.len; i += 1 {
 			start :: search_results[i].start;

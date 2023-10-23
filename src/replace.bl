@@ -1,0 +1,35 @@
+replace_mode_init :: fn () {
+	active_editor = command_editor;
+	buf :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.TEXT;
+}
+
+replace_mode_terminate :: fn () {}
+
+draw_replace_mode :: fn () {
+	assert(active_editor == command_editor);
+	assert(search.last_subject.len > 0);
+	w, h :: get_command_editor_size();
+	target_buf :: get_last_active_buffer_and_editor();
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Replace '%' in '%' with: ", search.last_subject, target_buf.name));
+	draw_last_status_message(0.f, h, w);
+}
+
+invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+	
+	using Command;
+	switch cmd {
+		INSERT_NEW_LINE {
+			set_mode(Mode.TEXT_EDIT);
+		}
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+#private

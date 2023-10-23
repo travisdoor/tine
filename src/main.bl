@@ -24,6 +24,7 @@
 #load "builder.bl"
 #load "lsp.bl"
 #load "completion.bl"
+#load "replace.bl"
 
 #load "syntax/bl.bl"
 #load "syntax/project.bl"
@@ -190,6 +191,7 @@ Mode :: enum {
 	OPEN_PROJECT;
 	SEARCH_IN_PROJECT;
 	COMPLETION;
+	REPLACE;
 }
 
 mode: Mode;
@@ -810,6 +812,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		OPEN_PROJECT      { open_project_mode_terminate();           }
 		SEARCH_IN_PROJECT { search_in_project_mode_terminate();      }
 		COMPLETION        { completion_mode_terminate();             }
+		REPLACE           { replace_mode_terminate();                }
 
 		default;
 	}
@@ -830,6 +833,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		OPEN_PROJECT      { open_project_mode_init();      }
 		SEARCH_IN_PROJECT { search_in_project_mode_init(); }
 		COMPLETION        { completion_mode_init();        }
+		REPLACE           { replace_mode_init();           }
 
 		default;
 	}
@@ -1551,7 +1555,7 @@ draw_frame :: fn () {
 
 		// This is probably temporary solution fixing the issue when we cannot see the search hit
 		// on the first line which is covered by the command buffer line.
-		if active_editor == command_editor && mode == Mode.SEARCH_FILE {
+		if active_editor == command_editor && (mode == Mode.SEARCH_FILE || mode == Mode.REPLACE) {
 			_, ch :: get_command_editor_size();
 			y += ch;
 			h -= ch;
@@ -1588,6 +1592,7 @@ draw_frame :: fn () {
 			SEARCH_FILE       { draw_search_mode();            }
 			OPEN_PROJECT      { draw_open_project_mode();      }
 			SEARCH_IN_PROJECT { draw_search_in_project_mode(); }
+			REPLACE           { draw_replace_mode();           }
 			COMPLETION        {
 				draw_completion_mode(active_x, y);
 			}
@@ -1796,7 +1801,7 @@ set_logger :: fn (func: PrintLogFn) PrintLogFn {
 // Use this to prevent recursive looping when log is reported while we report logs...
 log_reported := false;
 
-logger :: fn (kind: PrintLogKind, file: string_view, line: s32, format: string_view, args: ...) {
+logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #maybe_unused, format: string_view, args: ...) {
 	get_message_prefix :: fn (kind: PrintLogKind) string_view {
 		using PrintLogKind;
 		switch kind {
@@ -1848,7 +1853,15 @@ logger :: fn (kind: PrintLogKind, file: string_view, line: s32, format: string_v
 		}
 		default;
 	}
-	__print_log_default(kind, file, line, format, args);
+	
+	// @Incomplete: We need concept of log file in case we're in release mode. On Windows we don't have
+	// a console so there is no stdio initialized and we get the last error notification which is in 
+	// case of failiure invalid stream error.
+	// We also might have some way how to show more than last one message to report all errors without
+	// need of log file archeology.
+	#if IS_DEBUG && PLATFORM == Platform.WINDOWS {
+		__print_log_default(kind, file, line, format, args);
+	}
 }
 
 set_icon :: fn () {
@@ -2039,5 +2052,7 @@ x command to save all buffers
 x option to save all buffers before compilation is invoked
 - multi-cursor edit (oh shit!)
 - make active buffer in split temporarily bigger
-
+- propper error handling in release mode on windows
+  - log file
+  - multiple messages (notifications) UI
 */
