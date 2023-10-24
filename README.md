@@ -11,6 +11,10 @@
 - Compiler: https://github.com/travisdoor/bl
 - Discord: https://discord.gg/cmDSGMhwYT
 
+## Tutorials
+
+- Introduction: https://youtu.be/vE9m_v0OPqE
+
 # Supported Languages
 
   | Language | Syntax Highlight | LSP  |
