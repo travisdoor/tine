@@ -26,7 +26,7 @@ search_mode_init :: fn () {
 
 	search_results.len = 0;
 	search_cmd_changed();
-	
+
 	if settings.show_hints {
 		replace_binding          :: get_keybinding_for_command(Command.SEARCH_REPLACE);
 		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
@@ -112,8 +112,13 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 				set_mode(Mode.TEXT_EDIT);
 			}
 		}
-		
+
 		SEARCH_REPLACE {
+			target_buf :: get_last_active_buffer_and_editor();
+			if (target_buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
+				print_warn("Buffer '%' is readonly.", target_buf.name);
+				return false;
+			}
 			// Replace uses last seached subject as string to be replaced.
 			subject :: commit_current_subject();
 			if subject.len == 0 {
@@ -244,6 +249,6 @@ commit_current_subject :: fn () string_view #inline {
 	if subject.len == 0 { return ""; }
 	search.last_subject.len = 0;
 	std.str_append(&search.last_subject, subject);
-	
+
 	return search.last_subject;
 }
