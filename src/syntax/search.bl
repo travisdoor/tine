@@ -82,6 +82,11 @@ parse_match :: fn (ctx: *Tokenizer, t: *Token) bool {
 	using std;
 	using Token.kind;
 
+	if search.last_subject.len == 0 {
+		eat_line_and_trim_eol(ctx);
+		return false;
+	}
+	
 	start_index :: ctx.index;
 	line :: eat_line_and_trim_eol(ctx);
 	position :: find_matching_subject_in_data(line, search.last_subject);

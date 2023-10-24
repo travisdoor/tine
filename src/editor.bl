@@ -536,7 +536,7 @@ draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOT
 
 	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
 	item_spacing     :: metrics[auto ITEM_SPACING    ];
-	text_padding     :: metrics[auto TEXT_PADDING    ];
+	text_padding     :: metrics[auto TEXT_PADDING    ] * 2.f;
 	rounding         :: metrics[auto CORNER_ROUNDING];
 
 	background_color, foreground_color :: get_status_bar_colors(kind);

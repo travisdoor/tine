@@ -550,3 +550,9 @@ is_multiline :: fn (str: string_view) bool #inline {
 	}
 	return false;
 }
+
+get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") string_view #inline {
+	keymap_index :: lookup_command_keymap_index(cmd);
+	if keymap_index == -1 { return missing; }
+	return keymap_entry_to_string(keymap_index);
+}

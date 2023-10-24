@@ -73,6 +73,9 @@ block_caret                            false
 maximize_on_start                      false
 save_all_before_build                  true
 
+# Show special command binding in some modes.
+show_hints                             true
+
 ;keys
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:

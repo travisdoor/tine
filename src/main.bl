@@ -142,8 +142,8 @@ search_buffer_index   := -1;
 search: struct {
 	last_subject:     string;
 	last_replacement: string;
+	result_index:     s64;
 }
-
 
 SearchLocation :: struct {
 	start: s32;
@@ -261,6 +261,7 @@ Settings :: struct {
 	word_wrap:                              bool;
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
+	show_hints:                             bool;
 };
 
 settings: Settings;
@@ -628,7 +629,9 @@ main :: fn () s32 {
 			}
 		}
 
-		maybe_reindex_current_project();
+		if !is_project_indexing_paused {
+			maybe_reindex_current_project();
+		}
 		update_jobs(); // Also process all responses...
 
 		draw_frame();
@@ -825,6 +828,10 @@ set_mode :: fn (m: Mode) bool #inline {
 		default;
 	}
 
+	if m != TEXT_EDIT {
+		is_project_indexing_paused = true;
+	}
+	
 	switch m {
 		TEXT_EDIT {
 			assert(last_active_text_editor != -1);
@@ -1050,6 +1057,7 @@ open_location :: fn (filepath: string_view, line: s32, col: s32) Error {
 
 open_project :: fn (directory: string_view, filepath: string_view) Error {
 	kill_async_jobs();
+	is_project_indexing_paused = false;
 
 	err_default :: load_default_project_file();
 	if err_default { return err_default; }
@@ -1536,6 +1544,8 @@ clipboard_write :: fn (str: string_view) {
 	dup :: str_new(str, application_context.temporary_allocator);
 	glfw.SetClipboardString(window, auto std.strtoc(dup));
 }
+
+is_project_indexing_paused := false;
 
 #private
 
@@ -2063,4 +2073,5 @@ x option to save all buffers before compilation is invoked
 - propper error handling in release mode on windows
   - log file
   - multiple messages (notifications) UI
+- pause indexing in sub-modes and during compilation?
 */

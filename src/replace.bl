@@ -4,14 +4,20 @@ replace_mode_init :: fn () {
 	clear_buffer(buf);
 	input_mode = InputMode.TEXT;
 
-	is_replacing = false;
+	is_replacing        = false;
 
 	// @Incomplete: use search.last_replacement
 
 	assert(search.last_subject.len > 0);
-	// @Cleanup: test
-	target_buf, target_editor :: get_last_active_buffer_and_editor();
-	set_cursor_position(target_buf, target_editor.cursor_index, search_results[0].start);
+	focus_current_search_result();
+	
+	if settings.show_hints {
+		replace_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
+		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
+		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
+		hint :: tprint("[%] next match\t[%] prev match\t[%] replace", next_binding, prev_binding, replace_binding);
+		print_info(hint);
+	}
 }
 
 replace_mode_terminate :: fn () {
@@ -38,7 +44,7 @@ draw_replace_mode :: fn () {
 		title_x :: text_padding;
 		title_y :: text_padding + (line_height * 0.5f - font.height * 0.5f);
 
-		title :: tprint("Replacing '%' with '%'. Press [Enter] to replace, [A] to replace all.", search.last_subject, replacement);
+		title :: tprint("Replacing '%' with '%'.", search.last_subject, replacement);
 
 		set_shader_font(&font);
 		text(title_x, title_y, title, colors.command_title_color);
@@ -54,19 +60,46 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 
 	using Command;
 	switch cmd {
+		MOVE_UP   { prev_match(); }
+		MOVE_DOWN { next_match(); }
+		
 		INSERT_NEW_LINE {
 			if is_replacing {
 				target_buf, target_editor :: get_last_active_buffer_and_editor();
-				batch_begin(target_buf);
-				defer batch_end(target_buf);
 
 				subject :: search.last_subject;
 				assert(subject.len > 0);
 
 				start :: get_cursor_position(target_buf, target_editor.cursor_index);
 				end   :: start + subject.len;
+				
+				batch_begin(target_buf);
 				delete_range(target_buf, start, end);
-				insert_string(target_buf, start, replacement);
+				if replacement.len > 0 { // Empty is valid!
+					insert_string(target_buf, start, replacement);
+				}
+				batch_end(target_buf);
+				
+				diff :: cast(s32) (replacement.len - subject.len);
+				loop i := search.result_index; i < search_results.len; i += 1 {
+					r :: &search_results[i];
+					r.start += diff;
+					r.end   += diff;
+					// @Incomplete: Adjust col and row???
+				}
+
+				array_erase_keep_order(&search_results, search.result_index);
+				if search.result_index >= search_results.len {
+					search.result_index = 0;
+				}
+				
+				// Jumps to next one since previous entry was deleted.
+				if !focus_current_search_result() {
+					// Last match
+					set_mode(Mode.TEXT_EDIT);
+					print_info("All replaced.");
+					return true;
+				}
 			} else {
 				buf :: get_active_buffer_and_editor();
 				str :: peek_row(buf, 0);

@@ -504,16 +504,23 @@ save_command :: fn (buf: *Buffer) bool {
 
 save_all :: fn () {
 	print_info("Save all.");
+	saved_num := 0;
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
 		if buf.is_removed { continue; }
 		if buf.filepath.len == 0 { continue; }
 		if buf.saved_top == buf.undo_top { continue; }
 
+		saved_num += 1;
+		
 		err :: save_buffer_to_file(buf, buf.filepath);
 		if err {
 			print_err(err);
 		}
+	}
+	
+	if saved_num == 0 {
+		print_info("No changes needs to be saved.");
 	}
 }
 
