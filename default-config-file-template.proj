@@ -73,6 +73,9 @@ block_caret                            false
 maximize_on_start                      false
 save_all_before_build                  true
 
+# Show special command binding in some modes.
+show_hints                             true
+
 ;keys
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:
@@ -158,12 +161,16 @@ open-project         Ctrl+Shift+O
 
 quick-open           Ctrl+P F3
 save-as              # No mapping
+save-all             # No mapping
 goto-line            Alt+G
 run-command          Alt+X
 cancel-mode          Escape Ctrl+Q
 
 search-file          Ctrl+S
 search-in-project    Ctrl+Alt+S
+
+# Works in the scope of search modes. Replace mode for the last search is activated.
+search-replace       Ctrl+R
 
 # Works in the scope of search modes. Opens search results in separate file buffer.
 search-to-buffer     Ctrl+Enter
@@ -222,8 +229,8 @@ current_line_background_color       081017
 search_result_background_color      01574C
 title_bar_color                     202020
 title_bar_active                    01574C
-title_bar_text_color                D4B79C
-command_background_color            0C1924
+title_bar_text_color                CCCCCC
+command_background_color            000000
 command_foreground_color            CCCCCC
 command_title_color                 3CC7CF
 command_select_color                01574C

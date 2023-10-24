@@ -3,7 +3,7 @@ search_mode_init :: fn () {
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 	input_mode = InputMode.TEXT;
-	search_result_index = 0;
+	search.result_index = 0;
 
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	start_position = get_cursor_position(target_buf, target_editor.cursor_index);
@@ -26,6 +26,15 @@ search_mode_init :: fn () {
 
 	search_results.len = 0;
 	search_cmd_changed();
+
+	if settings.show_hints {
+		replace_binding          :: get_keybinding_for_command(Command.SEARCH_REPLACE);
+		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
+		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
+		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
+		hint :: tprint("[%] next match\t[%] prev match\t[%] replace\t[%] show results in buffer", next_binding, prev_binding, replace_binding, result_to_buffer_binding);
+		print_info(hint);
+	}
 }
 
 search_mode_terminate :: fn () {}
@@ -38,7 +47,7 @@ draw_search_mode :: fn () {
 
 	hint: string_view;
 	if search_results.len > 0 {
-		hint = tprint("[%/%]", search_result_index+1, search_results.len);
+		hint = tprint("[%/%]", search.result_index+1, search_results.len);
 	}
 
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search in '%': ", target_buf.name), hint);
@@ -55,7 +64,6 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 
 	using std;
 	using Command;
-
 	switch cmd {
 		MOVE_UP   { prev_match(); }
 
@@ -65,11 +73,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 		SEARCH_TO_BUFFER,
 		INSERT_NEW_LINE {
 			// Lets store the current search subject for later reuse.
-			buf :: get_active_buffer_and_editor();
-			subject :: peek_row(buf, 0);
-
-			search.last_subject.len = 0;
-			std.str_append(&search.last_subject, subject);
+			subject :: commit_current_subject();
 
 			target_buf :: get_last_active_buffer_and_editor();
 
@@ -109,6 +113,25 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 			}
 		}
 
+		SEARCH_REPLACE {
+			target_buf :: get_last_active_buffer_and_editor();
+			if (target_buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
+				print_warn("Buffer '%' is readonly.", target_buf.name);
+				return false;
+			}
+			// Replace uses last seached subject as string to be replaced.
+			subject :: commit_current_subject();
+			if subject.len == 0 {
+				print_warn("No subject to replace.");
+				return false;
+			}
+			if search_results.len == 0 {
+				print_warn("No match to be replaced!");
+				return false;
+			}
+			set_mode(Mode.REPLACE);
+		}
+
 		CANCEL_MODE {
 			target_buf, target_editor :: get_last_active_buffer_and_editor();
 			// reset buffer to the starting position
@@ -130,7 +153,7 @@ search_cmd_changed :: fn () {
 	subject :: peek_row(buf, 0);
 
 	search_results.len  = 0;
-	search_result_index = 0;
+	search.result_index = 0;
 
 	// reset buffer to the starting position
 	set_cursor_position(target_buf, target_editor.cursor_index, start_position);
@@ -148,7 +171,7 @@ search_cmd_changed :: fn () {
 		if hit_position == -1 { break; }
 		if first_hit_set == false && hit_position >= start_position {
 			first_hit_set = true;
-			search_result_index = search_results.len;
+			search.result_index = search_results.len;
 		}
 		hit :: SearchLocation.{
 			start = auto hit_position,
@@ -163,45 +186,69 @@ search_cmd_changed :: fn () {
 	}
 
 	if search_results.len > 0 {
-		assert(search_result_index >= 0 && search_result_index < search_results.len);
-		set_cursor_position(target_buf, target_editor.cursor_index, search_results[search_result_index].start);
+		assert(search.result_index >= 0 && search.result_index < search_results.len);
+		set_cursor_position(target_buf, target_editor.cursor_index, search_results[search.result_index].start);
 		center_view(target_editor);
 	} else {
 		print_warn("No match!");
 	}
 }
 
-#private
-
-search_result_index: s64;
-start_position:      s64;
-start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
-
+// Jump to the next matching search location in the last search.
 next_match :: fn () {
 	if search_results.len == 0 {
 		print_warn("No match!");
 		return;
 	}
+	if search_results.len == 1 {
+		print_warn("No other match!");
+		return;
+	}
+	search.result_index += 1;
+	if search.result_index >= search_results.len { search.result_index = 0; }
 
-	search_result_index += 1;
-	if search_result_index >= search_results.len { search_result_index = 0; }
-
-	target_buf, target_editor :: get_last_active_buffer_and_editor();
-	set_cursor_position(target_buf, target_editor.cursor_index, search_results[search_result_index].start);
-	center_view(target_editor);
+	focus_current_search_result();
 }
 
+// Jump to the prev matching search location in the last search.
 prev_match :: fn () {
 	if search_results.len == 0 {
 		print_warn("No match!");
 		return;
 	}
+	if search_results.len == 1 {
+		print_warn("No other match!");
+		return;
+	}
+	search.result_index -= 1;
+	if search.result_index < 0 { search.result_index = search_results.len - 1; }
 
-	search_result_index -= 1;
-	if search_result_index < 0 { search_result_index = search_results.len - 1; }
-
-	target_buf, target_editor :: get_last_active_buffer_and_editor();
-	set_cursor_position(target_buf, target_editor.cursor_index, search_results[search_result_index].start);
-	center_view(target_editor);
+	focus_current_search_result();
 }
 
+focus_current_search_result :: fn () bool {
+	if search.result_index < 0 || search.result_index >= search_results.len {
+		return false;
+	}
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
+	set_cursor_position(target_buf, target_editor.cursor_index, search_results[search.result_index].start);
+	center_view(target_editor);
+	return true;
+}
+
+#private
+
+start_position:      s64;
+start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
+
+// Store current subject into global cache as a last one we performed search for. And return cached
+// string.
+commit_current_subject :: fn () string_view #inline {
+	buf :: get_active_buffer_and_editor();
+	subject :: peek_row(buf, 0);
+	if subject.len == 0 { return ""; }
+	search.last_subject.len = 0;
+	std.str_append(&search.last_subject, subject);
+
+	return search.last_subject;
+}

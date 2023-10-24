@@ -71,6 +71,7 @@ Command :: enum {
 	SEARCH_FILE;
 	OPEN_PROJECT;
 	SEARCH_IN_PROJECT;
+	SEARCH_REPLACE;
 
 	// MISC
 	INCREASE_FONT_SIZE;
@@ -123,6 +124,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		Mode.OPEN_PROJECT      { handled = invoke_command_open_project_mode      (buf, cmd); }
 		Mode.SEARCH_IN_PROJECT { handled = invoke_command_search_in_project_mode (buf, cmd); }
 		Mode.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
+		Mode.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
 
 		default;
 	}
@@ -502,16 +504,23 @@ save_command :: fn (buf: *Buffer) bool {
 
 save_all :: fn () {
 	print_info("Save all.");
+	saved_num := 0;
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
 		if buf.is_removed { continue; }
 		if buf.filepath.len == 0 { continue; }
 		if buf.saved_top == buf.undo_top { continue; }
 
+		saved_num += 1;
+		
 		err :: save_buffer_to_file(buf, buf.filepath);
 		if err {
 			print_err(err);
 		}
+	}
+	
+	if saved_num == 0 {
+		print_info("No changes needs to be saved.");
 	}
 }
 

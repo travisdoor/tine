@@ -1,0 +1,122 @@
+replace_mode_init :: fn () {
+	active_editor = command_editor;
+	buf :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+	input_mode = InputMode.TEXT;
+
+	is_replacing        = false;
+
+	// @Incomplete: use search.last_replacement
+
+	assert(search.last_subject.len > 0);
+	focus_current_search_result();
+	
+	if settings.show_hints {
+		replace_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
+		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
+		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
+		hint :: tprint("[%] next match\t[%] prev match\t[%] replace", next_binding, prev_binding, replace_binding);
+		print_info(hint);
+	}
+}
+
+replace_mode_terminate :: fn () {
+	std.str_delete(&replacement);
+}
+
+draw_replace_mode :: fn () {
+	assert(active_editor == command_editor);
+	assert(search.last_subject.len > 0);
+	w, h :: get_command_editor_size();
+	target_buf :: get_last_active_buffer_and_editor();
+
+	if is_replacing {
+		using draw;
+		using Metric;
+
+		line_height  :: metrics[auto LINE_HEIGHT ];
+		text_padding :: metrics[auto TEXT_PADDING];
+
+		set_shader_color();
+		draw_shadow(0.f, 0.f, w, h, ShadowMode.BOTTOM);
+		rect(0.f, 0.f, w, h, colors.command_background_color);
+
+		title_x :: text_padding;
+		title_y :: text_padding + (line_height * 0.5f - font.height * 0.5f);
+
+		title :: tprint("Replacing '%' with '%'.", search.last_subject, replacement);
+
+		set_shader_font(&font);
+		text(title_x, title_y, title, colors.command_title_color);
+	} else {
+		draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Replace '%' in '%' with: ", search.last_subject, target_buf.name));
+	}
+	draw_last_status_message(0.f, h, w);
+}
+
+invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	using Command;
+	switch cmd {
+		MOVE_UP   { prev_match(); }
+		MOVE_DOWN { next_match(); }
+		
+		INSERT_NEW_LINE {
+			if is_replacing {
+				target_buf, target_editor :: get_last_active_buffer_and_editor();
+
+				subject :: search.last_subject;
+				assert(subject.len > 0);
+
+				start :: get_cursor_position(target_buf, target_editor.cursor_index);
+				end   :: start + subject.len;
+				
+				batch_begin(target_buf);
+				delete_range(target_buf, start, end);
+				if replacement.len > 0 { // Empty is valid!
+					insert_string(target_buf, start, replacement);
+				}
+				batch_end(target_buf);
+				
+				diff :: cast(s32) (replacement.len - subject.len);
+				loop i := search.result_index; i < search_results.len; i += 1 {
+					r :: &search_results[i];
+					r.start += diff;
+					r.end   += diff;
+					// @Incomplete: Adjust col and row???
+				}
+
+				array_erase_keep_order(&search_results, search.result_index);
+				if search.result_index >= search_results.len {
+					search.result_index = 0;
+				}
+				
+				// Jumps to next one since previous entry was deleted.
+				if !focus_current_search_result() {
+					// Last match
+					set_mode(Mode.TEXT_EDIT);
+					print_info("All replaced.");
+					return true;
+				}
+			} else {
+				buf :: get_active_buffer_and_editor();
+				str :: peek_row(buf, 0);
+				assert(replacement.len == 0);
+				std.str_append(&replacement, str);
+
+				is_replacing = true;
+			}
+		}
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+#private
+
+is_replacing: bool;
+replacement:  string;
