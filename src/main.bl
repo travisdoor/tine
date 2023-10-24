@@ -389,10 +389,23 @@ main :: fn () s32 {
 	FONT_DIRECTORY = get_fonts_directory();
 	defer str_delete(&FONT_DIRECTORY);
 
+	mutex_init(&message.mutex);
+	defer mutex_terminate(&message.mutex);
+	defer str_delete(&message.text);
+
+	// Create command editor.
+	command_editor = add_editor(add_command_buffer());
+	// Messages buffer
+	messages_buffer_index = add_messages_buffer("messages");
+
+	default_logger :: set_logger(&logger);
+	defer set_logger(default_logger);
+
 	print_log("Font directory: '%'", FONT_DIRECTORY);
 
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
+
 
 	// Resolve editor executable path.
 	exec_path :: os_get_exec_path();
@@ -428,13 +441,6 @@ main :: fn () s32 {
 	defer str_delete(&data_dir);
 
 	print_log("Editor data directory: '%'", data_dir);
-
-	default_logger :: set_logger(&logger);
-	defer set_logger(default_logger);
-
-	mutex_init(&message.mutex);
-	defer mutex_terminate(&message.mutex);
-	defer str_delete(&message.text);
 
 	// must be before project...
 	watch_init();
@@ -546,11 +552,6 @@ main :: fn () s32 {
 
 	defer str_delete(&search.last_subject);
 	defer array_terminate(&search_results);
-
-	// Create command editor.
-	command_editor = add_editor(add_command_buffer());
-	// Messages buffer
-	messages_buffer_index = add_messages_buffer("messages");
 
 	loop i := 1; i < command_line_arguments.len; i += 1 {
 		filepath :: command_line_arguments[i];
@@ -1853,13 +1854,13 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 		}
 		default;
 	}
-	
+
 	// @Incomplete: We need concept of log file in case we're in release mode. On Windows we don't have
-	// a console so there is no stdio initialized and we get the last error notification which is in 
+	// a console so there is no stdio initialized and we get the last error notification which is in
 	// case of failiure invalid stream error.
 	// We also might have some way how to show more than last one message to report all errors without
 	// need of log file archeology.
-	#if IS_DEBUG && PLATFORM == Platform.WINDOWS {
+	#if (IS_DEBUG && PLATFORM == Platform.WINDOWS) || PLATFORM != Platform.WINDOWS {
 		__print_log_default(kind, file, line, format, args);
 	}
 }
