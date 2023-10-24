@@ -140,8 +140,23 @@ help_buffer_index     := -1;
 search_buffer_index   := -1;
 
 search: struct {
-	last_subject: string;
+	last_subject:     string;
+	last_replacement: string;
 }
+
+
+SearchLocation :: struct {
+	start: s32;
+	end:   s32;
+	row:   s32;
+	col:   s32;
+}
+
+// @Cleanup: Move to search struct !!!
+// @Cleanup: Move to search struct !!!
+// @Cleanup: Move to search struct !!!
+search_results: [..]SearchLocation;
+
 
 // Points to previous active text editor, this might be used in interactive modes where we need the text buffer
 // as context (e.g. search mode).
@@ -314,15 +329,6 @@ clear_error_list :: fn () {
 	error_list_index = -1;
 	error_marker_visible = false;
 }
-
-SearchLocation :: struct {
-	start: s32;
-	end:   s32;
-	row:   s32;
-	col:   s32;
-}
-
-search_results: [..]SearchLocation;
 
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
@@ -551,6 +557,7 @@ main :: fn () s32 {
 	array_init(&search_results, 1024);
 
 	defer str_delete(&search.last_subject);
+	defer str_delete(&search.last_replacement);
 	defer array_terminate(&search_results);
 
 	loop i := 1; i < command_line_arguments.len; i += 1 {
