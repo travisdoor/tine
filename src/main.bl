@@ -139,12 +139,6 @@ messages_buffer_index := -1;
 help_buffer_index     := -1;
 search_buffer_index   := -1;
 
-search: struct {
-	last_subject:     string;
-	last_replacement: string;
-	result_index:     s64;
-}
-
 SearchLocation :: struct {
 	start: s32;
 	end:   s32;
@@ -152,11 +146,12 @@ SearchLocation :: struct {
 	col:   s32;
 }
 
-// @Cleanup: Move to search struct !!!
-// @Cleanup: Move to search struct !!!
-// @Cleanup: Move to search struct !!!
-search_results: [..]SearchLocation;
-
+search: struct {
+	last_subject:     string;
+	last_replacement: string;
+	results:      [..]SearchLocation;
+	result_index:     s64;
+}
 
 // Points to previous active text editor, this might be used in interactive modes where we need the text buffer
 // as context (e.g. search mode).
@@ -555,11 +550,11 @@ main :: fn () s32 {
 	defer array_terminate(&error_list);
 
 	// Search stuff
-	array_init(&search_results, 1024);
+	array_init(&search.results, 1024);
 
 	defer str_delete(&search.last_subject);
 	defer str_delete(&search.last_replacement);
-	defer array_terminate(&search_results);
+	defer array_terminate(&search.results);
 
 	loop i := 1; i < command_line_arguments.len; i += 1 {
 		filepath :: command_line_arguments[i];
@@ -831,7 +826,7 @@ set_mode :: fn (m: Mode) bool #inline {
 	if m != TEXT_EDIT {
 		is_project_indexing_paused = true;
 	}
-	
+
 	switch m {
 		TEXT_EDIT {
 			assert(last_active_text_editor != -1);
@@ -1970,7 +1965,10 @@ TODO
 
 x horizontal view switch if we go too far
 x help + readme
-- find and replace in file
+x find and replace in file
+- find and replace in project
+  - we want also unified undo
+  - do as regular edit in results buffer?
 x remap keyboard
 x cursor blinking
 - hot-reload non-project files
@@ -2074,4 +2072,5 @@ x option to save all buffers before compilation is invoked
   - log file
   - multiple messages (notifications) UI
 - pause indexing in sub-modes and during compilation?
+
 */

@@ -24,7 +24,7 @@ search_in_project_mode_init :: fn () {
 
 	print_log("Search for: '%'", subject);
 	err :: list_async_search(subject, true);
-	if err { 
+	if err {
 		print_err(err);
 	} else if settings.show_hints {
 		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
@@ -90,7 +90,7 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 				} else {
 					tmp := str_new(1024, application_context.temporary_allocator);
 					format_async_search_results_to_string(&tmp);
-					if search_results.len == 0 {
+					if search.results.len == 0 {
 						str_append(&tmp, tprint("No match for subject '%'", subject));
 					}
 					set_mode(Mode.TEXT_EDIT);

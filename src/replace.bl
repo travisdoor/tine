@@ -1,28 +1,33 @@
 replace_mode_init :: fn () {
 	active_editor = command_editor;
-	buf :: get_active_buffer_and_editor();
+	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode = InputMode.TEXT;
+	input_mode   = InputMode.TEXT;
+	is_replacing = false;
 
-	is_replacing        = false;
+	// Show last search in the command buffer.
+	if search.last_replacement.len > 0 {
+		insert_string(buf, 0, search.last_replacement);
+		select_all(editor, buf);
+	}
 
 	// @Incomplete: use search.last_replacement
 
 	assert(search.last_subject.len > 0);
 	focus_current_search_result();
-	
+
 	if settings.show_hints {
-		replace_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
-		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
-		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
-		hint :: tprint("[%] next match\t[%] prev match\t[%] replace", next_binding, prev_binding, replace_binding);
+		using Command;
+		replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
+		next_binding    :: get_keybinding_for_command(MOVE_DOWN);
+		prev_binding    :: get_keybinding_for_command(MOVE_UP);
+		all_binding     :: get_keybinding_for_command(SELECT_ALL);
+		hint :: tprint("[%] next match\t[%] prev match\t[%] replace\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
 		print_info(hint);
 	}
 }
 
-replace_mode_terminate :: fn () {
-	std.str_delete(&replacement);
-}
+replace_mode_terminate :: fn () {}
 
 draw_replace_mode :: fn () {
 	assert(active_editor == command_editor);
@@ -44,7 +49,7 @@ draw_replace_mode :: fn () {
 		title_x :: text_padding;
 		title_y :: text_padding + (line_height * 0.5f - font.height * 0.5f);
 
-		title :: tprint("Replacing '%' with '%'.", search.last_subject, replacement);
+		title :: tprint("Replacing '%' with '%'.", search.last_subject, search.last_replacement);
 
 		set_shader_font(&font);
 		text(title_x, title_y, title, colors.command_title_color);
@@ -62,37 +67,38 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 	switch cmd {
 		MOVE_UP   { prev_match(); }
 		MOVE_DOWN { next_match(); }
-		
+
 		INSERT_NEW_LINE {
 			if is_replacing {
 				target_buf, target_editor :: get_last_active_buffer_and_editor();
 
-				subject :: search.last_subject;
+				subject     :: search.last_subject;
+				replacement :: search.last_replacement;
 				assert(subject.len > 0);
 
 				start :: get_cursor_position(target_buf, target_editor.cursor_index);
 				end   :: start + subject.len;
-				
+
 				batch_begin(target_buf);
 				delete_range(target_buf, start, end);
 				if replacement.len > 0 { // Empty is valid!
 					insert_string(target_buf, start, replacement);
 				}
 				batch_end(target_buf);
-				
+
 				diff :: cast(s32) (replacement.len - subject.len);
-				loop i := search.result_index; i < search_results.len; i += 1 {
-					r :: &search_results[i];
+				loop i := search.result_index; i < search.results.len; i += 1 {
+					r :: &search.results[i];
 					r.start += diff;
 					r.end   += diff;
 					// @Incomplete: Adjust col and row???
 				}
 
-				array_erase_keep_order(&search_results, search.result_index);
-				if search.result_index >= search_results.len {
+				array_erase_keep_order(&search.results, search.result_index);
+				if search.result_index >= search.results.len {
 					search.result_index = 0;
 				}
-				
+
 				// Jumps to next one since previous entry was deleted.
 				if !focus_current_search_result() {
 					// Last match
@@ -101,13 +107,14 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 					return true;
 				}
 			} else {
-				buf :: get_active_buffer_and_editor();
-				str :: peek_row(buf, 0);
-				assert(replacement.len == 0);
-				std.str_append(&replacement, str);
-
+				commit_current_replacement();
 				is_replacing = true;
 			}
+		}
+
+		SELECT_ALL {
+			print_log("Replace all!");
+			return true;
 		}
 
 		default { return false; }
@@ -119,4 +126,13 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 #private
 
 is_replacing: bool;
-replacement:  string;
+
+commit_current_replacement :: fn () string_view #inline {
+	buf :: get_active_buffer_and_editor();
+	replacement :: peek_row(buf, 0);
+	if replacement.len == 0 { return ""; }
+	search.last_replacement.len = 0;
+	std.str_append(&search.last_replacement, replacement);
+
+	return search.last_replacement;
+}
