@@ -152,6 +152,8 @@ search_cmd_changed :: fn () {
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	subject :: peek_row(buf, 0);
 
+	print_log("Search for: %", subject);
+
 	search.results.len  = 0;
 	search.result_index = 0;
 
