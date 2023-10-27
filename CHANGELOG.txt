@@ -5,6 +5,7 @@ Add search-replace in file.
 Use last replacement string as default on new replace.
 Fix broken error notifications in release mode.
 Add 'show_hints' option.
+Add replace all.
 
 0.2 - ALPHA
 ---------------------------------------------------------------------------------------
