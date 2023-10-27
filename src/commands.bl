@@ -1301,9 +1301,13 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 		position += line.len + 1;
 	}
 
+	indenting_char_num := nesting;
+	if settings.insert_spaces_instead_tabs {
+		indenting_char_num *= settings.tab_size;
+	}
 	loop i := 0; i < lines.len; i += 1 {
 		line := trim_right(lines[i], " \t\r");
-		line  = trim_left(line, " \t", nesting);
+		line  = trim_left(line, " \t", indenting_char_num);
 
 		if line.len > 0 {
 			trimmed_line :: trim_left(line, " \t"); // remove all leading whitespace

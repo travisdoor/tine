@@ -21,7 +21,8 @@ replace_mode_init :: fn () {
 		replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
 		next_binding    :: get_keybinding_for_command(MOVE_DOWN);
 		prev_binding    :: get_keybinding_for_command(MOVE_UP);
-		hint :: tprint("[%] next match\t[%] prev match\t[%] commit replacement", next_binding, prev_binding, replace_binding);
+		all_binding     :: get_keybinding_for_command(SELECT_ALL);
+		hint :: tprint("[%] next match\t[%] prev match\t[%] commit replacement\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
 		print_info(hint);
 	}
 }
@@ -64,8 +65,8 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 
-	subject     :: search.last_subject;
-	replacement :: search.last_replacement;
+	subject     : string_view : search.last_subject;
+	replacement : string_view = search.last_replacement;
 
 	using Command;
 	switch cmd {
@@ -114,27 +115,34 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 					replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
 					next_binding    :: get_keybinding_for_command(MOVE_DOWN);
 					prev_binding    :: get_keybinding_for_command(MOVE_UP);
-					all_binding     :: get_keybinding_for_command(SEARCH_TO_BUFFER);
+					all_binding     :: get_keybinding_for_command(SELECT_ALL);
 					hint :: tprint("[%] next match\t[%] prev match\t[%] replace\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
 					print_info(hint);
 				}
 			}
 		}
 
-		SEARCH_TO_BUFFER {
+		SELECT_ALL {
 			if !is_replacing {
-				return true;
+				replacement  = commit_current_replacement();
+				is_replacing = true;
 			}
 			assert(subject.len > 0);
-			batch_begin(target_buf);
+			diff :: cast(s32) (replacement.len - subject.len);
 			loop i := 0; i < search.results.len; i += 1 {
 				r :: &search.results[i];
-				delete_range(target_buf, r.start, r.end);
+				start :: r.start + diff * i;
+				end   :: r.end   + diff * i;
+				batch_begin(target_buf);
+				delete_range(target_buf, start, end);
 				if replacement.len > 0 { // Empty is valid!
-					insert_string(target_buf, r.start, replacement);
+					insert_string(target_buf, start, replacement);
+				}
+				batch_end(target_buf);
+				if i + 1 == search.results.len {
+					set_cursor_position(target_buf, target_editor.cursor_index, start + replacement.len);
 				}
 			}
-			batch_end(target_buf);
 			search.results.len = 0;
 			set_mode(Mode.TEXT_EDIT);
 			print_info("All replaced.");

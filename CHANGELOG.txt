@@ -1,11 +1,12 @@
 0.3 - ALPHA
 ---------------------------------------------------------------------------------------
-Fix invalid horizontal view offset when cursor jumps.
 Add search-replace in file.
-Use last replacement string as default on new replace.
-Fix broken error notifications in release mode.
+Add use last replacement string as default on new replace.
 Add 'show_hints' option.
 Add replace all.
+Fix invalid horizontal view offset when cursor jumps.
+Fix broken error notifications in release mode.
+Fix comment indentation in case spaces are used and toggle comment activated.
 
 0.2 - ALPHA
 ---------------------------------------------------------------------------------------
