@@ -2,7 +2,7 @@
 **To see the list of all available commands use `Ctrl+X` shortcut.**
 
 - Author:  Martin Dorazil
-- Version: 0.3 (ALPHA)
+- Version: 0.4 (ALPHA)
 
 ## Links
 
@@ -135,6 +135,8 @@ to the editor at the found match location or `Escape` to cancel the search.
 The search currently does not support regex and match detection is not case sensitive.
 
 Use `Ctrl+Enter` to show search results in split buffer.
+
+To replace found results use `Ctrl+R` shortcut.
 
 ### Search In Project
 Command: `search-in-project`
