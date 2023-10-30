@@ -63,6 +63,10 @@ to the executable.
 Default configuration file `default.proj` will be created in `~/.tine` directory together with
 `projects` folder.
 
+## Linux
+Default configuration file `default.proj` will be created in `~/.tine` directory together with
+`projects` folder.
+
 # Configuration
 The default configuration of the editor can be found in `default.proj` file. This file is created
 automatically on the first run. Use `open-default-config` command to open it.

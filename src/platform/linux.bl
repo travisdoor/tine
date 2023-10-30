@@ -1,0 +1,101 @@
+//
+// Process
+//
+
+IoStream :: C.int;
+Pid :: C.int; //C.pid_t;
+
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Error {
+	ctx;
+	cmd;
+	args;
+	return OK;
+}
+
+kill_process :: fn (pid: Pid, exit_code: s32) Error {
+	pid;
+	exit_code;
+	return OK;
+}
+
+peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
+	// We might use select function here or try to use non-blocking read (which might break current system).
+	stream;
+	error_on_close;
+	return OK, 0, true;
+}
+
+read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
+	stream;
+	dest;
+	bytes_to_read;
+	error_on_close;
+	return OK, true;
+}
+
+write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
+	stream;
+	msg;
+	error_on_close;
+	return OK, true;
+}
+
+close_stream :: fn (handle: IoStream) {
+	C.close(handle);
+}
+
+//
+// MISC
+//
+
+get_fonts_directory :: fn () string {
+	return std.str_new("/usr/share/fonts");
+}
+
+new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+	url;
+	return OK, std.str_new();
+}
+
+//
+// File change notifications
+//
+
+Watcher :: struct { _: u8; }
+
+watch_init :: fn () {
+}
+
+watch_terminate :: fn () {
+}
+
+WatchFor :: enum u32 #flags {
+	FILE_CHANGES;
+	DIRECTORY_CHANGES;
+	MODIFICATIONS;
+}
+
+watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
+	directory;
+	flags;
+	return OK;
+}
+
+unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
+	directory;
+	flags;
+}
+
+next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
+	changed_directory;
+	change_kind;
+	return false;
+}
+
+get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
+	filepath;
+	return 0, OK;
+}
+
+#private
+
