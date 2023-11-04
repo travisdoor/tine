@@ -221,67 +221,67 @@ build                F4
 # code_error                          E92204
 
 # dark colors
-# background_color                    0C1924
-# foreground_color                    CCCCCC
-# cursor_background_color             00FF00
-# cursor_foreground_color             303030
-# current_line_background_color       081017
-# search_result_background_color      01574C
-# title_bar_color                     202020
-# title_bar_active                    01574C
-# title_bar_text_color                CCCCCC
-# command_background_color            000000
-# command_foreground_color            CCCCCC
-# command_title_color                 3CC7CF
-# command_select_color                01574C
-# command_list_background_color       162E42
-# modification_indicator_color        FFFF00
-# selection_background_color          00129A
-# selection_background_inactive_color 404040
-# message_color                       09975A
-# warning_color                       DCC80B
-# error_color                         E92204
-# inline_error_background_color       400809
-# inline_warning_background_color     4F4F2D
+background_color                    303030
+foreground_color                    CCCCCC
+cursor_background_color             00FF00
+cursor_foreground_color             303030
+current_line_background_color       202020
+search_result_background_color      01574C
+title_bar_color                     202020
+title_bar_active                    01574C
+title_bar_text_color                CCCCCC
+command_background_color            000000
+command_foreground_color            CCCCCC
+command_title_color                 3CC7CF
+command_select_color                01574C
+command_list_background_color       303030
+modification_indicator_color        FFFF00
+selection_background_color          00129A
+selection_background_inactive_color 404040
+message_color                       09975A
+warning_color                       DCC80B
+error_color                         E92204
+inline_error_background_color       400809
+inline_warning_background_color     4F4F2D
 
-# code_comment                        00FF80
-# code_keyword                        FFF200
-# code_directive                      9B9B9B
-# code_string                         4EC9B0
-# code_number                         FFAC9C
-# code_invalid                        FF0000
-# code_warning                        DCC80B
-# code_error                          E92204
+code_comment                        00FF80
+code_keyword                        FFF200
+code_directive                      9B9B9B
+code_string                         4EC9B0
+code_number                         FFAC9C
+code_invalid                        FF0000
+code_warning                        DCC80B
+code_error                          E92204
 
 # light colors
-background_color                    FCFCFC
-foreground_color                    504E55
-cursor_background_color             FF0000
-cursor_foreground_color             FFFFFF
-current_line_background_color       FFFFE0
-search_result_background_color      E8E4A7
-title_bar_color                     E5E5E5
-title_bar_active                    C0D8F4
-title_bar_text_color                101010
-command_background_color            FFFFFF
-command_foreground_color            101010
-command_title_color                 0000FF
-command_select_color                B4EEB4
-command_list_background_color       FFFFFF
-modification_indicator_color        FF0000
-selection_background_color          C0D8F4
-selection_background_inactive_color E9F4FF
-message_color                       22B14C
-warning_color                       C2990B
-error_color                         ED1C24
-inline_error_background_color       EDCFD0
-inline_warning_background_color     FFF8C8
+# background_color                    FCFCFC
+# foreground_color                    504E55
+# cursor_background_color             FF0000
+# cursor_foreground_color             FFFFFF
+# current_line_background_color       FFFFE0
+# search_result_background_color      E8E4A7
+# title_bar_color                     E5E5E5
+# title_bar_active                    C0D8F4
+# title_bar_text_color                101010
+# command_background_color            FFFFFF
+# command_foreground_color            101010
+# command_title_color                 0000FF
+# command_select_color                B4EEB4
+# command_list_background_color       FFFFFF
+# modification_indicator_color        FF0000
+# selection_background_color          C0D8F4
+# selection_background_inactive_color E9F4FF
+# message_color                       22B14C
+# warning_color                       C2990B
+# error_color                         ED1C24
+# inline_error_background_color       EDCFD0
+# inline_warning_background_color     FFF8C8
 
-code_comment                        79787D
-code_keyword                        C64600
-code_directive                      C64600
-code_string                         218787
-code_number                         4E57BA
-code_invalid                        FF0000
-code_warning                        948C00
-code_error                          ED1C24
+# code_comment                        79787D
+# code_keyword                        C64600
+# code_directive                      C64600
+# code_string                         218787
+# code_number                         4E57BA
+# code_invalid                        FF0000
+# code_warning                        948C00
+# code_error                          ED1C24

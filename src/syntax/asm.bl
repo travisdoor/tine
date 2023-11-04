@@ -1,0 +1,192 @@
+// @Cleanup these implementation will be probbaly really similar over and over per each syntax, so
+// we should try to deduplicate this...
+
+highlight_syntax_asm :: fn (buf: *Buffer) {
+	using std;
+
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	buf.indent.len = 0;
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		switch token.kind {
+			EOF { break; }
+			default;
+		}
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+		}
+	}
+}
+
+#private
+
+kind_to_color :: fn (kind: Token.kind) u8 #inline {
+	using Token.kind;
+	switch kind {
+		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
+		COMMENT   { return CODE_COLOR_COMMENT_INDEX;   }
+		STRING    { return CODE_COLOR_STRING_INDEX;    }
+		NUMBER    { return CODE_COLOR_NUMBER_INDEX;    }
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+Tokenizer :: struct #base TokenizerBase {}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		INVALID;
+		COMMENT;
+		STRING;
+		NUMBER;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+insert_all :: fn (tbl: *?T, v: []string_view) #inline {
+	using std;
+	loop i := 0; i < v.len; i += 1 {
+		tbl_insert(tbl, v[i], 0);
+	}
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == ';' {
+			parse_comment(ctx, &t);
+			return t;
+		}
+
+		if c == '\"' && parse_string(ctx, &t) {
+			return t;
+		}
+
+		if parse_number(ctx, &t) {
+			return t;
+		}
+
+		ctx.index += 1;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_comment :: fn (ctx: *Tokenizer, t: *Token) {
+	using Token.kind;
+	comment :: eat_line(ctx);
+	t.len  = auto comment.len;
+	t.kind = COMMENT;
+}
+
+parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
+	t.kind     = STRING;
+	t.len     += 1; // "
+	ctx.index += 1;
+
+	pc := '0';
+
+	in_string := true;
+	loop in_string && ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\"' && (pc != '\\') {
+			in_string = false;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+		pc = c;
+	}
+
+	return true;
+}
+
+parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	c    := ctx.bytes[ctx.index];
+	dot  := false;
+	base := FmtIntBase.DEC;
+
+	if c != '-' && std.is_digit(c) == false { return false; }
+	t.kind = NUMBER;
+
+	if c == '-' {
+		if ctx.index+1 >= ctx.bytes.len {
+			return false;
+		}
+		if std.is_digit(ctx.bytes[ctx.index+1]) == false {
+			return false;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+
+	}
+
+	c = ctx.bytes[ctx.index];
+	if c == '0' {
+		base = FmtIntBase.OCT;
+
+		ctx.index += 1;
+		t.len     += 1;
+
+		if ctx.index < ctx.bytes.len {
+			c = ctx.bytes[ctx.index];
+			switch c {
+				'b' { base = FmtIntBase.BIN;  ctx.index += 1; t.len += 1; }
+				'x' { base = FmtIntBase.HEX; ctx.index += 1; t.len += 1; }
+				default;
+			}
+		}
+	}
+
+	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
+		c = ctx.bytes[ctx.index];
+		if dot && c == 'f' {
+			ctx.index += 1;
+			t.len += 1;
+			break;
+		}
+
+		if dot == false && c == '.' {
+			dot = true;
+			t.len += 1;
+			continue;
+		}
+
+		if !std.is_digit(c, base) {
+			break;
+		}
+		t.len += 1;
+	}
+
+	return true;
+}
