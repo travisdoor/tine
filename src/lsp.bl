@@ -36,6 +36,7 @@ start_lsp_server :: fn () Error {
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.INITIALIZE;
 	rd.filepath = str_new(get_project_main_directory());
+	str_append(&rd.filepath, "/"); // Otherwise it's not a directory...
 
 	push_request(get_job_context(lsp.job_index), &request);
 	add_all_supported_buffers_to_lsp();
@@ -372,17 +373,24 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 
 	expect_response := false;
 
+	// Filepath is used in call requests so we can convert it every time, feel free to change this as needed.
+	uri_err, uri_filepath :: new_url_from_filepath(rd.filepath);
+	defer std.str_delete(&uri_filepath);
+	if uri_err {
+		return uri_err, expect_response;
+	}
+
 	err: Error;
 	switch rd.kind {
 		INITIALIZE {
-			err = write_request(ctx, "initialize", LspInitialize.{ rootPath = rd.filepath });
+			err = write_request(ctx, "initialize", LspInitialize.{ rootUri = uri_filepath });
 			expect_response = true;
 		}
 
 		DOCUMENT_OPEN {
 			params :: LspDidOpenTextDocumentParams.{
 				textDocument = LspTextDocumentItem.{
-					uri        = tprint("file:///%", rd.filepath),
+					uri        = uri_filepath,
 					languageId = "c",
 					text       = rd.src,
 					version    = rd.version,
@@ -394,7 +402,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 		DOCUMENT_CLOSE {
 			params :: LspDidCloseTextDocumentParams.{
 				textDocument = LspTextDocumentIdentifier.{
-					uri        = tprint("file:///%", rd.filepath),
+					uri = uri_filepath,
 				},
 			};
 			err = write_notification(ctx, "textDocument/didClose", params);
@@ -402,7 +410,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 
 		GOTO_DECLARATION {
 			params :: LspTextDocumentPositionParams.{
-				textDocument = LspTextDocumentIdentifier.{ uri = tprint("file:///%", rd.filepath) },
+				textDocument = LspTextDocumentIdentifier.{ uri = uri_filepath },
 				position     = LspPosition.{
 					line      = rd.cursor.row,
 					character = rd.cursor.col,
@@ -414,7 +422,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 
 		SWITCH_HEADER_SOURCE {
 			params :: LspTextDocumentIdentifier.{
-				uri = tprint("file:///%", rd.filepath),
+				uri = uri_filepath,
 			};
 			err = write_request(ctx, "textDocument/switchSourceHeader", params);
 			expect_response = true;
@@ -429,8 +437,8 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 			changes[0].text = rd.src;
 
 			params :: LspDidChangeTextDocumentParams.{
-				textDocument   = LspVersionedTextDocumentIdentifier.{
-					uri     = tprint("file:///%", rd.filepath),
+				textDocument = LspVersionedTextDocumentIdentifier.{
+					uri     = uri_filepath,
 					version = rd.version,
 				},
 				contentChanges = changes,
@@ -441,7 +449,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 		DOCUMENT_SAVE {
 			params :: LspDidSaveTextDocumentParams.{
 				textDocument   = LspTextDocumentIdentifier.{
-					uri     = tprint("file:///%", rd.filepath),
+					uri = uri_filepath,
 				},
 			};
 			err = write_notification(ctx, "textDocument/didSave", params);
@@ -450,7 +458,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 		COMPLETION {
 			params :: LpsCompletionParams.{
 				textDocument = LspTextDocumentIdentifier.{
-					uri = tprint("file:///%", rd.filepath),
+					uri = uri_filepath,
 				},
 				position = LspPosition.{
 					line      = rd.cursor.row,
@@ -464,6 +472,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 
 		default { print_warn("Unknown request."); }
 	}
+
 	return err, expect_response;
 }
 
@@ -743,7 +752,7 @@ maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
 // JSON bullshit
 //
 
-TAG_SOURCE : u64 : 1;
+TAG_JSON_ENCODE : u64 : 1;
 
 serialize_object :: fn (obj: Any, json: *string) {
 	using std;
@@ -765,7 +774,7 @@ serialize_object :: fn (obj: Any, json: *string) {
 			tmp :: @(cast(*string_view) src);
 
 			str_append(json, "\"");
-			if (m.tag & TAG_SOURCE) == TAG_SOURCE {
+			if (m.tag & TAG_JSON_ENCODE) == TAG_JSON_ENCODE {
 				// This is crazy bullshit, thank you json...
 				start := 0;
 				len   := 0;
@@ -1182,14 +1191,14 @@ json_source_to_str :: fn (dest: *string, src: string_view) {
 //
 
 LspInitialize :: struct {
-	rootPath: string_view;
+	rootUri: string_view;
 }
 
 LspTextDocumentItem :: struct {
 	uri:        string_view;
 	languageId: string_view;
 	version:    s32;
-	text:       string_view #tag TAG_SOURCE;
+	text:       string_view #tag TAG_JSON_ENCODE;
 }
 
 LspDidOpenTextDocumentParams :: struct {
@@ -1220,11 +1229,11 @@ LspDidSaveTextDocumentParams :: struct {
 
 // LspTextDocumentContentChangeEvent :: struct {
 // 	range: LspRange;
-// 	text:  string_view #tag TAG_SOURCE;
+// 	text:  string_view #tag TAG_JSON_ENCODE;
 // }
 
 LspTextDocumentContentChangeEvent :: struct {
-	text:  string_view #tag TAG_SOURCE;
+	text:  string_view #tag TAG_JSON_ENCODE;
 }
 
 LspPosition :: struct {

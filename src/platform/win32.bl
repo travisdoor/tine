@@ -161,15 +161,30 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	using win32;
 	using std;
 
-	url_dup :: tprint(url); // Might not be zero-terminated...
+	url_dup :: tprint("%", url); // Might not be zero-terminated...
 	buf: [MAX_PATH]u8 #noinit;
-	len : DWORD = auto url_dup.len;
-	status :: PathCreateFromUrlA(std.strtoc(url_dup), auto buf.ptr, &len, 0);
+	len: DWORD = auto buf.len;
+	status :: PathCreateFromUrlA(strtoc(url_dup), auto buf.ptr, &len, 0);
 	if status != S_OK {
 		return error("Url '%' cannot be converted to file path.", url), string.{};
 	}
 	result :: str_new(string_view.{ auto len, buf.ptr });
 	str_replace_all(&result, '\\', '/');
+	return OK, result;
+}
+
+new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
+	using win32;
+	using std;
+
+	filepath_dup :: tprint("%", filepath); // Might not be zero-terminated...
+	buf: [2084]u8 #noinit; // INTERNET_MAX_URL_LENGTH
+	len: DWORD = auto buf.len;
+	status :: UrlCreateFromPathA(strtoc(filepath_dup), auto buf.ptr, &len, 0);
+	if status != S_OK {
+		return error("Filepath '%' cannot be converted to URL.", filepath), string.{};
+	}
+	result :: str_new(string_view.{ auto len, buf.ptr });
 	return OK, result;
 }
 
@@ -263,7 +278,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 		c :: &changed.values[i];
 		c.timeout_ms -= dt;
 		if c.timeout_ms < 0.f {
-			@changed_directory = tprint(c.path);
+			@changed_directory = tprint("%", c.path);
 			@change_kind       = c.flags;
 			tbl_erase(changed, changed.keys[i]);
 			return true;
