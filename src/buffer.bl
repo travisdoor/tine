@@ -954,6 +954,7 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 		C       { highlight_syntax_cpp(buf);    }
 		PROJ    { highlight_syntax_proj(buf);   }
 		MD      { highlight_syntax_md(buf);     }
+		ASM     { highlight_syntax_asm(buf);    }
 		default;
 	}
 	if buf.index == messages_buffer_index {

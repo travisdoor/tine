@@ -9,12 +9,14 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Er
 	ctx;
 	cmd;
 	args;
+	assert(false, "Not implemented!");
 	return OK;
 }
 
 kill_process :: fn (pid: Pid, exit_code: s32) Error {
 	pid;
 	exit_code;
+	assert(false, "Not implemented!");
 	return OK;
 }
 
@@ -22,6 +24,7 @@ peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, availab
 	// We might use select function here or try to use non-blocking read (which might break current system).
 	stream;
 	error_on_close;
+	assert(false, "Not implemented!");
 	return OK, 0, true;
 }
 
@@ -30,6 +33,7 @@ read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_c
 	dest;
 	bytes_to_read;
 	error_on_close;
+	assert(false, "Not implemented!");
 	return OK, true;
 }
 
@@ -37,6 +41,7 @@ write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (
 	stream;
 	msg;
 	error_on_close;
+	assert(false, "Not implemented!");
 	return OK, true;
 }
 
@@ -54,6 +59,13 @@ get_fonts_directory :: fn () string {
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	url;
+	assert(false, "Not implemented!");
+	return OK, std.str_new();
+}
+
+new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+	filepath;
+	assert(false, "Not implemented!");
 	return OK, std.str_new();
 }
 
@@ -78,22 +90,26 @@ WatchFor :: enum u32 #flags {
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 	directory;
 	flags;
+	assert(false, "Not implemented!");
 	return OK;
 }
 
 unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	directory;
 	flags;
+	assert(false, "Not implemented!");
 }
 
 next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
 	changed_directory;
 	change_kind;
+	assert(false, "Not implemented!");
 	return false;
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	filepath;
+	assert(false, "Not implemented!");
 	return 0, OK;
 }
 

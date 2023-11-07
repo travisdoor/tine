@@ -34,6 +34,7 @@
 #load "syntax/md.bl"
 #load "syntax/glsl.bl"
 #load "syntax/search.bl"
+#load "syntax/asm.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -213,11 +214,12 @@ FileType :: enum {
 	PROJ;
 	MD;
 	GLSL;
+	ASM;
 }
 
-FILE_TYPE_NAME ::         [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL" };
-FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//"   };
-FILE_TYPE_REINDENT_ON ::  [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}"    };
+FILE_TYPE_NAME ::         [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL", "ASM" };
+FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//",   ";"   };
+FILE_TYPE_REINDENT_ON ::  [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
 
 project: struct {
 	using std;
@@ -634,7 +636,7 @@ main :: fn () s32 {
 
 		buf :: get_active_buffer_and_editor() #maybe_unused;
 		title: string_view;
-		#if IS_DEBUG {
+		#if IS_DEBUG && false {
 			fps_num += 1;
 			fps_sum += 1000.f/frame_delta_time;
 			if fps_num == 10 {
@@ -822,7 +824,7 @@ set_mode :: fn (m: Mode) bool #inline {
 
 		default;
 	}
-	
+
 	mode = m;
 
 	if m != TEXT_EDIT {
@@ -1183,6 +1185,9 @@ detect_filetype :: fn (filename: string_view) FileType {
 	}
 	if str_match(extension, ".glsl") {
 		return GLSL;
+	}
+	if str_match(extension, ".asm") {
+		return ASM;
 	}
 	return FileType.UNKNOWN;
 }

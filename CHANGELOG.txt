@@ -1,3 +1,9 @@
+0.4 - ALPHA
+---------------------------------------------------------------------------------------
+Add simple support for assembly language.
+Add asserts on Linux and Mac for unimplemented stuff (release should still work).
+Fix LSP now use URI for all paths.
+
 0.3 - ALPHA
 ---------------------------------------------------------------------------------------
 Add search-replace in file.
