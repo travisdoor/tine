@@ -22,6 +22,8 @@ Command :: enum {
 	CENTER_VIEW;
 	NEXT_ERROR;
 	PREV_ERROR;
+	NEXT_LOCATION;
+	PREV_LOCATION;
 	LSP_GOTO_DECLARATION;
 	LSP_OTHER_FILE;
 
@@ -248,7 +250,7 @@ paste :: fn (editor: *Editor, buf: *Buffer) {
 
 	commit_undo(buf);
 	defer commit_undo(buf);
-	
+
 	if editor.index == command_editor {
 		// Pasted string might be multiline, this is not allowed for the single line command editor.
 		loop i := 0; i < text.len; i += 1 {
@@ -417,6 +419,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		CENTER_VIEW         { center_view         (editor);                                }
 		NEXT_ERROR          { next_error          ();                                      }
 		PREV_ERROR          { prev_error          ();                                      }
+		NEXT_LOCATION       { next_location       (editor);                                }
+		PREV_LOCATION       { prev_location       (editor);                                }
 		LSP_GOTO_DECLARATION{ lsp_goto_declaration(editor, buf);                           }
 		LSP_OTHER_FILE      { lsp_switch_header_source(buf);                               }
 		INSERT_NEW_LINE     { insert_new_line     (editor, buf);                           }
@@ -512,13 +516,13 @@ save_all :: fn () {
 		if buf.saved_top == buf.undo_top { continue; }
 
 		saved_num += 1;
-		
+
 		err :: save_buffer_to_file(buf, buf.filepath);
 		if err {
 			print_err(err);
 		}
 	}
-	
+
 	if saved_num == 0 {
 		print_info("No changes needs to be saved.");
 	}
@@ -1371,6 +1375,14 @@ prev_error :: fn () {
 	error_list_index -= 1;
 	if error_list_index < 0 { error_list_index = error_list.len - 1; }
 	open_error_location(&error_list[error_list_index]);
+}
+
+next_location :: fn (editor: *Editor) {
+	print_log("Next location!");
+}
+
+prev_location :: fn (editor: *Editor) {
+	print_log("Prev location!");
 }
 
 clear_messages :: fn () {

@@ -1,8 +1,8 @@
 Editor :: struct {
-	index: s32;
+	index:        s32;
 	buffer_index: s32;
 	cursor_index: s32;
-	split: Split;
+	split:        Split;
 
 	top:           s32;
 	visible_lines: s32;

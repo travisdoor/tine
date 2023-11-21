@@ -69,7 +69,7 @@ use_lsp                                false
 show_lsp_inline_diagnostics            false
 
 # Use large block caret when true.
-block_caret                            false
+block_caret                            true
 maximize_on_start                      false
 save_all_before_build                  true
 
