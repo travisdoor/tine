@@ -684,12 +684,17 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 	color := rgb(0xff00ff);
 
 	position :: get_cursor_position(buf, editor.cursor_index);
+	notify_buffer_name := "-";
+	if notify_changes_to_buffer != -1 {
+		notify_buffer_name = buffers[notify_changes_to_buffer].name;
+	}
 
 	text(ux, uy, tprint("Position:  %", position), color); uy += font.height;
 	text(ux, uy, tprint("Cursor ID: %", editor.cursor_index), color); uy += font.height;
 	text(ux, uy, tprint("Undo len:  %", buf.undo.len), color); uy += font.height;
 	text(ux, uy, tprint("Undo top:  %", buf.undo_top), color); uy += font.height;
 	text(ux, uy, tprint("Rows:      %", get_row_count(buf)), color); uy += font.height;
+	text(ux, uy, tprint("Notify:    [%] %", notify_changes_to_buffer, notify_buffer_name), color); uy += font.height;
 
 	uy += 20.f;
 

@@ -135,6 +135,8 @@ editor_start_time: s64;
 active_editor  : s32 = -1;
 command_editor : s32 = -1;
 
+notify_changes_to_buffer: s32 = -1;
+
 // Used for logs/errors/warnings etc.
 messages_buffer_index := -1;
 help_buffer_index     := -1;
@@ -846,7 +848,9 @@ get_last_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
 set_mode :: fn (m: Mode) bool #inline {
 	using Mode;
 	if m == mode { return false; }
-
+	
+	notify_changes_to_buffer = -1;
+	
 	switch mode {
 		GOTO_LINE;
 		TEXT_EDIT         { last_active_text_editor = active_editor; }

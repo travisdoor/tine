@@ -1,4 +1,6 @@
 completion_mode_init :: fn () {
+	buf :: get_active_buffer_and_editor();
+	notify_changes_to_buffer = buf.index;
 }
 
 completion_mode_terminate :: fn () {

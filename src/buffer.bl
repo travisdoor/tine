@@ -513,7 +513,9 @@ batch_end :: fn (buf: *Buffer) {
 	buf.batch_active = false;
 
 	rebuild_lines(buf);
-	notify();
+	if notify_changes_to_buffer == buf.index {
+		notify();
+	}
 	buf.dirty_syntax = true;
 }
 
@@ -759,7 +761,9 @@ insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
 
 	rebuild_lines(buf);
 
-	notify();
+	if notify_changes_to_buffer == buf.index {
+		notify();
+	}
 	buf.dirty_syntax = true;
 }
 
@@ -801,7 +805,9 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 		rebuild_lines(buf);
 	}
 
-	notify();
+	if notify_changes_to_buffer == buf.index {
+		notify();
+	}
 	buf.dirty_syntax = true;
 }
 
@@ -1052,6 +1058,7 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 }
 
 notify :: fn () {
+	assert(notify_changes_to_buffer != -1);
 	using Mode;
 	switch mode {
 		OPEN_FROM_DRIVE   { open_from_drive_cmd_changed();      }

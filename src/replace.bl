@@ -2,8 +2,10 @@ replace_mode_init :: fn () {
 	active_editor = command_editor;
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode   = InputMode.TEXT;
-	is_replacing = false;
+
+	input_mode               = InputMode.TEXT;
+	notify_changes_to_buffer = buf.index;
+	is_replacing             = false;
 
 	// Show last search in the command buffer.
 	if search.last_replacement.len > 0 {

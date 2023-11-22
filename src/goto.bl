@@ -3,7 +3,9 @@ goto_mode_init :: fn () {
 	active_editor = command_editor;
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode = InputMode.NUMBERS;
+
+	input_mode               = InputMode.NUMBERS;
+	notify_changes_to_buffer = buf.index;
 }
 
 draw_goto_mode :: fn () {
