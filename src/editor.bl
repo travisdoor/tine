@@ -10,11 +10,12 @@ Editor :: struct {
 	left: f32;
 
 	prev_frame_cursor_position: s64;
+	track_locations:            bool;
 
 	is_removed: bool;
 }
 
-add_editor :: fn (buffer_index: s32, split := Split.FLOATING) s32 {
+add_editor :: fn (buffer_index: s32, track_locations := false, split := Split.FLOATING) s32 {
 	editor: *Editor;
 	check_main_thread();
 
@@ -41,6 +42,10 @@ add_editor :: fn (buffer_index: s32, split := Split.FLOATING) s32 {
 	editor.buffer_index    = buffer_index;
 	editor.split           = split;
 	editor.cursor_index    = add_cursor(&buffers[buffer_index]);
+	editor.track_locations = track_locations;
+
+	insert_recent_location(editor);
+
 	return editor.index;
 }
 
@@ -405,7 +410,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	editor.prev_frame_cursor_position = cursor.position;
-//#if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
+	#if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
 }
 
 draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := "", hint := "", loc := #call_location) {
@@ -674,7 +679,7 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 	using draw;
 	set_shader_font(&font);
 
-	ux :: x + w - 600.f;
+	ux := x + w - 600.f;
 	uy := y + 10.f;
 	color := rgb(0xff00ff);
 
@@ -697,5 +702,21 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 
 		rec :: &buf.undo[i];
 		text(ux, uy, tprint("[%]", rec.kind), color); uy += font.height;
+	}
+
+	ux = x + w - 200.f;
+	uy = y + 10.f;
+
+	rl  :: &recent_locations;
+	loop i := 0; i < rl.stack.len; i += 1 {
+		if i == rl.index {
+			color = rgb(0x00ff00);
+		} else {
+			color = rgb(0xff00ff);
+		}
+
+		r :: rl.stack[i];
+		buf :: get_editor_buffer(&editors[r.editor_index]);
+		text(ux, uy, tprint("[%] %", r.position, buf.name), color); uy += font.height;
 	}
 }

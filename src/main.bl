@@ -140,6 +140,8 @@ messages_buffer_index := -1;
 help_buffer_index     := -1;
 search_buffer_index   := -1;
 
+is_project_indexing_paused := false;
+
 SearchLocation :: struct {
 	start: s32;
 	end:   s32;
@@ -328,6 +330,38 @@ clear_error_list :: fn () {
 	error_marker_visible = false;
 }
 
+//
+// Recent locations
+//
+
+RecentLocation :: struct {
+	editor_index: s32;
+	position:     s32;
+}
+
+recent_locations: struct {
+	stack: [..]RecentLocation;
+	index:     s32;
+};
+
+insert_recent_location :: fn (editor: *Editor) {
+	assert(editor);
+	if !editor.track_locations { return; }
+	assert(editor.index != command_editor);
+
+	rl  :: &recent_locations;
+	buf :: get_editor_buffer(editor);
+	current_position :: get_cursor_position(buf, editor.cursor_index);
+	array_insert(&rl.stack, rl.index+1, RecentLocation.{ editor.index, auto current_position });
+	if rl.index+2 == rl.stack.len { rl.index += 1; }
+}
+
+jump_to_previous_location :: fn () bool {
+	rl  :: &recent_locations;
+	if rl.index < 1 { return false; }
+	return true;
+}
+
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
 
@@ -396,6 +430,10 @@ main :: fn () s32 {
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
 	defer str_delete(&message.text);
+
+	// Recent location
+	recent_locations.index = -1;
+	defer array_terminate(&recent_locations.stack);
 
 	// Create command editor.
 	command_editor = add_editor(add_command_buffer());
@@ -567,8 +605,8 @@ main :: fn () s32 {
 	}
 
 	if active_editor == -1 {
-		active_editor  = add_editor(add_buffer(), Split.LEFT);
-		left = active_editor;
+		active_editor = add_editor(add_buffer(), true, Split.LEFT);
+		left          = active_editor;
 	}
 
 	assert(left != -1);
@@ -891,11 +929,6 @@ clear_message :: fn () {
 	message.text.len = 0;
 }
 
-duplicate_editor :: fn (editor_index: s64) s64 {
-	assert(editor_index != -1);
-	return add_editor(editors[editor_index].buffer_index);
-}
-
 // Find any other editor open in the split.
 find_next_in_the_split :: fn (split: Split) s32 {
 	loop i := 0; i < editors.len; i += 1 {
@@ -1131,7 +1164,7 @@ find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
 	}
 
 	if editor_index == -1 {
-		editor_index = add_editor(buffer_index, split);
+		editor_index = add_editor(buffer_index, true, split);
 	}
 	assert(editor_index > -1);
 
@@ -1545,8 +1578,6 @@ clipboard_write :: fn (str: string_view) {
 	dup :: str_new(str, application_context.temporary_allocator);
 	glfw.SetClipboardString(window, auto std.strtoc(dup));
 }
-
-is_project_indexing_paused := false;
 
 #private
 
@@ -2079,5 +2110,10 @@ x option to save all buffers before compilation is invoked
   - multiple messages (notifications) UI
 - pause indexing in sub-modes and during compilation?
 - shift+scroll to resize font.
+
+Last Location Jumping:
+- long jump adds new location in case we're on the stack end
+- any edit updates current index location
+
 
 */

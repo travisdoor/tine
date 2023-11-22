@@ -1382,7 +1382,11 @@ next_location :: fn (editor: *Editor) {
 }
 
 prev_location :: fn (editor: *Editor) {
-	print_log("Prev location!");
+	if jump_to_previous_location() {
+		print_log("Prev location!");
+	} else {
+		print_log("No prev location!");
+	}
 }
 
 clear_messages :: fn () {
