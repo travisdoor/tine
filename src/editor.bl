@@ -713,6 +713,7 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 	uy = y + 10.f;
 
 	rl  :: &recent_locations;
+	text(ux, uy, tprint("Index:  %", rl.index), color); uy += font.height;
 	loop i := 0; i < rl.stack.len; i += 1 {
 		if i == rl.index {
 			color = rgb(0x00ff00);

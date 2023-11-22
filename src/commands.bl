@@ -1014,6 +1014,14 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 		}
 	}
 	set_cursor_position(buf, editor.cursor_index, position);
+
+	using Command;
+	if prev_executed_command != JUMP_NEXT_PARAGRAPH && prev_executed_command != JUMP_PREV_PARAGRAPH {
+		insert_recent_location(editor);
+	} else {
+		update_current_location(editor);
+	}
+
 	return true;
 }
 
@@ -1035,6 +1043,14 @@ jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 		}
 	}
 	set_cursor_position(buf, editor.cursor_index, position);
+
+	using Command;
+	if prev_executed_command != JUMP_NEXT_PARAGRAPH && prev_executed_command != JUMP_PREV_PARAGRAPH {
+		insert_recent_location(editor);
+	} else {
+		update_current_location(editor);
+	}
+
 	return true;
 }
 
@@ -1378,7 +1394,11 @@ prev_error :: fn () {
 }
 
 next_location :: fn (editor: *Editor) {
-	print_log("Next location!");
+	if jump_to_next_location() {
+		print_log("Next location!");
+	} else {
+		print_log("No next location!");
+	}
 }
 
 prev_location :: fn (editor: *Editor) {
