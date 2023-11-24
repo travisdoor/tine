@@ -53,6 +53,10 @@ remove_editor :: fn (index: s32) {
 	assert(index >= 0 && index < editors.len);
 	editor :: &editors[index];
 	if editor.is_removed { return; }
+
+	if editor.track_locations {
+		erase_all_locations_for_editor(editor);
+	}
 	zeroinit(editor);
 	editor.index        = index;
 	editor.buffer_index = -1;
@@ -406,6 +410,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.px - tx);
 			try_set_cursor_row_col(buf, editor.cursor_index, row, col);
 			reset_caret_blinking();
+			insert_recent_location(editor);
 		}
 	}
 

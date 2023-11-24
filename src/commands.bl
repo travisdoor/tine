@@ -419,8 +419,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		CENTER_VIEW         { center_view         (editor);                                }
 		NEXT_ERROR          { next_error          ();                                      }
 		PREV_ERROR          { prev_error          ();                                      }
-		NEXT_LOCATION       { next_location       (editor);                                }
-		PREV_LOCATION       { prev_location       (editor);                                }
+		NEXT_LOCATION       { jump_to_next_location();                                     }
+		PREV_LOCATION       { jump_to_previous_location();                                 }
 		LSP_GOTO_DECLARATION{ lsp_goto_declaration(editor, buf);                           }
 		LSP_OTHER_FILE      { lsp_switch_header_source(buf);                               }
 		INSERT_NEW_LINE     { insert_new_line     (editor, buf);                           }
@@ -979,11 +979,13 @@ jump_prev_line :: fn (editor: *Editor, buf: *Buffer) bool {
 
 jump_begin :: fn (editor: *Editor, buf: *Buffer) bool {
 	set_cursor_position(buf, editor.cursor_index, 0);
+	insert_recent_location(editor);
 	return true;
 }
 
 jump_end :: fn (editor: *Editor, buf: *Buffer) bool {
 	set_cursor_position(buf, editor.cursor_index, get_last_position_in_buffer(buf));
+	insert_recent_location(editor);
 	return true;
 }
 
@@ -1018,10 +1020,7 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	using Command;
 	if prev_executed_command != JUMP_NEXT_PARAGRAPH && prev_executed_command != JUMP_PREV_PARAGRAPH {
 		insert_recent_location(editor);
-	} else {
-		update_current_location(editor);
 	}
-
 	return true;
 }
 
@@ -1047,10 +1046,7 @@ jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	using Command;
 	if prev_executed_command != JUMP_NEXT_PARAGRAPH && prev_executed_command != JUMP_PREV_PARAGRAPH {
 		insert_recent_location(editor);
-	} else {
-		update_current_location(editor);
 	}
-
 	return true;
 }
 
@@ -1391,22 +1387,6 @@ prev_error :: fn () {
 	error_list_index -= 1;
 	if error_list_index < 0 { error_list_index = error_list.len - 1; }
 	open_error_location(&error_list[error_list_index]);
-}
-
-next_location :: fn (editor: *Editor) {
-	if jump_to_next_location() {
-		print_log("Next location!");
-	} else {
-		print_log("No next location!");
-	}
-}
-
-prev_location :: fn (editor: *Editor) {
-	if jump_to_previous_location() {
-		print_log("Prev location!");
-	} else {
-		print_log("No prev location!");
-	}
 }
 
 clear_messages :: fn () {

@@ -355,23 +355,50 @@ insert_recent_location :: fn (editor: *Editor) {
 	buf :: get_editor_buffer(editor);
 	current_position :: get_cursor_position(buf, editor.cursor_index);
 
-	if rl.stack.len > 0 && rl.stack[rl.index].position == current_position {
-		return;
+	if rl.stack.len > 0 {
+		r :: rl.stack[rl.index];
+		if (r.position == current_position) && (r.editor_index == editor.index) {
+			return;
+		}
 	}
 
-	array_insert(&rl.stack, rl.index+1, RecentLocation.{ editor.index, auto current_position });
+	if rl.index > 0 {
+		// Drop rest of the stack here.
+		rl.stack.len = auto rl.index + 1;
+	}
+
+	array_push(&rl.stack, RecentLocation.{ editor.index, auto current_position });
 	rl.index += 1;
 }
 
-update_current_location :: fn (editor: *Editor) {
+update_recent_location :: fn (editor: *Editor) {
+	if !editor.track_locations { return; }
+
 	rl  :: &recent_locations;
-	if rl.index < 1 { return; }
+	assert(rl.index >= 0 && rl.index < rl.stack.len);
+
 	r := &rl.stack[rl.index];
-	assert(r.editor_index == editor.index);
+	if r.editor_index != editor.index {
+		insert_recent_location(editor);
+		return;
+	}
 
 	buf :: get_editor_buffer(editor);
 	current_position :: get_cursor_position(buf, editor.cursor_index);
 	r.position = auto current_position;
+}
+
+erase_all_locations_for_editor :: fn (editor: *Editor) {
+	rl  :: &recent_locations;
+	loop i := 0; i < rl.stack.len; {
+		r :: rl.stack[i];
+		if r.editor_index == editor.index {
+			array_erase_keep_order(&rl.stack, i);
+			if rl.index >= i { rl.index -= 1; }
+			continue;
+		}
+		i += 1;
+	}
 }
 
 jump_to_previous_location :: fn () bool {
@@ -593,6 +620,7 @@ main :: fn () s32 {
 		}
 	}
 
+	// Initial readme file on the first start.
 	show_help := false;
 
 	// Check whether the default project file exists.
@@ -696,6 +724,8 @@ main :: fn () s32 {
 
 		WaitEventsTimeout(wait_s);
 
+		update_recent_location(&editors[active_editor]);
+
 		update_mouse();
 		update_caret();
 
@@ -745,6 +775,9 @@ main :: fn () s32 {
 
 	// Terminate all pending jobs. After that it's save to remove all buffers and editors.
 	jobs_terminate();
+
+	// To speed things up a bit.
+	recent_locations.stack.len = 0;
 
 	loop i := 0; i < editors.len; i += 1 { remove_editor(i); }
 	loop i := 0; i < buffers.len; i += 1 { remove_buffer(i); }
@@ -913,6 +946,7 @@ set_mode :: fn (m: Mode) bool #inline {
 
 	if m != TEXT_EDIT {
 		is_project_indexing_paused = true;
+	} else {
 	}
 
 	switch m {
@@ -921,6 +955,8 @@ set_mode :: fn (m: Mode) bool #inline {
 			assert(last_active_text_editor != command_editor);
 			active_editor = last_active_text_editor;
 			input_mode = InputMode.TEXT;
+
+			assert(active_editor >= 0 && active_editor < editors.len);
 		}
 		GOTO_LINE         { goto_mode_init();              }
 		OPEN_FROM_DRIVE   { open_from_drive_mode_init();   }
@@ -1747,6 +1783,7 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 				clear_message();
 				error_marker_visible = false;
 				invoke_command(editor, buf, m.cmd);
+
 				break;
 			}
 		}
