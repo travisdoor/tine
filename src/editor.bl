@@ -57,10 +57,6 @@ add_editor :: fn (buffer_index: s32, track_recent_locations := false, split := S
 	editor.cursor_index           = cursor_index;
 	editor.track_recent_locations = track_recent_locations;
 
-	if editor.track_recent_locations {
-		add_recent_location(editor);
-	}
-
 	return editor.index;
 }
 
@@ -72,6 +68,9 @@ remove_editor :: fn (index: s32) {
 	if editor.track_recent_locations {
 		erase_all_locations_for_editor(editor);
 	}
+
+	buf :: get_editor_buffer(editor);
+	remove_cursor(buf, editor.cursor_index);
 
 	zeroinit(editor);
 
@@ -434,11 +433,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			position :: get_closest_cursor_row_col_position(buf, row, col);
 			reset_caret_blinking();
 
-			if position != cursor.position && editor.track_recent_locations {
-				if !is_lmb_dragging(loc.hash) {
-					editor.cursor_index = duplicate_editor_cursor(editor);
-					add_recent_location(editor);
-				}
+			if position != cursor.position {
 				set_cursor_position(buf, editor.cursor_index, position);
 			}
 		}
@@ -756,9 +751,8 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 			color = rgb(0xff00ff);
 		}
 
-		r :: rl.stack[i];
-		buf :: get_editor_buffer(&editors[r.editor_index]);
-		pos :: get_cursor_position(buf, r.cursor_index);
-		text(ux, uy, tprint("[%-%] %", r.cursor_index, pos, buf.name), color); uy += font.height;
+		editor_index :: rl.stack[i];
+		buf :: get_editor_buffer(&editors[editor_index]);
+		text(ux, uy, tprint("%", buf.name), color); uy += font.height;
 	}
 }

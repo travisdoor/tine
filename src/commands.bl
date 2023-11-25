@@ -499,7 +499,7 @@ debug_report :: fn () bool {
 		print_info("\t[%] Buffer index: %", i, e.buffer_index);
 	}
 
-	print_info("\nJump history size: %B", recent_locations.stack.len * auto sizeof(RecentLocation));
+	print_info("\nJump history size: %B", recent_locations.stack.len * auto sizeof(s32));
 
 	return true;
 }
@@ -1011,9 +1011,6 @@ jump_begin :: fn (editor: *Editor, buf: *Buffer) bool {
 	position :: get_cursor_position(buf, editor.cursor_index);
 	if position == 0 {
 		return false;
-	} else if editor.track_recent_locations {
-		editor.cursor_index = duplicate_editor_cursor(editor);
-		add_recent_location(editor);
 	}
 
 	set_cursor_position(buf, editor.cursor_index, 0);
@@ -1025,9 +1022,6 @@ jump_end :: fn (editor: *Editor, buf: *Buffer) bool {
 	end_position :: get_last_position_in_buffer(buf);
 	if position == end_position {
 		return false;
-	} else if editor.track_recent_locations {
-		editor.cursor_index = duplicate_editor_cursor(editor);
-		add_recent_location(editor);
 	}
 
 	set_cursor_position(buf, editor.cursor_index, end_position);
@@ -1066,12 +1060,6 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 		return false;
 	}
 
-	using Command;
-	if editor.track_recent_locations && is_repeating_command(JUMP_NEXT_PARAGRAPH, JUMP_PREV_PARAGRAPH) == false {
-		editor.cursor_index = duplicate_editor_cursor(editor);
-		add_recent_location(editor);
-	}
-
 	set_cursor_position(buf, editor.cursor_index, position);
 	return true;
 }
@@ -1096,12 +1084,6 @@ jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 	if position == orig_position {
 		return false;
-	}
-
-	using Command;
-	if editor.track_recent_locations && is_repeating_command(JUMP_NEXT_PARAGRAPH, JUMP_PREV_PARAGRAPH) == false {
-		editor.cursor_index = duplicate_editor_cursor(editor);
-		add_recent_location(editor);
 	}
 
 	set_cursor_position(buf, editor.cursor_index, position);

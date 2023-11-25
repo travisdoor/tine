@@ -32,9 +32,10 @@ Buffer :: struct {
 	undo_top:      s64;
 	saved_top:     s64;
 
-	tmp_string:      string;
-	has_pending_job: s32; // 0 = no pending jobs
-	pending_t:       f32;
+	tmp_string:       string;
+	has_pending_job:  s32; // 0 = no pending jobs
+	pending_t:        f32;
+	last_focus_index: s32;
 
 	lsp: struct {
 		version:            s32; // 0 = not tracked by lsp
