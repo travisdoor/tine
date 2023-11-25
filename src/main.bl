@@ -2072,39 +2072,33 @@ update_caret :: fn () {
 /*
 TODO
 
-4 release
 - mouse support
-  x current hover element recorder each frame
   - resize split
-  x scroll buffers
-  x select in buffer
+  - add scroll indicators for lister
+  - select in buffer
     x double click select word
     - tripple click select line
+  x current hover element recorder each frame
+  x scroll buffers
   x set cursor position
   x switch active split
   x clicking in the lists
   x scroling in the lists
-  - add scroll indicators for lister
 
-x horizontal view switch if we go too far
-x help + readme
-x find and replace in file
+
 - find and replace in project
   - we want also unified undo
   - do as regular edit in results buffer?
-x remap keyboard
-x cursor blinking
-- hot-reload non-project files
-- hot-reload project configs
-x clang-format
-- add command to kill clang format
-x stop cursor blinking when window is out of focus
-x indentation on the last line in the file is broken when typing
-- Show whole diag message on cursor hover.
-- Kill process seems to leave it running!
 
-4 work
 - LSP for c++
+
+  - handle fatal errors
+  - complete on tab
+  - cleanup completion flow
+    - messy completions sometimes
+    - completion does not work until we enter some text
+    - popup can overflow to right from the window
+  x LSP cannot goto definition in file paths containing spaces (win api functions).
   x goto definition
   x restart command
   x kill command
@@ -2113,30 +2107,73 @@ x indentation on the last line in the file is broken when typing
   x add opened files on server start! (remove buffer updates)
   x cleanup inline hints on server kill/crash
   x remove all tracked files on server kill (remove buffer updates...)
-  - handle fatal errors
-  - complete on tab
-  - cleanup completion flow
-    - messy completions sometimes
-    - completion does not work until we enter some text
-    - popup can overflow to right from the window
-  x LSP cannot goto definition in file paths containing spaces (win api functions).
 
 - process
   - macos port
   - get status of the process (wait pid???)
 
+- word wrap
+  - rendering lines
+  - rendering selection & highlights
+  - cursor navigation and position
+  - cursor mouse press position
+
+- filewatch reload opened files
+  - hot reload current or default project file
+  - reload openned files outside of project
+  - multithreaded features should reuse the same threads instead creating new ones everytime
+
+- syntax for batch
+- draw module should prepare font glyphs into rectangle texture not into line...
+- move line up and down
+- dark/light colors switch
+- not all commands needs to return value...
+- add documentation into the global config file
+- hide mouse cursor after some time without movement
+- don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
+- implement file sections distinguished by different background color?
+- fullscreen mode (no window decorations)
+- open project from command line
+- command to close all buffers
+- multi-cursor edit (oh shit!)
+- make active buffer in split temporarily bigger
+- propper error handling in release mode on windows
+- log file
+- multiple messages (notifications) UI
+- shift+scroll to resize font.
+- hot-reload non-project files
+- hot-reload project configs
+- add command to kill clang format
+- Show whole diag message on cursor hover.
+- Kill process seems to leave it running!
 - focus into the build output only in case it failed compilation?
-x open file in a new split on the same position if it's already open in other split.
-x merge quick-open and buffer-open
 - Message should disapear after some time.
-x Experiment with toggle ctrl?
 - Crash on project reload during indexing?
 - Indexing too often?
+- prefer previous buffer in the split on close current one
+- undo of large file change should restore cursor positions?
+- cut sometimes breaks new lines... (maybe breaks on paste when we have in clipboard different line endings?)
+- highlight current word after timeout
+
+
+x jump to previous and next cursor locations (even in files)
+- pause indexing in sub-modes and during compilation? (Paused already during compilation.)
+x change default font from settings
+x remap keyboard
+x cursor blinking
+x clang-format
+x stop cursor blinking when window is out of focus
+x indentation on the last line in the file is broken when typing
+x horizontal view switch if we go too far
+x help + readme
+x find and replace in file
+x open file in a new split on the same position if it's already open in other split.
+x merge quick-open and buffer-open
+x Experiment with toggle ctrl?
 x Warnings/errors should not cover document title bar.
 x fix cursor position after indentation!!!
 x autoindent when we insert indentation char
 x virtual whitespace indentation for empty lines (finally not used)
-- change default font from settings
 x move up and down should try to respect indentation
   x make settings entry for this
 x autoindent on paste when enabled
@@ -2147,60 +2184,20 @@ x Reduce framerate after some period of idle time? (note we wait for events and 
 x Open file from the command line sometimes fails, also filepath is not normalized.
 x recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).
 x markdown syntax
-  - improve?
 x make startup maximization optional
-- messages clear command
-- jump to previous position
+x messages clear command
+x jump to previous position
 x add str_match_ignore_case
-- prefer previous buffer in the split on close current one
 x add command to kill current build
 x error in project config has invalid line number...
-- undo of large file change should restore cursor positions?
 x reduce override of the clipboard by stuff from command buffer
-- cut sometimes breaks new lines... (maybe breaks on paste when we have in clipboard different line endings?)
-- word wrap
-  - rendering lines
-  - rendering selection & highlights
-  - cursor navigation and position
-  - cursor mouse press position
-C list all running processes and kill them!
-- highlight current word after timeout
 x last search should stay in search in files command
 x switch cpp/h (covered by LSP)
 x numpad enter should also work
-- filewatch reload opened files
-	- hot reload current or default project file
-	- reload openned files outside of project
-- multithreaded features should reuse the same threads instead creating new ones everytime
-- syntax for batch
 x parse keys in settings
-- draw module should prepare font glyphs into rectangle texture not into line...
-- move line up and down
-- dark/light colors switch
-- not all commands needs to return value...
-- add documentation into the global config file
-- hide mouse cursor after some time without movement
-- don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
 x set window minimal size
 x horizontal view adjustements does not work in case the line is too long
-- jump to previous and next cursor locations (even in files)
-- implement file sections distinguished by different background color?
-- fullscreen mode (no window decorations)
-- open project from command line
-- command to close all buffers
 x command to save all buffers
 x option to save all buffers before compilation is invoked
-- multi-cursor edit (oh shit!)
-- make active buffer in split temporarily bigger
-- propper error handling in release mode on windows
-  - log file
-  - multiple messages (notifications) UI
-- pause indexing in sub-modes and during compilation?
-- shift+scroll to resize font.
-
-Last Location Jumping:
-x long jump adds new location in case we're on the stack end
-x any edit updates current index location
-
 
 */
