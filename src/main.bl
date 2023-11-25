@@ -433,7 +433,7 @@ jump_to_previous_location :: fn () bool {
 	editor.cursor_index = rl.stack[rl.index].cursor_index;
 	clear_selection(buf, editor.cursor_index);
 
-	// center_view(editor);
+	center_view(editor);
 	return true;
 }
 
@@ -469,7 +469,7 @@ jump_to_next_location :: fn () bool {
 	editor.cursor_index = rl.stack[rl.index].cursor_index;
 	clear_selection(buf, editor.cursor_index);
 
-	// center_view(editor);
+	center_view(editor);
 	return true;
 }
 
@@ -664,19 +664,23 @@ main :: fn () s32 {
 	show_help := false;
 
 	// Check whether the default project file exists.
-	if !file_exist(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE)) {
-		load_default_project_from_template();
+	if !is_default_project_exists() {
 		show_help = true;
-
-		err :: create_default_project_file(data_dir, DEFAULT_CONFIG_FILE);
-		if err { print_err(err); }
-		print_log("Default project file created since it was not found.");
+		err :: setup_after_first_run();
+		if err {
+			print_err(err);
+		} else {
+			print_log("Default project file created.");
+		}
 	} else {
 		// Try to load it, note that in case of fail, we use default setting implicitly (even if the file
 		// content is invalid).
 		err :: load_default_project_file();
-		if err { print_err(err); }
-		print_log("Default project file loaded from disk.");
+		if err {
+			print_err(err);
+		} else {
+			print_log("Default project file loaded from disk.");
+		}
 	}
 
 	defer str_delete(&settings.font);
@@ -1217,11 +1221,8 @@ open_project :: fn (directory: string_view, filepath: string_view) Error {
 	kill_async_jobs();
 	is_project_indexing_paused = false;
 
-	err_default :: load_default_project_file();
-	if err_default { return err_default; }
-
-	err_desired :: load_project_file(directory, filepath);
-	if err_desired { return err_desired; }
+	err :: load_project(directory, filepath);
+	if err { return err; }
 
 	// Use the first path in the included directories as a working directory since it's supposed to be
 	// a project root.
@@ -2257,8 +2258,8 @@ x option to save all buffers before compilation is invoked
 - shift+scroll to resize font.
 
 Last Location Jumping:
-- long jump adds new location in case we're on the stack end
-- any edit updates current index location
+x long jump adds new location in case we're on the stack end
+x any edit updates current index location
 
 
 */
