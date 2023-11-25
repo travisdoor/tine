@@ -336,9 +336,15 @@ clear_error_list :: fn () {
 // Recent locations
 //
 
+// In general, the recent location system holds stack of long jumps in files. This stack can
+// be used to jump to previous or next positions in all opened files.
+// Each location is recorded as an index of cursor actually stored in file buffer. This  way we
+// can keep them on correct positions even if file content changes (compared to naive solution
+// using just buffer possition).
+
 RecentLocation :: struct {
 	editor_index: s32;
-	position:     s32;
+	cursor_index: s32;
 }
 
 recent_locations: struct {
@@ -346,49 +352,35 @@ recent_locations: struct {
 	index:     s32;
 };
 
-insert_recent_location :: fn (editor: *Editor) {
-	assert(editor);
-	if !editor.track_locations { return; }
-	assert(editor.index != command_editor);
-
-	rl  :: &recent_locations;
-	buf :: get_editor_buffer(editor);
-	current_position :: get_cursor_position(buf, editor.cursor_index);
-
-	if rl.stack.len > 0 {
+add_recent_location :: fn (editor: *Editor) {
+	assert(editor.track_recent_locations);
+	rl :: &recent_locations;
+	if rl.index >= 0 {
 		r :: rl.stack[rl.index];
-		if (r.position == current_position) && (r.editor_index == editor.index) {
+		if r.editor_index == editor.index && r.cursor_index == editor.cursor_index {
 			return;
 		}
-	}
 
-	if rl.index > 0 {
 		// Drop rest of the stack here.
-		rl.stack.len = auto rl.index + 1;
+		expected_len :: rl.index + 1;
+		loop i := expected_len; i < rl.stack.len; i += 1 {
+			r :: rl.stack[i];
+			editor :: &editors[r.editor_index];
+			assert(!editor.is_removed);
+			if editor.cursor_index == r.cursor_index { continue; }
+			buf :: get_editor_buffer(editor);
+			remove_cursor(buf, r.cursor_index);
+		}
+		rl.stack.len = auto expected_len;
 	}
 
-	array_push(&rl.stack, RecentLocation.{ editor.index, auto current_position });
-	rl.index += 1;
-}
-
-update_recent_location :: fn (editor: *Editor) {
-	if !editor.track_locations { return; }
-
-	rl  :: &recent_locations;
-	assert(rl.index >= 0 && rl.index < rl.stack.len);
-
-	r := &rl.stack[rl.index];
-	if r.editor_index != editor.index {
-		insert_recent_location(editor);
-		return;
-	}
-
-	buf :: get_editor_buffer(editor);
-	current_position :: get_cursor_position(buf, editor.cursor_index);
-	r.position = auto current_position;
+	array_push(&rl.stack, RecentLocation.{ editor.index, editor.cursor_index });
+	rl.index = auto rl.stack.len-1;
 }
 
 erase_all_locations_for_editor :: fn (editor: *Editor) {
+	// Erase also current editor index.
+	assert(editor.track_recent_locations);
 	rl  :: &recent_locations;
 	loop i := 0; i < rl.stack.len; {
 		r :: rl.stack[i];
@@ -404,32 +396,68 @@ erase_all_locations_for_editor :: fn (editor: *Editor) {
 jump_to_previous_location :: fn () bool {
 	rl  :: &recent_locations;
 	if rl.index < 1 { return false; }
-
 	assert(active_editor != command_editor);
 
-	rl.index -= 1;
+	{ // Resolve new position, we might skip some entries leading to the same location.
+		// @Performance: We might remove duplicate entries.
+		start_editor_index :: rl.stack[rl.index].editor_index;
+		rl.index -= 1;
+		r :: rl.stack[rl.index];
+
+		buf      :: get_editor_buffer(&editors[r.editor_index]);
+		position :: get_cursor_position(buf, r.cursor_index);
+		loop rl.index > 0  {
+			rl.index -= 1;
+			r2 :: rl.stack[rl.index];
+			buf :: get_editor_buffer(&editors[r2.editor_index]);
+			position2 :: get_cursor_position(buf, r2.cursor_index);
+			if (r.editor_index != r2.editor_index) || (position != position2) {
+				if r.editor_index != start_editor_index { rl.index += 1; }
+				break;
+			}
+		}
+	}
+
 	r :: rl.stack[rl.index];
-
-	assert(!editors[r.editor_index].is_removed);
 	buf, editor :: activate_editor(r.editor_index);
-	set_cursor_position(buf, editor.cursor_index, r.position);
+	editor.cursor_index = rl.stack[rl.index].cursor_index;
+	clear_selection(buf, editor.cursor_index);
 
+	// center_view(editor);
 	return true;
 }
 
 jump_to_next_location :: fn () bool {
 	rl  :: &recent_locations;
 	if rl.index+1 >= rl.stack.len { return false; }
-
 	assert(active_editor != command_editor);
 
-	rl.index += 1;
+	{ // Resolve new position, we might skip some entries leading to the same location.
+		// @Performance: We might remove duplicate entries.
+		start_editor_index :: rl.stack[rl.index].editor_index;
+		rl.index += 1;
+		r :: rl.stack[rl.index];
+
+		buf      :: get_editor_buffer(&editors[r.editor_index]);
+		position :: get_cursor_position(buf, r.cursor_index);
+		loop rl.index+1 < rl.stack.len  {
+			rl.index += 1;
+			r2 :: rl.stack[rl.index];
+			buf :: get_editor_buffer(&editors[r2.editor_index]);
+			position2 :: get_cursor_position(buf, r2.cursor_index);
+			if (r.editor_index != r2.editor_index) || (position != position2) {
+				if r.editor_index != start_editor_index { rl.index -= 1; }
+				break;
+			}
+		}
+	}
+
 	r :: rl.stack[rl.index];
-
-	assert(!editors[r.editor_index].is_removed);
 	buf, editor :: activate_editor(r.editor_index);
-	set_cursor_position(buf, editor.cursor_index, r.position);
+	editor.cursor_index = rl.stack[rl.index].cursor_index;
+	clear_selection(buf, editor.cursor_index);
 
+	// center_view(editor);
 	return true;
 }
 
@@ -723,8 +751,6 @@ main :: fn () s32 {
 		force_redraw = false;
 
 		WaitEventsTimeout(wait_s);
-
-		update_recent_location(&editors[active_editor]);
 
 		update_mouse();
 		update_caret();
@@ -1157,14 +1183,19 @@ open_location :: fn (filepath: string_view, line: s32, col: s32) Error {
 	if err { return err; }
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
+
+	if target_editor.track_recent_locations {
+		target_editor.cursor_index = duplicate_editor_cursor(target_editor);
+		add_recent_location(target_editor);
+	}
+
 	goto_line(target_editor, target_buf, line);
 	if col >= 0 {
 		move_right_by_num_characters(target_editor, target_buf, col);
 	} else {
 		jump_line_end(target_editor, target_buf);
 	}
-	center_view(target_editor);
-
+	// center_view(target_editor);
 	return OK;
 }
 
@@ -2114,6 +2145,7 @@ x clang-format
 x stop cursor blinking when window is out of focus
 x indentation on the last line in the file is broken when typing
 - Show whole diag message on cursor hover.
+- Kill process seems to leave it running!
 
 4 work
 - LSP for c++
@@ -2131,7 +2163,7 @@ x indentation on the last line in the file is broken when typing
     - messy completions sometimes
     - completion does not work until we enter some text
     - popup can overflow to right from the window
-  - LSP cannot goto definition in file paths containing spaces (win api functions).
+  x LSP cannot goto definition in file paths containing spaces (win api functions).
 
 - process
   - macos port
