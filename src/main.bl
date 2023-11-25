@@ -4,6 +4,7 @@
 #import "std/fs"
 #import "std/pool"
 #import "std/async"
+#import "clipboard"
 
 #load "buffer.bl"
 #load "commands.bl"
@@ -541,6 +542,10 @@ main :: fn () s32 {
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
 	defer str_delete(&message.text);
+
+	// Clipboard
+	clipboard.init();
+	defer clipboard.terminate();
 
 	// Recent location
 	recent_locations.index = -1;
@@ -1710,17 +1715,22 @@ reset_caret_blinking :: fn () #inline {
 }
 
 clipboard_read :: fn () string_view {
-	cstr :: glfw.GetClipboardString(window);
-	if !cstr { return ""; }
-	return std.ctostr(auto cstr);
+	return clipboard.get();
+
+	// Seems to be laggy on Windows :/
+	// cstr :: glfw.GetClipboardString(window);
+	// if !cstr { return ""; }
+	// return std.ctostr(auto cstr);
 }
 
 clipboard_write :: fn (str: string_view) {
-	using std;
-	if str.len == 0 { return; }
+	err :: clipboard.set(str);
+	if err { print_err(err); }
+	// using std;
+	// if str.len == 0 { return; }
 	// The input string might not be zero terminated.
-	dup :: str_new(str, application_context.temporary_allocator);
-	glfw.SetClipboardString(window, auto std.strtoc(dup));
+	// dup :: str_new(str, application_context.temporary_allocator);
+	// glfw.SetClipboardString(window, auto std.strtoc(dup));
 }
 
 #private
