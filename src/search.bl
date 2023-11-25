@@ -26,6 +26,11 @@ search_mode_init :: fn () {
 		select_all(editor, buf);
 	}
 
+	if target_editor.track_recent_locations {
+		target_editor.cursor_index = duplicate_editor_cursor(target_editor);
+		add_recent_location(target_editor);
+	}
+
 	search.results.len = 0;
 	search_cmd_changed();
 

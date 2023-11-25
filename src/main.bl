@@ -356,11 +356,6 @@ add_recent_location :: fn (editor: *Editor) {
 	assert(editor.track_recent_locations);
 	rl :: &recent_locations;
 	if rl.index >= 0 {
-		r :: rl.stack[rl.index];
-		if r.editor_index == editor.index && r.cursor_index == editor.cursor_index {
-			return;
-		}
-
 		// Drop rest of the stack here.
 		expected_len :: rl.index + 1;
 		loop i := expected_len; i < rl.stack.len; i += 1 {
@@ -376,6 +371,19 @@ add_recent_location :: fn (editor: *Editor) {
 
 	array_push(&rl.stack, RecentLocation.{ editor.index, editor.cursor_index });
 	rl.index = auto rl.stack.len-1;
+}
+
+update_recent_locations :: fn () {
+	rl :: &recent_locations;
+	if active_editor == -1 { return; }
+	if rl.index < 0 { return; }
+	_, editor :: get_active_buffer_and_editor();
+	if !editor.track_recent_locations { return; }
+	r :: rl.stack[rl.index];
+	if r.editor_index == editor.index { return; }
+
+	editor.cursor_index = duplicate_editor_cursor(editor);
+	add_recent_location(editor);
 }
 
 erase_all_locations_for_editor :: fn (editor: *Editor) {
@@ -406,15 +414,17 @@ jump_to_previous_location :: fn () bool {
 
 		buf      :: get_editor_buffer(&editors[r.editor_index]);
 		position :: get_cursor_position(buf, r.cursor_index);
+		adjust   := true;
 		loop rl.index > 0  {
 			rl.index -= 1;
 			r2 :: rl.stack[rl.index];
 			buf :: get_editor_buffer(&editors[r2.editor_index]);
 			position2 :: get_cursor_position(buf, r2.cursor_index);
 			if (r.editor_index != r2.editor_index) || (position != position2) {
-				if r.editor_index != start_editor_index { rl.index += 1; }
+				if adjust { rl.index += 1; }
 				break;
 			}
+			adjust = r.editor_index != start_editor_index;
 		}
 	}
 
@@ -440,15 +450,17 @@ jump_to_next_location :: fn () bool {
 
 		buf      :: get_editor_buffer(&editors[r.editor_index]);
 		position :: get_cursor_position(buf, r.cursor_index);
+		adjust   := true;
 		loop rl.index+1 < rl.stack.len  {
 			rl.index += 1;
 			r2 :: rl.stack[rl.index];
 			buf :: get_editor_buffer(&editors[r2.editor_index]);
 			position2 :: get_cursor_position(buf, r2.cursor_index);
 			if (r.editor_index != r2.editor_index) || (position != position2) {
-				if r.editor_index != start_editor_index { rl.index -= 1; }
+				if adjust { rl.index -= 1; }
 				break;
 			}
+			adjust = r.editor_index != start_editor_index;
 		}
 	}
 
@@ -768,6 +780,8 @@ main :: fn () s32 {
 			maybe_reindex_current_project();
 		}
 		update_jobs(); // Also process all responses...
+
+		update_recent_locations();
 
 		draw_frame();
 		scaling_changed = false;
@@ -1184,10 +1198,10 @@ open_location :: fn (filepath: string_view, line: s32, col: s32) Error {
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
 
-	if target_editor.track_recent_locations {
-		target_editor.cursor_index = duplicate_editor_cursor(target_editor);
-		add_recent_location(target_editor);
-	}
+	// if target_editor.track_recent_locations {
+	// 	target_editor.cursor_index = duplicate_editor_cursor(target_editor);
+	// 	add_recent_location(target_editor);
+	// }
 
 	goto_line(target_editor, target_buf, line);
 	if col >= 0 {

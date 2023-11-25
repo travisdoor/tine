@@ -1,7 +1,8 @@
 Command :: enum {
 	UNKNOWN;
-	DEBUG_REPORT;
 	_PUBLIC;
+
+	DEBUG_REPORT;
 
 	// Navigation
 	MOVE_RIGHT;
@@ -476,8 +477,29 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 }
 
 debug_report :: fn () bool {
-	err :: list_async_search("s32");
-	if err { print_err(err); }
+	print_info("Debug-report:");
+
+	print_info("Buffers:");
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed {
+			print_info("\t[%] (removed)", i);
+			continue;
+		}
+		print_info("\t[%] Name: '%'; Undo records: %; Undo size: %B; Cursor count: %", i, buf.name, buf.undo.len, buf.undo.len * auto sizeof(Rec), buf.cursors.len);
+	}
+
+	print_info("\nEditors:");
+	loop i := 0; i < editors.len; i += 1 {
+		e :: &editors[i];
+		if e.is_removed {
+			print_info("\t[%] (removed)", i);
+			continue;
+		}
+		print_info("\t[%] Buffer index: %", i, e.buffer_index);
+	}
+
+	print_info("\nJump history size: %B", recent_locations.stack.len * auto sizeof(RecentLocation));
 
 	return true;
 }
