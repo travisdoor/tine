@@ -35,6 +35,7 @@ Command :: enum {
 	DELETE_CHAR_RIGHT;
 	DELETE_WORD_LEFT;
 	DELETE_LINE;
+	DUPLICATE_LINE;
 	SET_SELECTION_MARKER;
 	SMART_SELECTION;
 	SELECT_ALL;
@@ -147,6 +148,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
 		DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
 		DELETE_LINE          { delete_line           (editor, buf); }
+		DUPLICATE_LINE       { duplicate_line        (editor, buf); }
 		DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
 		SMART_SELECTION      { smart_selection       (editor, buf); }
 		SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
@@ -935,6 +937,17 @@ delete_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	start_selection(buf, editor.cursor_index);
 	jump_next_line(editor, buf);
 	cut_selection(editor, buf);
+	return true;
+}
+
+duplicate_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	if maybe_report_readonly(buf) { return false; }
+	jump_line_begin(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_next_line(editor, buf);
+	copy_selection(editor, buf);
+	paste(editor, buf);
+	jump_prev_line(editor, buf);
 	return true;
 }
 
