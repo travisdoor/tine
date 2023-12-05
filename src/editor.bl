@@ -1,8 +1,8 @@
 Editor :: struct {
-	index: s32;
+	index:        s32;
 	buffer_index: s32;
 	cursor_index: s32;
-	split: Split;
+	split:        Split;
 
 	top:           s32;
 	visible_lines: s32;
@@ -10,13 +10,26 @@ Editor :: struct {
 	left: f32;
 
 	prev_frame_cursor_position: s64;
+	track_recent_locations:     bool;
 
 	is_removed: bool;
 }
 
-add_editor :: fn (buffer_index: s32, split := Split.FLOATING) s32 {
+add_editor :: fn (buffer_index: s32, track_recent_locations := false, split := Split.FLOATING) s32 {
 	editor: *Editor;
 	check_main_thread();
+
+	// Try to find already existing editor holding same buffer. Note that we must do it before
+	// this editor is pushed into the editors array.
+	cursor_position : s64 = 0;
+	loop i := 0; i < editors.len; i += 1 {
+		e :: &editors[i];
+		if e.is_removed { continue; }
+		if e.buffer_index == buffer_index {
+			cursor_position = get_cursor_position(&buffers[buffer_index], e.cursor_index);
+		}
+	}
+	cursor_index :: add_cursor(&buffers[buffer_index], cursor_position);
 
 	// Find the free editor slot in the array first
 	loop i := 0; i < editors.len; i += 1 {
@@ -38,9 +51,12 @@ add_editor :: fn (buffer_index: s32, split := Split.FLOATING) s32 {
 
 	assert(buffer_index != -1);
 	assert(!buffers[buffer_index].is_removed);
-	editor.buffer_index    = buffer_index;
-	editor.split           = split;
-	editor.cursor_index    = add_cursor(&buffers[buffer_index]);
+
+	editor.buffer_index           = buffer_index;
+	editor.split                  = split;
+	editor.cursor_index           = cursor_index;
+	editor.track_recent_locations = track_recent_locations;
+
 	return editor.index;
 }
 
@@ -48,7 +64,16 @@ remove_editor :: fn (index: s32) {
 	assert(index >= 0 && index < editors.len);
 	editor :: &editors[index];
 	if editor.is_removed { return; }
+
+	if editor.track_recent_locations {
+		erase_all_locations_for_editor(editor);
+	}
+
+	buf :: get_editor_buffer(editor);
+	remove_cursor(buf, editor.cursor_index);
+
 	zeroinit(editor);
+
 	editor.index        = index;
 	editor.buffer_index = -1;
 	editor.cursor_index = -1;
@@ -65,6 +90,12 @@ get_editor_buffer :: fn (editor: *Editor) *Buffer {
 	buf :: &buffers[editor.buffer_index];
 	assert(buf.is_removed == false);
 	return buf;
+}
+
+duplicate_editor_cursor :: fn (editor: *Editor) s32 {
+	buf :: get_editor_buffer(editor);
+	cur :: buf.cursors[editor.cursor_index];
+	return add_cursor(buf, cur.position, cur.selection_start);
 }
 
 draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call_location) {
@@ -399,13 +430,17 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		if row >= 0 {
 			line :: peek_row(buf, row);
 			col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.px - tx);
-			try_set_cursor_row_col(buf, editor.cursor_index, row, col);
+			position :: get_closest_cursor_row_col_position(buf, row, col);
 			reset_caret_blinking();
+
+			if position != cursor.position {
+				set_cursor_position(buf, editor.cursor_index, position);
+			}
 		}
 	}
 
 	editor.prev_frame_cursor_position = cursor.position;
-//#if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
+	#if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
 }
 
 draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := "", hint := "", loc := #call_location) {
@@ -674,17 +709,22 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 	using draw;
 	set_shader_font(&font);
 
-	ux :: x + w - 600.f;
+	ux := x + w - 600.f;
 	uy := y + 10.f;
 	color := rgb(0xff00ff);
 
 	position :: get_cursor_position(buf, editor.cursor_index);
+	notify_buffer_name := "-";
+	if notify_changes_to_buffer != -1 {
+		notify_buffer_name = buffers[notify_changes_to_buffer].name;
+	}
 
 	text(ux, uy, tprint("Position:  %", position), color); uy += font.height;
 	text(ux, uy, tprint("Cursor ID: %", editor.cursor_index), color); uy += font.height;
 	text(ux, uy, tprint("Undo len:  %", buf.undo.len), color); uy += font.height;
 	text(ux, uy, tprint("Undo top:  %", buf.undo_top), color); uy += font.height;
 	text(ux, uy, tprint("Rows:      %", get_row_count(buf)), color); uy += font.height;
+	text(ux, uy, tprint("Notify:    [%] %", notify_changes_to_buffer, notify_buffer_name), color); uy += font.height;
 
 	uy += 20.f;
 
@@ -697,5 +737,22 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 
 		rec :: &buf.undo[i];
 		text(ux, uy, tprint("[%]", rec.kind), color); uy += font.height;
+	}
+
+	ux = x + w - 200.f;
+	uy = y + 10.f;
+
+	rl  :: &recent_locations;
+	text(ux, uy, tprint("Index:  %", rl.index), color); uy += font.height;
+	loop i := 0; i < rl.stack.len; i += 1 {
+		if i == rl.index {
+			color = rgb(0x00ff00);
+		} else {
+			color = rgb(0xff00ff);
+		}
+
+		editor_index :: rl.stack[i];
+		buf :: get_editor_buffer(&editors[editor_index]);
+		text(ux, uy, tprint("%", buf.name), color); uy += font.height;
 	}
 }

@@ -4,6 +4,7 @@
 #import "std/fs"
 #import "std/pool"
 #import "std/async"
+#import "clipboard"
 
 #load "buffer.bl"
 #load "commands.bl"
@@ -135,10 +136,14 @@ editor_start_time: s64;
 active_editor  : s32 = -1;
 command_editor : s32 = -1;
 
+notify_changes_to_buffer: s32 = -1;
+
 // Used for logs/errors/warnings etc.
 messages_buffer_index := -1;
 help_buffer_index     := -1;
 search_buffer_index   := -1;
+
+is_project_indexing_paused := false;
 
 SearchLocation :: struct {
 	start: s32;
@@ -328,6 +333,72 @@ clear_error_list :: fn () {
 	error_marker_visible = false;
 }
 
+//
+// Recent locations
+//
+
+recent_locations: struct {
+	stack: [..]s32;
+	index:     s32;
+
+	did_jump: bool;
+};
+
+add_recent_location :: fn (editor: *Editor) {
+	assert(editor.track_recent_locations);
+	rl :: &recent_locations;
+	if rl.did_jump {
+		rl.did_jump = false;
+		return;
+	}
+	if rl.index >= 0 {
+		if rl.stack[rl.index] == editor.index { return; }
+		// Drop rest of the stack here.
+		rl.stack.len = auto rl.index + 1;
+	}
+	array_push(&rl.stack, editor.index);
+	rl.index = auto rl.stack.len-1;
+}
+
+erase_all_locations_for_editor :: fn (editor: *Editor) {
+	// Erase also current editor index.
+	assert(editor.track_recent_locations);
+	rl  :: &recent_locations;
+	loop i := 0; i < rl.stack.len; {
+		editor_index :: rl.stack[i];
+		if editor_index == editor.index {
+			array_erase_keep_order(&rl.stack, i);
+			if rl.index >= i { rl.index -= 1; }
+			continue;
+		}
+		i += 1;
+	}
+}
+
+jump_to_previous_location :: fn () bool {
+	rl  :: &recent_locations;
+	if rl.index < 1 { return false; }
+	assert(active_editor != command_editor);
+
+	rl.index -= 1;
+	activate_editor(rl.stack[rl.index]);
+	rl.did_jump = true;
+
+	return true;
+}
+
+jump_to_next_location :: fn () bool {
+	rl  :: &recent_locations;
+	if rl.index+1 >= rl.stack.len { return false; }
+	assert(active_editor != command_editor);
+
+	rl.index += 1;
+	activate_editor(rl.stack[rl.index]);
+	rl.did_jump = true;
+
+	return true;
+}
+
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
 
@@ -396,6 +467,14 @@ main :: fn () s32 {
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
 	defer str_delete(&message.text);
+
+	// Clipboard
+	clipboard.init();
+	defer clipboard.terminate();
+
+	// Recent location
+	recent_locations.index = -1;
+	defer array_terminate(&recent_locations.stack);
 
 	// Create command editor.
 	command_editor = add_editor(add_command_buffer());
@@ -511,22 +590,27 @@ main :: fn () s32 {
 		}
 	}
 
+	// Initial readme file on the first start.
 	show_help := false;
 
 	// Check whether the default project file exists.
-	if !file_exist(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE)) {
-		load_default_project_from_template();
+	if !is_default_project_exists() {
 		show_help = true;
-
-		err :: create_default_project_file(data_dir, DEFAULT_CONFIG_FILE);
-		if err { print_err(err); }
-		print_log("Default project file created since it was not found.");
+		err :: setup_after_first_run();
+		if err {
+			print_err(err);
+		} else {
+			print_log("Default project file created.");
+		}
 	} else {
 		// Try to load it, note that in case of fail, we use default setting implicitly (even if the file
 		// content is invalid).
 		err :: load_default_project_file();
-		if err { print_err(err); }
-		print_log("Default project file loaded from disk.");
+		if err {
+			print_err(err);
+		} else {
+			print_log("Default project file loaded from disk.");
+		}
 	}
 
 	defer str_delete(&settings.font);
@@ -567,8 +651,8 @@ main :: fn () s32 {
 	}
 
 	if active_editor == -1 {
-		active_editor  = add_editor(add_buffer(), Split.LEFT);
-		left = active_editor;
+		active_editor = add_editor(add_buffer(), true, Split.LEFT);
+		left          = active_editor;
 	}
 
 	assert(left != -1);
@@ -591,6 +675,9 @@ main :: fn () s32 {
 	if settings.maximize_on_start {
 		MaximizeWindow(window);
 	}
+
+	prev_active_editor := -1;
+	last_focus_index := 0;
 
     loop WindowShouldClose(window) == 0 {
 		current_time :: glfw.GetTime();
@@ -631,10 +718,20 @@ main :: fn () s32 {
 		}
 		update_jobs(); // Also process all responses...
 
+		buf, editor :: get_active_buffer_and_editor();
+		if prev_active_editor != active_editor {
+			prev_active_editor = active_editor;
+			buf.last_focus_index = last_focus_index;
+			last_focus_index += 1;
+
+			if editor.track_recent_locations {
+				add_recent_location(editor);
+			}
+		}
+
 		draw_frame();
 		scaling_changed = false;
 
-		buf :: get_active_buffer_and_editor() #maybe_unused;
 		title: string_view;
 		#if IS_DEBUG && false {
 			fps_num += 1;
@@ -663,6 +760,9 @@ main :: fn () s32 {
 
 	// Terminate all pending jobs. After that it's save to remove all buffers and editors.
 	jobs_terminate();
+
+	// To speed things up a bit.
+	recent_locations.stack.len = 0;
 
 	loop i := 0; i < editors.len; i += 1 { remove_editor(i); }
 	loop i := 0; i < buffers.len; i += 1 { remove_buffer(i); }
@@ -809,6 +909,8 @@ set_mode :: fn (m: Mode) bool #inline {
 	using Mode;
 	if m == mode { return false; }
 
+	notify_changes_to_buffer = -1;
+
 	switch mode {
 		GOTO_LINE;
 		TEXT_EDIT         { last_active_text_editor = active_editor; }
@@ -829,6 +931,7 @@ set_mode :: fn (m: Mode) bool #inline {
 
 	if m != TEXT_EDIT {
 		is_project_indexing_paused = true;
+	} else {
 	}
 
 	switch m {
@@ -837,6 +940,8 @@ set_mode :: fn (m: Mode) bool #inline {
 			assert(last_active_text_editor != command_editor);
 			active_editor = last_active_text_editor;
 			input_mode = InputMode.TEXT;
+
+			assert(active_editor >= 0 && active_editor < editors.len);
 		}
 		GOTO_LINE         { goto_mode_init();              }
 		OPEN_FROM_DRIVE   { open_from_drive_mode_init();   }
@@ -889,11 +994,6 @@ clear_message :: fn () {
 	mutex_lock(&message.mutex);
 	defer mutex_unlock(&message.mutex);
 	message.text.len = 0;
-}
-
-duplicate_editor :: fn (editor_index: s64) s64 {
-	assert(editor_index != -1);
-	return add_editor(editors[editor_index].buffer_index);
 }
 
 // Find any other editor open in the split.
@@ -1042,14 +1142,14 @@ open_location :: fn (filepath: string_view, line: s32, col: s32) Error {
 	if err { return err; }
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
+
 	goto_line(target_editor, target_buf, line);
 	if col >= 0 {
 		move_right_by_num_characters(target_editor, target_buf, col);
 	} else {
 		jump_line_end(target_editor, target_buf);
 	}
-	center_view(target_editor);
-
+	// center_view(target_editor);
 	return OK;
 }
 
@@ -1057,11 +1157,8 @@ open_project :: fn (directory: string_view, filepath: string_view) Error {
 	kill_async_jobs();
 	is_project_indexing_paused = false;
 
-	err_default :: load_default_project_file();
-	if err_default { return err_default; }
-
-	err_desired :: load_project_file(directory, filepath);
-	if err_desired { return err_desired; }
+	err :: load_project(directory, filepath);
+	if err { return err; }
 
 	// Use the first path in the included directories as a working directory since it's supposed to be
 	// a project root.
@@ -1131,7 +1228,7 @@ find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
 	}
 
 	if editor_index == -1 {
-		editor_index = add_editor(buffer_index, split);
+		editor_index = add_editor(buffer_index, true, split);
 	}
 	assert(editor_index > -1);
 
@@ -1162,6 +1259,22 @@ find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buff
 		return find_or_create_editor_in_split(split, @buffer_index);
 	}
 	return editor.index;
+}
+
+// Activate existing editor it it's split.
+activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
+	assert(editor_index >= 0 && editor_index < editors.len);
+	editor :: &editors[editor_index];
+	assert(!editor.is_removed);
+
+	using Split;
+	switch editor.split {
+		LEFT    { left  = editor_index; }
+		RIGHT   { right = editor_index; }
+		default { panic(); }
+	}
+	active_editor = editor_index;
+	return &buffers[editor.buffer_index], editor;
 }
 
 detect_filetype :: fn (filename: string_view) FileType {
@@ -1533,20 +1646,23 @@ reset_caret_blinking :: fn () #inline {
 }
 
 clipboard_read :: fn () string_view {
-	cstr :: glfw.GetClipboardString(window);
-	if !cstr { return ""; }
-	return std.ctostr(auto cstr);
+	return clipboard.get();
+
+	// Seems to be laggy on Windows :/
+	// cstr :: glfw.GetClipboardString(window);
+	// if !cstr { return ""; }
+	// return std.ctostr(auto cstr);
 }
 
 clipboard_write :: fn (str: string_view) {
-	using std;
-	if str.len == 0 { return; }
+	err :: clipboard.set(str);
+	if err { print_err(err); }
+	// using std;
+	// if str.len == 0 { return; }
 	// The input string might not be zero terminated.
-	dup :: str_new(str, application_context.temporary_allocator);
-	glfw.SetClipboardString(window, auto std.strtoc(dup));
+	// dup :: str_new(str, application_context.temporary_allocator);
+	// glfw.SetClipboardString(window, auto std.strtoc(dup));
 }
-
-is_project_indexing_paused := false;
 
 #private
 
@@ -1654,6 +1770,7 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 				clear_message();
 				error_marker_visible = false;
 				invoke_command(editor, buf, m.cmd);
+
 				break;
 			}
 		}
@@ -1955,38 +2072,33 @@ update_caret :: fn () {
 /*
 TODO
 
-4 release
 - mouse support
-  x current hover element recorder each frame
   - resize split
-  x scroll buffers
-  x select in buffer
+  - add scroll indicators for lister
+  - select in buffer
     x double click select word
     - tripple click select line
+  x current hover element recorder each frame
+  x scroll buffers
   x set cursor position
   x switch active split
   x clicking in the lists
   x scroling in the lists
-  - add scroll indicators for lister
 
-x horizontal view switch if we go too far
-x help + readme
-x find and replace in file
+
 - find and replace in project
   - we want also unified undo
   - do as regular edit in results buffer?
-x remap keyboard
-x cursor blinking
-- hot-reload non-project files
-- hot-reload project configs
-x clang-format
-- add command to kill clang format
-x stop cursor blinking when window is out of focus
-x indentation on the last line in the file is broken when typing
-- Show whole diag message on cursor hover.
 
-4 work
 - LSP for c++
+
+  - handle fatal errors
+  - complete on tab
+  - cleanup completion flow
+    - messy completions sometimes
+    - completion does not work until we enter some text
+    - popup can overflow to right from the window
+  x LSP cannot goto definition in file paths containing spaces (win api functions).
   x goto definition
   x restart command
   x kill command
@@ -1995,30 +2107,73 @@ x indentation on the last line in the file is broken when typing
   x add opened files on server start! (remove buffer updates)
   x cleanup inline hints on server kill/crash
   x remove all tracked files on server kill (remove buffer updates...)
-  - handle fatal errors
-  - complete on tab
-  - cleanup completion flow
-    - messy completions sometimes
-    - completion does not work until we enter some text
-    - popup can overflow to right from the window
-  - LSP cannot goto definition in file paths containing spaces (win api functions).
 
 - process
   - macos port
   - get status of the process (wait pid???)
 
+- word wrap
+  - rendering lines
+  - rendering selection & highlights
+  - cursor navigation and position
+  - cursor mouse press position
+
+- filewatch reload opened files
+  - hot reload current or default project file
+  - reload openned files outside of project
+  - multithreaded features should reuse the same threads instead creating new ones everytime
+
+- syntax for batch
+- draw module should prepare font glyphs into rectangle texture not into line...
+- move line up and down
+- dark/light colors switch
+- not all commands needs to return value...
+- add documentation into the global config file
+- hide mouse cursor after some time without movement
+- don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
+- implement file sections distinguished by different background color?
+- fullscreen mode (no window decorations)
+- open project from command line
+- command to close all buffers
+- multi-cursor edit (oh shit!)
+- make active buffer in split temporarily bigger
+- propper error handling in release mode on windows
+- log file
+- multiple messages (notifications) UI
+- shift+scroll to resize font.
+- hot-reload non-project files
+- hot-reload project configs
+- add command to kill clang format
+- Show whole diag message on cursor hover.
+- Kill process seems to leave it running!
 - focus into the build output only in case it failed compilation?
-x open file in a new split on the same position if it's already open in other split.
-x merge quick-open and buffer-open
 - Message should disapear after some time.
-x Experiment with toggle ctrl?
 - Crash on project reload during indexing?
 - Indexing too often?
+- prefer previous buffer in the split on close current one
+- undo of large file change should restore cursor positions?
+- cut sometimes breaks new lines... (maybe breaks on paste when we have in clipboard different line endings?)
+- highlight current word after timeout
+
+
+x jump to previous and next cursor locations (even in files)
+- pause indexing in sub-modes and during compilation? (Paused already during compilation.)
+x change default font from settings
+x remap keyboard
+x cursor blinking
+x clang-format
+x stop cursor blinking when window is out of focus
+x indentation on the last line in the file is broken when typing
+x horizontal view switch if we go too far
+x help + readme
+x find and replace in file
+x open file in a new split on the same position if it's already open in other split.
+x merge quick-open and buffer-open
+x Experiment with toggle ctrl?
 x Warnings/errors should not cover document title bar.
 x fix cursor position after indentation!!!
 x autoindent when we insert indentation char
 x virtual whitespace indentation for empty lines (finally not used)
-- change default font from settings
 x move up and down should try to respect indentation
   x make settings entry for this
 x autoindent on paste when enabled
@@ -2029,55 +2184,20 @@ x Reduce framerate after some period of idle time? (note we wait for events and 
 x Open file from the command line sometimes fails, also filepath is not normalized.
 x recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).
 x markdown syntax
-  - improve?
 x make startup maximization optional
-- messages clear command
-- jump to previous position
+x messages clear command
+x jump to previous position
 x add str_match_ignore_case
-- prefer previous buffer in the split on close current one
 x add command to kill current build
 x error in project config has invalid line number...
-- undo of large file change should restore cursor positions?
 x reduce override of the clipboard by stuff from command buffer
-- cut sometimes breaks new lines... (maybe breaks on paste when we have in clipboard different line endings?)
-- word wrap
-  - rendering lines
-  - rendering selection & highlights
-  - cursor navigation and position
-  - cursor mouse press position
-C list all running processes and kill them!
-- highlight current word after timeout
 x last search should stay in search in files command
 x switch cpp/h (covered by LSP)
 x numpad enter should also work
-- filewatch reload opened files
-	- hot reload current or default project file
-	- reload openned files outside of project
-- multithreaded features should reuse the same threads instead creating new ones everytime
-- syntax for batch
 x parse keys in settings
-- draw module should prepare font glyphs into rectangle texture not into line...
-- move line up and down
-- dark/light colors switch
-- not all commands needs to return value...
-- add documentation into the global config file
-- hide mouse cursor after some time without movement
-- don't highlight entries under cursor until mouse was not moved to prevent confusion which item is selected.
 x set window minimal size
 x horizontal view adjustements does not work in case the line is too long
-- jump to previous and next cursor locations (even in files)
-- implement file sections distinguished by different background color?
-- fullscreen mode (no window decorations)
-- open project from command line
-- command to close all buffers
 x command to save all buffers
 x option to save all buffers before compilation is invoked
-- multi-cursor edit (oh shit!)
-- make active buffer in split temporarily bigger
-- propper error handling in release mode on windows
-  - log file
-  - multiple messages (notifications) UI
-- pause indexing in sub-modes and during compilation?
-- shift+scroll to resize font.
 
 */

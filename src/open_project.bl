@@ -2,7 +2,9 @@ open_project_mode_init :: fn () {
 	active_editor = command_editor;
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode = InputMode.TEXT;
+
+	input_mode               = InputMode.TEXT;
+	notify_changes_to_buffer = buf.index;
 
 	list_projects();
 }

@@ -2,8 +2,10 @@ search_mode_init :: fn () {
 	active_editor = command_editor;
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode = InputMode.TEXT;
-	search.result_index = 0;
+
+	input_mode               = InputMode.TEXT;
+	notify_changes_to_buffer = buf.index;
+	search.result_index      = 0;
 
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	start_position = get_cursor_position(target_buf, target_editor.cursor_index);

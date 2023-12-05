@@ -32,9 +32,10 @@ Buffer :: struct {
 	undo_top:      s64;
 	saved_top:     s64;
 
-	tmp_string:      string;
-	has_pending_job: s32; // 0 = no pending jobs
-	pending_t:       f32;
+	tmp_string:       string;
+	has_pending_job:  s32; // 0 = no pending jobs
+	pending_t:        f32;
+	last_focus_index: s32;
 
 	lsp: struct {
 		version:            s32; // 0 = not tracked by lsp
@@ -200,31 +201,28 @@ unlock_buffer :: fn (buf: *Buffer) {
 	std.mutex_unlock(&buf.mutex);
 }
 
-add_cursor :: fn (buf: *Buffer) s32 {
+add_cursor :: fn (buf: *Buffer, initial_position: s64, selection_start : s64 = -1) s32 {
 	check_main_thread();
 
-	// Try to find some already existing valid cursor and use its position.
-	initial_position : s64 = 0;
-	loop i := 0; i < buf.cursors.len; i += 1 {
-		if buf.cursors[i].is_removed { continue; }
-		initial_position = buf.cursors[i].position;
-		break;
-	}
+	c: Buffer.cursors.ptr;
+	index := -1;
 
 	loop i := 0; i < buf.cursors.len; i += 1 {
 		if buf.cursors[i].is_removed {
-			c :: &buf.cursors[i];
-			c.position        = initial_position;
-			c.selection_start = -1;
-			c.is_removed      = false;
-			return i;
+			c = &buf.cursors[i];
+			index = i;
+			break;
 		}
 	}
-	index :: cast(s32) buf.cursors.len;
-	c :: array_push(&buf.cursors);
+
+	if !c {
+		index = cast(s32) buf.cursors.len;
+		c = array_push(&buf.cursors);
+	}
 	c.position        =  initial_position;
-	c.selection_start = -1;
+	c.selection_start = selection_start;
 	c.is_removed      = false;
+	assert(index != -1);
 	return index;
 }
 
@@ -271,9 +269,14 @@ set_cursor_position :: fn (buf: *Buffer, cursor_index: s32, position: s64) #inli
 	c.position = position;
 }
 
-try_set_cursor_row_col :: fn (buf: *Buffer, cursor_index: s32, row: s32, col: s32) {
+try_set_cursor_row_col :: fn (buf: *Buffer, cursor_index: s32, row: s32, col: s32) #inline {
+	position :: get_closest_cursor_row_col_position(buf, row, col);
+	set_cursor_position(buf, cursor_index, position);
+}
+
+get_closest_cursor_row_col_position :: fn (buf: *Buffer, row: s32, col: s32) s64 {
 	line, start_index := peek_row(buf, row);
-	if line.len == 0 { return; }
+	if line.len == 0 { return 0; }
 
 	valid_cols: s32;
 	loop i := 0; i < line.len && valid_cols < col; valid_cols += 1 {
@@ -282,7 +285,7 @@ try_set_cursor_row_col :: fn (buf: *Buffer, cursor_index: s32, row: s32, col: s3
 		start_index += char_len;
 	}
 
-	set_cursor_position(buf, cursor_index, start_index);
+	return start_index;
 }
 
 start_selection :: fn (buf: *Buffer, cursor_index: s32) #inline {
@@ -513,7 +516,9 @@ batch_end :: fn (buf: *Buffer) {
 	buf.batch_active = false;
 
 	rebuild_lines(buf);
-	notify(buf);
+	if notify_changes_to_buffer == buf.index {
+		notify();
+	}
 	buf.dirty_syntax = true;
 }
 
@@ -759,7 +764,9 @@ insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
 
 	rebuild_lines(buf);
 
-	notify(buf);
+	if notify_changes_to_buffer == buf.index {
+		notify();
+	}
 	buf.dirty_syntax = true;
 }
 
@@ -773,7 +780,7 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 
 	len :: end - start;
 	str :: string_view.{ len, &buf.bytes[start] };
-	adjust_all_cursors_from_position(buf, end, -len);
+	adjust_all_cursors_from_position(buf, start, -len);
 
 	if buf.batch_active == false && str.len <= SMALL_STRING_EDIT {
 		loop i := 0; i < str.len; {
@@ -801,7 +808,9 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 		rebuild_lines(buf);
 	}
 
-	notify(buf);
+	if notify_changes_to_buffer == buf.index {
+		notify();
+	}
 	buf.dirty_syntax = true;
 }
 
@@ -988,6 +997,9 @@ adjust_all_cursors_from_position :: fn (buf: *Buffer, position: s64, offset: s64
 		if c.is_removed { continue; }
 		if c.position >= position {
 			c.position += offset;
+			if c.position < position {
+				c.position = position;
+			}
 			assert(c.position >= 0);
 			if c.selection_start != -1 { c.selection_start += offset; }
 		}
@@ -1051,13 +1063,9 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 	}
 }
 
-notify :: fn (buf: *Buffer) {
+notify :: fn () {
+	assert(notify_changes_to_buffer != -1);
 	using Mode;
-	if active_editor == -1 { return; }
-
-	active_buf :: get_active_buffer_and_editor();
-	if active_buf != buf { return; }
-
 	switch mode {
 		OPEN_FROM_DRIVE   { open_from_drive_cmd_changed();      }
 		SAVE_TO_DRIVE     { save_to_drive_cmd_changed();        }

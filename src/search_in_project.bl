@@ -4,7 +4,9 @@ search_in_project_mode_init :: fn () {
 	active_editor = command_editor;
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode = InputMode.TEXT;
+
+	input_mode               = InputMode.TEXT;
+	notify_changes_to_buffer = buf.index;
 
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 

@@ -2,6 +2,9 @@
 ---------------------------------------------------------------------------------------
 Add simple support for assembly language.
 Add asserts on Linux and Mac for unimplemented stuff (release should still work).
+Add jumping to previous locations on global level. (by default Ctrl+[ and Ctrl+])
+Add custom library to handle clipboard.
+Add sort open files in quick by last visit.
 Fix LSP now use URI for all paths.
 
 0.3 - ALPHA

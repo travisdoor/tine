@@ -1,7 +1,8 @@
 Command :: enum {
 	UNKNOWN;
-	DEBUG_REPORT;
 	_PUBLIC;
+
+	DEBUG_REPORT;
 
 	// Navigation
 	MOVE_RIGHT;
@@ -22,6 +23,8 @@ Command :: enum {
 	CENTER_VIEW;
 	NEXT_ERROR;
 	PREV_ERROR;
+	NEXT_LOCATION;
+	PREV_LOCATION;
 	LSP_GOTO_DECLARATION;
 	LSP_OTHER_FILE;
 
@@ -248,7 +251,7 @@ paste :: fn (editor: *Editor, buf: *Buffer) {
 
 	commit_undo(buf);
 	defer commit_undo(buf);
-	
+
 	if editor.index == command_editor {
 		// Pasted string might be multiline, this is not allowed for the single line command editor.
 		loop i := 0; i < text.len; i += 1 {
@@ -417,6 +420,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		CENTER_VIEW         { center_view         (editor);                                }
 		NEXT_ERROR          { next_error          ();                                      }
 		PREV_ERROR          { prev_error          ();                                      }
+		NEXT_LOCATION       { jump_to_next_location();                                     }
+		PREV_LOCATION       { jump_to_previous_location();                                 }
 		LSP_GOTO_DECLARATION{ lsp_goto_declaration(editor, buf);                           }
 		LSP_OTHER_FILE      { lsp_switch_header_source(buf);                               }
 		INSERT_NEW_LINE     { insert_new_line     (editor, buf);                           }
@@ -472,10 +477,38 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 }
 
 debug_report :: fn () bool {
-	err :: list_async_search("s32");
-	if err { print_err(err); }
+	print_info("Debug-report:");
+
+	print_info("Buffers:");
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed {
+			print_info("\t[%] (removed)", i);
+			continue;
+		}
+		print_info("\t[%] Name: '%'; Undo records: %; Undo size: %B; Cursor count: %", i, buf.name, buf.undo.len, buf.undo.len * auto sizeof(Rec), buf.cursors.len);
+	}
+
+	print_info("\nEditors:");
+	loop i := 0; i < editors.len; i += 1 {
+		e :: &editors[i];
+		if e.is_removed {
+			print_info("\t[%] (removed)", i);
+			continue;
+		}
+		print_info("\t[%] Buffer index: %", i, e.buffer_index);
+	}
+
+	print_info("\nJump history size: %B", recent_locations.stack.len * auto sizeof(s32));
 
 	return true;
+}
+
+is_repeating_command :: fn (cmds: ...Command) bool #inline {
+	loop i := 0; i < cmds.len; i += 1 {
+		if prev_executed_command == cmds[i] { return true; }
+	}
+	return false;
 }
 
 save_command :: fn (buf: *Buffer) bool {
@@ -512,13 +545,13 @@ save_all :: fn () {
 		if buf.saved_top == buf.undo_top { continue; }
 
 		saved_num += 1;
-		
+
 		err :: save_buffer_to_file(buf, buf.filepath);
 		if err {
 			print_err(err);
 		}
 	}
-	
+
 	if saved_num == 0 {
 		print_info("No changes needs to be saved.");
 	}
@@ -815,7 +848,7 @@ get_row_visual_indentation_cols :: fn (editor: *Editor, buf: *Buffer) s32 {
 
 move_down :: fn (editor: *Editor, buf: *Buffer) bool {
 	using Command;
-	if prev_executed_command != MOVE_DOWN && prev_executed_command != MOVE_UP {
+	if !is_repeating_command(MOVE_DOWN, MOVE_UP) {
 		position :: get_cursor_position(buf, editor.cursor_index);
 		vertical_move_cursor_offset = count_visual_cols_to_position(buf, position);
 	}
@@ -832,7 +865,8 @@ move_down :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 move_up :: fn (editor: *Editor, buf: *Buffer) bool {
-	if prev_executed_command != Command.MOVE_DOWN && prev_executed_command != Command.MOVE_UP {
+	using Command;
+	if !is_repeating_command(MOVE_DOWN, MOVE_UP) {
 		position :: get_cursor_position(buf, editor.cursor_index);
 		vertical_move_cursor_offset = count_visual_cols_to_position(buf, position);
 	}
@@ -974,12 +1008,23 @@ jump_prev_line :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 jump_begin :: fn (editor: *Editor, buf: *Buffer) bool {
+	position :: get_cursor_position(buf, editor.cursor_index);
+	if position == 0 {
+		return false;
+	}
+
 	set_cursor_position(buf, editor.cursor_index, 0);
 	return true;
 }
 
 jump_end :: fn (editor: *Editor, buf: *Buffer) bool {
-	set_cursor_position(buf, editor.cursor_index, get_last_position_in_buffer(buf));
+	position :: get_cursor_position(buf, editor.cursor_index);
+	end_position :: get_last_position_in_buffer(buf);
+	if position == end_position {
+		return false;
+	}
+
+	set_cursor_position(buf, editor.cursor_index, end_position);
 	return true;
 }
 
@@ -992,6 +1037,7 @@ jump_indent_begin :: fn (editor: *Editor, buf: *Buffer) bool {
 
 jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	cursor := get_cursor(buf, editor.cursor_index);
+	orig_position :: cursor.position;
 
 	// in case the current position is already empty line
 	row, start_index, row_len :: peek_row_without_new_line(buf, cursor.row);
@@ -1009,6 +1055,11 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 			break;
 		}
 	}
+
+	if position == orig_position {
+		return false;
+	}
+
 	set_cursor_position(buf, editor.cursor_index, position);
 	return true;
 }
@@ -1016,6 +1067,7 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	cursor := get_cursor(buf, editor.cursor_index);
 	if cursor.row == 0 { return false; }
+	orig_position :: cursor.position;
 
 	// in case the current position is already empty line
 	row, start_index :: peek_row_without_new_line(buf, cursor.row);
@@ -1030,6 +1082,10 @@ jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 			break;
 		}
 	}
+	if position == orig_position {
+		return false;
+	}
+
 	set_cursor_position(buf, editor.cursor_index, position);
 	return true;
 }

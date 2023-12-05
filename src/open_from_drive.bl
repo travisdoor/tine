@@ -3,7 +3,9 @@ open_from_drive_mode_init :: fn () {
 	active_editor = command_editor;
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
-	input_mode = InputMode.TEXT;
+
+	input_mode               = InputMode.TEXT;
+	notify_changes_to_buffer = buf.index;
 
 	base_path = std.get_cwd();
 	err :: list_directory(tprint("%/", base_path));

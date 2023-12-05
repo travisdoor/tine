@@ -32,14 +32,8 @@ create_default_project_file :: fn (directory: string_view, filename: string_view
 	return err_write;
 }
 
-load_default_project_file :: fn () Error #inline {
-	return load_project_file(data_dir, DEFAULT_CONFIG_FILE, true);
-}
-
 load_project_file :: fn (directory: string_view, filename: string_view, is_default := false) Error {
 	filepath :: tprint("%/%", directory, filename);
-
-	clear_project();
 
 	using std;
 	stream, err_open :: open_file(filepath, OpenFileMode.READ);
@@ -60,24 +54,17 @@ load_project_file :: fn (directory: string_view, filename: string_view, is_defau
 	};
 
 	err :: parse(&ctx);
-	if err {
-		// In case of error we have to restore the default settings.
-		load_default_project_from_template();
-	} else {
-		name :: path_splitext(filename);
-		project.name       = str_new(name, &project.string_cache);
-		project.filepath   = str_new(filepath, &project.string_cache);
-		project.is_default = is_default;
-	}
+	if err { return err; }
 
-	do_the_stuff_after_project_load();
+	name :: path_splitext(filename);
+	project.name       = str_new(name, &project.string_cache);
+	project.filepath   = str_new(filepath, &project.string_cache);
+	project.is_default = is_default;
 
 	return err;
 }
 
 load_default_project_from_template :: fn () {
-	clear_project();
-
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
 			bytes = DEFAULT_PROJECT_FILE_TEMPLATE_DATA,
@@ -87,10 +74,56 @@ load_default_project_from_template :: fn () {
 
 	err :: parse(&ctx);
 	if err { panic(err); } // This is really bad! Even the template project file is broken.
-	print_log("Using default setting from the project template file data.");
 
 	project.is_default = true;
+}
+
+is_default_project_exists :: fn () bool #inline {
+	return std.file_exist(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE));
+}
+
+load_default_project_file :: fn () Error #inline {
+	defer do_the_stuff_after_project_load();
+
+	clear_project();
+	load_default_project_from_template();
+	err :: load_project_file(data_dir, DEFAULT_CONFIG_FILE, true);
+	if err {
+		clear_project();
+		load_default_project_from_template();
+	}
+	return err;
+}
+
+load_project :: fn (directory: string_view, filepath: string_view) Error {
+	defer do_the_stuff_after_project_load();
+
+	clear_project();
+
+	// Template config to get missing mapping on upgrade.
+	load_default_project_from_template();
+
+	// Default configuration.
+	err := load_default_project_file();
+	if err { return err; }
+
+	// Actual project file.
+	err = load_project_file(directory, filepath);
+	if err {
+		// Restore on fail...
+		clear_project();
+		load_default_project_from_template();
+	}
+
+	return err;
+}
+
+setup_after_first_run :: fn () Error {
+	load_default_project_from_template();
+	err :: create_default_project_file(data_dir, DEFAULT_CONFIG_FILE);
+	if err { return err; }
 	do_the_stuff_after_project_load();
+	return OK;
 }
 
 check_project_changes :: fn (changed_directory: string_view, change_kind: WatchFor) bool {
@@ -519,7 +552,7 @@ parse_keymap_entry :: fn (ctx: *Tokenizer) Error {
 // key == -1 -> unmap all command bindings
 map_key_binding :: fn (ctx: *Tokenizer, command_id: Command, key: s32, mods: s32) {
 	assert((cast(s32) command_id) > (cast(s32) Command._PUBLIC));
-	print_log("Add key mapping: % -> %+%.", COMMAND_NAMES[auto command_id], key, mods);
+	// print_log("Add key mapping: % -> %+%.", COMMAND_NAMES[auto command_id], key, mods);
 	loop i := 0; i < key_binding.len; i += 1 {
 		if key_binding[i].key == key && key_binding[i].mods == mods {
 			warning(ctx, "Duplicate key-binding for command '%' the same key combination is already set for command '%'.",
