@@ -274,6 +274,7 @@ paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true
 	}
 
 	if record_as_single_undo_action { commit_undo(buf); }
+	clear_selection(buf);
 }
 
 goto_line :: fn (editor: *Editor, buf: *Buffer, line: s64) {
