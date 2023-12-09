@@ -35,6 +35,7 @@ Command :: enum {
 	DELETE_CHAR_RIGHT;
 	DELETE_WORD_LEFT;
 	DELETE_LINE;
+	DUPLICATE_LINE;
 	SET_SELECTION_MARKER;
 	SMART_SELECTION;
 	SELECT_ALL;
@@ -147,6 +148,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
 		DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
 		DELETE_LINE          { delete_line           (editor, buf); }
+		DUPLICATE_LINE       { duplicate_line        (editor, buf); }
 		DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
 		SMART_SELECTION      { smart_selection       (editor, buf); }
 		SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
@@ -222,13 +224,14 @@ select_all :: fn (editor: *Editor, buf: *Buffer) {
 	jump_end(editor, buf);
 }
 
-copy_selection :: fn (editor: *Editor, buf: *Buffer) {
+copy_selection :: fn (editor: *Editor, buf: *Buffer) bool {
 	text :: peek_selection(buf, editor.cursor_index);
 	if text.len == 0 {
-		return;
+		return false;
 	}
 	clipboard_write(text);
 	clear_selection(buf, editor.cursor_index);
+	return true;
 }
 
 cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
@@ -244,13 +247,12 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 	delete_range(buf, start, end);
 }
 
-paste :: fn (editor: *Editor, buf: *Buffer) {
+paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true) {
 	text := clipboard_read();
 	if text.len == 0 { return; }
 	if maybe_report_readonly(buf) { return; }
 
-	commit_undo(buf);
-	defer commit_undo(buf);
+	if record_as_single_undo_action { commit_undo(buf); }
 
 	if editor.index == command_editor {
 		// Pasted string might be multiline, this is not allowed for the single line command editor.
@@ -270,6 +272,9 @@ paste :: fn (editor: *Editor, buf: *Buffer) {
 		end :: get_cursor_position(buf, editor.cursor_index);
 		indent_range(buf, start, end);
 	}
+
+	if record_as_single_undo_action { commit_undo(buf); }
+	clear_selection(buf);
 }
 
 goto_line :: fn (editor: *Editor, buf: *Buffer, line: s64) {
@@ -753,8 +758,7 @@ insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	position := get_cursor_position(buf, editor.cursor_index);
-	nl :: get_line_ending(buf.line_ending);
-	insert_string(buf, position, nl);
+	insert_string(buf, position, get_line_ending(buf.line_ending));
 
 	indent_enabled :: has_indentation_info(buf) && settings.indent_on_new_line;
 	position = get_cursor_position(buf, editor.cursor_index);
@@ -935,6 +939,25 @@ delete_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	start_selection(buf, editor.cursor_index);
 	jump_next_line(editor, buf);
 	cut_selection(editor, buf);
+	return true;
+}
+
+duplicate_line :: fn (editor: *Editor, buf: *Buffer) bool {
+	if maybe_report_readonly(buf) { return false; }
+
+	commit_undo(buf);
+	defer commit_undo(buf);
+
+	jump_line_begin(editor, buf);
+	start_selection(buf, editor.cursor_index);
+	jump_line_end(editor, buf);
+	do_paste :: copy_selection(editor, buf);
+
+	position := get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, get_line_ending(buf.line_ending));
+	if do_paste { paste(editor, buf, false); }
+	jump_indent_begin(editor, buf);
+
 	return true;
 }
 
