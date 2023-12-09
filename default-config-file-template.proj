@@ -141,6 +141,7 @@ delete-char-right    Delete         Shift+Delete
 delete-line          Ctrl+D
 delete-word-left     Ctrl+Backspace Alt+Backspace
 toggle-comment       Ctrl+/
+duplicate-line       Ctrl+Shift+D
 
 smart-selection      Ctrl+Space
 copy                 Ctrl+C
