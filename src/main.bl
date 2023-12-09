@@ -2072,6 +2072,7 @@ update_caret :: fn () {
 /*
 TODO
 
+- sometimes crash on project reload!!! Maybe connected to LSP?
 - mouse support
   - resize split
   - add scroll indicators for lister

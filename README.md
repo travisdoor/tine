@@ -2,7 +2,7 @@
 **To see the list of all available commands use `Ctrl+X` shortcut.**
 
 - Author:  Martin Dorazil
-- Version: 0.4 (ALPHA)
+- Version: 0.5 (ALPHA)
 
 ## Links
 
@@ -50,6 +50,10 @@ to other platforms might be possible since the language API used for the editor 
 Linux and Mac. I just didn't spend too much time implementing features like hot-load and
 process execution there.
 
+# Authors
+
+- **Martin Dorazil** (travis)
+- **bovacu**
 
 # First Run
 
