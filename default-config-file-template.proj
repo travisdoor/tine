@@ -142,6 +142,8 @@ delete-line          Ctrl+D
 delete-word-left     Ctrl+Backspace Alt+Backspace
 toggle-comment       Ctrl+/
 duplicate-line       Ctrl+Shift+D
+move-line-up         Shift+ArrowUp
+move-line-down       Shift+ArrowDown
 
 smart-selection      Ctrl+Space
 copy                 Ctrl+C

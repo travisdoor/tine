@@ -95,6 +95,8 @@ Command :: enum {
 	LSP_COMPLETION;
 	HELP;
 	CLEAR_MESSAGES;
+    MOVE_LINE_UP;
+    MOVE_LINE_DOWN;
 
 	SEARCH_TO_BUFFER;
 }
@@ -161,6 +163,8 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		PASTE                { paste                 (editor, buf); }
 		CUT                  { cut_selection         (editor, buf); }
 		GOOGLE_SELECTION     { google_selection      (editor, buf); }
+        MOVE_LINE_UP         { move_line_up          (editor, buf); }
+        MOVE_LINE_DOWN       { move_line_down          (editor, buf); }
 
 		TO_LOWER {
 			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.LOWER);
@@ -948,15 +952,52 @@ duplicate_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	commit_undo(buf);
 	defer commit_undo(buf);
 
-	jump_line_begin(editor, buf);
-	start_selection(buf, editor.cursor_index);
-	jump_line_end(editor, buf);
+    select_whole_line(editor, buf);
 	do_paste :: copy_selection(editor, buf);
 
 	position := get_cursor_position(buf, editor.cursor_index);
 	insert_string(buf, position, get_line_ending(buf.line_ending));
 	if do_paste { paste(editor, buf, false); }
 	jump_indent_begin(editor, buf);
+
+	return true;
+}
+
+move_line_up :: fn (editor: *Editor, buf: *Buffer) bool {
+    if maybe_report_readonly(buf) { return false; }
+
+    commit_undo(buf);
+    defer commit_undo(buf);
+
+    select_whole_line(editor, buf);
+    copy_selection(editor, buf);
+    delete_line(editor, buf);
+
+    text := clipboard_read();
+    jump_prev_line(editor, buf);
+	position := get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, text);
+    jump_prev_line(editor, buf);
+
+	return true;
+}
+
+
+move_line_down :: fn (editor: *Editor, buf: *Buffer) bool {
+    if maybe_report_readonly(buf) { return false; }
+
+    commit_undo(buf);
+    defer commit_undo(buf);
+
+    select_whole_line(editor, buf);
+    copy_selection(editor, buf);
+    delete_line(editor, buf);
+
+    text := clipboard_read();
+    jump_next_line(editor, buf);
+	position := get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, text);
+    jump_prev_line(editor, buf);
 
 	return true;
 }
