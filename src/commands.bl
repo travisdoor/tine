@@ -26,10 +26,10 @@ Command :: enum {
 	NEXT_LOCATION;
 	PREV_LOCATION;
 	LSP_GOTO_DECLARATION;
-	LSP_OTHER_FILE;
+    LSP_OTHER_FILE;
 
 	// Editation
-	INSERT_NEW_LINE;
+    INSERT_NEW_LINE;
 	INSERT_TAB;
 	DELETE_CHAR_LEFT;
 	DELETE_CHAR_RIGHT;
@@ -948,20 +948,20 @@ delete_line :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 duplicate_line :: fn (editor: *Editor, buf: *Buffer) bool {
-	if maybe_report_readonly(buf) { return false; }
+    if maybe_report_readonly(buf) { return false; }
 
-	commit_undo(buf);
-	defer commit_undo(buf);
+    commit_undo(buf);
+    defer commit_undo(buf);
 
     select_whole_line(editor, buf);
-	do_paste :: copy_selection(editor, buf);
+    do_paste :: copy_selection(editor, buf);
 
-	position := get_cursor_position(buf, editor.cursor_index);
-	insert_string(buf, position, get_line_ending(buf.line_ending));
-	if do_paste { paste(editor, buf, false); }
-	jump_indent_begin(editor, buf);
+    position := get_cursor_position(buf, editor.cursor_index);
+    insert_string(buf, position, get_line_ending(buf.line_ending));
+    if do_paste { paste(editor, buf, false); }
+    jump_indent_begin(editor, buf);
 
-	return true;
+    return true;
 }
 
 move_line_up :: fn (editor: *Editor, buf: *Buffer) bool {
@@ -976,11 +976,11 @@ move_line_up :: fn (editor: *Editor, buf: *Buffer) bool {
 
     text := clipboard_read();
     jump_prev_line(editor, buf);
-	position := get_cursor_position(buf, editor.cursor_index);
-	insert_string(buf, position, text);
+    position := get_cursor_position(buf, editor.cursor_index);
+    insert_string(buf, position, text);
     jump_prev_line(editor, buf);
 
-	return true;
+    return true;
 }
 
 
@@ -996,8 +996,8 @@ move_line_down :: fn (editor: *Editor, buf: *Buffer) bool {
 
     text := clipboard_read();
     jump_next_line(editor, buf);
-	position := get_cursor_position(buf, editor.cursor_index);
-	insert_string(buf, position, text);
+    position := get_cursor_position(buf, editor.cursor_index);
+    insert_string(buf, position, text);
     jump_prev_line(editor, buf);
 
 	return true;
