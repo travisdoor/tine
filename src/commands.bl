@@ -111,6 +111,7 @@ KeyMapEntry :: struct {
 
 key_binding: [..]KeyMapEntry;
 
+
 invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	using Command;
 	defer set_prev_executed_command(cmd);
