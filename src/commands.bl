@@ -983,7 +983,6 @@ move_line_up :: fn (editor: *Editor, buf: *Buffer) bool {
     return true;
 }
 
-
 move_line_down :: fn (editor: *Editor, buf: *Buffer) bool {
     if maybe_report_readonly(buf) { return false; }
 
