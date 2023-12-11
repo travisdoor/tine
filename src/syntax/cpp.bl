@@ -201,7 +201,7 @@ parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
 				ctx.index += 1;
 			}
 		}
-	    default {
+		default {
 			ctx.index -= 1;
 			return false;
 		}

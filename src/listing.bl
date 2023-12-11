@@ -345,12 +345,12 @@ list_directory :: fn (dirpath: string_view, file_extension_filter := []string_vi
 		file_extension_filter = file_extension_filter,
 	};
 
-    err2 :: visit_files(dirpath, VisitOpt.{}, &ctx, &file_visitor);
-    if err2 { return err2; }
+	err2 :: visit_files(dirpath, VisitOpt.{}, &ctx, &file_visitor);
+	if err2 { return err2; }
 
 	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
 
-    return OK;
+	return OK;
 }
 
 list_projects :: fn () Error #inline {
@@ -833,7 +833,7 @@ quick_sort_by_title :: fn (arr: []ListItem, low: s32, high: s32) {
 		pi :: partition (arr, low, high);
 		quick_sort_by_title(arr, low, pi - 1);
 		quick_sort_by_title(arr, pi + 1, high);
-    }
+	}
 }
 
 quick_sort_by_score :: fn (arr: []ListItem, low: s32, high: s32) {
@@ -854,13 +854,13 @@ quick_sort_by_score :: fn (arr: []ListItem, low: s32, high: s32) {
 		pi :: partition (arr, low, high);
 		quick_sort_by_score(arr, low, pi - 1);
 		quick_sort_by_score(arr, pi + 1, high);
-    }
+	}
 }
 
 notify :: fn () {
 	using Mode;
 	switch mode {
 		SAVE_TO_DRIVE { save_to_drive_list_select_changed(); }
-    	default;
+		default;
 	}
 }

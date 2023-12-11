@@ -338,7 +338,7 @@ draw_command_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32, title := 
 			text(tx1, ly, lhs, colors.command_foreground_color);
 			text(tx1 + lhs_size, ly, char_under_cursor, colors.cursor_foreground_color);
 			text(tx1 + lhs_size + cursor_w, ly, rhs, colors.command_foreground_color);
- 		}
+		}
 	}
 }
 

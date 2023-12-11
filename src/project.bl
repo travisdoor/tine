@@ -556,7 +556,7 @@ map_key_binding :: fn (ctx: *Tokenizer, command_id: Command, key: s32, mods: s32
 	loop i := 0; i < key_binding.len; i += 1 {
 		if key_binding[i].key == key && key_binding[i].mods == mods {
 			warning(ctx, "Duplicate key-binding for command '%' the same key combination is already set for command '%'.",
-			              COMMAND_NAMES[auto command_id], COMMAND_NAMES[auto key_binding[i].cmd]);
+						  COMMAND_NAMES[auto command_id], COMMAND_NAMES[auto key_binding[i].cmd]);
 		}
 	}
 	array_push(&key_binding, KeyMapEntry.{

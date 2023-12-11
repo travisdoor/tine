@@ -535,7 +535,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 			} else {
 				text(text_x, text_base_line_y, line, colors.command_foreground_color);
 			}
- 		}
+		}
 	}
 
 	flush();
