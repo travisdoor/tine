@@ -544,9 +544,12 @@ get_character_len :: fn (c: u8) s32 #inline {
 	return 0;
 }
 
-is_multiline :: fn (str: string_view) bool #inline {
+is_multiline :: fn (str: string_view, first_row_len: *s64 = null) bool #inline {
 	loop i := 0; i < str.len; i += 1 {
-		if str[i] == '\n' { return true; }
+		if str[i] == '\n' || str[i] == '\r' {
+			if first_row_len { @first_row_len = i; }
+			return true;
+		}
 	}
 	return false;
 }
