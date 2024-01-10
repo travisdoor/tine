@@ -21,7 +21,7 @@ eat_till_whitespace :: fn (ctx: *TokenizerBase) string_view {
 		c :: ctx.bytes[ctx.index];
 		switch c {
 			'\n', '\r', '\t', ' ' { break; }
-		    default;
+			default;
 		}
 		len       += 1;
 		ctx.index += 1;

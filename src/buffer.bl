@@ -614,7 +614,7 @@ get_line_ending :: fn (line_ending: LineEnding) string_view {
 	switch line_ending {
 		CRLF { return "\r\n"; }
 		LF   { return "\n";   }
-	    default;
+		default;
 	}
 	return "";
 }
@@ -1036,29 +1036,29 @@ is_line_end_str :: fn (buf: *Buffer, str: string_view) s32 #inline {
 
 shift_lines_after_position :: fn (buf: *Buffer, position: s64, n : s64 = 1) s32 {
 	row :: count_rows_to_position(buf, position);
-    loop i := row+1; i < buf.lines.len; i += 1 {
-        buf.lines[i] += n;
-    }
+	loop i := row+1; i < buf.lines.len; i += 1 {
+		buf.lines[i] += n;
+	}
 	return row;
 }
 
 detect_line_ending :: fn (bytes: []u8) LineEnding {
-    loop i := 0; i < bytes.len; i += 1 {
-        if bytes[i] == '\r' {
-            if i+1 < bytes.len && bytes[i+1] == '\n' {
-                return LineEnding.CRLF;
-            } else {
-                return LineEnding.UNKNOWN;
-            }
-        }
+	loop i := 0; i < bytes.len; i += 1 {
+		if bytes[i] == '\r' {
+			if i+1 < bytes.len && bytes[i+1] == '\n' {
+				return LineEnding.CRLF;
+			} else {
+				return LineEnding.UNKNOWN;
+			}
+		}
 		if bytes[i] == '\n' {
 			return LineEnding.LF;
 		}
-    }
+	}
 
-    #if PLATFORM == Platform.WINDOWS {
-        return LineEnding.CRLF;
-    } else {
+	#if PLATFORM == Platform.WINDOWS {
+		return LineEnding.CRLF;
+	} else {
 		return LineEnding.LF;
 	}
 }
@@ -1115,7 +1115,7 @@ rebuild_lines :: fn (buf: *Buffer) {
 	loop i : s64 = 0; i < buf.bytes.len; {
 		ptr: *u64 = auto &buf.bytes[i];
 		data :: (@ptr ^ 0x0a0a0a0a0a0a0a0a);
-        if ((data - 0x0101010101010101) & (~data) & 0x8080808080808080) > 0 {
+		if ((data - 0x0101010101010101) & (~data) & 0x8080808080808080) > 0 {
 			loop c := 0; c < 8 && i < buf.bytes.len; c += 1 {
 				if buf.bytes[i] == '\n' {
 					i += 1;

@@ -479,7 +479,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
 
 		// Not handled.
-	    default { return false; }
+		default { return false; }
 	}
 	return true;
 }

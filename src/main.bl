@@ -410,9 +410,9 @@ data_dir: string;
 //
 
 MouseState :: enum #flags {
-    LB_PRESS;
-    LB_DOWN;
-    LB_RELEASE;
+	LB_PRESS;
+	LB_DOWN;
+	LB_RELEASE;
 	LB_DBL_PRESS;
 	LB_DRAGGING_START;
 	LB_DRAGGING;
@@ -534,14 +534,14 @@ main :: fn () s32 {
 
 	defer array_terminate(&key_binding);
 
-    // Initialize GLFW.
+	// Initialize GLFW.
 	if glfw.Init() == 0 {
 		print_glfw_error();
 		panic("Cannot initialize glfw.\n");
 	}
 	defer glfw.Terminate();
 
-    // Create GLFW window.
+	// Create GLFW window.
 	WindowHint(CONTEXT_VERSION_MAJOR, 3);
 	WindowHint(CONTEXT_VERSION_MINOR, 3);
 	WindowHint(OPENGL_FORWARD_COMPAT, 1);
@@ -616,9 +616,9 @@ main :: fn () s32 {
 	defer str_delete(&settings.font);
 
 	rebuild_fonts();
-    defer draw.font_terminate(&font);
-    defer draw.font_terminate(&font_ui);
-    defer draw.font_terminate(&font_ui_b);
+	defer draw.font_terminate(&font);
+	defer draw.font_terminate(&font_ui);
+	defer draw.font_terminate(&font_ui_b);
 	defer draw.font_terminate(&icons);
 
 	listing_init();
@@ -679,7 +679,7 @@ main :: fn () s32 {
 	prev_active_editor := -1;
 	last_focus_index := 0;
 
-    loop WindowShouldClose(window) == 0 {
+	loop WindowShouldClose(window) == 0 {
 		current_time :: glfw.GetTime();
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
@@ -753,7 +753,7 @@ main :: fn () s32 {
 		}
 		clear_mouse_events();
 		prev_frame_delta = frame_delta_time;
-    }
+	}
 
 	// Terminate any possible active mode.
 	set_mode(Mode.TEXT_EDIT);
@@ -771,7 +771,7 @@ main :: fn () s32 {
 	array_terminate(&buffers);
 
 	print_log("DONE.");
-    return 0;
+	return 0;
 }
 
 in_bounds :: fn (arr: []?T, v: s64) bool #inline {
@@ -801,9 +801,9 @@ rebuild_fonts :: fn () Error {
 		custom_font_path = lookup_font(settings.font);
 		if custom_font_path.len == 0 {
 			print_err("Custom font '%' not found. Default expected font file location"
-			    " is %. Note that the full path can be used too.",
-			    settings.font,
-			    FONT_DIRECTORY
+				" is %. Note that the full path can be used too.",
+				settings.font,
+				FONT_DIRECTORY
 			);
 		} else {
 			font_hash = std.str_hash(custom_font_path);
@@ -818,9 +818,9 @@ rebuild_fonts :: fn () Error {
 	print_log("Scale = %", WINDOW_SCALE);
 	scaled_size :: cast(s32) std.round(WINDOW_SCALE * auto size);
 
-    draw.font_terminate(&font);
-    draw.font_terminate(&font_ui);
-    draw.font_terminate(&font_ui_b);
+	draw.font_terminate(&font);
+	draw.font_terminate(&font_ui);
+	draw.font_terminate(&font_ui_b);
 	draw.font_terminate(&icons);
 
 	char_set: [..]u32;
@@ -853,10 +853,10 @@ rebuild_fonts :: fn () Error {
 	}
 
 	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2);
-    if err { panic(err); }
+	if err { panic(err); }
 
 	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2);
-    if err { panic(err); }
+	if err { panic(err); }
 
 	// Set tab size!
 	font.tab_size = settings.tab_size;
@@ -879,8 +879,8 @@ rebuild_fonts :: fn () Error {
 	array_push(&icon_set, ICON_BUILD);
 	array_push(&icon_set, ICON_MESSAGES);
 
-    err = draw.font_init_at_size_from_memory(&icons, ICON_DATA, scaled_size, icon_set);
-    if err { panic(err); }
+	err = draw.font_init_at_size_from_memory(&icons, ICON_DATA, scaled_size, icon_set);
+	if err { panic(err); }
 
 	recalculate_metrics();
 	return OK;
@@ -1737,17 +1737,17 @@ draw_frame :: fn () {
 	}
 
 	flush();
-    glfw.SwapBuffers(window);
-    temporary_reset();
+	glfw.SwapBuffers(window);
+	temporary_reset();
 }
 
 print_glfw_error :: fn () {
-    cstr: *u8;
-    glfw.GetError(&cstr);
+	cstr: *u8;
+	glfw.GetError(&cstr);
 
-    if cstr == null { return; }
-    tmp := string_view.{ auto C.strlen(auto cstr), auto cstr };
-    print_err("GLFW Error: %", tmp);
+	if cstr == null { return; }
+	tmp := string_view.{ auto C.strlen(auto cstr), auto cstr };
+	print_err("GLFW Error: %", tmp);
 }
 
 key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
@@ -1809,25 +1809,25 @@ character_callback :: fn (_: *glfw.Window, codepoint: u32) {
 }
 
 mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) {
-    using glfw;
+	using glfw;
 	using MouseState;
-    switch button {
-        MOUSE_BUTTON_LEFT {
-            if action == PRESS {
+	switch button {
+		MOUSE_BUTTON_LEFT {
+			if action == PRESS {
 				set_flag(&mouse.state, LB_PRESS);
-                set_flag(&mouse.state, LB_DOWN);
+				set_flag(&mouse.state, LB_DOWN);
 				// detect double-click
 				if GetTime() - mouse.prev_click_time_s < MOUSE_DBL_CLICK_S {
 					set_flag(&mouse.state, LB_DBL_PRESS);
 				}
 				mouse.prev_click_time_s = GetTime();
-            } else if action == RELEASE {
-                set_flag(&mouse.state, LB_RELEASE);
-                clr_flag(&mouse.state, LB_DOWN);
-            }
-        }
-        default;
-    }
+			} else if action == RELEASE {
+				set_flag(&mouse.state, LB_RELEASE);
+				clr_flag(&mouse.state, LB_DOWN);
+			}
+		}
+		default;
+	}
 	set_prev_executed_command(Command.UNKNOWN);
 	if action == PRESS {
 		clear_message();
@@ -1898,11 +1898,11 @@ file_to_stack :: fn (filepath: string_view) []u8 #comptime {
 	using std;
 	using StreamLocator;
 
-    stream, open_err :: open_file(filepath);
-    defer close_file(&stream);
-    if open_err {
-        panic(open_err);
-    }
+	stream, open_err :: open_file(filepath);
+	defer close_file(&stream);
+	if open_err {
+		panic(open_err);
+	}
 	size, seek_end_err :: seek(&stream, END);
 	if seek_end_err { panic(seek_end_err); }
 
@@ -1914,7 +1914,7 @@ file_to_stack :: fn (filepath: string_view) []u8 #comptime {
 
 	read_err :: read_all(&stream, data.ptr, data.len, 2048);
 	if read_err { panic(read_err); }
-    return data;
+	return data;
 }
 
 set_allocator_allocator :: fn (allocator: *Allocator) *Allocator {
@@ -2077,8 +2077,8 @@ TODO
   - resize split
   - add scroll indicators for lister
   - select in buffer
-    x double click select word
-    - tripple click select line
+	x double click select word
+	- tripple click select line
   x current hover element recorder each frame
   x scroll buffers
   x set cursor position
@@ -2096,9 +2096,9 @@ TODO
   - handle fatal errors
   - complete on tab
   - cleanup completion flow
-    - messy completions sometimes
-    - completion does not work until we enter some text
-    - popup can overflow to right from the window
+	- messy completions sometimes
+	- completion does not work until we enter some text
+	- popup can overflow to right from the window
   x LSP cannot goto definition in file paths containing spaces (win api functions).
   x goto definition
   x restart command
@@ -2180,8 +2180,8 @@ x move up and down should try to respect indentation
   x make settings entry for this
 x autoindent on paste when enabled
   x allow this for the whole inserted block of code (we cannot do it right now, because the indentation
-    info is not recomputed right away after insertion, so in case the clipboard text contains some chars changing
-    indentation the result is invalid)
+	info is not recomputed right away after insertion, so in case the clipboard text contains some chars changing
+	indentation the result is invalid)
 x Reduce framerate after some period of idle time? (note we wait for events and also limit max frame rate on mac).
 x Open file from the command line sometimes fails, also filepath is not normalized.
 x recursive search might output results into separate buffer and allow user to switch quickly locations (alt+n/alt+p).

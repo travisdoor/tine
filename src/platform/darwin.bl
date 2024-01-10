@@ -182,12 +182,12 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 watched: std.Table(u32, Watcher);
 
 change_callback :: fn (
-    stream_ref: macos.ConstFSEventStreamRef,
-    client_callback_info: *u8,
-    num_events: usize,
-    event_paths: *u8,
-    event_flags: *macos.FSEventStreamEventFlags,
-    event_ids: *macos.FSEventStreamEventId
+	stream_ref: macos.ConstFSEventStreamRef,
+	client_callback_info: *u8,
+	num_events: usize,
+	event_paths: *u8,
+	event_flags: *macos.FSEventStreamEventFlags,
+	event_ids: *macos.FSEventStreamEventId
 ) {
 	stream_ref;
 	client_callback_info;

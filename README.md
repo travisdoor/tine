@@ -144,6 +144,8 @@ The search currently does not support regex and match detection is not case sens
 
 Use `Ctrl+Enter` to show search results in split buffer.
 
+To replace found results use `Ctrl+R` shortcut.
+
 ### Search In Project
 Command: `search-in-project`
 Shortcut: `Ctrl+Alt+S`
