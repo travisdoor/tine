@@ -2124,6 +2124,7 @@ TODO
   - reload openned files outside of project
   - multithreaded features should reuse the same threads instead creating new ones everytime
 
+x indentation + paste sometimes moves the cursor into weird locations
 - syntax for batch
 - draw module should prepare font glyphs into rectangle texture not into line...
 - move line up and down

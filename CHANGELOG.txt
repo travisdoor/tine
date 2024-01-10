@@ -1,6 +1,8 @@
 0.5 - ALPHA
 ---------------------------------------------------------------------------------------
 Add duplicate line command.
+Disable auto-indentation in case the affected line is not empty and inserted string is
+single line.
 
 0.4 - ALPHA
 ---------------------------------------------------------------------------------------

@@ -252,23 +252,26 @@ paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true
 	if text.len == 0 { return; }
 	if maybe_report_readonly(buf) { return; }
 
-	if record_as_single_undo_action { commit_undo(buf); }
+	// @Cleanup: [travis] Factor out to function??? We already have is_row_empty but this cannot skip whitespace.
+	cursor :: get_cursor(buf, editor.cursor_index);
+	row := peek_row_without_new_line(buf, cursor.row);
+	row = trim_left(row, "\t ");
+	is_line_empty :: row.len == 0;
 
+	text_first_row_len: s64;
+	is_multiline_text := is_multiline(text, &text_first_row_len);
 	if editor.index == command_editor {
 		// Pasted string might be multiline, this is not allowed for the single line command editor.
-		loop i := 0; i < text.len; i += 1 {
-			if text[i] == '\n' || text[i] == '\r' {
-				text.len = i;
-				break;
-			}
-		}
+		text.len = text_first_row_len;
 	}
+
+	if record_as_single_undo_action { commit_undo(buf); }
 
 	cut_selection(editor, buf);
 	start :: get_cursor_position(buf, editor.cursor_index);
 	insert_string(buf, start, text);
 
-	if has_indentation_info(buf) && settings.indent_on_paste {
+	if (is_line_empty || is_multiline_text) && has_indentation_info(buf) && settings.indent_on_paste {
 		end :: get_cursor_position(buf, editor.cursor_index);
 		indent_range(buf, start, end);
 	}
