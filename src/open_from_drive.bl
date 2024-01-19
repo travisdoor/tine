@@ -117,7 +117,7 @@ commit :: fn () {
 		//set_cwd(base_path);
 	} else {
 		set_mode(Mode.TEXT_EDIT);
-		err :: open(path, true);
+		err :: open(path);
 		if err { print_err(err); }
 	}
 }

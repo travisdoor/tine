@@ -1,5 +1,5 @@
 LspRequestKind :: enum {
-	UNKNOWN;
+	UNKNOWN = 0;
 	INITIALIZE;
 	DOCUMENT_OPEN;
 	DOCUMENT_CHANGE;
@@ -9,6 +9,10 @@ LspRequestKind :: enum {
 	SWITCH_HEADER_SOURCE;
 	PUBLISH_DIAGNOSTICS;
 	COMPLETION;
+}
+
+LspRequestFlags :: enum #flags {
+	OPEN_IN_OTHER_SPLIT;
 }
 
 LSP_MAX_DIAG_MESSAGE_COUNT :: 1000;
@@ -144,7 +148,7 @@ lsp_close_document :: fn (buf: *Buffer) {
 	push_request(get_job_context(lsp.job_index), &request);
 }
 
-lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer) {
+lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer, open_in_other_split := false) {
 	using std;
 
 	if !check_running() {
@@ -162,10 +166,14 @@ lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer) {
 	rd.cursor    = get_cursor(buf, editor.cursor_index);
 	rd.filepath  = str_new(buf.filepath);
 
+	if open_in_other_split {
+		rd.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
+	}
+
 	push_request(get_job_context(lsp.job_index), &request);
 }
 
-lsp_switch_header_source :: fn (buf: *Buffer) {
+lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
 	using std;
 
 	if !lsp_is_supported_document_type(buf) {
@@ -181,6 +189,10 @@ lsp_switch_header_source :: fn (buf: *Buffer) {
 	rd :: &request.data.lsp;
 	rd.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
 	rd.filepath  = str_new(buf.filepath);
+	if open_in_other_split {
+		rd.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
+	}
+
 	push_request(get_job_context(lsp.job_index), &request);
 }
 
@@ -223,11 +235,11 @@ apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
 			str_append(&lsp.server_name, rd.filepath);
 		}
 		GOTO_DECLARATION {
-			err :: open_location(rd.filepath, rd.cursor.row, rd.cursor.col);
+			err :: open_location(rd.filepath, rd.cursor.row, rd.cursor.col, is_flag(rd.flags, LspRequestFlags.OPEN_IN_OTHER_SPLIT));
 			if err { print_err(err); }
 		}
 		SWITCH_HEADER_SOURCE {
-			err :: open(rd.filepath, true);
+			err :: open(rd.filepath, is_flag(rd.flags, LspRequestFlags.OPEN_IN_OTHER_SPLIT));
 			if err { print_err(err); }
 		}
 		PUBLISH_DIAGNOSTICS {
@@ -302,16 +314,35 @@ lsp_buffer_needs_update :: fn (buf: *Buffer) bool #inline {
 
 #private
 
+PendingResponse :: struct {
+	kind:  LspRequestKind;
+	flags: LspRequestFlags;
+	buffer_index: s32;
+
+	is_waiting: bool;
+}
+
 local: struct {
 	temp_string: string;
-	current: struct {
-		kind:         LspRequestKind;
-		buffer_index: s32;
-	}
 } #thread_local;
 
+is_notification :: fn (kind: LspRequestKind) bool #inline {
+	using LspRequestKind;
+	switch kind {
+		DOCUMENT_OPEN,
+		DOCUMENT_CLOSE,
+		DOCUMENT_CHANGE,
+		DOCUMENT_SAVE {
+			return true;
+		}
+		UNKNOWN { panic("Unknown LSP request kind!"); }
+		default;
+	}
+	return false;
+}
+
 check_running :: fn () bool #inline {
-	if lsp.job_index != -1 { return true; }
+	if is_lsp_running() { return true; }
 	print_warn("LSP: Server is not running.");
 	return false;
 }
@@ -329,23 +360,31 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	defer str_delete(&local.temp_string);
+	pending_response: PendingResponse;
 
 	loop !ctx.kill {
 		// Process requests
 		request: Request #noinit;
+		if pending_response.is_waiting == false && pop_request(ctx, &request) {
+			defer terminate_request(&request);
+			rd :: &request.data.lsp;
 
-		is_processing_request :: local.current.kind != LspRequestKind.UNKNOWN;
-		if is_processing_request == false && pop_request(ctx, &request) {
-			err, expect_response :: process_request(ctx, &request);
+			err :: process_request(ctx, &request);
 			if err {
 				print_err(err);
-			} else if expect_response {
-				local.current.kind         = request.data.lsp.kind;
-				local.current.buffer_index = request.data.lsp.buffer_index;
+			} else if is_notification(rd.kind) {
+				pending_response.is_waiting = false;
+			} else {
+				pending_response = PendingResponse.{
+					kind         = rd.kind,
+					buffer_index = rd.buffer_index,
+					flags        = rd.flags,
+					is_waiting   = true,
+				};
 			}
 		}
 
-		err :: process_response(ctx);
+		err :: process_response(ctx, &pending_response);
 		if err {
 			print_err(err);
 			ctx.state = FAILED;
@@ -366,25 +405,21 @@ worker :: fn (ctx: *JobContext) s32 {
 	return 0;
 }
 
-process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_response: bool) {
+process_request :: fn (ctx: *JobContext, request: *Request) Error {
 	using LspRequestKind;
 	rd :: &request.data.lsp;
-	defer terminate_request(request);
-
-	expect_response := false;
 
 	// Filepath is used in call requests so we can convert it every time, feel free to change this as needed.
 	uri_err, uri_filepath :: new_url_from_filepath(rd.filepath);
 	defer std.str_delete(&uri_filepath);
 	if uri_err {
-		return uri_err, expect_response;
+		return uri_err;
 	}
 
 	err: Error;
 	switch rd.kind {
 		INITIALIZE {
 			err = write_request(ctx, "initialize", LspInitialize.{ rootUri = uri_filepath });
-			expect_response = true;
 		}
 
 		DOCUMENT_OPEN {
@@ -417,7 +452,6 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 				},
 			};
 			err = write_request(ctx, "textDocument/declaration", params);
-			expect_response = true;
 		}
 
 		SWITCH_HEADER_SOURCE {
@@ -425,7 +459,6 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 				uri = uri_filepath,
 			};
 			err = write_request(ctx, "textDocument/switchSourceHeader", params);
-			expect_response = true;
 		}
 
 		DOCUMENT_CHANGE {
@@ -467,16 +500,15 @@ process_request :: fn (ctx: *JobContext, request: *Request) (err: Error, expect_
 				triggerKind   = LSP_COMPLETION_KIND_INVOKED,
 			};
 			err = write_request(ctx, "textDocument/completion", params);
-			expect_response = true;
 		}
 
 		default { print_warn("Unknown request."); }
 	}
 
-	return err, expect_response;
+	return err;
 }
 
-process_response :: fn (ctx: *JobContext) Error {
+process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Error {
 	using std;
 
 	err_peek, bytes :: peek_pipe(ctx.stdout, true);
@@ -527,103 +559,21 @@ process_response :: fn (ctx: *JobContext) Error {
 
 			json :: JsonTokenizer.{ bytes = content };
 
-			// Diagnostics messages somes from time to time...
+			// Diagnostics messages comes from time to time...
 			if maybe_process_diagnostics(ctx, &json) { continue; }
-
-			if !maybe_process_error(&json) {
-				using LspRequestKind;
-
-				switch local.current.kind {
-					INITIALIZE {
-						initialize_result: RpcResponse(LspInitializeResult);
-						err :: deserialize_object(initialize_result, &json);
-						if err { print_err(err); }
-
-						result :: Request.{ job_kind = JobKind.LSP };
-						rd :: &result.data.lsp;
-						rd.kind      = INITIALIZE;
-						rd.filepath  = str_new(initialize_result.result.serverInfo.name);
-						push_result(ctx, &result);
-
-						print_log("INITIALIZE: %", initialize_result);
-					}
-
-					GOTO_DECLARATION {
-						goto_declaration_result: RpcResponse([]LspLocation);
-						err :: deserialize_object(goto_declaration_result, &json);
-						if err { print_err(err); }
-
-						if goto_declaration_result.result.len == 0 {
-							print_warn("LSP: Declaration not found.");
-						} else {
-							loc :: goto_declaration_result.result[0];
-							err_uri, filepath :: new_filepath_from_url(loc.uri);
-							if err_uri {
-								print_err(err_uri);
-							} else {
-								result :: Request.{ job_kind = JobKind.LSP };
-								rd :: &result.data.lsp;
-								rd.kind      = GOTO_DECLARATION;
-								rd.cursor    = Cursor.{ row = loc.range.start.line, col = loc.range.start.character };
-								rd.filepath  = filepath;
-								push_result(ctx, &result);
-							}
-						}
-						print_log("GOTO_DECLARATION result %", goto_declaration_result);
-					}
-
-					SWITCH_HEADER_SOURCE {
-						switch_result: RpcResponse(string_view);
-						err :: deserialize_object(switch_result, &json);
-						if err { print_err(err); }
-
-						if switch_result.result.len == 0 {
-							print_warn("LSP: Other file not found.");
-						} else {
-							err_uri, filepath :: new_filepath_from_url(switch_result.result);
-							if err_uri {
-								print_err(err_uri);
-							} else {
-								result :: Request.{ job_kind = JobKind.LSP };
-								rd :: &result.data.lsp;
-								rd.kind      = SWITCH_HEADER_SOURCE;
-								rd.filepath  = filepath;
-								push_result(ctx, &result);
-							}
-						}
-					}
-
-					COMPLETION {
-						completion_result: RpcResponse(LspCompletionList);
-						err :: deserialize_object(completion_result, &json);
-						if err { print_err(err); }
-
-						result :: Request.{ job_kind = JobKind.LSP };
-						rd :: &result.data.lsp;
-						rd.kind         = COMPLETION;
-						rd.buffer_index = local.current.buffer_index;
-
-						items :: completion_result.result.items;
-						loop i := 0; i < items.len; i += 1 {
-							item :: &items[i];
-							if item.label.len > 0 {
-								title :: zeroinit(array_push(&rd.strs));
-								str_append(title, trim_left(item.label, [1]u8.{ ' ' }));
-							}
-						}
-						push_result(ctx, &result);
-					}
-
-					default {
-						print_log("Unexpected LSP result: %", string_view.{ std.min(content.len, 128), content.ptr });
-					}
-				}
+			if maybe_process_error(&json) {
+				pending_response.is_waiting = false; // Cancel waiting for response.
+				continue;
 			}
-			local.current.kind = LspRequestKind.UNKNOWN;
+			if maybe_process_response(ctx, &json, pending_response) { continue; }
+
+			print_warn("Unexpected LSP response: %", string_view.{ std.min(content.len, 128), content.ptr });
 		}
 
 		line :: eat_line_and_trim_eol(&tok);
 		if line.len == 0 { continue; }
+
+		// Handle server errors.
 		msg: string_view;
 		if str_split_by_first(line, ' ', null, &msg) {
 			if line[0] == 'E' {
@@ -672,6 +622,93 @@ write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Erro
 	if err1 { return err1; }
 	err2 :: write_pipe(ctx.stdin, @json, true);
 	return err2;
+}
+
+maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_response: *PendingResponse) bool {
+	using std;
+
+	if !pending_response.is_waiting { return false; }
+
+	assert(!is_notification(pending_response.kind));
+	pending_response.is_waiting = false;
+
+	response :: Request.{ job_kind = JobKind.LSP };
+	rd :: &response.data.lsp;
+	rd.kind         = pending_response.kind;
+	rd.flags        = pending_response.flags;
+	rd.buffer_index = pending_response.buffer_index;
+
+	using LspRequestKind;
+	switch rd.kind {
+		INITIALIZE {
+			initialize_result: RpcResponse(LspInitializeResult);
+			err :: deserialize_object(initialize_result, json);
+			if err { print_err(err); }
+			rd.filepath  = str_new(initialize_result.result.serverInfo.name);
+			push_result(ctx, &response);
+			print_log("INITIALIZE: %", initialize_result);
+		}
+
+		GOTO_DECLARATION {
+			goto_declaration_result: RpcResponse([]LspLocation);
+			err :: deserialize_object(goto_declaration_result, json);
+			if err { print_err(err); }
+
+			if goto_declaration_result.result.len == 0 {
+				print_warn("LSP: Declaration not found.");
+			} else {
+				loc :: goto_declaration_result.result[0];
+				err_uri, filepath :: new_filepath_from_url(loc.uri);
+				if err_uri {
+					print_err(err_uri);
+				} else {
+					rd.cursor    = Cursor.{ row = loc.range.start.line, col = loc.range.start.character };
+					rd.filepath  = filepath;
+					push_result(ctx, &response);
+				}
+			}
+			print_log("GOTO_DECLARATION result %", goto_declaration_result);
+		}
+
+		SWITCH_HEADER_SOURCE {
+			switch_result: RpcResponse(string_view);
+			err :: deserialize_object(switch_result, json);
+			if err { print_err(err); }
+
+			if switch_result.result.len == 0 {
+				print_warn("LSP: Other file not found.");
+			} else {
+				err_uri, filepath :: new_filepath_from_url(switch_result.result);
+				if err_uri {
+					print_err(err_uri);
+				} else {
+					rd.filepath  = filepath;
+					push_result(ctx, &response);
+				}
+			}
+		}
+
+		COMPLETION {
+			completion_result: RpcResponse(LspCompletionList);
+			err :: deserialize_object(completion_result, json);
+			if err { print_err(err); }
+
+			items :: completion_result.result.items;
+			loop i := 0; i < items.len; i += 1 {
+				item :: &items[i];
+				if item.label.len > 0 {
+					title :: zeroinit(array_push(&rd.strs));
+					str_append(title, trim_left(item.label, [1]u8.{ ' ' }));
+				}
+			}
+			push_result(ctx, &response);
+		}
+
+		default {
+			assert(false, "Unhandled LSP response kind!");
+		}
+	}
+	return true;
 }
 
 maybe_process_error :: fn (json: *JsonTokenizer) bool {

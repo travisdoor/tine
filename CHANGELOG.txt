@@ -1,6 +1,8 @@
 0.5 - ALPHA
 ---------------------------------------------------------------------------------------
 Add duplicate line command.
+Add open other file in other split.
+Add open declaration location in other split.
 Disable auto-indentation in case the affected line is not empty and inserted string is
 single line.
 

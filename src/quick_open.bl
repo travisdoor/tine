@@ -82,7 +82,7 @@ commit :: fn () {
 		find_or_create_editor_in_split(active_split, item.index);
 	} else {
 		path :: tprint("%/%", item.hint, item.title);
-		err :: open(path, true);
+		err :: open(path);
 		if err { print_err(err); }
 	}
 }

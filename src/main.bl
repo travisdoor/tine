@@ -1090,21 +1090,19 @@ get_buffer_by_filepath :: fn (filepath: string_view) *Buffer {
 	return &buffers[buffer_index];
 }
 
-open :: fn (filepath: string_view, normalized := false) Error {
+open :: fn (filepath: string_view, open_in_other_split := false) Error {
 	using std;
 	normalized_path := str_new(filepath, application_context.temporary_allocator);
-	if !normalized {
-		path_normalize(&normalized_path);
-	} else {
-		str_replace_all(&normalized_path, '\\', '/');
+	norm_err :: path_normalize(&normalized_path);
+	if norm_err {
+		return error("Invalid file path: '%'.", filepath);
 	}
-
 	buf := get_buffer_by_filepath(normalized_path);
 	if !buf {
 		buf = &buffers[add_buffer()];
 		buf_error :: load_buffer_from_file(buf, normalized_path);
 		if buf_error {
-			print_err(buf_error);
+			return buf_error;
 		}
 		if is_lsp_running() && lsp_is_supported_document_type(buf) {
 			lsp_open_document(buf);
@@ -1113,7 +1111,13 @@ open :: fn (filepath: string_view, normalized := false) Error {
 	assert(buf);
 
 	// resolve editor
-	editor_index :: find_or_create_editor_in_split(get_active_split(), buf.index);
+	split: Split #noinit;
+	if open_in_other_split {
+		split = get_other_split();
+	} else {
+		split = get_active_split();
+	}
+	editor_index :: find_or_create_editor_in_split(split, buf.index);
 	active_editor = editor_index;
 
 	return OK;
@@ -1137,8 +1141,8 @@ save :: fn (buf: *Buffer, filepath: string_view) Error {
 }
 
 // Open file in the buffer or switch to already existing one and move the cursor to line and col.
-open_location :: fn (filepath: string_view, line: s32, col: s32) Error {
-	err :: open(filepath, true);
+open_location :: fn (filepath: string_view, line: s32, col: s32, open_in_other_split := false) Error {
+	err :: open(filepath, open_in_other_split);
 	if err { return err; }
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
@@ -1183,6 +1187,14 @@ get_active_split :: fn () Split #inline {
 	if right == active_editor { return RIGHT; }
 	assert(editors[active_editor].split == FLOATING);
 	return FLOATING;
+}
+
+get_other_split :: fn () Split #inline {
+	using Split;
+	if get_active_split() == LEFT {
+		return RIGHT;
+	}
+	return LEFT;
 }
 
 // Close the split and leaves the other always as the left one (if we close LEFT all editors
@@ -1252,11 +1264,7 @@ find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buff
 			@buffer_index = add_messages_buffer(buffer_name);
 		}
 		buf = &buffers[@buffer_index];
-		split := Split.LEFT;
-		if get_active_split() == Split.LEFT {
-			split = Split.RIGHT;
-		}
-		return find_or_create_editor_in_split(split, @buffer_index);
+		return find_or_create_editor_in_split(get_other_split(), @buffer_index);
 	}
 	return editor.index;
 }
@@ -1342,14 +1350,15 @@ Request :: struct {
 			text: string;
 		};
 		lsp: struct {
-			kind:         LspRequestKind;
-			buffer_index: s32;
-			src:          string;
-			filepath:     string;
-			cursor:       Cursor;
-			version:      s32;
-			dia:      [..]ErrorLocation;
-			strs:     [..]string; // @Incomplete: Use also for src and filepath
+			kind:           LspRequestKind;
+			buffer_index:   s32;
+			src:            string;
+			filepath:       string;
+			cursor:         Cursor;
+			version:        s32;
+			dia:        [..]ErrorLocation;
+			strs:       [..]string; // @Incomplete: Use also for src and filepath
+			flags:          LspRequestFlags;
 		};
 	}
 }
@@ -1581,6 +1590,7 @@ terminate_request :: fn (request: *Request) {
 				str_delete(&rd.strs[i]);
 			}
 			array_terminate(&rd.strs);
+			rd.kind = LspRequestKind.UNKNOWN;
 		}
 		default;
 	}
@@ -2108,6 +2118,7 @@ TODO
   x add opened files on server start! (remove buffer updates)
   x cleanup inline hints on server kill/crash
   x remove all tracked files on server kill (remove buffer updates...)
+  x !!! goto declaration in other split !!!
 
 - process
   - macos port
@@ -2124,6 +2135,7 @@ TODO
   - reload openned files outside of project
   - multithreaded features should reuse the same threads instead creating new ones everytime
 
+- when replace is canceled, jump to the last replacement
 x indentation + paste sometimes moves the cursor into weird locations
 - syntax for batch
 - draw module should prepare font glyphs into rectangle texture not into line...

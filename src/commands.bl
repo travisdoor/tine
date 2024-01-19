@@ -26,7 +26,9 @@ Command :: enum {
 	NEXT_LOCATION;
 	PREV_LOCATION;
 	LSP_GOTO_DECLARATION;
+	LSP_GOTO_DECLARATION_OTHER_SPLIT;
 	LSP_OTHER_FILE;
+	LSP_OTHER_FILE_OTHER_SPLIT;
 
 	// Editation
 	INSERT_NEW_LINE;
@@ -431,7 +433,9 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		NEXT_LOCATION       { jump_to_next_location();                                     }
 		PREV_LOCATION       { jump_to_previous_location();                                 }
 		LSP_GOTO_DECLARATION{ lsp_goto_declaration(editor, buf);                           }
+		LSP_GOTO_DECLARATION_OTHER_SPLIT { lsp_goto_declaration(editor, buf, true);        }
 		LSP_OTHER_FILE      { lsp_switch_header_source(buf);                               }
+		LSP_OTHER_FILE_OTHER_SPLIT { lsp_switch_header_source(buf, true);                  }
 		INSERT_NEW_LINE     { insert_new_line     (editor, buf);                           }
 		INDENT              { indent              (editor, buf);                           }
 		CLANG_FORMAT        { clang_format        (buf);                                   }
@@ -1271,14 +1275,14 @@ open_project_config :: fn () {
 		print_warn("No project is open. Use 'open-project' command first to open one.");
 		return;
 	}
-	err :: open(project.filepath, true);
+	err :: open(project.filepath);
 	if err {
 		print_err("Cannot open project file with error: %", err);
 	}
 }
 
 open_default_config :: fn () {
-	err :: open(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE), true);
+	err :: open(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE));
 	if err {
 		print_err("Cannot open default config file with error: %", err);
 	}
