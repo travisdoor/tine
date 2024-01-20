@@ -98,7 +98,7 @@ commit :: fn () {
 
 	start_index :: initial_cursor.position;
 	end_index   :: get_cursor_position(buf, editor.cursor_index);
-	if start_index >= end_index { return; }
+	if start_index > end_index { return; }
 
 	commit_undo(buf);
 	defer commit_undo(buf);

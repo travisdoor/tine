@@ -698,7 +698,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 				item :: &items[i];
 				if item.label.len > 0 {
 					title :: zeroinit(array_push(&rd.strs));
-					str_append(title, trim_left(item.label, [1]u8.{ ' ' }));
+					str_append(title, trim_left(item.label, " "));
 				}
 			}
 			push_result(ctx, &response);

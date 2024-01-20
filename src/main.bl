@@ -2107,7 +2107,7 @@ TODO
   - complete on tab
   - cleanup completion flow
 	- messy completions sometimes
-	- completion does not work until we enter some text
+	x completion does not work until we enter some text
 	- popup can overflow to right from the window
   x LSP cannot goto definition in file paths containing spaces (win api functions).
   x goto definition
