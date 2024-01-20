@@ -3,9 +3,10 @@ replace_mode_init :: fn () {
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
-	input_mode               = InputMode.TEXT;
-	notify_changes_to_buffer = buf.index;
-	is_replacing             = false;
+	input_mode                = InputMode.TEXT;
+	notify_changes_to_buffer  = buf.index;
+	is_replacing              = false;
+	last_replacement_position = -1;
 
 	// Show last search in the command buffer.
 	if search.last_replacement.len > 0 {
@@ -29,7 +30,12 @@ replace_mode_init :: fn () {
 	}
 }
 
-replace_mode_terminate :: fn () {}
+replace_mode_terminate :: fn () {
+	if last_replacement_position != -1 {
+		target_buf, target_editor :: get_last_active_buffer_and_editor();
+		set_cursor_position(target_buf, target_editor.cursor_index, last_replacement_position);
+	}
+}
 
 draw_replace_mode :: fn () {
 	assert(active_editor == command_editor);
@@ -81,6 +87,8 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 
 				start :: get_cursor_position(target_buf, target_editor.cursor_index);
 				end   :: start + subject.len;
+
+				last_replacement_position = start;
 
 				batch_begin(target_buf);
 				delete_range(target_buf, start, end);
@@ -159,6 +167,7 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 #private
 
 is_replacing: bool;
+last_replacement_position: s64;
 
 commit_current_replacement :: fn () string_view #inline {
 	buf :: get_active_buffer_and_editor();
