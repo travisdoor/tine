@@ -199,9 +199,9 @@ cursor_background_color             00FF00
 cursor_foreground_color             303030
 current_line_background_color       202020
 search_result_background_color      01574C
-title_bar_color                     202020
-title_bar_active                    01574C
-title_bar_text_color                D4B79C
+title_bar_color                     C4C1C2
+title_bar_active                    CAAD85
+title_bar_text_color                101010
 command_background_color            101010
 command_foreground_color            D4B79C
 command_title_color                 3CC7CF
@@ -219,8 +219,8 @@ inline_warning_background_color     4F4F2D
 code_comment                        DCC80B
 code_keyword                        FFFFFF
 code_directive                      9B9B9B
-code_string                         4EC9B0
-code_number                         FFAC9C
+code_string                         A1F1E1
+code_number                         A1F1E1
 code_invalid                        FF0000
 code_warning                        DCC80B
 code_error                          E92204

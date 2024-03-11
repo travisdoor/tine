@@ -2,7 +2,7 @@
 **To see the list of all available commands use `Ctrl+X` shortcut.**
 
 - Author:  Martin Dorazil
-- Version: 0.5 (ALPHA)
+- Version: 0.6 (ALPHA)
 
 ## Links
 
