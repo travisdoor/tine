@@ -193,50 +193,17 @@ build                F4
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block.
 
 # dark colors
-background_color                    303030
-foreground_color                    D4B79C
-cursor_background_color             00FF00
-cursor_foreground_color             303030
-current_line_background_color       202020
-search_result_background_color      01574C
-title_bar_color                     C4C1C2
-title_bar_active                    CAAD85
-title_bar_text_color                101010
-command_background_color            101010
-command_foreground_color            D4B79C
-command_title_color                 3CC7CF
-command_select_color                01574C
-command_list_background_color       303030
-modification_indicator_color        FFFF00
-selection_background_color          00129A
-selection_background_inactive_color 404040
-message_color                       09975A
-warning_color                       DCC80B
-error_color                         E92204
-inline_error_background_color       400809
-inline_warning_background_color     4F4F2D
-
-code_comment                        DCC80B
-code_keyword                        FFFFFF
-code_directive                      9B9B9B
-code_string                         A1F1E1
-code_number                         A1F1E1
-code_invalid                        FF0000
-code_warning                        DCC80B
-code_error                          E92204
-
-# dark colors
 # background_color                    303030
-# foreground_color                    CCCCCC
+# foreground_color                    D4B79C
 # cursor_background_color             00FF00
 # cursor_foreground_color             303030
 # current_line_background_color       202020
 # search_result_background_color      01574C
-# title_bar_color                     202020
-# title_bar_active                    01574C
-# title_bar_text_color                CCCCCC
-# command_background_color            000000
-# command_foreground_color            CCCCCC
+# title_bar_color                     C4C1C2
+# title_bar_active                    CAAD85
+# title_bar_text_color                101010
+# command_background_color            101010
+# command_foreground_color            D4B79C
 # command_title_color                 3CC7CF
 # command_select_color                01574C
 # command_list_background_color       303030
@@ -249,14 +216,47 @@ code_error                          E92204
 # inline_error_background_color       400809
 # inline_warning_background_color     4F4F2D
 
-# code_comment                        00FF80
-# code_keyword                        FFF200
+# code_comment                        DCC80B
+# code_keyword                        FFFFFF
 # code_directive                      9B9B9B
-# code_string                         4EC9B0
-# code_number                         FFAC9C
+# code_string                         A1F1E1
+# code_number                         A1F1E1
 # code_invalid                        FF0000
 # code_warning                        DCC80B
 # code_error                          E92204
+
+# dark colors
+background_color                    3F3F3F
+foreground_color                    DCDCCC
+cursor_background_color             00FF00
+cursor_foreground_color             303030
+current_line_background_color       303030
+search_result_background_color      01574C
+title_bar_color                     383838
+title_bar_active                    3D5A5C
+title_bar_text_color                F0DFAF
+command_background_color            3F3F3F
+command_foreground_color            D4B79C
+command_title_color                 7CB8BB
+command_select_color                3D5A5C
+command_list_background_color       383838
+modification_indicator_color        FFFF00
+selection_background_color          47696B
+selection_background_inactive_color 293C3D
+message_color                       09975A
+warning_color                       DCC80B
+error_color                         E92204
+inline_error_background_color       400809
+inline_warning_background_color     4F4F2D
+
+code_comment                        7F9F7F
+code_keyword                        F0DFAF
+code_directive                      94BFF3
+code_string                         CC9393
+code_number                         DFAF8F
+code_invalid                        FF0000
+code_warning                        DCC80B
+code_error                          E92204
 
 # light colors
 # background_color                    FFFFFF
