@@ -60,6 +60,7 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 		STRING    { return CODE_COLOR_STRING_INDEX;    }
 		NUMBER    { return CODE_COLOR_NUMBER_INDEX;    }
 		LB, RB    { return CODE_COLOR_KEYWORD_INDEX;   }
+
 		default;
 	}
 	return CODE_COLOR_DEFAULT_INDEX;
@@ -126,6 +127,8 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		c :: ctx.bytes[ctx.index];
 		if c == '{'         && parse_left_brace  (ctx, &t) { return t; }
 		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
+		if c == '('         && parse_left_brace  (ctx, &t) { return t; }
+		if c == ')'         && parse_right_brace (ctx, &t) { return t; }
 		if c == '/'         && parse_comment     (ctx, &t) { return t; }
 		if c == '#'         && parse_directive   (ctx, &t) { return t; }
 		if c == '\"'        && parse_string      (ctx, &t) { return t; }
