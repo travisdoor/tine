@@ -261,11 +261,17 @@ paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true
 	row = trim_left(row, "\t ");
 	is_line_empty :: row.len == 0;
 
-	text_first_row_len: s64;
-	is_multiline_text := is_multiline(text, &text_first_row_len);
+	text_first_row: string_view;
+	is_multiline_text := is_multiline(text, &text_first_row);
 	if editor.index == command_editor {
 		// Pasted string might be multiline, this is not allowed for the single line command editor.
-		text.len = text_first_row_len;
+		text = text_first_row;
+	}
+
+	if text.len == 0 {
+		// Might be empty in case we're inserting to the command buffer and first line of inserted
+		// string is empty.
+		return;
 	}
 
 	if record_as_single_undo_action { commit_undo(buf); }

@@ -89,7 +89,7 @@ Token :: struct {
 	len:   s32;
 }
 
-KEYWORDS :: [39]string_view.{
+KEYWORDS :: [_]string_view.{
 "break", "continue", "do", "for", "while", "if", "else", "subroutine",
 "discard", "return", "precision", "struct", "switch", "default", "case"
 "attribute", "const", "uniform", "varying", "buffer", "shared", "coherent",
@@ -100,8 +100,8 @@ KEYWORDS :: [39]string_view.{
 
 KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
 
-DIRECTIVES :: [11]string_view.{
-	"include", "if", "ifdef", "ifndef", "define", "undef", "else", "elif", "endif", "error", "pragma"
+DIRECTIVES :: [_]string_view.{
+	"include", "if", "ifdef", "ifndef", "define", "undef", "else", "elif", "endif", "error", "pragma", "extension", "version"
 };
 
 max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {

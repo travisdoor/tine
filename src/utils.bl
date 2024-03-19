@@ -544,14 +544,22 @@ get_character_len :: fn (c: u8) s32 #inline {
 	return 0;
 }
 
-is_multiline :: fn (str: string_view, first_row_len: *s64 = null) bool #inline {
-	loop i := 0; i < str.len; i += 1 {
-		if str[i] == '\n' || str[i] == '\r' {
-			if first_row_len { @first_row_len = i; }
-			return true;
+// Check whether the 'str' content is multiline, might optionaly return the first line of 'str' in 'first_line'.
+is_multiline :: fn (str: string_view, first_line: *string_view = null) bool #inline {
+	multiline      := false;
+	loop index := 0; index < str.len; index += 1 {
+		if str[index] == '\n' || str[index] == '\r' {
+			multiline = true;
+			if first_line {
+				(@first_line) = string_view.{ len = index, ptr = str.ptr };
+			}
+			break;
 		}
 	}
-	return false;
+	if first_line && multiline == false {
+		(@first_line) = str;
+	}
+	return multiline;
 }
 
 get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") string_view #inline {
