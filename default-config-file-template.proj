@@ -185,75 +185,43 @@ decrease-font-size   Ctrl+-
 undo                 Ctrl+Z
 redo                 Ctrl+Y
 
-clang-format         F1
-build                F4
+clang-format          F1
+build                 F4
+open-in-visual-studio F5
 
 ;colors
 # Color code is expected to be RRGGBB hex number.
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block.
 
 # dark colors
-# background_color                    303030
-# foreground_color                    D4B79C
-# cursor_background_color             00FF00
-# cursor_foreground_color             303030
-# current_line_background_color       202020
-# search_result_background_color      01574C
-# title_bar_color                     C4C1C2
-# title_bar_active                    CAAD85
-# title_bar_text_color                101010
-# command_background_color            101010
-# command_foreground_color            D4B79C
-# command_title_color                 3CC7CF
-# command_select_color                01574C
-# command_list_background_color       303030
-# modification_indicator_color        FFFF00
-# selection_background_color          00129A
-# selection_background_inactive_color 404040
-# message_color                       09975A
-# warning_color                       DCC80B
-# error_color                         E92204
-# inline_error_background_color       400809
-# inline_warning_background_color     4F4F2D
-
-# code_comment                        DCC80B
-# code_keyword                        FFFFFF
-# code_directive                      9B9B9B
-# code_string                         A1F1E1
-# code_number                         A1F1E1
-# code_invalid                        FF0000
-# code_warning                        DCC80B
-# code_error                          E92204
-
-# dark colors
-background_color                    3F3F3F
-foreground_color                    DCDCCC
-cursor_background_color             00FF00
+background_color                    303030
+foreground_color                    DCDCDC
+cursor_background_color             FFFD55
 cursor_foreground_color             303030
 current_line_background_color       303030
-search_result_background_color      01574C
+search_result_background_color      69370A
 title_bar_color                     383838
-title_bar_active                    3D5A5C
-title_bar_text_color                F0DFAF
-command_background_color            3F3F3F
-command_foreground_color            D4B79C
-command_title_color                 7CB8BB
-command_select_color                3D5A5C
-command_list_background_color       383838
+title_bar_active                    7160E8
+title_bar_text_color                FFFFFF
+command_background_color            1F1F1F
+command_foreground_color            DCDCDC
+command_title_color                 FFFD55
+command_select_color                315A83
+command_list_background_color       1F1F1F
 modification_indicator_color        FFFF00
-selection_background_color          47696B
-selection_background_inactive_color 293C3D
+selection_background_color          315A83
+selection_background_inactive_color 192E42
 message_color                       09975A
 warning_color                       DCC80B
 error_color                         E92204
 inline_error_background_color       400809
 inline_warning_background_color     4F4F2D
 
-code_comment                        7F9F7F
-code_keyword                        F0DFAF
+code_comment                        57A64A
+code_keyword                        569CD6
 code_directive                      94BFF3
 code_string                         CC9393
-code_number                         DFAF8F
+code_number                         B5CEA8
 code_invalid                        FF0000
 code_warning                        DCC80B
 code_error                          E92204

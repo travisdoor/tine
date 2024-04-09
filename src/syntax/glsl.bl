@@ -133,6 +133,8 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		c :: ctx.bytes[ctx.index];
 		if c == '{'         && parse_left_brace  (ctx, &t) { return t; }
 		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
+		if c == '('         && parse_left_brace  (ctx, &t) { return t; }
+		if c == ')'         && parse_right_brace (ctx, &t) { return t; }
 		if c == '/'         && parse_comment     (ctx, &t) { return t; }
 		if c == '#'         && parse_directive   (ctx, &t) { return t; }
 		if c == '\"'        && parse_string      (ctx, &t) { return t; }

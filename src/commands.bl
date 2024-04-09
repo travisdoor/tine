@@ -81,24 +81,24 @@ Command :: enum {
 	SEARCH_REPLACE;
 
 	// MISC
-	INCREASE_FONT_SIZE;
-	DECREASE_FONT_SIZE;
-	UNDO;
-	REDO;
-	GOOGLE_SELECTION;
-	OPEN_PROJECTS_DIRECTORY;
-	OPEN_PROJECT_CONFIG;
-	OPEN_DEFAULT_CONFIG;
-	OPEN_MESSAGES;
-	KILL_ASYNC_JOBS;
 	BUILD;
 	BUILD_KILL;
+	CLEAR_MESSAGES;
+	DECREASE_FONT_SIZE;
+	GOOGLE_SELECTION;
+	HELP;
+	INCREASE_FONT_SIZE;
+	KILL_ASYNC_JOBS;
+	LSP_COMPLETION;
 	LSP_KILL_SERVER;
 	LSP_RESTART_SERVER;
-	LSP_COMPLETION;
-	HELP;
-	CLEAR_MESSAGES;
-
+	OPEN_DEFAULT_CONFIG;
+	OPEN_IN_VISUAL_STUDIO;
+	OPEN_MESSAGES;
+	OPEN_PROJECTS_DIRECTORY;
+	OPEN_PROJECT_CONFIG;
+	REDO;
+	UNDO;
 	SEARCH_TO_BUFFER;
 }
 
@@ -472,6 +472,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_PROJECT_CONFIG { open_project_config ();                                      }
 		OPEN_DEFAULT_CONFIG { open_default_config ();                                      }
 		OPEN_MESSAGES       { open_messages       ();                                      }
+		OPEN_IN_VISUAL_STUDIO { open_current_buffer_in_visual_studio(buf);                 }
 		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
 		BUILD               { build               ();                                      }
 		BUILD_KILL          { kill_build          ();                                      }
@@ -1276,6 +1277,13 @@ google_selection :: fn (editor: *Editor, buf: *Buffer) {
 	}
 	url :: tprint("\"https://www.google.com/search?q=%\"", string_to_url(selection));
 	open_path(url);
+}
+
+open_current_buffer_in_visual_studio :: fn (buf: *Buffer) {
+	err :: execute_system_command(tprint("devenv /EDIT \"%\"", buf.filepath));
+	if err {
+		print_err(err);
+	}
 }
 
 open_project_config :: fn () {

@@ -73,6 +73,23 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Er
 	return OK;
 }
 
+execute_system_command :: fn (cmd: string_view) Error {
+	using win32;
+
+	// Create process attributes
+	startup_info: STARTUPINFOA;
+	process_info: PROCESS_INFORMATION;
+	startup_info.cb = auto sizeof(STARTUPINFOA);
+	state :: CreateProcessA(null, std.strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info);
+	if state == 0 {
+		return os_get_last_error2();
+	}
+	WaitForSingleObject(process_info.hProcess, INFINITE);
+	CloseHandle(process_info.hProcess);
+	CloseHandle(process_info.hThread);
+	return OK;
+}
+
 kill_process :: fn (pid: Pid, exit_code: s32) Error {
 	using win32;
 	handle :: OpenProcess(PROCESS_TERMINATE, FALSE, pid);

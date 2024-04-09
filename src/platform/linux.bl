@@ -13,6 +13,11 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Er
 	return OK;
 }
 
+execute_system_command :: fn (cmd: string_view) Error {
+	assert(false, "Not implemented!");
+	return OK;
+}
+
 kill_process :: fn (pid: Pid, exit_code: s32) Error {
 	pid;
 	exit_code;
