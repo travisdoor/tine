@@ -1403,6 +1403,8 @@ open_current_buffer_in_remedybg :: fn (editor: *Editor, buf: *Buffer) {
 	err :: execute_system_command(tprint("remedybg open-file \"%\" %", buf.filepath, cursor.row + 1));
 	if err {
 		print_err(err);
+	} else {
+		print_info("Current file openned in RemedyBG.");
 	}
 }
 
@@ -1412,6 +1414,8 @@ set_current_buffer_breakpoint_in_remedybg :: fn (editor: *Editor, buf: *Buffer) 
 	err :: execute_system_command(tprint("remedybg add-breakpoint-at-file \"%\" %", buf.filepath, cursor.row + 1));
 	if err {
 		print_err(err);
+	} else {
+		print_info("Breakpoint set in RemedyBG.");
 	}
 }
 
@@ -1419,6 +1423,8 @@ debug_in_remedybg :: fn () {
 	err :: execute_system_command("remedybg.exe start-debugging");
 	if err {
 		print_err(err);
+	} else {
+		print_info("Debugging started in RemedyBG.");
 	}
 }
 
