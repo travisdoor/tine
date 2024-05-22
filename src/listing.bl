@@ -284,10 +284,11 @@ list_commands :: fn () {
 		}
 
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
-			title = title,
-			hint  = hint,
-			index = i,
-		});
+				title   = title,
+				hint    = hint,
+				preview = COMMAND_HELP[i],
+				index   = i,
+			});
 	}
 
 	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);

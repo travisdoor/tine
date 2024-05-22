@@ -81,9 +81,11 @@ Command :: enum {
 	SEARCH_REPLACE;
 
 	// MISC
+	BREAK_IN_REMEDYBG;
 	BUILD;
 	BUILD_KILL;
 	CLEAR_MESSAGES;
+	DEBUG_IN_REMEDYBG;
 	DECREASE_FONT_SIZE;
 	GOOGLE_SELECTION;
 	HELP;
@@ -93,16 +95,122 @@ Command :: enum {
 	LSP_KILL_SERVER;
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
+	OPEN_IN_REMEDYBG;
 	OPEN_IN_VISUAL_STUDIO;
 	OPEN_MESSAGES;
 	OPEN_PROJECTS_DIRECTORY;
 	OPEN_PROJECT_CONFIG;
 	REDO;
-	UNDO;
 	SEARCH_TO_BUFFER;
+	UNDO;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
+COMMAND_HELP  :: make_command_help();
+
+make_command_help :: fn () [enum_count(Command)]string_view #comptime {
+	using Command;
+	help: [enum_count(Command)]string_view;
+
+	help[auto MOVE_RIGHT]          = "Move cursor one character right.";
+	help[auto MOVE_LEFT]           = "Move cursor one character left.";
+	help[auto MOVE_UP]             = "Move cursor one line up.";
+	help[auto MOVE_DOWN]           = "Move cursor one line down.";
+	help[auto JUMP_BEGIN]          = "Move cursor at the document begin.";
+	help[auto JUMP_END]            = "Move cursor at the document end.";
+	help[auto JUMP_NEXT_PARAGRAPH] = "Move cursor at the beginning of the next paragraph.";
+	help[auto JUMP_PREV_PARAGRAPH] = "Move cursor at the end of the previous paragraph.";
+	help[auto JUMP_LINE_END]       = "Move cursor at the end of the current line.";
+	help[auto JUMP_LINE_BEGIN]     = "Move cursor at the begin of the current line.";
+	help[auto JUMP_INDENT_BEGIN]   = "Move cursor at the begin of the current line content (skipping whitespace).";
+	help[auto JUMP_NEXT_WORD]      = "Move cursor to the next word begin.";
+	help[auto JUMP_PREV_WORD]      = "Move cursor to the previous word end.";
+	help[auto JUMP_PAGE_UP]        = "Move cursor one page up.";
+	help[auto JUMP_PAGE_DOWN]      = "Move cursor one page down.";
+	help[auto CENTER_VIEW]         = "Center current view to the cursor.";
+	help[auto NEXT_ERROR]          = "Jump to the next error in the error list.";
+	help[auto PREV_ERROR]          = "Jump to the previous error in the error list.";
+	help[auto NEXT_LOCATION]       = "Jump to the next location.";
+	help[auto PREV_LOCATION]       = "Jump to the previous location.";
+
+	// LSP
+	help[auto LSP_GOTO_DECLARATION]             = "Go to delaration of the current symbol under cursor using LSP.";
+	help[auto LSP_GOTO_DECLARATION_OTHER_SPLIT] = "Go to delaration of the current symbol under cursor using LSP and open the location in other split.";
+	help[auto LSP_OTHER_FILE]                   = "Try to open related header file.";
+	help[auto LSP_OTHER_FILE_OTHER_SPLIT]       = "Try to open related header file in other split.";
+
+	help[auto INSERT_NEW_LINE]          = "Insert new line into current document.";
+	help[auto INSERT_TAB]               = "Insert tab into current document.";
+	help[auto DELETE_CHAR_LEFT]         = "Delete one character before cursor.";
+	help[auto DELETE_CHAR_RIGHT]        = "Delete one character after cursor.";
+	help[auto DELETE_WORD_LEFT]         = "Delete one word before cursor.";
+	help[auto DELETE_LINE]              = "Delete current line.";
+	help[auto DUPLICATE_LINE]           = "Duplicate current line.";
+	help[auto SET_SELECTION_MARKER]     = "Start selection.";
+	help[auto SMART_SELECTION]          = "Each invocation in row selects word, line content, whole line and whole paragraph.";
+	help[auto SELECT_ALL]               = "Select whole document.";
+	help[auto SELECT_WORD]              = "Select current word.";
+	help[auto SELECT_LINE]              = "Select current line content.";
+	help[auto SELECT_WHOLE_LINE]        = "Select current line.";
+	help[auto SELECT_PARAGRAPH]         = "Select current paragraph.";
+	help[auto COPY]                     = "Copy current selection to the clipboard.";
+	help[auto PASTE]                    = "Paste clipboard content to the document.";
+	help[auto CUT]                      = "Cut current selection to the clipboard.";
+	help[auto TRIM_TRAILING_WHITESPACE] = "Remove trailing whitespace from whole document.";
+	help[auto TO_LOWER]                 = "Convert current selection to lower case.";
+	help[auto TO_UPPER]                 = "Convert current selection to upper case.";
+	help[auto INDENT]                   = "Indent current line or selection based on indentation rules for current file type.";
+	help[auto CLANG_FORMAT]             = "Invoke clang format on current document.";
+	help[auto TOGGLE_COMMENT]           = "Comment or uncomment current selection or line based on current file type.";
+	help[auto SORT]                     = "Alphabetically sort selected lines.";
+
+	help[auto OTHER_SPLIT]       = "Switch focus to other split.";
+	help[auto CLOSE_SPLIT]       = "";
+	help[auto CLOSE_OTHER_SPLIT] = "";
+
+	help[auto CLOSE_BUFFER]       = "";
+	help[auto FORCE_CLOSE_BUFFER] = "Close current buffer without saving.";
+	help[auto SAVE]               = "";
+	help[auto SAVE_ALL]           = "";
+	help[auto NEW_BUFFER]         = "Create new scratch buffer.";
+
+	help[auto OPEN_FILE]         = "Activate open file mode.";
+	help[auto QUICK_OPEN]        = "Activate open file mode with recursive search in current project.";
+	help[auto SAVE_AS]           = "";
+	help[auto GOTO_LINE]         = "";
+	help[auto CANCEL_MODE]       = "";
+	help[auto RUN_COMMAND]       = "";
+	help[auto SEARCH_FILE]       = "";
+	help[auto OPEN_PROJECT]      = "";
+	help[auto SEARCH_IN_PROJECT] = "";
+	help[auto SEARCH_REPLACE]    = "";
+
+
+	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
+	help[auto BUILD]                   = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
+	help[auto BUILD_KILL]              = "Try to kill running build script.";
+	help[auto CLEAR_MESSAGES]          = "Clear 'messages' buffer.";
+	help[auto DEBUG_IN_REMEDYBG]       = "Start debugging in running RemedyBG instance.";
+	help[auto DECREASE_FONT_SIZE]      = "";
+	help[auto GOOGLE_SELECTION]        = "Pass the current selection to the google.com search in default system browser.";
+	help[auto HELP]                    = "";
+	help[auto INCREASE_FONT_SIZE]      = "";
+	help[auto KILL_ASYNC_JOBS]         = "Kill all running async jobs.";
+	help[auto LSP_COMPLETION]          = "Activate LSP completion mode on current subject under cursor.";
+	help[auto LSP_KILL_SERVER]         = "";
+	help[auto LSP_RESTART_SERVER]      = "";
+	help[auto OPEN_DEFAULT_CONFIG]     = "";
+	help[auto OPEN_IN_REMEDYBG]        = "Open current file location in RemedyBG.";
+	help[auto OPEN_IN_VISUAL_STUDIO]   = "Open current file location in Visual Studio.";
+	help[auto OPEN_MESSAGES]           = "";
+	help[auto OPEN_PROJECTS_DIRECTORY] = "";
+	help[auto OPEN_PROJECT_CONFIG]     = "Open configuration file of current project.";
+	help[auto REDO]                    = "Open configuration file of current project.";
+	help[auto SEARCH_TO_BUFFER]        = "Redirect search results into separate buffer.";
+	help[auto UNDO]                    = "Undo latest chages.";
+
+	return help;
+}
 
 KeyMapEntry :: struct {
 	cmd:  Command;
@@ -473,6 +581,9 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_DEFAULT_CONFIG { open_default_config ();                                      }
 		OPEN_MESSAGES       { open_messages       ();                                      }
 		OPEN_IN_VISUAL_STUDIO { open_current_buffer_in_visual_studio(buf);                 }
+		OPEN_IN_REMEDYBG    { open_current_buffer_in_remedybg(editor, buf);                }
+		BREAK_IN_REMEDYBG   { set_current_buffer_breakpoint_in_remedybg(editor, buf);      }
+		DEBUG_IN_REMEDYBG   { debug_in_remedybg   ();                                      }
 		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
 		BUILD               { build               ();                                      }
 		BUILD_KILL          { kill_build          ();                                      }
@@ -1281,6 +1392,31 @@ google_selection :: fn (editor: *Editor, buf: *Buffer) {
 
 open_current_buffer_in_visual_studio :: fn (buf: *Buffer) {
 	err :: execute_system_command(tprint("devenv /EDIT \"%\"", buf.filepath));
+	if err {
+		print_err(err);
+	}
+}
+
+open_current_buffer_in_remedybg :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+
+	err :: execute_system_command(tprint("remedybg open-file \"%\" %", buf.filepath, cursor.row + 1));
+	if err {
+		print_err(err);
+	}
+}
+
+set_current_buffer_breakpoint_in_remedybg :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+
+	err :: execute_system_command(tprint("remedybg add-breakpoint-at-file \"%\" %", buf.filepath, cursor.row + 1));
+	if err {
+		print_err(err);
+	}
+}
+
+debug_in_remedybg :: fn () {
+	err :: execute_system_command("remedybg.exe start-debugging");
 	if err {
 		print_err(err);
 	}

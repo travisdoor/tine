@@ -448,7 +448,7 @@ force_redraw := false;
 main :: fn () s32 {
 	using glfw;
 	using std;
-
+
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {

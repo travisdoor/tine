@@ -1,6 +1,8 @@
 0.6 - ALPHA
 ---------------------------------------------------------------------------------------
 Add alphabetical sort command.
+Add simple support for RemedyBD (open file location, set breakpoints and start debugging).
+Add short description for each command visible in UI.
 Update default color scheme.
 Fix paste into command buffer.
 

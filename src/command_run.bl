@@ -18,7 +18,7 @@ draw_run_command_mode :: fn () {
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Run: ");
 
 	using DrawListCols;
-	list_h, clicked :: draw_list(0.f, h, w, TITLE | HINT);
+	list_h, clicked :: draw_list(0.f, h, w, TITLE | HINT | PREVIEW);
 	draw_last_status_message(0.f, h + list_h, w);
 	if clicked { commit(); }
 }
