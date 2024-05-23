@@ -126,7 +126,7 @@ setup_after_first_run :: fn () Error {
 	return OK;
 }
 
-check_project_changes :: fn (changed_directory: string_view, change_kind: WatchFor) bool {
+check_project_changes :: fn (changed_directory: string_view, change_kind: WatchFor) {
 	check_main_thread();
 	if (change_kind & WATCH_FLAGS_FOR_REINDEX) == WATCH_FLAGS_FOR_REINDEX {
 		loop i := 0; i < project.included_directories.len; i += 1 {
@@ -139,15 +139,16 @@ check_project_changes :: fn (changed_directory: string_view, change_kind: WatchF
 
 	if (change_kind & WATCH_FLAGS_FOR_RELOAD) == WATCH_FLAGS_FOR_RELOAD {
 		reload_changed_open_buffer_in_tree(changed_directory);
-		return true;
 	}
-
-	return false;
 }
 
 maybe_reindex_current_project :: fn () {
 	if !indexed_files_ditry { return; }
 	indexed_files_ditry = false;
+
+	// In case we start reindexing, we need to switch to default mode to prevent situations like changint the file
+	// content in middle of search...
+	set_default_mode();
 	index_included_directories();
 }
 

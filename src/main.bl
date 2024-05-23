@@ -143,8 +143,6 @@ messages_buffer_index := -1;
 help_buffer_index     := -1;
 search_buffer_index   := -1;
 
-is_project_indexing_paused := false;
-
 SearchLocation :: struct {
 	start: s32;
 	end:   s32;
@@ -448,7 +446,7 @@ force_redraw := false;
 main :: fn () s32 {
 	using glfw;
 	using std;
-
+
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -709,13 +707,12 @@ main :: fn () s32 {
 			changed_directory: string_view;
 			change_kind: WatchFor;
 			loop next_watcher_event(&changed_directory, &change_kind) {
-				if check_project_changes(changed_directory, change_kind) { continue; }
+				check_project_changes(changed_directory, change_kind);
 			}
 		}
 
-		if !is_project_indexing_paused {
-			maybe_reindex_current_project();
-		}
+		maybe_reindex_current_project();
+
 		update_jobs(); // Also process all responses...
 
 		buf, editor :: get_active_buffer_and_editor();
@@ -781,12 +778,12 @@ in_bounds :: fn (arr: []?T, v: s64) bool #inline {
 lookup_font :: fn (font_name: string_view) string_view {
 	using std;
 	assert(font_name.len > 0);
-	if file_exist(font_name)) {
+	if file_exist(font_name) {
 		return font_name;
 	}
 	if FONT_DIRECTORY.len == 0 { return ""; }
 	tmp :: tprint("%/%", FONT_DIRECTORY, font_name);
-	if file_exist(tmp)) {
+	if file_exist(tmp) {
 		return tmp;
 	}
 	return "";
@@ -928,11 +925,6 @@ set_mode :: fn (m: Mode) bool #inline {
 	}
 
 	mode = m;
-
-	if m != TEXT_EDIT {
-		is_project_indexing_paused = true;
-	} else {
-	}
 
 	switch m {
 		TEXT_EDIT {
@@ -1159,7 +1151,6 @@ open_location :: fn (filepath: string_view, line: s32, col: s32, open_in_other_s
 
 open_project :: fn (directory: string_view, filepath: string_view) Error {
 	kill_async_jobs();
-	is_project_indexing_paused = false;
 
 	err :: load_project(directory, filepath);
 	if err { return err; }

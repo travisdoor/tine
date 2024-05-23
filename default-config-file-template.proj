@@ -194,34 +194,34 @@ open-in-visual-studio F5
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block.
 
 # dark colors
-background_color                    303030
-foreground_color                    DCDCDC
+background_color                    161616
+foreground_color                    CDAA7D
 cursor_background_color             FFFD55
-cursor_foreground_color             303030
+cursor_foreground_color             161616
 current_line_background_color       303030
-search_result_background_color      69370A
+search_result_background_color      61581D
 title_bar_color                     383838
-title_bar_active                    7160E8
+title_bar_active                    CD950C
 title_bar_text_color                FFFFFF
 command_background_color            1F1F1F
 command_foreground_color            DCDCDC
 command_title_color                 FFFD55
-command_select_color                315A83
+command_select_color                0000BB
 command_list_background_color       1F1F1F
 modification_indicator_color        FFFF00
-selection_background_color          315A83
-selection_background_inactive_color 192E42
+selection_background_color          0000BB
+selection_background_inactive_color 000055
 message_color                       09975A
 warning_color                       DCC80B
 error_color                         E92204
 inline_error_background_color       400809
 inline_warning_background_color     4F4F2D
 
-code_comment                        57A64A
-code_keyword                        569CD6
-code_directive                      94BFF3
-code_string                         CC9393
-code_number                         B5CEA8
+code_comment                        7f7f7f
+code_keyword                        CD950C
+code_directive                      ADB353
+code_string                         6B8E23
+code_number                         438C67
 code_invalid                        FF0000
 code_warning                        DCC80B
 code_error                          E92204
