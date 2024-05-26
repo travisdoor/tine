@@ -14,6 +14,7 @@
 ## Tutorials
 
 - Introduction: https://youtu.be/vE9m_v0OPqE
+- RemedyBG workflow: https://youtu.be/2JmT6_gce8g
 
 # Supported Languages
 
