@@ -53,7 +53,7 @@ process execution there.
 
 # Authors
 
-- **Martin Dorazil** (travis)
+- **Martin Dorazil** (travis) [**SUPPORT**](https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6)
 - **bovacu**
 
 # First Run
