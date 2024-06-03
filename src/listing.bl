@@ -416,10 +416,11 @@ list_project :: fn () {
 			if is_file_open(filepath) { continue; }
 			dirpath, filename := path_split(filepath);
 			if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
+			file_type :: detect_filetype(filename);
 			array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
 				title = filename,
 				hint  = dirpath,
-				icon  = icon(ICON_FILE),
+				icon  = get_icon_for_file_type(file_type),
 			});
 		}
 	}
