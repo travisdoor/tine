@@ -488,13 +488,12 @@ is_point_in_rect :: fn (rx: f32, ry: f32, rw: f32, rh: f32, px: f32, py: f32) bo
 }
 
 get_icon_for_buffer :: fn (buf: *Buffer) string_view {
-	ic := icon(ICON_FILE);
 	if buf.index == build.buffer_index {
-		ic = icon(ICON_BUILD);
+		return icon(ICON_BUILD);
 	} else if buf.index == messages_buffer_index {
-		ic = icon(ICON_MESSAGES);
+		return icon(ICON_MESSAGES);
 	}
-	return ic;
+	return get_icon_for_file_type(buf.file_type);
 }
 
 expand_position_to_whole_line :: fn (buf: string_view, index: s64, max_distance := 120) string_view {

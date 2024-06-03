@@ -315,7 +315,7 @@ list_directory :: fn (dirpath: string_view, file_extension_filter := []string_vi
 			assert(title.len > 0);
 			the_icon  = icon(ICON_PROJECT);
 		} else {
-			the_icon = get_icon_for_file_type(info);
+			the_icon = get_icon_for_file_info(info);
 		}
 
 		flags := ItemFlags.NONE;
@@ -775,9 +775,10 @@ string_cache: [2]std.PoolAllocator;
 
 visible_list_mutex: std.Mutex;
 
-get_icon_for_file_type :: fn (file_info: *std.FileVisitInfo) string_view #inline {
+get_icon_for_file_info :: fn (file_info: *std.FileVisitInfo) string_view #inline {
 	if file_info.is_directory { return icon(ICON_FOLDER); }
-	return icon(ICON_FILE);
+	file_type :: detect_filetype(file_info.filename);
+	return get_icon_for_file_type(file_type);
 }
 
 // utf8 version?

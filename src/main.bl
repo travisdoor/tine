@@ -91,6 +91,7 @@ ICON_PROJECT     : u32 : 0xF6D1;
 ICON_READONLY    : u32 : 0xF023;
 ICON_WARNING     : u32 : 0x26A0;
 ICON_ERROR       : u32 : 0xF06A;
+ICON_BL          : u32 : 0xF564;
 
 ICON_BUILD    : u32 : 0xF6E3;
 ICON_MESSAGES : u32 : 0x2709;
@@ -875,6 +876,7 @@ rebuild_fonts :: fn () Error {
 	array_push(&icon_set, ICON_ERROR);
 	array_push(&icon_set, ICON_BUILD);
 	array_push(&icon_set, ICON_MESSAGES);
+	array_push(&icon_set, ICON_BL);
 
 	err = draw.font_init_at_size_from_memory(&icons, ICON_DATA, scaled_size, icon_set);
 	if err { panic(err); }
@@ -1302,6 +1304,16 @@ detect_filetype :: fn (filename: string_view) FileType {
 		return ASM;
 	}
 	return FileType.UNKNOWN;
+}
+
+get_icon_for_file_type :: fn (file_type: FileType) string_view {
+	using FileType;
+	switch file_type {
+		PROJ { return icon(ICON_PROJECT); }
+		BL   { return icon(ICON_BL);      }
+		default;
+	}
+	return icon(ICON_FILE);
 }
 
 //
