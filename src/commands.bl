@@ -103,6 +103,7 @@ Command :: enum {
 	REDO;
 	SEARCH_TO_BUFFER;
 	UNDO;
+	OPEN_FILE_LOCATION;
 
 	SUPPORT_ME;
 }
@@ -210,6 +211,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto REDO]                    = "Open configuration file of current project.";
 	help[auto SEARCH_TO_BUFFER]        = "Redirect search results into separate buffer.";
 	help[auto UNDO]                    = "Undo latest chages.";
+	help[auto OPEN_FILE_LOCATION]      = "Open current file location in default system file manager.";
 
 	help[auto SUPPORT_ME]              = "Consider supporting author of this project via PayPal.";
 
@@ -596,6 +598,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
 		HELP                { help                ();                                      }
 		CLEAR_MESSAGES      { clear_messages      ();                                      }
+		OPEN_FILE_LOCATION  { open_file_location  (buf);                                   }
+
 		SEARCH_TO_BUFFER    {
 			print_warn("Command 'search-to-buffer' is available only in search modes.");
 		}
@@ -606,6 +610,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
 		SUPPORT_ME               { support_me();                  }
+
 
 		// Not handled.
 		default { return false; }
@@ -1681,4 +1686,14 @@ clear_messages :: fn () {
 
 support_me :: fn () {
 	open_path("https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6");
+}
+
+open_file_location :: fn (buf: *Buffer) {
+	using std;
+	dir :: path_split(buf.filepath);
+	if dir.len == 0 {
+		print_err("Cannot open file location.");
+		return;
+	}
+	open_path(dir);
 }

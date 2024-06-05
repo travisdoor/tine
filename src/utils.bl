@@ -275,14 +275,16 @@ string_to_url :: fn (src: string_view) string_view {
 }
 
 open_path :: fn (path: string_view) {
-#if PLATFORM == Platform.WINDOWS {
-	using win32;
-	using std;
-	ShellExecuteA(null, strtoc("open"), strtoc(path), null, null, SW_SHOWDEFAULT);
-} else {
-	// @Incomplete: Maybe something else on Linux?
-	os_execute(tprint("open \"%\"", path));
-}
+	#if PLATFORM == Platform.WINDOWS {
+		using win32;
+		using std;
+		// We might have non-zero terminated path here!
+		tmp :: tprint("%", path);
+		ShellExecuteA(null, strtoc("open"), strtoc(tmp), null, null, SW_SHOWDEFAULT);
+	} else {
+		// @Incomplete: Maybe something else on Linux?
+		os_execute(tprint("open \"%\"", path));
+	}
 }
 
 trim_right :: fn (str: string_view, chars: []u8) string_view #inline {
