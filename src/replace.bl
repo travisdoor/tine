@@ -172,9 +172,11 @@ last_replacement_position: s64;
 commit_current_replacement :: fn () string_view #inline {
 	buf :: get_active_buffer_and_editor();
 	replacement :: peek_row(buf, 0);
-	if replacement.len == 0 { return ""; }
 	search.last_replacement.len = 0;
-	std.str_append(&search.last_replacement, replacement);
+
+	if replacement.len > 0 {
+		std.str_append(&search.last_replacement, replacement);
+	}
 
 	return search.last_replacement;
 }

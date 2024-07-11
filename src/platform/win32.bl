@@ -240,7 +240,10 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 	using win32;
 	using std;
 
+	assert(directory.len > 0);
+
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
+	print_log("Watch changes in '%' for %.", directory, flags);
 
 	mutex_lock(&worker_context.mutex);
 	defer mutex_unlock(&worker_context.mutex);
@@ -271,6 +274,7 @@ unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	using std;
 
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
+	print_log("Unwatch changes in '%' for %.", directory, flags);
 
 	mutex_lock(&worker_context.mutex);
 	defer mutex_unlock(&worker_context.mutex);
@@ -279,7 +283,6 @@ unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	w :: tbl_lookup_ptr(tbl, hash);
 	if !w { return; } // Maybe report this?
 	str_delete(&w.path);
-	assert(w);
 	w.remove= true;
 }
 
