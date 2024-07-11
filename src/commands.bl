@@ -479,11 +479,16 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 
 	// we assume new line everytime ending with '\n'.
 	assert(new_line[new_line.len-1] == '\n');
-	lines :: str_split_by(str, '\n');
-	defer array_terminate(&lines);
+	lines :: str_split_by(str, '\n', application_context.temporary_allocator);
 
 	indented := str_new(max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
 	defer str_delete(&indented);
+
+	if lines.len == 0 {
+		// This function might be used also for indentation of cursor on the newly created empty line,
+		// in such a case the 'str' is empty, so no lines are creates.
+		array_push(&lines, "");
+	}
 
 	position := s;
 	loop i := 0; i < lines.len; i += 1 {
@@ -1525,8 +1530,7 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 
 	// we assume new line everytime ending with '\n'.
 	assert(new_line[new_line.len-1] == '\n');
-	lines :: str_split_by(str, '\n');
-	defer array_terminate(&lines);
+	lines :: str_split_by(str, '\n', application_context.temporary_allocator);
 
 	if lines.len < 2 { return; }
 
@@ -1584,8 +1588,7 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 
 	// we assume new line everytime ending with '\n'.
 	assert(new_line[new_line.len-1] == '\n');
-	lines :: str_split_by(str, '\n');
-	defer array_terminate(&lines);
+	lines :: str_split_by(str, '\n', application_context.temporary_allocator);
 
 	if lines.len == 0 { return; }
 
