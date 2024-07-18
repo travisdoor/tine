@@ -467,7 +467,8 @@ main :: fn () s32 {
 	defer mutex_terminate(&message.mutex);
 	defer str_delete(&message.text);
 
-	// Clipboard
+	// Clipboard @Note This is not used on windows since cliboard lib seems to be laggy... check it on other platforms and eventually
+	// reimplement it to native solution...
 	clipboard.init();
 	defer clipboard.terminate();
 
@@ -1656,25 +1657,6 @@ reset_caret_blinking :: fn () #inline {
 	caret.blink_t    = 0.f;
 	caret.visible    = true;
 	caret.no_binking = false;
-}
-
-clipboard_read :: fn () string_view {
-	return clipboard.get();
-
-	// Seems to be laggy on Windows :/
-	// cstr :: glfw.GetClipboardString(window);
-	// if !cstr { return ""; }
-	// return std.ctostr(auto cstr);
-}
-
-clipboard_write :: fn (str: string_view) {
-	err :: clipboard.set(str);
-	if err { print_err(err); }
-	// using std;
-	// if str.len == 0 { return; }
-	// The input string might not be zero terminated.
-	// dup :: str_new(str, application_context.temporary_allocator);
-	// glfw.SetClipboardString(window, auto std.strtoc(dup));
 }
 
 #private

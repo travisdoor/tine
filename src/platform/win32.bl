@@ -205,6 +205,48 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 	return OK, result;
 }
 
+read_clipboard :: fn () string_view {
+	using win32;
+
+	if OpenClipboard(null) == 0 { return ""; }
+	defer CloseClipboard();
+	if IsClipboardFormatAvailable(CF_UNICODETEXT) == 0 { return ""; }
+	data :: GetClipboardData(CF_UNICODETEXT);
+	if !data { return ""; }
+	unicode_ptr :: cast(*u16) GlobalLock(data);
+	defer GlobalUnlock(data);
+	if !unicode_ptr { return ""; }
+	utf16len :: C.wcslen(unicode_ptr);
+	utf8len :: WideCharToMultiByte(CP_UTF8, null, unicode_ptr, auto utf16len, null, 0, null, null);
+	if utf8len == 0 { return ""; }
+	result := std.str_new(utf8len, application_context.temporary_allocator);
+	result.len = utf8len;
+	if WideCharToMultiByte(CP_UTF8, null, unicode_ptr, auto utf16len, auto result.ptr, auto utf8len, null, null) == 0 { return ""; }
+	return result;
+}
+
+write_clipboard :: fn (text: string_view) {
+	using win32;
+	using std;
+	if text.len == 0 { return; }
+	utf16len := cast(usize) MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, null, 0);
+	if utf16len == 0 { return; }
+	dest_mem :: GlobalAlloc(GMEM_MOVEABLE, auto (utf16len + 1) * sizeof(u16));
+	if !dest_mem { return; }
+	defer GlobalFree(dest_mem);
+	dest_text :: cast(*u16)GlobalLock(dest_mem);
+	if !dest_text { return; }
+	defer GlobalUnlock(dest_mem);
+	if MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, dest_text, auto utf16len) == 0 { return; }
+	last_char :: cast(*u16)ptr_shift_bytes(auto dest_text, auto utf16len * sizeof(u16));
+	@last_char = 0;
+
+	if OpenClipboard(null) == 0 { return; }
+	defer CloseClipboard();
+	EmptyClipboard();
+	if SetClipboardData(CF_UNICODETEXT, dest_mem) == null { return; }
+}
+
 //
 // File change notifications
 //

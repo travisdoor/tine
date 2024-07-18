@@ -346,7 +346,7 @@ copy_selection :: fn (editor: *Editor, buf: *Buffer) bool {
 	if text.len == 0 {
 		return false;
 	}
-	clipboard_write(text);
+	write_clipboard(text);
 	clear_selection(buf, editor.cursor_index);
 	return true;
 }
@@ -358,14 +358,15 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 
 	text :: string_view.{ end - start, &buf.bytes[start] };
 	if std.str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
-		clipboard_write(text);
+		write_clipboard(text);
 	}
 	clear_selection(buf, editor.cursor_index);
 	delete_range(buf, start, end);
 }
 
 paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true) {
-	text := clipboard_read();
+	text := read_clipboard();
+
 	if text.len == 0 { return; }
 	if maybe_report_readonly(buf) { return; }
 

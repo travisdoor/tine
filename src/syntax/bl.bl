@@ -90,15 +90,15 @@ Token :: struct {
 	len:   s32;
 }
 
-KEYWORDS :: [25]string_view.{
+KEYWORDS :: [_]string_view.{
 	"loop", "if", "switch", "continue", "else", "defer", "struct",
 	"enum", "union", "fn", "return", "cast", "auto", "default", "using", "break", "unreachable",
 	"panic", "assert", "sizeof", "alignof", "typeinfo", "compiler_error", "compiler_warning",
-	"typeof",
+	"typeof", "then",
 };
 KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
 
-DIRECTIVES :: [26]string_view.{
+DIRECTIVES :: [_]string_view.{
 	"load", "enable_if", "call_location", "extern", "compiler", "private",
 	"inline", "noinline", "file", "line", "base", "entry", "build_entry",
 	"if", "tag", "noinit", "intrinsic", "test", "import", "export",

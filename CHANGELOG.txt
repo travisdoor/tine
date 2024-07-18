@@ -3,6 +3,7 @@
 Add custom icons for some supported file types.
 Add support-me command.
 Add open-file-location command.
+Fix laggy clipboard on windows.
 License changed to GPL3.
 
 0.6 - ALPHA

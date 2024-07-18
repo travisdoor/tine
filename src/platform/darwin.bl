@@ -117,6 +117,14 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	return OK, std.str_new();
 }
 
+read_clipboard :: fn () string_view {
+	return clipboard.get();
+}
+
+write_clipboard :: fn (text: string_view) {
+	clipboard.set(text);
+}
+
 //
 // File change notifications
 //
