@@ -230,21 +230,41 @@ write_clipboard :: fn (text: string_view) {
 	using std;
 	if text.len == 0 { return; }
 	utf16len := cast(usize) MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, null, 0);
-	if utf16len == 0 { return; }
+	if utf16len == 0 {
+		assert(false);
+		return;
+	}
 	dest_mem :: GlobalAlloc(GMEM_MOVEABLE, auto (utf16len + 1) * sizeof(u16));
-	if !dest_mem { return; }
-	defer GlobalFree(dest_mem);
+	if !dest_mem {
+		assert(false);
+		return;
+	}
 	dest_text :: cast(*u16)GlobalLock(dest_mem);
-	if !dest_text { return; }
+	if !dest_text {
+		assert(false);
+		return;
+	}
 	defer GlobalUnlock(dest_mem);
-	if MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, dest_text, auto utf16len) == 0 { return; }
+	if MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, dest_text, auto utf16len) == 0 {
+		assert(false);
+		return;
+	}
 	last_char :: cast(*u16)ptr_shift_bytes(auto dest_text, auto utf16len * sizeof(u16));
 	@last_char = 0;
 
-	if OpenClipboard(null) == 0 { return; }
+	if OpenClipboard(null) == 0 {
+		assert(false);
+		return;
+	}
 	defer CloseClipboard();
 	EmptyClipboard();
-	if SetClipboardData(CF_UNICODETEXT, dest_mem) == null { return; }
+
+	// Transferes the allocated ownership to the system, so no free here!!!
+	if SetClipboardData(CF_UNICODETEXT, dest_mem) == null {
+		GlobalFree(dest_mem); // Free here since it's fucked.
+		assert(false);
+		return;
+	}
 }
 
 //
