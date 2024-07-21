@@ -23,21 +23,10 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Er
 		lpSecurityDescriptor = null
 	};
 
-	if CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0) == 0 {
-		return os_get_last_error2();
-	}
-
-	if SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0) == 0 {
-		return os_get_last_error2();
-	}
-
-	if CreatePipe(&stdin_read, &stdin_write, &security_attributes, 0) == 0 {
-		return os_get_last_error2();
-	}
-
-	if SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0) == 0 {
-		return os_get_last_error2();
-	}
+	if CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0) == 0 then return os_get_last_error2();
+	if SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0) == 0        then return os_get_last_error2();
+	if CreatePipe(&stdin_read, &stdin_write, &security_attributes, 0) == 0   then return os_get_last_error2();
+	if SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0) == 0        then return os_get_last_error2();
 
 	// Create process
 	process_info: PROCESS_INFORMATION;
@@ -56,10 +45,7 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Er
 		std.str_append(&tmp, " ");
 		std.str_append(&tmp, args[i]);
 	}
-	state :: CreateProcessA(null, std.strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info);
-	if state == 0 {
-		return os_get_last_error2();
-	}
+	if CreateProcessA(null, std.strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
@@ -80,10 +66,7 @@ execute_system_command :: fn (cmd: string_view) Error {
 	startup_info: STARTUPINFOA;
 	process_info: PROCESS_INFORMATION;
 	startup_info.cb = auto sizeof(STARTUPINFOA);
-	state :: CreateProcessA(null, std.strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info);
-	if state == 0 {
-		return os_get_last_error2();
-	}
+	if CreateProcessA(null, std.strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 	WaitForSingleObject(process_info.hProcess, INFINITE);
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
@@ -167,6 +150,18 @@ close_stream :: fn (handle: IoStream) {
 //
 // MISC
 //
+
+get_current_date_as_YYYY_MM_DD :: fn () string_view {
+	using win32;
+	time: SYSTEMTIME #noinit;
+	GetLocalTime(&time);
+
+	return tprint("%-%-%",
+		time.wYear,
+		fmt_int(time.wMonth, FmtIntBase.DEC, false, 2),
+		fmt_int(time.wDay, FmtIntBase.DEC, false, 2),
+	);
+}
 
 get_fonts_directory :: fn () string {
 	path :: std.get_home();

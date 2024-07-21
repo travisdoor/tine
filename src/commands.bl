@@ -104,6 +104,7 @@ Command :: enum {
 	SEARCH_TO_BUFFER;
 	UNDO;
 	OPEN_FILE_LOCATION;
+	DATE;
 
 	SUPPORT_ME;
 }
@@ -212,6 +213,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto SEARCH_TO_BUFFER]        = "Redirect search results into separate buffer.";
 	help[auto UNDO]                    = "Undo latest chages.";
 	help[auto OPEN_FILE_LOCATION]      = "Open current file location in default system file manager.";
+	help[auto DATE]                    = "Inserts current system date into focused buffer.";
 
 	help[auto SUPPORT_ME]              = "Consider supporting author of this project via PayPal.";
 
@@ -605,6 +607,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		HELP                { help                ();                                      }
 		CLEAR_MESSAGES      { clear_messages      ();                                      }
 		OPEN_FILE_LOCATION  { open_file_location  (buf);                                   }
+		DATE                { insert_current_date (editor, buf);                           }
 
 		SEARCH_TO_BUFFER    {
 			print_warn("Command 'search-to-buffer' is available only in search modes.");
@@ -951,6 +954,8 @@ move_left :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 move_right :: fn (editor: *Editor, buf: *Buffer) bool {
+	print_log("%", get_current_date_as_YYYY_MM_DD());
+
 	position :: get_cursor_position(buf, editor.cursor_index);
 	c :: peek_position(buf, position);
 	if c.len == 0 { return false; }
@@ -1700,4 +1705,13 @@ open_file_location :: fn (buf: *Buffer) {
 		return;
 	}
 	open_path(dir);
+}
+
+insert_current_date :: fn (editor: *Editor, buf: *Buffer) {
+	if maybe_report_readonly(buf) { return; }
+
+	date :: get_current_date_as_YYYY_MM_DD();
+
+	position :: get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, date);
 }
