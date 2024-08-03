@@ -1,52 +1,132 @@
+BUILD_SCRIPT :: "build.sh";
+SHELL :: "/bin/bash";
+BUILD_ARGS :: [_]string_view.{ BUILD_SCRIPT };
+
 //
 // Process
 //
 
 IoStream :: C.int;
-Pid :: C.int; //C.pid_t;
+Pid :: C.pid_t;
 
-start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Error {
-	ctx;
-	cmd;
-	args;
-	assert(false, "Not implemented!");
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
+	using C;
+
+	to_child_pipe:   [2]s32 #noinit;
+	from_child_pipe: [2]s32 #noinit;
+
+	if pipe(to_child_pipe.ptr) != 0   then return os_get_last_error2();
+	if pipe(from_child_pipe.ptr) != 0 then return os_get_last_error2();
+
+	pid :: fork();
+	if pid == -1 then return os_get_last_error2();
+
+	if pid == 0 {
+		error_and_exit :: fn () {
+			print_err(os_get_last_error2());
+			C.exit(1);
+		};
+
+		close(to_child_pipe[1]);
+		close(from_child_pipe[0]);
+
+		if dup2(to_child_pipe[0], 0) == -1 then error_and_exit();
+		close(to_child_pipe[0]);
+
+		if dup2(from_child_pipe[1], 1) == -1 then error_and_exit();
+		if dup2(from_child_pipe[1], 2) == -1 then error_and_exit();
+		close(from_child_pipe[1]);
+
+		argc :: args.len + 2; // +2 executable and null terminator
+		args_mem :: alloc(sizeof(*char) * auto argc);
+		defer free(args_mem);
+		cargs := []*char.{ ptr = auto args_mem, len = argc };
+		_, exec_name :: std.path_split(cmd);
+		cargs[0] = std.strtoc(exec_name);
+		cargs[cargs.len-1] = null;
+		loop i := 1; i < cargs.len-1; i += 1 {
+			cargs[i] = std.strtoc(args[i-1]);
+		}
+		// Return execution status???
+		if execv(std.strtoc(cmd), cargs.ptr) == -1 then error_and_exit();
+		exit(0);
+	} else {
+		// parent
+		print_log("Starting process with PID %.", pid);
+		close(to_child_pipe[0]);
+		close(from_child_pipe[1]);
+
+		ctx.pid = pid;
+		ctx.stdin  = to_child_pipe[1];
+		ctx.stdout = from_child_pipe[0];
+	}
+
 	return OK;
 }
 
 execute_system_command :: fn (cmd: string_view) Error {
-	assert(false, "Not implemented!");
+	cmd;
+	print_warn("Not implemented!");
 	return OK;
 }
 
 kill_process :: fn (pid: Pid, exit_code: s32) Error {
-	pid;
-	exit_code;
-	assert(false, "Not implemented!");
+	using C;
+	exit_code;  // @Incomplete: use this?
+	if kill(pid, SIGTERM) == -1 then os_get_last_error2();
 	return OK;
 }
 
 peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
-	// We might use select function here or try to use non-blocking read (which might break current system).
-	stream;
-	error_on_close;
-	assert(false, "Not implemented!");
-	return OK, 0, true;
+	using C;
+
+	bytes_available: int;
+	if ioctl(stream, FIONREAD, auto &bytes_available) == -1 {
+		return error("Cannot peek pipe!"), 0, true;
+	}
+
+	if bytes_available > 0 then return OK, auto bytes_available, false;
+
+	pfd :: pollfd.{
+		fd = stream,
+		events = POLLHUP,
+	};
+	if poll(&pfd, 1, 1) == -1 then return os_get_last_error2(), 0, false;
+	if (pfd.revents & POLLHUP) > 0 {
+		if error_on_close then return error("Pipe closed!"), 0, true;
+		return OK, 0, true;
+	}
+
+	return OK, auto bytes_available, false;
 }
 
 read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
-	stream;
-	dest;
-	bytes_to_read;
-	error_on_close;
-	assert(false, "Not implemented!");
-	return OK, true;
+	using C;
+
+	std.str_reserve(dest, auto bytes_to_read);
+
+	total_read : u32 = 0;
+	loop total_read < bytes_to_read {
+		buf:  [2048]u8 #noinit;
+		n :: read(stream, auto buf.ptr, auto buf.len);
+		if n == -1 then return os_get_last_error2(), true;
+		if n == 0 {
+			if !error_on_close then return OK, true;
+			return error("Pipe closed!"), false;
+		}
+
+		std.str_append(dest, string_view.{ auto n, buf.ptr });
+		total_read += auto n;
+	}
+
+	return OK, false;
 }
 
 write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
 	stream;
 	msg;
 	error_on_close;
-	assert(false, "Not implemented!");
+	print_warn("Not implemented!");
 	return OK, true;
 }
 
@@ -59,22 +139,21 @@ close_stream :: fn (handle: IoStream) {
 //
 
 get_current_date_as_YYYY_MM_DD :: fn () string_view {
-	return "UNIMPLEMENTED";
+	return "Not implemented";
 }
 
 get_fonts_directory :: fn () string {
 	return std.str_new("/usr/share/fonts");
 }
 
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	url;
-	assert(false, "Not implemented!");
+new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: string) {
+	filepath;
 	return OK, std.str_new();
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	filepath;
-	assert(false, "Not implemented!");
+	url;
+	print_warn("Not implemented!");
 	return OK, std.str_new();
 }
 
@@ -107,28 +186,27 @@ WatchFor :: enum u32 #flags {
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 	directory;
 	flags;
-	assert(false, "Not implemented!");
+	print_warn("Not implemented");
 	return OK;
 }
 
 unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	directory;
 	flags;
-	assert(false, "Not implemented!");
+	print_warn("Not implemented");
 }
 
 next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
 	changed_directory;
 	change_kind;
-	assert(false, "Not implemented!");
+	print_warn("Not implemented");
 	return false;
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	filepath;
-	assert(false, "Not implemented!");
+	print_warn("Not implemented");
 	return 0, OK;
 }
 
 #private
-

@@ -73,7 +73,6 @@ BOTTOM_SCROLL_TRIGGER          :: 5;
 
 DEFAULT_CONFIG_FILE :: "default.proj";
 PROJECTS_DIRECTORY  :: "projects";
-BUILD_SCRIPT        :: "build.bat";
 FONT_DIRECTORY: string;
 
 FONT_RESIZE_STEP :: 1;

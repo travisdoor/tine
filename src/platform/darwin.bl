@@ -1,3 +1,7 @@
+BUILD_SCRIPT :: "build.sh";
+SHELL :: "sh";
+BUILD_ARGS :: [_]string_view.{ BUILD_SCRIPT };
+
 //
 // Process
 //
@@ -5,7 +9,7 @@
 IoStream :: C.int;
 Pid :: C.pid_t;
 
-start_process :: fn (ctx: *?TContext, cmd: string_view, args: ...string_view) Error {
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
 	parent_io: [2]s32 #noinit;
 	child_io:  [2]s32 #noinit;
 

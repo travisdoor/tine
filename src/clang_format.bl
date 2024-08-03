@@ -64,7 +64,8 @@ worker :: fn (ctx: *JobContext) s32 {
 		executable = "clang-format";
 	}
 
-	err :: start_process(ctx, executable, tprint("--assume-filename=\"%\"", rd.filepath));
+	args :: [_]string_view.{ tprint("--assume-filename=\"%\"", rd.filepath) };
+	err :: start_process(ctx, executable, args);
 	if err {
 		print_err(err);
 		ctx.state = FAILED;
