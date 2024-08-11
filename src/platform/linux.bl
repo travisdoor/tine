@@ -186,20 +186,17 @@ WatchFor :: enum u32 #flags {
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 	directory;
 	flags;
-	print_warn("Not implemented");
 	return OK;
 }
 
 unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	directory;
 	flags;
-	print_warn("Not implemented");
 }
 
 next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
 	changed_directory;
 	change_kind;
-	print_warn("Not implemented");
 	return false;
 }
 
