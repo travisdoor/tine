@@ -2066,7 +2066,15 @@ update_caret :: fn () {
 /*
 TODO
 
+MUST
+x highlight current word after timeout/selection (maybe it's enough if we don't jump to the next match on search activation)
+- smooth scrolling/jumping?
+- don't exit modes when reindexing is required!!!
 - sometimes crash on project reload!!! Maybe connected to LSP?
+- undo on bigger file change should not jump to the end of the file (undo after clang format or save?)
+
+
+
 - mouse support
   - resize split
   - add scroll indicators for lister
@@ -2151,7 +2159,6 @@ x indentation + paste sometimes moves the cursor into weird locations
 - prefer previous buffer in the split on close current one
 - undo of large file change should restore cursor positions?
 - cut sometimes breaks new lines... (maybe breaks on paste when we have in clipboard different line endings?)
-- highlight current word after timeout
 
 
 x jump to previous and next cursor locations (even in files)

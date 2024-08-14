@@ -5,7 +5,8 @@ search_mode_init :: fn () {
 
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
-	search.result_index      = 0;
+	jump_to_first_match      = true;
+	search.results.len       = 0;
 
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	start_position = get_cursor_position(target_buf, target_editor.cursor_index);
@@ -16,6 +17,7 @@ search_mode_init :: fn () {
 
 	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
 		search.last_subject.len = 0;
+		jump_to_first_match = false;
 		std.str_append(&search.last_subject, initial_subject);
 	} else {
 		initial_subject = search.last_subject;
@@ -25,9 +27,6 @@ search_mode_init :: fn () {
 		insert_string(buf, 0, initial_subject);
 		select_all(editor, buf);
 	}
-
-	search.results.len = 0;
-	search_cmd_changed();
 
 	if settings.show_hints {
 		replace_binding          :: get_keybinding_for_command(Command.SEARCH_REPLACE);
@@ -63,21 +62,21 @@ draw_search_mode :: fn () {
 invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
 	assert(active_editor == command_editor);
 	assert(editors[active_editor].buffer_index == buf.index);
+	
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
 
 	using std;
 	using Command;
 	switch cmd {
-		MOVE_UP   { prev_match(); }
+		MOVE_UP   { prev_match(target_buf, target_editor); }
 
 		SEARCH_FILE,
-		MOVE_DOWN { next_match(); }
+		MOVE_DOWN { next_match(target_buf, target_editor); }
 
 		SEARCH_TO_BUFFER,
 		INSERT_NEW_LINE {
 			// Lets store the current search subject for later reuse.
 			subject :: commit_current_subject();
-
-			target_buf :: get_last_active_buffer_and_editor();
 
 			if cmd == SEARCH_TO_BUFFER {
 				if target_buf.index == search_buffer_index {
@@ -162,7 +161,10 @@ search_cmd_changed :: fn () {
 	// reset buffer to the starting position
 	set_cursor_position(target_buf, target_editor.cursor_index, start_position);
 
-	if subject.len == 0 { return; }
+	if subject.len == 0 {
+		jump_to_first_match = true;
+		return;
+	}
 
 	first_hit_set := false;
 	start_index : s64 = 0;
@@ -172,7 +174,7 @@ search_cmd_changed :: fn () {
 
 	loop {
 		hit_position :: find_matching_subject_in_data(target_buf.bytes, subject, start_index, &row, &col);
-		if hit_position == -1 { break; }
+		if hit_position == -1 then break;
 		if first_hit_set == false && hit_position >= start_position {
 			first_hit_set = true;
 			search.result_index = search.results.len;
@@ -190,16 +192,20 @@ search_cmd_changed :: fn () {
 	}
 
 	if search.results.len > 0 {
-		assert(search.result_index >= 0 && search.result_index < search.results.len);
-		set_cursor_position(target_buf, target_editor.cursor_index, search.results[search.result_index].start);
-		center_view(target_editor);
+		if (jump_to_first_match) {
+			assert(search.result_index >= 0 && search.result_index < search.results.len);
+			set_cursor_position(target_buf, target_editor.cursor_index, search.results[search.result_index].start);
+			center_view(target_editor);
+		}
 	} else {
 		print_warn("No match!");
 	}
+
+	jump_to_first_match = true;
 }
 
 // Jump to the next matching search location in the last search.
-next_match :: fn () {
+next_match :: fn (buf: *Buffer, editor: *Editor) {
 	if search.results.len == 0 {
 		print_warn("No match!");
 		return;
@@ -208,14 +214,17 @@ next_match :: fn () {
 		print_warn("No other match!");
 		return;
 	}
-	search.result_index += 1;
-	if search.result_index >= search.results.len { search.result_index = 0; }
-
+	
+	cursor :: get_cursor_position(buf, editor.cursor_index);
+	if cursor == search.results[search.result_index].start {
+		search.result_index += 1;
+		if search.result_index >= search.results.len { search.result_index = 0; }
+	}
 	focus_current_search_result();
 }
 
 // Jump to the prev matching search location in the last search.
-prev_match :: fn () {
+prev_match :: fn (buf: *Buffer, editor: *Editor) {
 	if search.results.len == 0 {
 		print_warn("No match!");
 		return;
@@ -224,9 +233,12 @@ prev_match :: fn () {
 		print_warn("No other match!");
 		return;
 	}
-	search.result_index -= 1;
-	if search.result_index < 0 { search.result_index = search.results.len - 1; }
-
+	
+	cursor :: get_cursor_position(buf, editor.cursor_index);
+	if cursor == search.results[search.result_index].start {
+		search.result_index -= 1;
+		if search.result_index < 0 { search.result_index = search.results.len - 1; }
+	}
 	focus_current_search_result();
 }
 
@@ -244,6 +256,8 @@ focus_current_search_result :: fn () bool {
 
 start_position:      s64;
 start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
+
+jump_to_first_match: bool;
 
 // Store current subject into global cache as a last one we performed search for. And return cached
 // string.

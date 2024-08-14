@@ -78,8 +78,8 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 
 	using Command;
 	switch cmd {
-		MOVE_UP   { prev_match(); }
-		MOVE_DOWN { next_match(); }
+		MOVE_UP   { prev_match(target_buf, target_editor); }
+		MOVE_DOWN { next_match(target_buf, target_editor); }
 
 		INSERT_NEW_LINE {
 			if is_replacing {
