@@ -7,6 +7,11 @@ Editor :: struct {
 	top:           s32;
 	visible_lines: s32;
 
+	sliding: struct {
+		vertical:        Animation;
+		vertical_offset: f32;
+	};
+
 	left: f32;
 
 	prev_frame_cursor_position: s64;
@@ -56,6 +61,8 @@ add_editor :: fn (buffer_index: s32, track_recent_locations := false, split := S
 	editor.split                  = split;
 	editor.cursor_index           = cursor_index;
 	editor.track_recent_locations = track_recent_locations;
+
+	editor.sliding.vertical.t = 1.f;
 
 	return editor.index;
 }
@@ -129,21 +136,35 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	set_shader_color();
 	rect(x, y, w, h, colors.background_color);
 
+	sliding :: &editor.sliding;
+
 	cursor :: get_cursor(buf, editor.cursor_index);
 	visible_lines :: cast(s32) std.ceil(h / line_height);
 
 	first_line_index := editor.top;
-	last_line_index  := first_line_index + visible_lines;
+
+	if is_animating(&sliding.vertical) {
+		interpolated_y :: animate(&sliding.vertical);
+
+		first_line_index = auto floor(interpolated_y / line_height);
+		sliding.vertical_offset = (line_height * auto first_line_index) - interpolated_y;
+	}
+
+	last_line_index :: first_line_index + visible_lines;
+	
+	// Cache some values.
+	editor.top           = first_line_index;
+	editor.visible_lines = visible_lines;
 
 	// Make cursor visible if position changed
 	if editor.prev_frame_cursor_position != cursor.position {
+		top := -1;
 		if cursor.row < first_line_index {
-			first_line_index = std.max(0, cursor.row);
-			last_line_index  = first_line_index + visible_lines;
+			top = std.max(0, cursor.row);
 		} else if cursor.row > last_line_index - BOTTOM_SCROLL_TRIGGER {
-			first_line_index = std.max(0, first_line_index + cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
-			last_line_index  = first_line_index + visible_lines;
+			top = std.max(0, first_line_index + cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
 		}
+		if top != -1 then start_vertical_animation(editor, top);
 	}
 
 	// Cursor position and size.
@@ -162,7 +183,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	tx := x + text_padding;
-	ty :: y + text_padding;
+	ty :: y + text_padding + sliding.vertical_offset;
 
 	// Adjust text x offset
 	if settings.word_wrap == false {
@@ -170,10 +191,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	tx -= editor.left;
-
-	// Cache some values.
-	editor.top           = first_line_index;
-	editor.visible_lines = visible_lines;
 
 	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
 	if is_active {
@@ -316,7 +333,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 		set_shader_color();
 		rect(x + w * buf.pending_t * 0.0005f, h-2.f-title_bar_height, w * 0.1f, 2.f, colors.warning_color);
-		force_redraw = true;
 	}
 
 	// file info bar
@@ -599,10 +615,28 @@ center_view :: fn (editor: *Editor) {
 	visible_rows :: editor.visible_lines;
 	if visible_rows < 2 { return; }
 
-	editor.top = std.max(0, first_row + (cursor.row - (first_row + visible_rows / 2)));
+	top :: std.max(0, first_row + (cursor.row - (first_row + visible_rows / 2)));
+	if top != editor.top {
+		start_vertical_animation(editor, top);
+	}
 }
 
 #private
+
+start_vertical_animation :: fn (editor: *Editor, top: s32) {
+	using AnimationInterpolation;
+	using Metric;
+	SCROLL_ANIMATION_SPEED :: 0.005f;
+	
+	sliding      :: &editor.sliding;
+	line_height  :: metrics[auto LINE_HEIGHT ];
+
+	start  :: (line_height * auto editor.top) - sliding.vertical_offset;
+	end    :: line_height * auto top;
+	interp :: if is_animating(&sliding.vertical) then LINEAR else SMOOTH_STEP;
+
+	start_animation(&sliding.vertical, start, end, SCROLL_ANIMATION_SPEED, interp);
+}
 
 adjust_editor_x_offset :: fn (line_w: f32, cursor_x: f32, off: *f32) {
 	if line_w > 0.f {
@@ -743,6 +777,7 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 	uy = y + 10.f;
 
 	rl  :: &recent_locations;
+	text(ux, uy, tprint("FPS:  %", current_fps), color); uy += font.height;
 	text(ux, uy, tprint("Index:  %", rl.index), color); uy += font.height;
 	loop i := 0; i < rl.stack.len; i += 1 {
 		if i == rl.index {

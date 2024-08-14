@@ -119,6 +119,8 @@ PROJECT_IS_INDEXING_MESSAGE :: "Project indexing in progress, please wait.";
 
 window: *glfw.Window;
 
+current_fps: f32;
+
 font:      draw.Font;
 font_ui:   draw.Font;
 font_ui_b: draw.Font;
@@ -439,10 +441,6 @@ mouse: struct {
 	prev_click_time_s: f64;
 };
 
-// We can speed up rendering and disable low-power mode in case some animation is running. Next
-// frame will not wait for inputs.
-force_redraw := false;
-
 main :: fn () s32 {
 	using glfw;
 	using std;
@@ -664,8 +662,8 @@ main :: fn () s32 {
 	SwapInterval(1);
 	prev_time := GetTime();
 	prev_frame_delta := -1.f #maybe_unused;
-	fps, fps_sum: f32 #maybe_unused;
-	fps_num: s32 #maybe_unused;
+	fps_sum: f32;
+	fps_num: s32;
 
 	if show_help {
 		help();
@@ -685,20 +683,13 @@ main :: fn () s32 {
 
 		#if PLATFORM == Platform.DARWIN {
 			// Limit maximum FPS on mac since vsync seems not work.
-			if prev_frame_delta <= 33.f && prev_frame_delta > 0.f {
-				os_sleep_ms(cast(u32) (33.f - prev_frame_delta));
+			if prev_frame_delta <= 16.f && prev_frame_delta > 0.f {
+				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
 			}
 		}
 
-		wait_s := 0.100;
-		if low_power_mode && force_redraw == false {
-			wait_s = 1.0;
-		} else if force_redraw {
-			wait_s = 0.016;
-		}
-		force_redraw = false;
-
-		WaitEventsTimeout(wait_s);
+		// WaitEventsTimeout(0.016);
+		PollEvents();
 
 		update_mouse();
 		update_caret();
@@ -727,28 +718,27 @@ main :: fn () s32 {
 			}
 		}
 
-		draw_frame();
+		if !minimized then draw_frame();
 		scaling_changed = false;
 
 		title: string_view;
-		#if IS_DEBUG && false {
+		{ // update FPS
 			fps_num += 1;
 			fps_sum += 1000.f/frame_delta_time;
 			if fps_num == 10 {
-				fps = fps_sum / auto fps_num;
+				current_fps = fps_sum / auto fps_num;
 				fps_sum = 0.f;
 				fps_num = 0;
 			}
-			title = tprint("FPS: %", fps);
-			SetWindowTitle(window, auto std.strtoc(title));
-		} else {
-			if project.is_default {
-				title = buf.name;
-			} else {
-				title = tprint("% - %", project.name, buf.name);
-			}
-			SetWindowTitle(window, auto std.strtoc(title));
 		}
+
+		if project.is_default {
+			title = buf.name;
+		} else {
+			title = tprint("% - %", project.name, buf.name);
+		}
+		SetWindowTitle(window, auto std.strtoc(title));
+
 		clear_mouse_events();
 		prev_frame_delta = frame_delta_time;
 	}
@@ -1667,7 +1657,7 @@ debug_allocator: std.DebugAllocator;
 ignore_char_input: bool;
 
 // Might be changed when window is not focused.
-low_power_mode: bool;
+minimized: bool;
 
 draw_frame :: fn () {
 	using draw;
@@ -1835,7 +1825,7 @@ scroll_callback :: fn (_: *glfw.Window, _: f64, yoff: f64) {
 }
 
 window_iconify_callback :: fn (_: *glfw.Window, iconified: s32) {
-	low_power_mode = iconified != 0;
+	minimized = iconified != 0;
 }
 
 window_size_callback :: fn (_: *glfw.Window, _: s32, _: s32) {
@@ -1858,10 +1848,8 @@ window_scale_callback :: fn (_: *glfw.Window, xscale: f32, _: f32) {
 window_focus_callback :: fn (_: *glfw.Window, focused: s32) {
 	if focused > 0 {
 		reset_caret_blinking();
-		low_power_mode = false;
 	} else {
 		caret.no_binking = true;
-		low_power_mode   = true;
 		print_log("Focus out!");
 	}
 }

@@ -4,6 +4,7 @@ Add command to insert current system date into buffer.
 Add custom icons for some supported file types.
 Add open-file-location command.
 Add support-me command.
+Add vertical smooth scrolling.
 Fix laggy clipboard on windows.
 License changed to GPL3.
 Search in case there is selection when invoked does not jump to next match automatically.

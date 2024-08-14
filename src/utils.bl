@@ -1,3 +1,43 @@
+Animation :: struct {
+	start:  f32;
+	end:    f32;
+	t:      f32;
+	speed:  f32;
+	interp: AnimationInterpolation;
+}
+
+AnimationInterpolation :: enum { SMOOTH_STEP; LINEAR };
+
+start_animation :: fn (anim: *Animation, start: f32, end: f32, speed: f32, interp := AnimationInterpolation.SMOOTH_STEP) #inline {
+	@anim = .{
+		start,
+		end,
+		0.f,
+		speed,
+		interp
+	};
+}
+
+animate :: fn (anim: *Animation) f32 #inline {
+	using std;
+	anim.t += frame_delta_time * anim.speed;
+	if anim.t >= 1.f then return anim.end;
+	anim.t = clamp(anim.t, 0.f, 1.f);
+
+	using AnimationInterpolation;
+	switch anim.interp {
+		SMOOTH_STEP { return smooth_step(anim.start, anim.end, anim.t); }
+		LINEAR      { return lerp(anim.start, anim.end, anim.t);        }
+	}
+
+	unreachable;
+	return 0.f;
+}
+
+is_animating :: fn (anim: *Animation) bool #inline {
+	return anim.t < 1.f;
+}
+
 TokenizerBase :: struct {
 	bytes: []u8;
 	index: s32;
