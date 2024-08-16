@@ -274,10 +274,14 @@ try_set_cursor_row_col :: fn (buf: *Buffer, cursor_index: s32, row: s32, col: s3
 	set_cursor_position(buf, cursor_index, position);
 }
 
+// Returns 0 in case the row is less then 0 and last position in buffer in case the
+// row is out of bounds.
 get_closest_cursor_row_col_position :: fn (buf: *Buffer, row: s32, col: s32) s64 {
-	line, start_index := peek_row(buf, row);
-	if line.len == 0 { return 0; }
+	row_num :: get_row_count(buf);
+	if row < 0 then return 0;
+	if row >= row_num then return get_last_position_in_buffer(buf);
 
+	line, start_index := peek_row(buf, row);
 	valid_cols: s32;
 	loop i := 0; i < line.len && valid_cols < col; valid_cols += 1 {
 		char_len :: std.min(get_character_len(line[i]), 1);

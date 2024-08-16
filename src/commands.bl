@@ -954,8 +954,6 @@ move_left :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 move_right :: fn (editor: *Editor, buf: *Buffer) bool {
-	print_log("%", get_current_date_as_YYYY_MM_DD());
-
 	position :: get_cursor_position(buf, editor.cursor_index);
 	c :: peek_position(buf, position);
 	if c.len == 0 { return false; }

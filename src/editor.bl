@@ -8,17 +8,19 @@ Editor :: struct {
 	visible_lines: s32;
 
 	sliding: struct {
-		vertical:        Animation;
-		vertical_offset: f32;
+		vertical:          Animation;
+		horizontal:        Animation;
+		vertical_offset:   f32;
+		horizontal_offset: f32;
 	};
-
-	left: f32;
 
 	prev_frame_cursor_position: s64;
 	track_recent_locations:     bool;
 
 	is_removed: bool;
 }
+
+DEFAULT_ANIMATION_SPEED :: 0.008f;
 
 add_editor :: fn (buffer_index: s32, track_recent_locations := false, split := Split.FLOATING) s32 {
 	editor: *Editor;
@@ -62,7 +64,10 @@ add_editor :: fn (buffer_index: s32, track_recent_locations := false, split := S
 	editor.cursor_index           = cursor_index;
 	editor.track_recent_locations = track_recent_locations;
 
-	editor.sliding.vertical.t = 1.f;
+	sliding :: &editor.sliding;
+	sliding.vertical.t   = 1.f;
+	sliding.horizontal.t = 1.f;
+	sliding.horizontal_offset = 0.f;
 
 	return editor.index;
 }
@@ -139,7 +144,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	sliding :: &editor.sliding;
 
 	cursor :: get_cursor(buf, editor.cursor_index);
-	visible_lines :: cast(s32) std.ceil(h / line_height);
+	visible_lines :: cast(s32) std.round(h / line_height);
 
 	first_line_index := editor.top;
 
@@ -151,7 +156,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	last_line_index :: first_line_index + visible_lines;
-	
+
 	// Cache some values.
 	editor.top           = first_line_index;
 	editor.visible_lines = visible_lines;
@@ -178,7 +183,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		cursor_w = cw;
 		if cursor_w == 0.f {
 			pilot_char_w :: text_size("X", &font);
-			cursor_w = ceil(pilot_char_w);
+			cursor_w = round(pilot_char_w);
 		}
 	}
 
@@ -187,10 +192,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	// Adjust text x offset
 	if settings.word_wrap == false {
-		adjust_editor_x_offset(line_w, cursor_x, &editor.left);
+		update_editor_x_offset(editor, line_w, cursor_x);
 	}
 
-	tx -= editor.left;
+	tx -= sliding.horizontal_offset;
+	tx = round(tx);
 
 	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
 	if is_active {
@@ -271,11 +277,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	// cursor
 	if is_active && caret.visible {
 		color := colors.cursor_background_color;
-		rect(ceil(tx + cursor_x), current_line_y, cursor_w, line_height, color);
+		rect(round(tx + cursor_x), current_line_y, cursor_w, line_height, color);
 	} else if !is_active {
 		// Draw just empty box.
 		lw :: 2.f;
-		cx :: ceil(tx + cursor_x);
+		cx :: round(tx + cursor_x);
 		rect(cx, current_line_y, cursor_w, lw, colors.cursor_background_color);
 		rect(cx, current_line_y + line_height - lw, cursor_w, lw, colors.cursor_background_color);
 		rect(cx, current_line_y, lw, line_height, colors.cursor_background_color);
@@ -283,7 +289,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	set_shader_font(&font);
-	line_base_y := ty;
+	line_base_y := round(ty);
 	loop i := first_line_index; i < last_line_index; i += 1 {
 		line, row_start_index :: peek_row(buf, i);
 		if line.len == 0 { break; }
@@ -402,14 +408,14 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	// Mouse input
-	if is_point_in_rect(x, y, w, h, mouse.px, mouse.py) {
+	if is_point_in_rect(x, y, w, h, mouse.position.x, mouse.position.y) {
 		mouse.hover_elem_id = loc.hash;
 	}
 
 	set_cursor_under_mouse := false;
 
 	if mouse.last_hover_elem_id == loc.hash {
-		if is_point_in_rect(x, y, w, h-title_bar_height, mouse.px, mouse.py) {
+		if is_point_in_rect(x, y, w, h-title_bar_height, mouse.position.x, mouse.position.y) {
 			set_mouse_cursor(MouseCursor.IBEAM);
 
 			if is_lmb_press() {
@@ -422,12 +428,13 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 
 			if abs(mouse.scroll) > 0.f {
-				editor.top -= auto mouse.scroll * 3.f;
-				if editor.top < 0 {
-					editor.top = 0;
-				} else if editor.top+2 >= auto get_row_count(buf) {
-					editor.top = auto get_row_count(buf) - 2;
+				top := editor.top - auto (mouse.scroll * 5.f);
+				if top < 0 {
+					top = 0;
+				} else if top+2 >= auto get_row_count(buf) {
+					top = auto get_row_count(buf) - 2;
 				}
+				start_vertical_animation(editor, top, 0.01f);
 			}
 
 			if is_lmb_dbl_press() {
@@ -442,17 +449,23 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	if set_cursor_under_mouse || is_lmb_dragging(loc.hash) {
 		// Calculate the position of cursor in the text based on the click position.
-		row :: (cast(s32) ((mouse.py - ty) / line_height)) + editor.top;
+		row :: (cast(s32) ((mouse.position.y - ty) / line_height)) + editor.top;
 		if row >= 0 {
-			line :: peek_row(buf, row);
-			col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.px - tx);
-			position :: get_closest_cursor_row_col_position(buf, row, col);
-			reset_caret_blinking();
+			position: s64;
+			if row < get_row_count(buf) {
+				line :: peek_row(buf, row);
+				col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.position.x - tx);
+				position = get_closest_cursor_row_col_position(buf, row, col);
+			} else {
+				position = get_last_position_in_buffer(buf);
+			}
 
 			if position != cursor.position {
 				set_cursor_position(buf, editor.cursor_index, position);
 			}
 		}
+
+		reset_caret_blinking();
 	}
 
 	editor.prev_frame_cursor_position = cursor.position;
@@ -501,8 +514,8 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 			cursor_w = w;
 		}
 	}
-	adjust_editor_x_offset(line_w, cursor_x, &editor.left);
-	text_x -= editor.left;
+	update_editor_x_offset(editor, line_w, cursor_x);
+	text_x -= editor.sliding.horizontal_offset;
 
 	set_shader_font(&font);
 	text_base_line_y :: text_y + (line_height * 0.5f - font.height * 0.5f);
@@ -532,7 +545,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	// draw cursor
 	if is_active && caret.visible {
 		color := colors.cursor_background_color;
-		rect(std.ceil(text_x + cursor_x), text_y, cursor_w, line_height, color);
+		rect(std.round(text_x + cursor_x), text_y, cursor_w, line_height, color);
 	}
 
 	set_shader_font(&font);
@@ -558,16 +571,16 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	clear_scissor();
 
 	// Mouse input
-	if is_point_in_rect(x, y, w, h, mouse.px, mouse.py) {
+	if is_point_in_rect(x, y, w, h, mouse.position.x, mouse.position.y) {
 		mouse.hover_elem_id = loc.hash;
 	}
 	if mouse.last_hover_elem_id == loc.hash {
-		if is_point_in_rect(text_x, y, w, h, mouse.px, mouse.py) {
+		if is_point_in_rect(text_x, y, w, h, mouse.position.x, mouse.position.y) {
 			set_mouse_cursor(MouseCursor.IBEAM);
 			if is_lmb_press() {
 				// Calculate the position of cursor in the text based on the click position.
 				line :: peek_row(buf, 0);
-				col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.px - text_x);
+				col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.position.x - text_x);
 				try_set_cursor_row_col(buf, editor.cursor_index, 0, col);
 				reset_caret_blinking();
 			}
@@ -623,32 +636,51 @@ center_view :: fn (editor: *Editor) {
 
 #private
 
-start_vertical_animation :: fn (editor: *Editor, top: s32) {
+start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
 	using Metric;
-	SCROLL_ANIMATION_SPEED :: 0.005f;
-	
+
 	sliding      :: &editor.sliding;
 	line_height  :: metrics[auto LINE_HEIGHT ];
 
+	if editor.top == top then return;
+	if !settings.smooth_movement {
+		editor.top = top;
+		return;
+	}
+
 	start  :: (line_height * auto editor.top) - sliding.vertical_offset;
 	end    :: line_height * auto top;
-	interp :: if is_animating(&sliding.vertical) then LINEAR else SMOOTH_STEP;
+	// interp :: if is_animating(&sliding.vertical) then LINEAR else SMOOTH_STEP;
+	interp :: LINEAR;
 
-	start_animation(&sliding.vertical, start, end, SCROLL_ANIMATION_SPEED, interp);
+	start_animation(&sliding.vertical, start, end, speed, interp);
 }
 
-adjust_editor_x_offset :: fn (line_w: f32, cursor_x: f32, off: *f32) {
+update_editor_x_offset :: fn (editor: *Editor, line_w: f32, cursor_x: f32) {
+	sliding :: &editor.sliding;
+
+	result := sliding.horizontal_offset;
 	if line_w > 0.f {
-		c :: cursor_x - @off;
+		c :: cursor_x - result;
 		pilot_char_w :: draw.text_size("X", &font);
 		t := pilot_char_w * 6.f;
 		t = std.min(t, line_w * 0.2f);
 		if c < t || c > line_w - t {
-			@off = cursor_x - line_w * 0.5f;
+			result = cursor_x - line_w * 0.5f;
 		}
 	}
-	@off = std.max(0.f, @off);
+
+	result = std.max(0.f, result);
+	if !settings.smooth_movement {
+		sliding.horizontal_offset = result;
+		return;
+	}
+
+	if result != sliding.horizontal_offset && !is_animating(&sliding.horizontal) {
+		start_animation(&sliding.horizontal, sliding.horizontal_offset, result, DEFAULT_ANIMATION_SPEED);
+	}
+	sliding.horizontal_offset = animate(&sliding.horizontal);
 }
 
 draw_inline_error :: fn (x: f32, y: f32, w: f32, line: string_view, loc: *ErrorLocation) {

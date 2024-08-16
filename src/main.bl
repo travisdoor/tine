@@ -264,6 +264,7 @@ Settings :: struct {
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
 	show_hints:                             bool;
+	smooth_movement:                        bool;
 };
 
 settings: Settings;
@@ -424,9 +425,8 @@ MouseCursor :: enum {
 }
 
 mouse: struct {
-	px:     f32;
-	py:     f32;
-	scroll: f32;
+	position: glm.v2;
+	scroll:   f32;
 
 	last_hover_elem_id:  u32;
 	hover_elem_id:       u32;
@@ -438,6 +438,7 @@ mouse: struct {
 	beam_cursor:   *glfw.Cursor;
 
 	prev_mouse_pos: glm.v2;
+	prev_lmb_pos:   glm.v2;
 	prev_click_time_s: f64;
 };
 
@@ -1801,10 +1802,11 @@ mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) 
 				set_flag(&mouse.state, LB_PRESS);
 				set_flag(&mouse.state, LB_DOWN);
 				// detect double-click
-				if GetTime() - mouse.prev_click_time_s < MOUSE_DBL_CLICK_S {
+				if GetTime() - mouse.prev_click_time_s < MOUSE_DBL_CLICK_S && glm.distance(mouse.prev_lmb_pos, mouse.position) < 4.f {
 					set_flag(&mouse.state, LB_DBL_PRESS);
 				}
 				mouse.prev_click_time_s = GetTime();
+				mouse.prev_lmb_pos = mouse.position;
 			} else if action == RELEASE {
 				set_flag(&mouse.state, LB_RELEASE);
 				clr_flag(&mouse.state, LB_DOWN);
@@ -1951,7 +1953,7 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 			str_append(&message.text, tprint(format, args));
 		}
 		MESSAGE {
-#if !IS_DEBUG { return; }
+			#if !IS_DEBUG { return; }
 		}
 		default;
 	}
@@ -2018,17 +2020,17 @@ update_mouse :: fn () {
 		scale = 1.f;
 	}
 
-	mouse.px = (cast(f32) mpx) * scale;
-	mouse.py = (cast(f32) mpy) * scale;
+	mouse.position.x = (cast(f32) mpx) * scale;
+	mouse.position.y = (cast(f32) mpy) * scale;
 	mouse.last_hover_elem_id = mouse.hover_elem_id;
 	mouse.hover_elem_id = 0;
 
 	using glm;
 	if is_lmb_press() {
-		mouse.prev_mouse_pos = v2.{ mouse.px, mouse.py };
+		mouse.prev_mouse_pos = mouse.position;
 	}
 
-	if is_lmb_down() && is_lmb_dragging() == false && distance(v2.{ mouse.px, mouse.py }, mouse.prev_mouse_pos) > MOUSE_DRAG_OFFSET {
+	if is_lmb_down() && is_lmb_dragging() == false && distance(mouse.position, mouse.prev_mouse_pos) > MOUSE_DRAG_OFFSET {
 		mouse.state |= LB_DRAGGING | LB_DRAGGING_START;
 		mouse.drag_target_elem_id = mouse.last_hover_elem_id;
 	}

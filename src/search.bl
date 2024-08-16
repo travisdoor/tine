@@ -138,9 +138,11 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 			// reset buffer to the starting position
 			set_cursor_position(target_buf, target_editor.cursor_index, start_position);
 			// Restore also top position in the editor to prevent annoying jumps.
-			target_editor.top = start_top;
+			// start_vertical_animation(target_editor, start_top);
 			return false;
 		}
+		
+		CENTER_VIEW { center_view(target_editor); }
 
 		default { return false; }
 	}
@@ -195,7 +197,7 @@ search_cmd_changed :: fn () {
 		if (jump_to_first_match) {
 			assert(search.result_index >= 0 && search.result_index < search.results.len);
 			set_cursor_position(target_buf, target_editor.cursor_index, search.results[search.result_index].start);
-			center_view(target_editor);
+			// center_view(target_editor);
 		}
 	} else {
 		print_warn("No match!");
@@ -218,7 +220,9 @@ next_match :: fn (buf: *Buffer, editor: *Editor) {
 	cursor :: get_cursor_position(buf, editor.cursor_index);
 	if cursor == search.results[search.result_index].start {
 		search.result_index += 1;
-		if search.result_index >= search.results.len { search.result_index = 0; }
+		if search.result_index >= search.results.len { 
+			search.result_index = 0;
+		}
 	}
 	focus_current_search_result();
 }
@@ -237,7 +241,9 @@ prev_match :: fn (buf: *Buffer, editor: *Editor) {
 	cursor :: get_cursor_position(buf, editor.cursor_index);
 	if cursor == search.results[search.result_index].start {
 		search.result_index -= 1;
-		if search.result_index < 0 { search.result_index = search.results.len - 1; }
+		if search.result_index < 0 { 
+			search.result_index = search.results.len - 1;
+		}
 	}
 	focus_current_search_result();
 }
@@ -248,7 +254,7 @@ focus_current_search_result :: fn () bool {
 	}
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	set_cursor_position(target_buf, target_editor.cursor_index, search.results[search.result_index].start);
-	center_view(target_editor);
+	// center_view(target_editor);
 	return true;
 }
 
