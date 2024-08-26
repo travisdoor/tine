@@ -608,3 +608,29 @@ get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") strin
 	if keymap_index == -1 { return missing; }
 	return keymap_entry_to_string(keymap_index);
 }
+
+unify_line_endings :: fn (data: []u8, line_ending:  LineEnding) string_view {
+	using std;
+
+	if detect_line_ending(data) == line_ending then return data;
+
+	buf: string;
+	if line_ending == LineEnding.LF {
+		print_log("Convert to LF");
+		buf = str_new(data, application_context.temporary_allocator);
+		str_replace_all(&buf, '\r');
+	} else {
+		print_log("Convert to CRLF");
+		buf = str_new(data.len, application_context.temporary_allocator);
+		loop i := 0; i < data.len; i += 1 {
+			c :: data[i];
+			if c == '\n' {
+				str_append(&buf, "\r\n");
+				continue;
+			}
+			str_append(&buf, string_view.{ 1, &c });
+		}
+	}
+
+	return buf;
+}

@@ -981,6 +981,27 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 	buf.dirty_syntax = false;
 }
 
+detect_line_ending :: fn (bytes: []u8) LineEnding {
+	loop i := 0; i < bytes.len; i += 1 {
+		if bytes[i] == '\r' {
+			if i+1 < bytes.len && bytes[i+1] == '\n' {
+				return LineEnding.CRLF;
+			} else {
+				return LineEnding.UNKNOWN;
+			}
+		}
+		if bytes[i] == '\n' {
+			return LineEnding.LF;
+		}
+	}
+
+	#if PLATFORM == Platform.WINDOWS {
+		return LineEnding.CRLF;
+	} else {
+		return LineEnding.LF;
+	}
+}
+
 #private
 
 SMALL_STRING_EDIT :: 16;
@@ -1044,27 +1065,6 @@ shift_lines_after_position :: fn (buf: *Buffer, position: s64, n : s64 = 1) s32 
 		buf.lines[i] += n;
 	}
 	return row;
-}
-
-detect_line_ending :: fn (bytes: []u8) LineEnding {
-	loop i := 0; i < bytes.len; i += 1 {
-		if bytes[i] == '\r' {
-			if i+1 < bytes.len && bytes[i+1] == '\n' {
-				return LineEnding.CRLF;
-			} else {
-				return LineEnding.UNKNOWN;
-			}
-		}
-		if bytes[i] == '\n' {
-			return LineEnding.LF;
-		}
-	}
-
-	#if PLATFORM == Platform.WINDOWS {
-		return LineEnding.CRLF;
-	} else {
-		return LineEnding.LF;
-	}
 }
 
 notify :: fn () {

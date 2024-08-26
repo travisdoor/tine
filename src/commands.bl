@@ -369,8 +369,8 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true) {
 	text := read_clipboard();
 
-	if text.len == 0 { return; }
-	if maybe_report_readonly(buf) { return; }
+	if text.len == 0 then return;
+	if maybe_report_readonly(buf) then return;
 
 	// @Cleanup: [travis] Factor out to function??? We already have is_row_empty but this cannot skip whitespace.
 	cursor :: get_cursor(buf, editor.cursor_index);
@@ -390,6 +390,8 @@ paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true
 		// string is empty.
 		return;
 	}
+
+	text = unify_line_endings(text, buf.line_ending);
 
 	if record_as_single_undo_action { commit_undo(buf); }
 
