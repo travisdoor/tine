@@ -361,9 +361,14 @@ worker :: fn (ctx: *JobContext) s32 {
 		"--header-insertion=never",
 		"--function-arg-placeholders"
 	};
-	err :: start_process(ctx, "clangd.exe", args);
+	executable :: "clangd.exe"; // @Incomplete 2024-09-18: This should work also on linux. + We want to specify the executable and args from the config!
+	err :: start_process(ctx, executable, args);
 	if err {
-		print_err(err);
+		if err.code == ERR_NOT_FOUND {
+			print_err("Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
+		} else {
+			print_err("Cannot execute '%' with error: %", executable, err);
+		}
 		ctx.state = FAILED;
 		return 0;
 	}
@@ -380,7 +385,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 			err :: process_request(ctx, &request);
 			if err {
-				print_err(err);
+				print_err("The '%' failed with error: %", executable, err);
 			} else if is_notification(rd.kind) {
 				pending_response.is_waiting = false;
 			} else {
@@ -395,7 +400,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 		err :: process_response(ctx, &pending_response);
 		if err {
-			print_err(err);
+			print_err("The '%' failed with error: %", executable, err);
 			ctx.state = FAILED;
 			return 0;
 		}
@@ -405,7 +410,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	err_kill :: kill_process(ctx.pid, 0);
 	if err_kill {
-		print_err(err_kill);
+		print_err("The '%' failed with error: %", executable, err_kill);
 		ctx.state = FAILED;
 		return 0;
 	}

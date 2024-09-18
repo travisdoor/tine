@@ -68,7 +68,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		if err.code == ERR_NOT_FOUND {
 			print_err("Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
 		} else {
-			print_err("Cannot execute clang-format with error: %", err);
+			print_err("Cannot execute '%' with error: %", executable, err);
 		}
 		ctx.state = FAILED;
 		return 0;
@@ -76,7 +76,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	err_write, write_closed :: write_pipe(ctx.stdin, request_data.src);
 	if err_write {
-		print_err("Clang-format failed with error: %", err_write);
+		print_err("The '%' failed with error: %", executable, err_write);
 		ctx.state = FAILED;
 		return 0;
 	}
@@ -92,7 +92,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	loop !ctx.kill {
 		err_peek, bytes, peek_closed :: peek_pipe(ctx.stdout);
 		if err_peek {
-			print_err("Clang-format failed with error: %", err_peek);
+			print_err("The '%' failed with error: %", executable, err_peek);
 			ctx.state = FAILED;
 
 			return 0;
@@ -104,7 +104,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 		err_read, read_closed :: read_pipe(ctx.stdout, &request_data.src, bytes);
 		if err_read {
-			print_err("Clang-format failed with error: %", err_read);
+			print_err("The '%' failed with error: %", executable, err_read);
 			ctx.state = FAILED;
 			return 0;
 		}
