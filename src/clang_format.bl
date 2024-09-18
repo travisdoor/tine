@@ -7,7 +7,6 @@ request_format :: fn (buf: *Buffer) Error {
 
 	// set buffer temporarily as readonly
 	buf.flags |= BufferFlags.READONLY;
-
 	job_index :: start_async_job(JobKind.CLANG_FORMAT, "clang-format", &worker);
 
 	request := Request.{ job_kind = JobKind.CLANG_FORMAT };
@@ -32,19 +31,21 @@ apply_format :: fn (job_state: JobContext.state, request: *Request) {
 	// If clang-format took long time, it's possible the target buffer was removed or
 	// the buffer slot was reused for a different file...
 	buf :: &buffers[rd.buffer_index];
-	if buf.is_removed                  { return; }
+	if buf.is_removed             { return; }
 	if buf.hash != rd.buffer_hash { return; }
-
 	clr_flag(&buf.flags, BufferFlags.READONLY);
-
 	buf.has_pending_job -= 1;
-
-	if job_state == JobContext.state.DONE {
-		change_content(buf, rd.src);
-	}
+	if job_state == JobContext.state.DONE then change_content(buf, rd.src);
 }
 
 #private
+
+get_clang_format_executable :: fn () string_view #comptime {
+	#if PLATFORM == Platform.WINDOWS {
+		return "clang-format.exe";
+	}
+	return "clang-format";
+}
 
 worker :: fn (ctx: *JobContext) s32 {
 	using std;
@@ -55,26 +56,27 @@ worker :: fn (ctx: *JobContext) s32 {
 	loop !pop_request(ctx, &request) {
 		os_sleep_ms(10);
 	}
-	rd :: &request.data.clang_format;
+	request_data :: &request.data.clang_format;
+	executable   :: get_clang_format_executable();
 
-	executable: string_view;
-	#if PLATFORM == Platform.WINDOWS {
-		executable = "clang-format.exe";
-	} else {
-		executable = "clang-format";
-	}
+	// We need to unlock the file and do other stuff even in case execution failed...
+	defer push_result(ctx, &request);
 
-	args :: [_]string_view.{ tprint("--assume-filename=\"%\"", rd.filepath) };
+	args :: [_]string_view.{ tprint("--assume-filename=\"%\"", request_data.filepath) };
 	err :: start_process(ctx, executable, args);
 	if err {
-		print_err(err);
+		if err.code == ERR_NOT_FOUND {
+			print_err("Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
+		} else {
+			print_err("Cannot execute clang-format with error: %", err);
+		}
 		ctx.state = FAILED;
-		return 1;
+		return 0;
 	}
 
-	err_write, write_closed :: write_pipe(ctx.stdin, rd.src);
+	err_write, write_closed :: write_pipe(ctx.stdin, request_data.src);
 	if err_write {
-		print_err(err_write);
+		print_err("Clang-format failed with error: %", err_write);
 		ctx.state = FAILED;
 		return 0;
 	}
@@ -85,14 +87,12 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	// Submit the source to the clang-format.
 	close_stream(ctx.stdin);
-
-	rd.src.len = 0;
-	defer push_result(ctx, &request);
+	request_data.src.len = 0; // Just for debugging.
 
 	loop !ctx.kill {
 		err_peek, bytes, peek_closed :: peek_pipe(ctx.stdout);
 		if err_peek {
-			print_err(err_peek);
+			print_err("Clang-format failed with error: %", err_peek);
 			ctx.state = FAILED;
 
 			return 0;
@@ -102,9 +102,9 @@ worker :: fn (ctx: *JobContext) s32 {
 			return 0;
 		}
 
-		err_read, read_closed :: read_pipe(ctx.stdout, &rd.src, bytes);
+		err_read, read_closed :: read_pipe(ctx.stdout, &request_data.src, bytes);
 		if err_read {
-			print_err(err_read);
+			print_err("Clang-format failed with error: %", err_read);
 			ctx.state = FAILED;
 			return 0;
 		}

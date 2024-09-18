@@ -1401,7 +1401,9 @@ start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobC
 		index = auto jobs.len;
 		job   = zeroinit(array_push(&jobs));
 	}
+
 	async2(job, ctx, worker);
+
 	assert(index >= 0);
 	return index;
 }
@@ -1482,11 +1484,7 @@ consume_job_results :: fn (job: *Job, required := false) {
 		mutex_lock(&ctx.mutex);
 	} else {
 		l, err :: mutex_try_lock(&ctx.mutex);
-		if err {
-			print_err(err);
-		} else {
-			locked = l;
-		}
+		if err then print_err(err) else locked = l;
 	}
 
 	if locked {

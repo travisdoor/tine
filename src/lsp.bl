@@ -365,7 +365,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	if err {
 		print_err(err);
 		ctx.state = FAILED;
-		return 1;
+		return 0;
 	}
 
 	defer str_delete(&local.temp_string);
