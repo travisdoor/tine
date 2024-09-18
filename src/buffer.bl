@@ -960,6 +960,14 @@ get_diagnostic_for_line :: fn (buf: *Buffer, line: s32) *ErrorLocation #inline {
 rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 	if !buf.dirty_syntax { return; }
 
+	if buf.bytes.len > MAX_FILE_SYNTAX_HIGHLIGHT_BYTES {
+		print_log("Buffer '%' too big for syntax highlighting!", buf.name);
+
+		buf.colors.len = 0;
+		buf.dirty_syntax = false;
+		return;
+	}
+
 	using FileType;
 	switch buf.file_type {
 		BL      { highlight_syntax_bl(buf);     }

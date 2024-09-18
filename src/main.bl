@@ -79,6 +79,10 @@ FONT_RESIZE_STEP :: 1;
 
 CARET_BLINK_MS :: 500.f;
 
+// Limits
+MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 8388608; // 8MB
+MAX_INDENTATION_RANGE_BYTES     :: 1048576; // 1MB
+
 // Unicode awesome font codes.
 ICON_BELL        : u32 : 0xF0A2;
 ICON_FILE        : u32 : 0xF1C9;

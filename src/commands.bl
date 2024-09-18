@@ -473,6 +473,11 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 	if maybe_report_readonly(buf) { return false; }
 	assert(end >= start);
 
+	if (end-start) > MAX_INDENTATION_RANGE_BYTES {
+		print_warn("Indentation range in the buffer '%' is too large.", buf.name);
+		return false;
+	}
+
 	// Update the indentation info, note that this is internally skipped in case the buffer syntax
 	// is not dirty...
 	rebuild_coloring_and_indentation_info(buf);
