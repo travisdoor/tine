@@ -355,8 +355,8 @@ copy_selection :: fn (editor: *Editor, buf: *Buffer) bool {
 
 cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 	start, end :: get_selection_range(buf, editor.cursor_index);
-	if start == end { return; }
-	if maybe_report_readonly(buf) { return; }
+	if start == end then return;
+	if maybe_report_readonly(buf) then return;
 
 	text :: string_view.{ end - start, &buf.bytes[start] };
 	if std.str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
@@ -395,7 +395,7 @@ paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true
 
 	if record_as_single_undo_action { commit_undo(buf); }
 
-	cut_selection(editor, buf);
+	cut_selection(editor, buf, false);
 	start :: get_cursor_position(buf, editor.cursor_index);
 	insert_string(buf, start, text);
 
@@ -861,7 +861,7 @@ delete_left :: fn (editor: *Editor, buf: *Buffer) {
 			delete_range(buf, start, end);
 			clear_selection(buf);
 		} else {
-			cut_selection(editor, buf);
+			cut_selection(editor, buf, false);
 		}
 		return;
 	}
@@ -880,7 +880,7 @@ delete_right :: fn (editor: *Editor, buf: *Buffer) {
 			delete_range(buf, start, end);
 			clear_selection(buf);
 		} else {
-			cut_selection(editor, buf);
+			cut_selection(editor, buf, false);
 		}
 		return;
 	}
@@ -907,7 +907,7 @@ insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	commit_undo(buf);
 
 	if has_selection(buf, editor.cursor_index) {
-		cut_selection(editor, buf);
+		cut_selection(editor, buf, false);
 	}
 
 	position := get_cursor_position(buf, editor.cursor_index);
@@ -1091,7 +1091,7 @@ delete_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	jump_line_begin(editor, buf);
 	start_selection(buf, editor.cursor_index);
 	jump_next_line(editor, buf);
-	cut_selection(editor, buf);
+	cut_selection(editor, buf, false);
 	return true;
 }
 
@@ -1118,7 +1118,7 @@ delete_word_left :: fn (editor: *Editor, buf: *Buffer) bool {
 	if maybe_report_readonly(buf) { return false; }
 	start_selection(buf, editor.cursor_index);
 	jump_prev_word(editor, buf);
-	cut_selection(editor, buf);
+	cut_selection(editor, buf, false);
 	return true;
 }
 
@@ -1506,7 +1506,7 @@ selection_to_upper_or_lower :: fn (editor: *Editor, buf: *Buffer, op: ToUpperOrL
 	}
 
 	commit_undo(buf);
-	cut_selection(editor, buf);
+	cut_selection(editor, buf, false);
 
 	position :: get_cursor_position(buf, editor.cursor_index);
 	insert_string(buf, position, dup);
