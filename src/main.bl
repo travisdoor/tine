@@ -709,8 +709,11 @@ main :: fn () s32 {
 			}
 		}
 
-		// WaitEventsTimeout(0.016);
-		PollEvents();
+		if minimized {
+			WaitEventsTimeout(0.016);
+		} else {
+			PollEvents();
+		}
 
 		update_mouse();
 		update_caret();
