@@ -402,7 +402,9 @@ load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
 	}
 
 	set_buffer_file_info(buf, filepath);
-
+	buf.lsp.dia.len = 0;
+	buf.lsp.dia_strs.len = 0;
+	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 	return OK;
 }
 
@@ -520,9 +522,7 @@ batch_end :: fn (buf: *Buffer) {
 	buf.batch_active = false;
 
 	rebuild_lines(buf);
-	if notify_changes_to_buffer == buf.index {
-		notify();
-	}
+	if notify_changes_to_buffer == buf.index then notify();
 	buf.dirty_syntax = true;
 }
 
@@ -768,9 +768,7 @@ insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
 
 	rebuild_lines(buf);
 
-	if notify_changes_to_buffer == buf.index {
-		notify();
-	}
+	if notify_changes_to_buffer == buf.index then notify();
 	buf.dirty_syntax = true;
 }
 
@@ -812,9 +810,7 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 		rebuild_lines(buf);
 	}
 
-	if notify_changes_to_buffer == buf.index {
-		notify();
-	}
+	if notify_changes_to_buffer == buf.index then notify();
 	buf.dirty_syntax = true;
 }
 
@@ -1077,6 +1073,7 @@ shift_lines_after_position :: fn (buf: *Buffer, position: s64, n : s64 = 1) s32 
 
 notify :: fn () {
 	assert(notify_changes_to_buffer != -1);
+
 	using Mode;
 	switch mode {
 		OPEN_FROM_DRIVE   { open_from_drive_cmd_changed();      }

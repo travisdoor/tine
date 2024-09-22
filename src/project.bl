@@ -143,12 +143,11 @@ check_project_changes :: fn (changed_directory: string_view, change_kind: WatchF
 }
 
 maybe_reindex_current_project :: fn () {
-	if !indexed_files_ditry { return; }
+	using Mode;
+	if mode == QUICK_OPEN || mode == SEARCH_FILE || mode == SEARCH_IN_PROJECT then return;
+	if !indexed_files_ditry then return;
 	indexed_files_ditry = false;
 
-	// In case we start reindexing, we need to switch to default mode to prevent situations like changint the file
-	// content in middle of search...
-	set_default_mode();
 	index_included_directories();
 }
 
@@ -459,7 +458,7 @@ parse_settings_entry :: fn (ctx: *Tokenizer) Error {
 		bool_ptr :: cast(*bool) member_ptr;
 		@bool_ptr = v;
 	} else if member_type == typeinfo(string) {
-		v :: eat_till(ctx, " #\n\r\t");
+		v :: eat_till(ctx, "#\n\r\t");
 		str_ptr :: cast(*string) member_ptr;
 		str_ptr.len = 0;
 		std.str_append(str_ptr, v);

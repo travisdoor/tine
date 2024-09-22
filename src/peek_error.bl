@@ -1,0 +1,84 @@
+peek_error_mode_init :: fn () {
+	buf, editor :: get_active_buffer_and_editor();
+
+	cursor :: get_cursor(buf, editor.cursor_index);
+	inline_compilation_error :: get_current_compilation_error();
+	
+	loc :: if inline_compilation_error then inline_compilation_error else get_diagnostic_for_line(buf, cursor.row);
+	if loc && loc.is_hidden == false {
+		current_loc = loc;
+	} else {
+		print_warn("No errors on this line!");
+		set_mode(Mode.TEXT_EDIT);
+	}
+}
+
+peek_error_mode_terminate :: fn () {
+}
+
+draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32) {
+	using draw;
+	using Metric;
+
+	buf, editor :: get_active_buffer_and_editor();
+	loc :: current_loc;
+
+	text :: loc.message;
+	if text.len == 0 {
+		set_mode(Mode.TEXT_EDIT);
+		return;
+	}
+
+	r            :: metrics[auto Metric.CORNER_ROUNDING];
+	line_height  :: metrics[auto LINE_HEIGHT           ];
+	text_padding :: metrics[auto TEXT_PADDING];
+
+	text_font :: &font;
+
+	is_warning :: loc.kind == ErrorLocation.kind.WARNING;
+	fg_color :: if is_warning then colors.warning_color else colors.error_color;
+	bg_color :: if is_warning then colors.inline_warning_background_color else colors.inline_error_background_color;
+
+	cursor :: get_cursor(buf, editor.cursor_index);
+	first_line_index :: editor.top;
+
+	line, start_index :: peek_row(buf, cursor.row);
+	line_w :: draw.text_size(line, text_font, auto (cursor.position - start_index));
+
+	px := active_editor_x + line_w - editor.sliding.horizontal_offset;
+	py := active_editor_y * 2.f + line_height * auto (cursor.row - first_line_index + 1); // +1 one line down
+	pw := std.min(active_editor_w * 0.5f, text_font.height * 50.f);
+
+	py += text_padding;
+
+	lines :: calculate_line_offsets(text, pw-(text_padding*2.f), text_font);
+	if lines.len == 1 {
+		line :: string_view.{ lines[0].len, &text[lines[0].start_index] };
+		line_w :: draw.text_size(line, text_font);
+		pw = line_w + text_padding;
+	}
+
+	ph := (line_height * auto lines.len) + text_padding;
+	py += text_padding;
+	
+	if py + ph > auto WINDOW_HEIGHT {
+		py -= ph + line_height + text_padding * 2.f;
+	}
+
+	draw_shadow(px, py, pw, ph, ShadowMode.ALL);
+	rect_rounded(px, py, pw, ph, r, bg_color, bg_color);
+	px += text_padding;
+	py += text_padding;
+
+	set_shader_font(text_font);
+
+	loop i := 0; i < lines.len; i += 1 {
+		line :: string_view.{ lines[i].len, &text[lines[i].start_index] };
+		draw.text(px, py, line, fg_color);
+		py += line_height;
+	}
+}
+
+#private
+
+current_loc: *ErrorLocation;

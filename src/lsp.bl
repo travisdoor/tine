@@ -150,24 +150,21 @@ lsp_close_document :: fn (buf: *Buffer) {
 
 lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer, open_in_other_split := false) {
 	using std;
-
-	if !check_running() {
-		return;
-	}
-
+	if !check_running() then return;
 	if !lsp_is_supported_document_type(buf) {
 		print_warn("LSP: Buffer type not supported.");
 		return;
 	}
 
 	request :: Request.{ job_kind = JobKind.LSP };
-	rd :: &request.data.lsp;
-	rd.kind      = LspRequestKind.GOTO_DECLARATION;
-	rd.cursor    = get_cursor(buf, editor.cursor_index);
-	rd.filepath  = str_new(buf.filepath);
+	request_data :: &request.data.lsp;
+	request_data.kind         = LspRequestKind.GOTO_DECLARATION;
+	request_data.cursor       = get_cursor(buf, editor.cursor_index);
+	request_data.filepath     = str_new(buf.filepath);
+	request_data.buffer_index = buf.index;
 
 	if open_in_other_split {
-		rd.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
+		request_data.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
 	}
 
 	push_request(get_job_context(lsp.job_index), &request);
@@ -186,11 +183,12 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
 	}
 
 	request :: Request.{ job_kind = JobKind.LSP };
-	rd :: &request.data.lsp;
-	rd.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
-	rd.filepath  = str_new(buf.filepath);
+	request_data :: &request.data.lsp;
+	request_data.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
+	request_data.filepath  = str_new(buf.filepath);
+	request_data.buffer_index = buf.index;
 	if open_in_other_split {
-		rd.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
+		request_data.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
 	}
 
 	push_request(get_job_context(lsp.job_index), &request);
@@ -227,57 +225,61 @@ apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
 
 	using std;
 
-	rd :: &request.data.lsp;
+	request_data :: &request.data.lsp;
 	using LspRequestKind;
-	switch rd.kind {
+	switch request_data.kind {
 		INITIALIZE {
 			lsp.server_name.len = 0;
-			str_append(&lsp.server_name, rd.filepath);
+			str_append(&lsp.server_name, request_data.filepath);
 		}
+
 		GOTO_DECLARATION {
-			err :: open_location(rd.filepath, rd.cursor.row, rd.cursor.col, is_flag(rd.flags, LspRequestFlags.OPEN_IN_OTHER_SPLIT));
+			buf :: get_active_buffer_and_editor();
+			if request_data.buffer_index != buf.index then return;
+			err :: open_location(request_data.filepath, request_data.cursor.row, request_data.cursor.col, is_flag(request_data.flags, LspRequestFlags.OPEN_IN_OTHER_SPLIT));
 			if err { print_err(err); }
 		}
+
 		SWITCH_HEADER_SOURCE {
-			err :: open(rd.filepath, is_flag(rd.flags, LspRequestFlags.OPEN_IN_OTHER_SPLIT));
+			buf :: get_active_buffer_and_editor();
+			if request_data.buffer_index != buf.index then return;
+			err :: open(request_data.filepath, is_flag(request_data.flags, LspRequestFlags.OPEN_IN_OTHER_SPLIT));
 			if err { print_err(err); }
 		}
+
 		PUBLISH_DIAGNOSTICS {
-			buf :: get_buffer_by_filepath(rd.filepath);
+			buf :: get_buffer_by_filepath(request_data.filepath);
 			if !buf {
-				//print_err("LSP: Buffer '%' not found! Cannot publish diagnostics.", rd.filepath);
+				//print_err("LSP: Buffer '%' not found! Cannot publish diagnostics.", request_data.filepath);
 				// This might be simple caused by the user closing the buffer before publishing.
 				return;
 			}
-			if rd.version != buf.lsp.version || mode == Mode.COMPLETION {
+			if request_data.version != buf.lsp.version || mode == Mode.COMPLETION {
 				// New version of the document was pushed already for processing so current results might be
 				// outdated.
 				terminate_buffer_diagnostics(buf);
 				return;
 			}
 			// Just move results...
-			swap(&buf.lsp.dia, &rd.dia);
-			swap(&buf.lsp.dia_strs, &rd.strs);
+			swap(&buf.lsp.dia, &request_data.dia);
+			swap(&buf.lsp.dia_strs, &request_data.strs);
 			loop i := 0; i < buf.lsp.dia.len; i += 1 {
 				loc :: &buf.lsp.dia[i];
 				line :: peek_row(buf, loc.line);
 				loc.line_hash = std.str_hash(line);
 			}
 		}
+
 		COMPLETION {
 			buf :: get_active_buffer_and_editor();
-			if rd.buffer_index != buf.index {
-				return;
-			}
-
-			items :: rd.strs;
+			if request_data.buffer_index != buf.index then return;
+			items :: request_data.strs;
 			if items.len == 0 {
 				print_warn("No completion available.");
 			} else {
 				show_completion_popup_for_active_editor(items);
 			}
 		}
-
 		default;
 	}
 }
@@ -289,8 +291,8 @@ is_lsp_running :: fn () bool #inline {
 add_all_supported_buffers_to_lsp :: fn () {
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
-		if buf.is_removed { continue; }
-		if !lsp_is_supported_document_type(buf) { continue; }
+		if buf.is_removed then continue;
+		if !lsp_is_supported_document_type(buf) then continue;
 		assert(buf.lsp.version == 0, "Buffer not removed from previous session.");
 		lsp_open_document(buf);
 	}
@@ -299,8 +301,8 @@ add_all_supported_buffers_to_lsp :: fn () {
 remove_all_buffers_from_lsp :: fn () {
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
-		if buf.is_removed { continue; }
-		if !lsp_is_supported_document_type(buf) { continue; }
+		if buf.is_removed then continue;
+		if !lsp_is_supported_document_type(buf) then continue;
 		assert(buf.lsp.version > 0, "Buffer not added to LSP session.");
 		buf.lsp.version = 0;
 		terminate_buffer_diagnostics(buf);

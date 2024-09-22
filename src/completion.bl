@@ -21,7 +21,7 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32) {
 	cursor :: initial_cursor;
 	line, start_index :: peek_row(buf, cursor.row);
 	line_w :: draw.text_size(line, &font, auto (cursor.position - start_index));
-	px :: x + line_w; // no pending to precisely match the text columns
+	px :: x + line_w - editor.sliding.horizontal_offset;
 	py := y * 2.f + line_height * auto (cursor.row - first_line_index + 1); // +1 one line down
 
 	h :: get_list_height();
@@ -30,7 +30,7 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32) {
 	}
 
 	_, clicked :: draw_list(px, py, 300.f, DrawListCols.PREVIEW, ListerMode.FLOATING);
-	if clicked { commit(); }
+	if clicked then commit();
 }
 
 show_completion_popup_for_active_editor :: fn (list: []string) {
@@ -56,7 +56,7 @@ show_completion_popup_for_active_editor :: fn (list: []string) {
 // Commands
 //
 
-invoke_command_completion_mode :: fn (_: *Buffer, cmd: Command) bool { // @Cleanup: Buffer is not needed...
+invoke_command_completion_mode :: fn (_: *Buffer, cmd: Command) bool {
 	using Command;
 	switch cmd {
 		INSERT_NEW_LINE { commit(); }

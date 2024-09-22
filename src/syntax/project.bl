@@ -103,14 +103,14 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			}
 			SETTINGS {
 				if ctx.prev_token == IDENT {
-					v :: eat_till(ctx, " #\n\r\t");
+					v :: eat_till(ctx, "#\n\r\t");
 					if v.len > 0 {
 						t.len  = auto v.len;
 						t.kind = VALUE;
 						return t;
 					}
 				} else if std.is_alpha(c) {
-					parse_entry_name (ctx, &t, SETTINGS_ENTRIES);
+					parse_entry_name(ctx, &t, SETTINGS_ENTRIES);
 					return t;
 				}
 			}

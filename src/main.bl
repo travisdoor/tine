@@ -1,41 +1,42 @@
-#import "extra/glfw3"
+#import "clipboard"
 #import "extra/draw"
+#import "extra/glfw3"
+#import "std/async"
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
-#import "std/async"
-#import "clipboard"
 
 #load "buffer.bl"
+#load "builder.bl"
+#load "clang_format.bl"
+#load "command_run.bl"
 #load "commands.bl"
+#load "completion.bl"
 #load "editor.bl"
 #load "goto.bl"
-#load "listing.bl"
-#load "open_from_drive.bl"
-#load "quick_open.bl"
-#load "save_to_drive.bl"
-#load "command_run.bl"
 #load "key_names.bl"
-#load "search.bl"
-#load "utils.bl"
-#load "project.bl"
-#load "open_project.bl"
-#load "search_in_project.bl"
-#load "clang_format.bl"
-#load "builder.bl"
+#load "listing.bl"
 #load "lsp.bl"
-#load "completion.bl"
+#load "open_from_drive.bl"
+#load "open_project.bl"
+#load "peek_error.bl"
+#load "project.bl"
+#load "quick_open.bl"
 #load "replace.bl"
+#load "save_to_drive.bl"
+#load "search.bl"
+#load "search_in_project.bl"
+#load "utils.bl"
 
-#load "syntax/bl.bl"
-#load "syntax/project.bl"
-#load "syntax/cpp.bl"
-#load "syntax/messages.bl"
-#load "syntax/build.bl"
-#load "syntax/md.bl"
-#load "syntax/glsl.bl"
-#load "syntax/search.bl"
 #load "syntax/asm.bl"
+#load "syntax/bl.bl"
+#load "syntax/build.bl"
+#load "syntax/cpp.bl"
+#load "syntax/glsl.bl"
+#load "syntax/md.bl"
+#load "syntax/messages.bl"
+#load "syntax/project.bl"
+#load "syntax/search.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -212,6 +213,7 @@ Mode :: enum {
 	SEARCH_IN_PROJECT;
 	COMPLETION;
 	REPLACE;
+	PEEK_ERROR;
 }
 
 mode: Mode;
@@ -254,6 +256,8 @@ Settings :: struct {
 	tab_size:  s32;
 
 	font: string;
+
+	clang_format_executable: string;
 
 	insert_spaces_instead_tabs:             bool;
 	trim_trailing_whitespace_on_save:       bool;
@@ -336,6 +340,15 @@ clear_error_list :: fn () {
 	error_list.len   =  0;
 	error_list_index = -1;
 	error_marker_visible = false;
+
+	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+}
+
+// Compilation errors are in the list and shown only if the line with error is focused and not changed.
+get_current_compilation_error :: fn () *ErrorLocation {
+	if !error_marker_visible then return null;
+	if error_list.len == 0 || error_list_index == -1 then return null;
+	return &error_list[error_list_index];
 }
 
 //
@@ -615,7 +628,10 @@ main :: fn () s32 {
 		}
 	}
 
+	print_log("Settings: %", settings);
+
 	defer str_delete(&settings.font);
+	defer str_delete(&settings.clang_format_executable);
 
 	rebuild_fonts();
 	defer draw.font_terminate(&font);
@@ -917,6 +933,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		SEARCH_IN_PROJECT { search_in_project_mode_terminate();      }
 		COMPLETION        { completion_mode_terminate();             }
 		REPLACE           { replace_mode_terminate();                }
+		PEEK_ERROR        { peek_error_mode_terminate();             }
 
 		default;
 	}
@@ -942,6 +959,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		SEARCH_IN_PROJECT { search_in_project_mode_init(); }
 		COMPLETION        { completion_mode_init();        }
 		REPLACE           { replace_mode_init();           }
+		PEEK_ERROR        { peek_error_mode_init();        }
 
 		default;
 	}
@@ -1651,6 +1669,67 @@ reset_caret_blinking :: fn () #inline {
 	caret.no_binking = false;
 }
 
+TextLine :: struct {
+	start_index: s32;
+	len: s32;
+}
+
+calculate_line_offsets :: fn (text: string_view, fit_to_width: f32, font: *draw.Font) []TextLine {
+	acc_width             := 0.f;
+	last_whitespace_index := -1;
+	last_whitespace_width := 0.f;
+	start_index           := 0;
+
+	lines: [..]TextLine;
+	array_init(&lines, 32, application_context.temporary_allocator);
+
+	loop index := 0; index < text.len; {
+		if text[index] == ' ' || text[index] == '\t' {
+			last_whitespace_index = index;
+			last_whitespace_width = acc_width;
+		} else if text[index] == '\n' {
+			array_push(&lines, TextLine.{ start_index = start_index, len = index - start_index + 1 });
+			start_index           = index + 1;
+			acc_width             = 0.f;
+			last_whitespace_index = -1;
+			index += 1;
+			continue;
+		}
+
+		char_len :: get_character_len(text[index]);
+
+		w :: draw.text_size(string_view.{ char_len, &text[index] }, font, -1);
+		acc_width += w;
+
+		if acc_width < (fit_to_width/* * WINDOW_SCALE*/){
+			index += char_len;
+			continue;
+		}
+
+		if last_whitespace_index != -1 {
+			len :: last_whitespace_index - start_index + 1;
+			array_push(&lines, TextLine.{ start_index = start_index, len = len });
+			start_index += len;
+			acc_width   -= last_whitespace_width;
+		} else {
+			array_push(&lines, TextLine.{ start_index = start_index, len = index - start_index });
+			start_index = index;
+			acc_width   = 0.f;
+		}
+		last_whitespace_index = -1;
+		index += char_len;
+	}
+
+	if start_index < text.len {
+		array_push(&lines, TextLine.{ start_index = start_index, len = auto text.len - start_index });
+	}
+
+	if lines.len == 0 {
+		array_push(&lines, TextLine.{});
+	}
+	return lines;
+}
+
 #private
 
 MAIN_THREAD_ID: u64;
@@ -1715,6 +1794,9 @@ draw_frame :: fn () {
 			OPEN_PROJECT      { draw_open_project_mode();      }
 			SEARCH_IN_PROJECT { draw_search_in_project_mode(); }
 			REPLACE           { draw_replace_mode();           }
+			PEEK_ERROR        {
+				draw_peek_error_mode(active_x, y, w);
+			}
 			COMPLETION        {
 				draw_completion_mode(active_x, y);
 			}
@@ -1755,7 +1837,8 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 			if m.key == key && m.mods == mods {
 				buf, editor :: get_active_buffer_and_editor();
 				clear_message();
-				error_marker_visible = false;
+				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+				// error_marker_visible = false;
 				invoke_command(editor, buf, m.cmd);
 
 				break;
@@ -1774,6 +1857,7 @@ character_callback :: fn (_: *glfw.Window, codepoint: u32) {
 	if is_lmb_dragging() { return; }
 
 	clear_message();
+	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 
 	buf, editor :: get_active_buffer_and_editor();
 	if maybe_report_readonly(buf) { return; }
@@ -1819,6 +1903,7 @@ mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) 
 	set_prev_executed_command(Command.UNKNOWN);
 	if action == PRESS {
 		clear_message();
+		if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 	}
 }
 
@@ -1826,6 +1911,7 @@ scroll_callback :: fn (_: *glfw.Window, _: f64, yoff: f64) {
 	reset_caret_blinking();
 	mouse.scroll += auto yoff;
 	clear_message();
+	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 }
 
 window_iconify_callback :: fn (_: *glfw.Window, iconified: s32) {

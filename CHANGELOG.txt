@@ -1,6 +1,7 @@
 MASTER
 ---------------------------------------------------------------------------------------
 Add unification of line endings on paste.
+Add peek-error command.
 Allow only explicit copying into clipboard.
 
 0.7 2024-08-16

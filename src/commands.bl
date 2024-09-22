@@ -79,6 +79,7 @@ Command :: enum {
 	OPEN_PROJECT;
 	SEARCH_IN_PROJECT;
 	SEARCH_REPLACE;
+	PEEK_ERROR;
 
 	// MISC
 	BREAK_IN_REMEDYBG;
@@ -188,7 +189,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto OPEN_PROJECT]      = "";
 	help[auto SEARCH_IN_PROJECT] = "";
 	help[auto SEARCH_REPLACE]    = "";
-
+	help[auto PEEK_ERROR]        = "Peek full error message on current line if there is one.";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
 	help[auto BUILD]                   = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
@@ -597,6 +598,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		SEARCH_FILE         { set_mode            (Mode.SEARCH_FILE);                      }
 		OPEN_PROJECT        { set_mode            (Mode.OPEN_PROJECT);                     }
 		SEARCH_IN_PROJECT   { set_mode            (Mode.SEARCH_IN_PROJECT);                }
+		PEEK_ERROR          { set_mode            (Mode.PEEK_ERROR);                       }
 		DEBUG_REPORT        { debug_report        ();                                      }
 		OPEN_PROJECT_CONFIG { open_project_config ();                                      }
 		OPEN_DEFAULT_CONFIG { open_default_config ();                                      }
@@ -1087,11 +1089,11 @@ insert_tab :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 delete_line :: fn (editor: *Editor, buf: *Buffer) bool {
-	if maybe_report_readonly(buf) { return false; }
+	if maybe_report_readonly(buf) then return false;
 	jump_line_begin(editor, buf);
 	start_selection(buf, editor.cursor_index);
 	jump_next_line(editor, buf);
-	cut_selection(editor, buf, false);
+	cut_selection(editor, buf);
 	return true;
 }
 

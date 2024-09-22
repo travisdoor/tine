@@ -67,7 +67,7 @@ parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
 	line := eat_line_and_trim_eol(ctx);
 	orig_len :: line.len;
 
-	loc: ErrorLocation #noinit;
+	loc: ErrorLocation;
 
 	valid := try_location_clang_like(line, &loc, &line);
 	if !valid { valid = try_location_cl_like(line, &loc, &line); }

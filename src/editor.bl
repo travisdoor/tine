@@ -204,19 +204,21 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		rect(x, current_line_y, w, line_height, colors.current_line_background_color);
 	}
 
-	has_inline_errors :: settings.show_lsp_inline_diagnostics || (error_marker_visible && error_list.len > 0 && error_list_index != -1);
+	inline_compilation_error :: get_current_compilation_error();
+	has_inline_errors :: settings.show_lsp_inline_diagnostics || inline_compilation_error;
 
 	if has_inline_errors {
+		is_peeking :: mode == Mode.PEEK_ERROR;
 		line_base_y := ty;
 		loop i := first_line_index; i < last_line_index; i += 1 {
 			line :: peek_row(buf, i);
 			error_reported_for_line := false;
 
 			// Highlight errors and warnings.
-			if error_marker_visible && error_list.len > 0 && error_list_index != -1 {
-				loc :: &error_list[error_list_index];
+			if inline_compilation_error {
+				loc :: inline_compilation_error;
 				if i == loc.line-1 && cursor.row == loc.line-1 && loc.file_hash == buf.hash {
-					draw_inline_error(x, line_base_y, w, line, loc);
+					draw_inline_error(editor, x, line_base_y, w, line, loc, is_peeking);
 					error_reported_for_line = true;
 				}
 			}
@@ -227,7 +229,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 					if loc.line_hash != std.str_hash(line) {
 						loc.is_hidden = true;
 					}
-					draw_inline_error(x, line_base_y, w, line, loc);
+					highliht_only :: is_peeking && cursor.row == i;
+					draw_inline_error(editor, x, line_base_y, w, line, loc, highliht_only);
 				}
 			}
 
@@ -683,17 +686,13 @@ update_editor_x_offset :: fn (editor: *Editor, line_w: f32, cursor_x: f32) {
 	sliding.horizontal_offset = animate(&sliding.horizontal);
 }
 
-draw_inline_error :: fn (x: f32, y: f32, w: f32, line: string_view, loc: *ErrorLocation) {
+draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_view, loc: *ErrorLocation, highlight_only: bool) {
 	using draw;
 	using Metric;
 
 	line_height  :: metrics[auto LINE_HEIGHT ];
 	item_spacing :: metrics[auto ITEM_SPACING];
 	text_padding :: metrics[auto TEXT_PADDING];
-
-	line_size    := text_size(line, &font);
-	message_size := text_size(loc.message, &font_ui);
-	err_x :: std.max(x + line_size + item_spacing * 2.f, x + w - text_padding - message_size - item_spacing);
 
 	fg_color := colors.error_color;
 	bg_color := colors.inline_error_background_color;
@@ -707,6 +706,11 @@ draw_inline_error :: fn (x: f32, y: f32, w: f32, line: string_view, loc: *ErrorL
 
 	set_shader_color();
 	rect(x, y, w, line_height, bg_color);
+	if highlight_only then return;
+
+	line_size    := text_size(line, &font);
+	message_size := text_size(loc.message, &font_ui);
+	err_x :: std.max(x + line_size  - editor.sliding.horizontal_offset + item_spacing * 2.f, x + w - text_padding - message_size - item_spacing);
 
 	set_shader_font(&icons);
 	text(err_x, y + (line_height * 0.5f - icons.height * 0.5f), ic, fg_color);
