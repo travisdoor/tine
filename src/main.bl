@@ -124,8 +124,6 @@ PROJECT_IS_INDEXING_MESSAGE :: "Project indexing in progress, please wait.";
 
 window: *glfw.Window;
 
-current_fps: f32;
-
 font:      draw.Font;
 font_ui:   draw.Font;
 font_ui_b: draw.Font;
@@ -591,6 +589,7 @@ main :: fn () s32 {
 	SetMouseButtonCallback(window, &mouse_button_callback);
 	SetScrollCallback(window, &scroll_callback);
 	SetDropCallback(window, &drop_callback);
+	SetCursorPosCallback(window, &cursor_position_callback);
 
 	draw.init(WINDOW_WIDTH, WINDOW_HEIGHT);
 	defer draw.terminate();
@@ -683,8 +682,6 @@ main :: fn () s32 {
 	SwapInterval(1);
 	prev_time := GetTime();
 	prev_frame_delta := -1.f #maybe_unused;
-	fps_sum: f32;
-	fps_num: s32;
 
 	if show_help {
 		help();
@@ -709,13 +706,12 @@ main :: fn () s32 {
 			}
 		}
 
-		if minimized {
-			WaitEventsTimeout(0.016);
-		} else {
+		if draw_next_frame {
 			PollEvents();
+		} else {
+			WaitEventsTimeout(0.016);
 		}
 
-		update_mouse();
 		update_caret();
 
 		if build.job_index == -1 {
@@ -742,19 +738,15 @@ main :: fn () s32 {
 			}
 		}
 
-		if !minimized then draw_frame();
+		if draw_next_frame {
+			draw_next_frame = false;
+			update_mouse();
+			draw_frame();
+		}
+
 		scaling_changed = false;
 
 		title: string_view;
-		{ // update FPS
-			fps_num += 1;
-			fps_sum += 1000.f/frame_delta_time;
-			if fps_num == 10 {
-				current_fps = fps_sum / auto fps_num;
-				fps_sum = 0.f;
-				fps_num = 0;
-			}
-		}
 
 		if project.is_default {
 			title = buf.name;
@@ -1663,13 +1655,11 @@ set_mouse_cursor :: fn (cursor := MouseCursor.DEFAULT) #inline {
 caret: struct {
 	visible:    bool;
 	blink_t:    f32;
-	no_binking: bool;
 };
 
 reset_caret_blinking :: fn () #inline {
 	caret.blink_t    = 0.f;
 	caret.visible    = true;
-	caret.no_binking = false;
 }
 
 TextLine :: struct {
@@ -1733,6 +1723,11 @@ calculate_line_offsets :: fn (text: string_view, fit_to_width: f32, font: *draw.
 	return lines;
 }
 
+redraw :: fn () {
+	if minimized then return;
+	draw_next_frame = true;
+}
+
 #private
 
 MAIN_THREAD_ID: u64;
@@ -1741,8 +1736,11 @@ message: Message;
 debug_allocator: std.DebugAllocator;
 ignore_char_input: bool;
 
+draw_next_frame := true;
+
 // Might be changed when window is not focused.
 minimized: bool;
+focused := true;
 
 draw_frame :: fn () {
 	using draw;
@@ -1825,8 +1823,10 @@ print_glfw_error :: fn () {
 key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 	using glfw;
 
+	redraw();
 	reset_caret_blinking();
-	if is_lmb_dragging() { return; }
+
+	if is_lmb_dragging() then return;
 
 	key := k;
 	if key == KEY_KP_ENTER {
@@ -1852,6 +1852,7 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 
 character_callback :: fn (_: *glfw.Window, codepoint: u32) {
 	if ignore_char_input { return; }
+	redraw();
 	reset_caret_blinking();
 
 	if input_mode == InputMode.NUMBERS && ((codepoint < cast(u32) '0') || (codepoint > cast(u32) '9')) {
@@ -1885,6 +1886,8 @@ character_callback :: fn (_: *glfw.Window, codepoint: u32) {
 mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) {
 	using glfw;
 	using MouseState;
+	redraw();
+
 	switch button {
 		MOUSE_BUTTON_LEFT {
 			if action == PRESS {
@@ -1914,6 +1917,7 @@ scroll_callback :: fn (_: *glfw.Window, _: f64, yoff: f64) {
 	reset_caret_blinking();
 	mouse.scroll += auto yoff;
 	clear_message();
+	redraw();
 	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 }
 
@@ -1926,7 +1930,7 @@ window_size_callback :: fn (_: *glfw.Window, _: s32, _: s32) {
 	draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	// Hide any possible completion popup.
-	if mode == Mode.COMPLETION { set_mode(Mode.TEXT_EDIT); }
+	if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
 
 	draw_frame();
 }
@@ -1938,11 +1942,13 @@ window_scale_callback :: fn (_: *glfw.Window, xscale: f32, _: f32) {
 	draw_frame();
 }
 
-window_focus_callback :: fn (_: *glfw.Window, focused: s32) {
-	if focused > 0 {
+window_focus_callback :: fn (_: *glfw.Window, f: s32) {
+	redraw();
+	if f > 0 {
+		focused = true;
 		reset_caret_blinking();
 	} else {
-		caret.no_binking = true;
+		focused = false;
 		print_log("Focus out!");
 	}
 }
@@ -1956,6 +1962,11 @@ drop_callback :: fn (_: *glfw.Window, count: s32, paths: **u8) {
 			print_err(buf_error);
 		}
 	}
+	redraw();
+}
+
+cursor_position_callback :: fn (_: *glfw.Window, _: f64, _: f64) {
+	redraw();
 }
 
 recalculate_metrics :: fn () {
@@ -2120,7 +2131,7 @@ update_mouse :: fn () {
 	if is_lmb_press() {
 		mouse.prev_mouse_pos = mouse.position;
 	}
-
+	
 	if is_lmb_down() && is_lmb_dragging() == false && distance(mouse.position, mouse.prev_mouse_pos) > MOUSE_DRAG_OFFSET {
 		mouse.state |= LB_DRAGGING | LB_DRAGGING_START;
 		mouse.drag_target_elem_id = mouse.last_hover_elem_id;
@@ -2132,7 +2143,7 @@ update_mouse :: fn () {
 }
 
 update_caret :: fn () {
-	if caret.no_binking {
+	if !focused {
 		caret.visible = true;
 		return;
 	}
@@ -2141,6 +2152,7 @@ update_caret :: fn () {
 	if caret.blink_t > CARET_BLINK_MS {
 		caret.blink_t = 0.f;
 		caret.visible = !caret.visible;
+		redraw();
 	}
 }
 

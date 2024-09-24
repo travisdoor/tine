@@ -60,6 +60,7 @@ draw_search_in_project_mode :: fn () {
 		using draw;
 		set_shader_color();
 		rect(0.f, h-2.f, w * progress, 2.f, colors.warning_color);
+		redraw();
 	}
 
 	using DrawListCols;
