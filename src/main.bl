@@ -15,6 +15,7 @@
 #load "editor.bl"
 #load "goto.bl"
 #load "key_names.bl"
+#load "list_functions.bl"
 #load "listing.bl"
 #load "lsp.bl"
 #load "open_from_drive.bl"
@@ -65,6 +66,7 @@ CODE_COLOR_INVALID_INDEX   : u8 : 6;
 CODE_COLOR_NUMBER_INDEX    : u8 : 7;
 CODE_COLOR_ERROR_INDEX     : u8 : 9;
 CODE_COLOR_WARNING_INDEX   : u8 : 10;
+CODE_COLOR_FUNCTION_INDEX  : u8 : 11;
 
 DEFAULT_FONT_SIZE              :: 20;
 MAX_FONT_SIZE                  :: 64;
@@ -85,17 +87,25 @@ MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 8388608; // 8MB
 MAX_INDENTATION_RANGE_BYTES     :: 1048576; // 1MB
 
 // Unicode awesome font codes.
-ICON_BELL        : u32 : 0xF0A2;
-ICON_FILE        : u32 : 0xF1C9;
-ICON_CHANGES     : u32 : 0xF044;
-ICON_FOLDER      : u32 : 0xF07B;
-ICON_DRIVE       : u32 : 0xF0A0;
-ICON_COMMAND     : u32 : 0x26A1;
-ICON_PROJECT     : u32 : 0xF6D1;
-ICON_READONLY    : u32 : 0xF023;
-ICON_WARNING     : u32 : 0x26A0;
-ICON_ERROR       : u32 : 0xF06A;
-ICON_BL          : u32 : 0xF564;
+ICON_BELL           : u32 : 0xF0A2;
+ICON_FILE           : u32 : 0xF1C9;
+ICON_CHANGES        : u32 : 0xF044;
+ICON_FOLDER         : u32 : 0xF07B;
+ICON_DRIVE          : u32 : 0xF0A0;
+ICON_COMMAND        : u32 : 0x26A1;
+ICON_PROJECT        : u32 : 0xF6D1;
+ICON_READONLY       : u32 : 0xF023;
+ICON_WARNING        : u32 : 0x26A0;
+ICON_ERROR          : u32 : 0xF06A;
+ICON_BL             : u32 : 0xF564;
+ICON_CODE_FUNCTION  : u32 : 0x0046;
+ICON_CODE_CLASS     : u32 : 0x0043;
+ICON_CODE_INTERFACE : u32 : 0x0049;
+ICON_CODE_TEXT      : u32 : 0xF080;
+ICON_CODE_TYPE      : u32 : 0x0054;
+ICON_CODE_VARIABLE  : u32 : 0x0056;
+ICON_CODE_ENUM      : u32 : 0x0045;
+ICON_CODE_MODULE    : u32 : 0xF1B2;
 
 ICON_BUILD    : u32 : 0xF6E3;
 ICON_MESSAGES : u32 : 0x2709;
@@ -212,6 +222,7 @@ Mode :: enum {
 	COMPLETION;
 	REPLACE;
 	PEEK_ERROR;
+	LIST_FUNCTIONS;
 }
 
 mode: Mode;
@@ -310,10 +321,11 @@ Colors :: struct {
 	code_invalid   : v4;
 	code_error     : v4;
 	code_warning   : v4;
+	code_function  : v4;
 }
 
 colors:           Colors;
-code_color_table: [11]glm.v4;
+code_color_table: [12]glm.v4;
 
 //
 // Build errors
@@ -869,20 +881,17 @@ rebuild_fonts :: fn () Error {
 	defer array_terminate(&icon_set);
 
 	draw.font_generate_char_set("X", &icon_set);
-	// Use push all + array?
-	array_push(&icon_set, ICON_BELL);
-	array_push(&icon_set, ICON_FILE);
-	array_push(&icon_set, ICON_CHANGES);
-	array_push(&icon_set, ICON_FOLDER);
-	array_push(&icon_set, ICON_DRIVE);
-	array_push(&icon_set, ICON_COMMAND);
-	array_push(&icon_set, ICON_PROJECT);
-	array_push(&icon_set, ICON_READONLY);
-	array_push(&icon_set, ICON_WARNING);
-	array_push(&icon_set, ICON_ERROR);
-	array_push(&icon_set, ICON_BUILD);
-	array_push(&icon_set, ICON_MESSAGES);
-	array_push(&icon_set, ICON_BL);
+
+	ICONS :: [_]u32.{
+		ICON_BELL, ICON_FILE, ICON_CHANGES, ICON_FOLDER,
+		ICON_DRIVE, ICON_COMMAND, ICON_PROJECT, ICON_READONLY,
+		ICON_WARNING, ICON_ERROR, ICON_BUILD, ICON_MESSAGES,
+		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
+		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
+		ICON_CODE_MODULE,
+	};
+
+	array_push_all(&icon_set, ICONS);
 
 	err = draw.font_init_at_size_from_memory(&icons, ICON_DATA, scaled_size, icon_set);
 	if err { panic(err); }
@@ -929,6 +938,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		COMPLETION        { completion_mode_terminate();             }
 		REPLACE           { replace_mode_terminate();                }
 		PEEK_ERROR        { peek_error_mode_terminate();             }
+		LIST_FUNCTIONS    { list_functions_mode_terminate();         }
 
 		default;
 	}
@@ -955,6 +965,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		COMPLETION        { completion_mode_init();        }
 		REPLACE           { replace_mode_init();           }
 		PEEK_ERROR        { peek_error_mode_init();        }
+		LIST_FUNCTIONS    { list_functions_mode_init();    }
 
 		default;
 	}
@@ -1369,6 +1380,7 @@ Request :: struct {
 			version:        s32;
 			dia:        [..]ErrorLocation;
 			strs:       [..]string; // @Incomplete: Use also for src and filepath
+			ids:        [..]s32;
 			flags:          LspRequestFlags;
 		};
 	}
@@ -1600,6 +1612,7 @@ terminate_request :: fn (request: *Request) {
 				str_delete(&rd.strs[i]);
 			}
 			array_terminate(&rd.strs);
+			array_terminate(&rd.ids);
 			rd.kind = LspRequestKind.UNKNOWN;
 		}
 		default;
@@ -1796,6 +1809,7 @@ draw_frame :: fn () {
 			OPEN_PROJECT      { draw_open_project_mode();      }
 			SEARCH_IN_PROJECT { draw_search_in_project_mode(); }
 			REPLACE           { draw_replace_mode();           }
+			LIST_FUNCTIONS    { draw_list_functions_mode();    }
 			PEEK_ERROR        {
 				draw_peek_error_mode(active_x, y, w);
 			}
@@ -2132,7 +2146,7 @@ update_mouse :: fn () {
 	if is_lmb_press() {
 		mouse.prev_mouse_pos = mouse.position;
 	}
-	
+
 	if is_lmb_down() && is_lmb_dragging() == false && distance(mouse.position, mouse.prev_mouse_pos) > MOUSE_DRAG_OFFSET {
 		mouse.state |= LB_DRAGGING | LB_DRAGGING_START;
 		mouse.drag_target_elem_id = mouse.last_hover_elem_id;

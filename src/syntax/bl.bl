@@ -8,6 +8,7 @@ highlight_syntax_bl :: fn (buf: *Buffer) {
 	zero_slice(buf.colors);
 
 	buf.indent.len = 0;
+	buf.functions.len = 0;
 
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
@@ -22,6 +23,8 @@ highlight_syntax_bl :: fn (buf: *Buffer) {
 	defer std.tbl_terminate(&ctx.directive_table);
 
 	indentation_nesting := 0;
+	previous_token: Token;
+	previous_token_set := false;
 
 	loop {
 		using Token.kind;
@@ -37,13 +40,25 @@ highlight_syntax_bl :: fn (buf: *Buffer) {
 				indentation_nesting -= 1;
 				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
 			}
+			KEYWORD_FN {
+				if previous_token_set && previous_token.kind == IDENT {
+					if previous_token.len > 0 {
+						memset(&buf.colors[previous_token.index], CODE_COLOR_FUNCTION_INDEX, auto previous_token.len);
+						array_push(&buf.functions, SearchLocation.{
+								start = previous_token.index,
+								end   = previous_token.index + previous_token.len,
+							});
+					}
+				}
+			}
 
 			default;
 		}
 
-		if token.len > 0 {
-			memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
-		}
+		if token.len > 0 then memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+
+		previous_token = token;
+		previous_token_set = true;
 	}
 }
 
@@ -52,14 +67,15 @@ highlight_syntax_bl :: fn (buf: *Buffer) {
 kind_to_color :: fn (kind: Token.kind) u8 #inline {
 	using Token.kind;
 	switch kind {
-		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
-		IDENT     { return CODE_COLOR_DEFAULT_INDEX;   }
-		KEYWORD   { return CODE_COLOR_KEYWORD_INDEX;   }
-		COMMENT   { return CODE_COLOR_COMMENT_INDEX;   }
-		DIRECTIVE { return CODE_COLOR_DIRECTIVE_INDEX; }
-		STRING    { return CODE_COLOR_STRING_INDEX;    }
-		NUMBER    { return CODE_COLOR_NUMBER_INDEX;    }
-		LB, RB    { return CODE_COLOR_KEYWORD_INDEX;   }
+		INVALID    { return CODE_COLOR_INVALID_INDEX;   }
+		IDENT      { return CODE_COLOR_DEFAULT_INDEX;   }
+		KEYWORD    { return CODE_COLOR_KEYWORD_INDEX;   }
+		KEYWORD_FN { return CODE_COLOR_KEYWORD_INDEX;   }
+		COMMENT    { return CODE_COLOR_COMMENT_INDEX;   }
+		DIRECTIVE  { return CODE_COLOR_DIRECTIVE_INDEX; }
+		STRING     { return CODE_COLOR_STRING_INDEX;    }
+		NUMBER     { return CODE_COLOR_NUMBER_INDEX;    }
+		LB, RB     { return CODE_COLOR_KEYWORD_INDEX;   }
 
 		default;
 	}
@@ -78,6 +94,7 @@ Token :: struct {
 		INVALID;
 		IDENT;
 		KEYWORD;
+		KEYWORD_FN;
 		COMMENT;
 		DIRECTIVE;
 		STRING;
@@ -125,15 +142,15 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		};
 
 		c :: ctx.bytes[ctx.index];
-		if c == '{'         && parse_left_brace  (ctx, &t) { return t; }
-		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
-		if c == '('         && parse_left_brace  (ctx, &t) { return t; }
-		if c == ')'         && parse_right_brace (ctx, &t) { return t; }
-		if c == '/'         && parse_comment     (ctx, &t) { return t; }
-		if c == '#'         && parse_directive   (ctx, &t) { return t; }
-		if c == '\"'        && parse_string      (ctx, &t) { return t; }
-		if parse_identifier_or_keyword           (ctx, &t) { return t; }
-		if parse_number                          (ctx, &t) { return t; }
+		if c == '{'         && parse_left_brace  (ctx, &t) then return t;
+		if c == '}'         && parse_right_brace (ctx, &t) then return t;
+		if c == '('         && parse_left_brace  (ctx, &t) then return t;
+		if c == ')'         && parse_right_brace (ctx, &t) then return t;
+		if c == '/'         && parse_comment     (ctx, &t) then return t;
+		if c == '#'         && parse_directive   (ctx, &t) then return t;
+		if c == '\"'        && parse_string      (ctx, &t) then return t;
+		if parse_identifier_or_keyword           (ctx, &t) then return t;
+		if parse_number                          (ctx, &t) then return t;
 
 		ctx.index += 1;
 	}
@@ -277,9 +294,13 @@ parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
 	if t.len == 0 { return false; }
 
 	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
-	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && std.tbl_contains(&ctx.keyword_table, maybe_keyword);
-	if is_keyword {
-		t.kind = KEYWORD;
+	keyword_index := -1;
+	if maybe_keyword.len <= KEYWORDS_MAX_LEN {
+		keyword_index = std.tbl_lookup_index(&ctx.keyword_table, maybe_keyword);
+	}
+	if keyword_index != -1 {
+		is_fn :: std.str_match(ctx.keyword_table.keys[keyword_index], "fn");
+		t.kind = if is_fn then KEYWORD_FN else KEYWORD;
 	} else {
 		t.kind = IDENT;
 	}

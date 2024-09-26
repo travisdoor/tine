@@ -29,12 +29,12 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32) {
 		py -= h + line_height + y * 2.f;
 	}
 
-	_, clicked :: draw_list(px, py, 300.f, DrawListCols.PREVIEW, ListerMode.FLOATING);
+	_, clicked :: draw_list(px, py, 300.f, DrawListCols.ICON | DrawListCols.PREVIEW, ListerMode.FLOATING);
 	if clicked then commit();
 }
 
-show_completion_popup_for_active_editor :: fn (list: []string) {
-	list_completion(list);
+show_completion_popup_for_active_editor :: fn (list: []string, ids: []s32) {
+	list_completion(list, ids);
 
 	if set_mode(Mode.COMPLETION) {
 		buf, editor :: get_active_buffer_and_editor();

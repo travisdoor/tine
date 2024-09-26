@@ -25,8 +25,19 @@ Buffer :: struct {
 
 	mutex: std.Mutex;
 
-	lines:  [..]s64;
-	indent: [..]Indent;
+	lines:     [..]s64;
+
+	// Filled while syntax parsing. Might not be available for all file types.
+	indent:    [..]Indent;
+
+	// List of parsed functions in the file.
+	//
+	// This list is filled for specific file type on syntax parsing, it does not include row and col information,
+	// to make it faster. Row and col must be calculated once the list is show in UI. Note the source cannot change
+	// when list is shown, so row&col information might be calculated only once.
+	//
+	// Might not be available for all file types.
+	functions: [..]SearchLocation;
 
 	undo:          [..]Rec;
 	undo_top:      s64;
@@ -184,6 +195,7 @@ remove_buffer :: fn (index: s32) {
 	array_terminate(&buf.undo);
 	array_terminate(&buf.cursors);
 	array_terminate(&buf.indent);
+	array_terminate(&buf.functions);
 	mutex_terminate(&buf.mutex);
 
 	terminate_buffer_diagnostics(buf);
@@ -332,9 +344,14 @@ get_selection_range :: fn (buf: *Buffer, cursor_index: s32) (start: s64, end: s6
 	return start, end;
 }
 
+peek_range :: fn (buf: *Buffer, start: s64, end: s64) string_view #inline {
+	if start >= end then return "";
+	return string_view.{ end - start, &buf.bytes[start] };
+}
+
 peek_selection :: fn (buf: *Buffer, cursor_index: s32) (text: string_view, start_index: s64) #inline {
 	start, end :: get_selection_range(buf, cursor_index);
-	return string_view.{ end - start, &buf.bytes[start] }, start;
+	return peek_range(buf, start, end), start;
 }
 
 has_selection :: fn (buf: *Buffer, cursor_index: s32) bool #inline {
@@ -471,12 +488,6 @@ peek_row_without_new_line :: fn (buf: *Buffer, row_index: s32) (text: string_vie
 	len_with_new_line :: cast(s32) row.len;
 	row  = trim_right(row, "\r\n");
 	return row, start_index, len_with_new_line;
-}
-
-peek_range :: fn (buf: *Buffer, start: s64, end: s64) string_view #inline {
-	assert(end >= start);
-	if end == start { return ""; }
-	return string_view.{ end - start, &buf.bytes[start] };
 }
 
 peek_position :: fn (buf: *Buffer, position: s64) string_view {
@@ -1084,6 +1095,7 @@ notify :: fn () {
 		OPEN_PROJECT      { open_project_cmd_changed();         }
 		SEARCH_IN_PROJECT { search_in_project_cmd_changed();    }
 		COMPLETION        { completion_target_buffer_changed(); }
+		LIST_FUNCTIONS    { list_functions_cmd_changed();       }
 
 		default;
 	}

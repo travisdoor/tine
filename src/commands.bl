@@ -80,6 +80,7 @@ Command :: enum {
 	SEARCH_IN_PROJECT;
 	SEARCH_REPLACE;
 	PEEK_ERROR;
+	LIST_FUNCTIONS;
 
 	// MISC
 	BREAK_IN_REMEDYBG;
@@ -190,6 +191,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto SEARCH_IN_PROJECT] = "";
 	help[auto SEARCH_REPLACE]    = "";
 	help[auto PEEK_ERROR]        = "Peek full error message on current line if there is one.";
+	help[auto LIST_FUNCTIONS]    = "List functions in current buffer. This information might not be available for all file types.";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
 	help[auto BUILD]                   = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
@@ -249,6 +251,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		Mode.SEARCH_IN_PROJECT { handled = invoke_command_search_in_project_mode (buf, cmd); }
 		Mode.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
 		Mode.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
+		Mode.LIST_FUNCTIONS    { handled = invoke_command_list_functions_mode    (buf, cmd); }
 
 		default;
 	}
@@ -599,6 +602,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_PROJECT        { set_mode            (Mode.OPEN_PROJECT);                     }
 		SEARCH_IN_PROJECT   { set_mode            (Mode.SEARCH_IN_PROJECT);                }
 		PEEK_ERROR          { set_mode            (Mode.PEEK_ERROR);                       }
+		LIST_FUNCTIONS      { set_mode            (Mode.LIST_FUNCTIONS);                   }
 		DEBUG_REPORT        { debug_report        ();                                      }
 		OPEN_PROJECT_CONFIG { open_project_config ();                                      }
 		OPEN_DEFAULT_CONFIG { open_default_config ();                                      }

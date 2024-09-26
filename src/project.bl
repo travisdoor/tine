@@ -280,6 +280,8 @@ do_the_stuff_after_project_load :: fn () {
 	code_color_table[auto CODE_COLOR_NUMBER_INDEX   ] = colors.code_number;
 	code_color_table[auto CODE_COLOR_ERROR_INDEX    ] = colors.code_error;
 	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
+	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
+	code_color_table[auto CODE_COLOR_FUNCTION_INDEX ] = colors.code_function;
 
 	indexed_files_ditry = true;
 

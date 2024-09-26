@@ -251,13 +251,15 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	return h, clicked;
 }
 
-list_completion :: fn (strs: []string) {
+list_completion :: fn (strs: []string, ids: []s32) {
 	reset_listing();
+	assert(strs.len == ids.len);
 	loop i := 0; i < strs.len; i += 1 {
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
-			preview = std.str_new(strs[i], &string_cache[DEFAULT_CACHE_INDEX]),
-			index = i,
-		});
+				preview = std.str_new(strs[i], &string_cache[DEFAULT_CACHE_INDEX]),
+				icon = get_icon_for_lsp_completion_kind(ids[i]),
+				index = i,
+			});
 	}
 }
 
@@ -454,6 +456,29 @@ list_buffers :: fn () {
 	quick_sort_by_score(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
 }
 
+// Returns false in case there are no functions available for the buffer.
+list_functions :: fn (buf: *Buffer) bool {
+	reset_listing();
+	functions : []SearchLocation : buf.functions;
+	if functions.len == 0 then return false;
+
+	loop i := 0; i < functions.len; i += 1 {
+		function_location := &functions[i];
+		row :: find_row_for_position(buf, function_location.start);
+		preview :: peek_row_without_new_line(buf, row);
+
+		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+				title = peek_range(buf, function_location.start, function_location.end),
+				icon  = get_icon_for_lsp_completion_kind(LSP_COMPLETION_ITEM_KIND_FUNCTION),
+				preview = preview,
+				index = function_location.start,
+			});
+	}
+
+	quick_sort_by_score(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+	return true;
+}
+
 clear_list_filters :: fn () {
 	visible_list_index = DEFAULT_LIST_INDEX;
 }
@@ -582,7 +607,7 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 	return OK;
 }
 
-format_async_search_results_to_string :: fn (str: *string) {
+format_listing_results_to_string :: fn (str: *string) {
 	using std;
 	cancel_async_search();
 

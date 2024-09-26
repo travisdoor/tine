@@ -233,6 +233,7 @@ code_number                         FFAC9C
 code_invalid                        FF0000
 code_warning                        DCC80B
 code_error                          E92204
+code_function                       FFFFFF
 
 # dark colors zenburn-like
 # background_color                    3F3F3F
@@ -266,6 +267,7 @@ code_error                          E92204
 # code_invalid                        FF0000
 # code_warning                        DCC80B
 # code_error                          E92204
+# code_function                       93E0E3
 
 # dark colors casey style
 # background_color                    161616
@@ -299,6 +301,7 @@ code_error                          E92204
 # code_invalid                        FF0000
 # code_warning                        DCC80B
 # code_error                          E92204
+# code_function                       B8860B
 
 # light colors
 # background_color                    FFFFFF
@@ -332,3 +335,4 @@ code_error                          E92204
 # code_invalid                        FF0000
 # code_warning                        948C00
 # code_error                          ED1C24
+# code_function                       B8860B

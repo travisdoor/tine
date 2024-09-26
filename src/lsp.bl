@@ -17,6 +17,34 @@ LspRequestFlags :: enum #flags {
 
 LSP_MAX_DIAG_MESSAGE_COUNT :: 1000;
 
+
+LSP_COMPLETION_ITEM_KIND_TEXT :: 1;
+LSP_COMPLETION_ITEM_KIND_METHOD :: 2;
+LSP_COMPLETION_ITEM_KIND_FUNCTION :: 3;
+LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR :: 4;
+LSP_COMPLETION_ITEM_KIND_FIELD :: 5;
+LSP_COMPLETION_ITEM_KIND_VARIABLE :: 6;
+LSP_COMPLETION_ITEM_KIND_CLASS :: 7;
+LSP_COMPLETION_ITEM_KIND_INTERFACE :: 8;
+LSP_COMPLETION_ITEM_KIND_MODULE :: 9;
+LSP_COMPLETION_ITEM_KIND_PROPERTY :: 10;
+LSP_COMPLETION_ITEM_KIND_UNIT :: 11;
+LSP_COMPLETION_ITEM_KIND_VALUE :: 12;
+LSP_COMPLETION_ITEM_KIND_ENUM :: 13;
+LSP_COMPLETION_ITEM_KIND_KEYWORD :: 14;
+LSP_COMPLETION_ITEM_KIND_SNIPPET :: 15;
+LSP_COMPLETION_ITEM_KIND_COLOR :: 16;
+LSP_COMPLETION_ITEM_KIND_FILE :: 17;
+LSP_COMPLETION_ITEM_KIND_REFERENCE :: 18;
+LSP_COMPLETION_ITEM_KIND_FOLDER :: 19;
+LSP_COMPLETION_ITEM_KIND_ENUMMEMBER :: 20;
+LSP_COMPLETION_ITEM_KIND_CONSTANT :: 21;
+LSP_COMPLETION_ITEM_KIND_STRUCT :: 22;
+LSP_COMPLETION_ITEM_KIND_EVENT :: 23;
+LSP_COMPLETION_ITEM_KIND_OPERATOR :: 24;
+LSP_COMPLETION_ITEM_KIND_TYPEPARAMETER :: 25;
+
+
 lsp: struct {
 	job_index:   s32;
 	server_name: string;
@@ -274,10 +302,11 @@ apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
 			buf :: get_active_buffer_and_editor();
 			if request_data.buffer_index != buf.index then return;
 			items :: request_data.strs;
+			kinds :: request_data.ids;
 			if items.len == 0 {
 				print_warn("No completion available.");
 			} else {
-				show_completion_popup_for_active_editor(items);
+				show_completion_popup_for_active_editor(items, kinds);
 			}
 		}
 		default;
@@ -312,6 +341,46 @@ remove_all_buffers_from_lsp :: fn () {
 lsp_buffer_needs_update :: fn (buf: *Buffer) bool #inline {
 	assert(buf.lsp.version > 0, "Buffer not tracked by LSP!");
 	return buf.lsp.published_top != buf.undo_top;
+}
+
+get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
+	switch kind {
+		LSP_COMPLETION_ITEM_KIND_KEYWORD,
+		LSP_COMPLETION_ITEM_KIND_SNIPPET,
+		LSP_COMPLETION_ITEM_KIND_COLOR,
+		LSP_COMPLETION_ITEM_KIND_EVENT,
+		LSP_COMPLETION_ITEM_KIND_OPERATOR,
+		LSP_COMPLETION_ITEM_KIND_TEXT { return icon(ICON_CODE_TEXT); }
+
+		LSP_COMPLETION_ITEM_KIND_METHOD,
+		LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR,
+		LSP_COMPLETION_ITEM_KIND_FUNCTION { return icon(ICON_CODE_FUNCTION); }
+
+
+		LSP_COMPLETION_ITEM_KIND_FIELD,
+		LSP_COMPLETION_ITEM_KIND_CONSTANT,
+		LSP_COMPLETION_ITEM_KIND_PROPERTY,
+		LSP_COMPLETION_ITEM_KIND_VALUE,
+		LSP_COMPLETION_ITEM_KIND_REFERENCE,
+		LSP_COMPLETION_ITEM_KIND_VARIABLE { return icon(ICON_CODE_VARIABLE); }
+
+		LSP_COMPLETION_ITEM_KIND_CLASS { return icon(ICON_CODE_CLASS); }
+		LSP_COMPLETION_ITEM_KIND_INTERFACE { return icon(ICON_CODE_INTERFACE); }
+
+		LSP_COMPLETION_ITEM_KIND_FILE { return icon(ICON_FILE); }
+		LSP_COMPLETION_ITEM_KIND_FOLDER { return icon(ICON_FOLDER); }
+
+		LSP_COMPLETION_ITEM_KIND_STRUCT,
+		LSP_COMPLETION_ITEM_KIND_TYPEPARAMETER { return icon(ICON_CODE_TYPE); }
+
+		LSP_COMPLETION_ITEM_KIND_ENUM,
+		LSP_COMPLETION_ITEM_KIND_ENUMMEMBER { return icon(ICON_CODE_ENUM); }
+
+		LSP_COMPLETION_ITEM_KIND_MODULE,
+		LSP_COMPLETION_ITEM_KIND_UNIT { return icon(ICON_CODE_MODULE); }
+	}
+
+	return icon(ICON_CODE_TEXT);
 }
 
 #private
@@ -715,6 +784,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 				if item.label.len > 0 {
 					title :: zeroinit(array_push(&rd.strs));
 					str_append(title, trim_left(item.label, " "));
+					array_push(&rd.ids, item.kind);
 				}
 			}
 			push_result(ctx, &response);

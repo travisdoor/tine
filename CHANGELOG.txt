@@ -2,6 +2,9 @@ MASTER
 ---------------------------------------------------------------------------------------
 Add unification of line endings on paste.
 Add peek-error command.
+Add completion icons for LSP completion mode.
+Add list-functions command (supported only in BL right now).
+Reduce GPU usage by redrawing editor only when needed.
 Allow only explicit copying into clipboard.
 
 0.7 2024-08-16

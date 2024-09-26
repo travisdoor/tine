@@ -1,0 +1,86 @@
+list_functions_mode_init :: fn () {
+	buf :: get_active_buffer_and_editor();
+	if !list_functions(buf) {
+		print_warn("No functions found in current buffer!");
+		set_mode(Mode.TEXT_EDIT);
+		return;
+	}
+
+	active_editor = command_editor;
+	command_buf :: get_active_buffer_and_editor();
+	clear_buffer(command_buf);
+	input_mode = InputMode.TEXT;
+	notify_changes_to_buffer = command_buf.index;
+
+	if settings.show_hints {
+		next_binding   :: get_keybinding_for_command(Command.MOVE_DOWN);
+		prev_binding   :: get_keybinding_for_command(Command.MOVE_UP);
+		commit_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
+		hint :: tprint("[%] next function\t[%] prev function\t[%] jump to the function", next_binding, prev_binding, commit_binding);
+		print_info(hint);
+	}
+}
+
+list_functions_mode_terminate :: fn () {
+}
+
+draw_list_functions_mode :: fn () {
+	assert(active_editor == command_editor);
+
+	target_buf :: get_last_active_buffer_and_editor();
+
+	w, h :: get_command_editor_size();
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search function in '%': ", target_buf.name));
+
+	using DrawListCols;
+	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | PREVIEW);
+	draw_last_status_message(0.f, h + list_h, w);
+	if clicked then commit();
+}
+
+//
+// Commands
+//
+
+invoke_command_list_functions_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	using std;
+	using Command;
+
+	switch cmd {
+		INSERT_NEW_LINE {
+			commit();
+		}
+
+		MOVE_UP   { list_item_up();   }
+		MOVE_DOWN { list_item_down(); }
+
+		default { return false; }
+	}
+
+	return true;
+}
+
+list_functions_cmd_changed :: fn () {
+	command_buf :: get_active_buffer_and_editor();
+	filter_function_name :: peek_row(command_buf, 0);
+	if filter_function_name.len == 0 {
+		clear_list_filters();
+		return;
+	}
+
+	filter_list(filter_function_name);
+}
+
+#private
+
+commit :: fn () {
+	item :: get_selected_item_in_list();
+	if !item then return;
+
+	set_mode(Mode.TEXT_EDIT);
+	target_buffer, target_editor :: get_active_buffer_and_editor();
+	target_buffer.cursors[target_editor.cursor_index].position = item.index;
+}

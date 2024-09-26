@@ -92,7 +92,7 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 					print_warn("Search results buffer is already open.");
 				} else {
 					tmp := str_new(1024, application_context.temporary_allocator);
-					format_async_search_results_to_string(&tmp);
+					format_listing_results_to_string(&tmp);
 					if search.results.len == 0 {
 						str_append(&tmp, tprint("No match for subject '%'", subject));
 					}
@@ -141,7 +141,7 @@ commit :: fn () {
 	std.str_append(&search.last_subject, subject);
 
 	item :: get_selected_item_in_list();
-	if !item { return; }
+	if !item then return;
 
 	set_mode(Mode.TEXT_EDIT);
 	err :: open(tprint("%/%", item.hint, item.title));
