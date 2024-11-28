@@ -1452,12 +1452,11 @@ set_current_buffer_breakpoint_in_remedybg :: fn (editor: *Editor, buf: *Buffer) 
 }
 
 debug_in_remedybg :: fn () {
-	err :: execute_system_command("remedybg.exe start-debugging");
-	if err {
-		print_err(err);
-	} else {
-		print_info("Debugging started in RemedyBG.");
-	}
+	err := execute_system_command("remedybg.exe stop-debugging");
+	if err { print_err(err); return; }
+	err = execute_system_command("remedybg.exe start-debugging");
+	if err { print_err(err); return; }
+	print_info("Debugging started in RemedyBG.");
 }
 
 open_project_config :: fn () {
