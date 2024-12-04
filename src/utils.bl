@@ -370,6 +370,7 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 	match_col: s32;
 	subject_index: s32;
 	position := start_position;
+	found := false;
 	loop position < data.len {
 		a :: data[position];
 		b :: subject[subject_index];
@@ -384,7 +385,10 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 				if col { match_col = @col; }
 			}
 			subject_index += bl;
-			if subject_index >= subject.len { break; }
+			if subject_index >= subject.len {
+				found = true;
+				break;
+			}
 		} else {
 			subject_index =  0;
 			match_start   = -1;
@@ -400,10 +404,14 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 		}
 	}
 
-	if col && match_start != -1 {
-		@col = match_col;
+	if found {
+		if col then @col = match_col;
+
+		assert(match_start != -1);
+		return match_start;
 	}
-	return match_start;
+	// Note that match_start here might not be -1, but result match is supposed to be incomplete here.
+	return -1;
 }
 
 // Does not support new lines (might be OK in some cases).

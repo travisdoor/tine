@@ -84,6 +84,8 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 		SEARCH_TO_BUFFER,
 		INSERT_NEW_LINE {
 			if cmd == SEARCH_TO_BUFFER {
+				// @Incomplete 2024-12-04 We use global 'search' for storing the subject but not for storing the results
+				// as we does for "in-file" search. We might change this in the funture to make it more consitent.
 				search.last_subject.len = 0;
 				std.str_append(&search.last_subject, subject);
 
@@ -93,9 +95,7 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 				} else {
 					tmp := str_new(1024, application_context.temporary_allocator);
 					format_listing_results_to_string(&tmp);
-					if search.results.len == 0 {
-						str_append(&tmp, tprint("No match for subject '%'", subject));
-					}
+					if tmp.len == 0 then str_append(&tmp, tprint("No match for subject '%'", subject));
 					set_mode(Mode.TEXT_EDIT);
 
 					print_log("Open results in the buffer!");

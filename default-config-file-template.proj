@@ -196,6 +196,7 @@ clang-format          F1
 build                 F4
 open-in-visual-studio F5
 peek-error            Alt+/
+list-functions        Alt+F
 
 ;colors
 # Color code is expected to be RRGGBB hex number.
@@ -275,18 +276,18 @@ code_function                       FFFFFF
 # cursor_background_color             00FF00
 # cursor_foreground_color             303030
 # current_line_background_color       303030
-# search_result_background_color      1C665F
-# title_bar_color                     383838
-# title_bar_active                    0000BB
+# search_result_background_color      693D6E
+# title_bar_color                     202020
+# title_bar_active                    1E4747
 # title_bar_text_color                E4E4EF
 # command_background_color            161616
 # command_foreground_color            CDAA7D
 # command_title_color                 00FF00
-# command_select_color                0000BB
+# command_select_color                1E4747
 # command_list_background_color       202020
 # modification_indicator_color        FFFF00
-# selection_background_color          0000BB
-# selection_background_inactive_color 000060
+# selection_background_color          0100CD
+# selection_background_inactive_color 00005E
 # message_color                       09975A
 # warning_color                       DCC80B
 # error_color                         E92204
@@ -301,7 +302,7 @@ code_function                       FFFFFF
 # code_invalid                        FF0000
 # code_warning                        DCC80B
 # code_error                          E92204
-# code_function                       B8860B
+# code_function                       BFC9DB
 
 # light colors
 # background_color                    FFFFFF
