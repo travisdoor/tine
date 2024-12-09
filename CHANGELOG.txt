@@ -1,12 +1,15 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+0.8 2024-12-09
+---------------------------------------------------------------------------------------
 Add completion icons for LSP completion mode.
 Add list-functions command (supported only in BL right now).
 Add peek-error command.
 Add unification of line endings on paste.
-Fix project search reporting also incomplete matches in files.
-Fix project search appending the "no match" message after search results passed to buffer.
 Allow only explicit copying into clipboard.
+Fix project search appending the "no match" message after search results passed to buffer.
+Fix project search reporting also incomplete matches in files.
 Reduce GPU usage by redrawing editor only when needed.
 
 0.7 2024-08-16
