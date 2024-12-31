@@ -603,7 +603,7 @@ process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Er
 	if bytes == 0 { return OK; }
 
 	local.temp_string.len = 0;
-	err_read :: read_pipe(ctx.stdout, &local.temp_string, bytes, true);
+	err_read :: read_pipe(ctx.stdout, &local.temp_string);
 	if err_read {
 		return err_read;
 	}
@@ -630,7 +630,7 @@ process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Er
 					return err_peek;
 				}
 				if bytes > 0 {
-					err_read :: read_pipe(ctx.stdout, &local.temp_string, bytes, true);
+					err_read :: read_pipe(ctx.stdout, &local.temp_string);
 					if err_read {
 						return err_read;
 					}
@@ -685,9 +685,9 @@ write_request :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
 		str_append(json, "}");
 	}
 
-	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len), true);
-	if err1 { return err1; }
-	err2 :: write_pipe(ctx.stdin, @json, true);
+	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len));
+	if err1 then return err1;
+	err2 :: write_pipe(ctx.stdin, @json);
 	return err2;
 }
 
@@ -703,9 +703,9 @@ write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Erro
 		serialize_object(data, json);
 		str_append(json, "}");
 	}
-	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len), true);
+	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len));
 	if err1 { return err1; }
-	err2 :: write_pipe(ctx.stdin, @json, true);
+	err2 :: write_pipe(ctx.stdin, @json);
 	return err2;
 }
 

@@ -1,5 +1,5 @@
 BUILD_SCRIPT :: "build.sh";
-SHELL :: "sh";
+SHELL :: "/bin/zsh";
 BUILD_ARGS :: [_]string_view.{ BUILD_SCRIPT };
 
 //
@@ -10,15 +10,21 @@ IoStream :: C.int;
 Pid :: C.pid_t;
 
 start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
-	parent_io: [2]s32 #noinit;
-	child_io:  [2]s32 #noinit;
+	in_pipe:  [2]s32 #noinit;
+	out_pipe: [2]s32 #noinit;
 
-	print_log("Execute '%'.", cmd);
+	executable :: std.str_new(256);
+	defer std.str_delete(&executable);
 
-	if C.pipe(&parent_io) != 0 {
+	err :: lookup_executable(cmd, &executable);
+	if err then return err;
+
+	print_log("Execute '%' with args: %", executable, args);
+
+	if C.pipe(in_pipe.ptr) != 0 {
 		return os_get_last_error2();
 	}
-	if C.pipe(&child_io) != 0 {
+	if C.pipe(out_pipe.ptr) != 0 {
 		return os_get_last_error2();
 	}
 
@@ -28,72 +34,119 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	}
 	if pid == 0 {
 		// child
-		C.close(child_io[0]);
-		C.close(parent_io[1]);
-		C.dup2(parent_io[0], 0);
-		C.dup2(child_io[1], 1);
+		C.dup2(in_pipe[0], C.STDIN);
+		C.dup2(out_pipe[1], C.STDOUT);
+
+		C.close(in_pipe[1]);
+		C.close(out_pipe[0]);
+
+		C.dup2(C.STDOUT, C.STDERR);
 
 		argc :: args.len + 2; // +2 executable and null terminator
-		args_mem :: alloc(sizeof(*C.char) * auto argc);
-		defer free(args_mem);
-		cargs := []*C.char.{ ptr = auto args_mem, len = argc };
-		cargs[0] = std.strtoc(cmd);
+		buf: [16]*C.char #noinit;
+		assert(argc < buf.len);
+
+		_, exec_name :: std.path_split(executable);
+
+		cargs := []*C.char.{ ptr = auto buf.ptr, len = argc };
+		cargs[0] = std.strtoc(exec_name);
 		cargs[cargs.len-1] = null;
-		loop i := 1; i < cargs.len; i += 1 {
+		loop i := 1; i < cargs.len-1; i += 1 {
 			cargs[i] = std.strtoc(args[i-1]);
 		}
-		C.execv(cargs[0], cargs.ptr);
-		C.exit(0);
+
+		C.execv(std.strtoc(executable), cargs.ptr);
+		print_err("Execution failed with error: %", os_get_last_error2());
+		C.exit(1);
 	} else {
 		// parent
 		print_log("Starting process with PID %.", pid);
 		ctx.pid = pid;
 
-		C.close(parent_io[0]);
-		C.close(child_io[1]);
+		C.close(out_pipe[1]);
+		C.close(in_pipe[0]);
 
-		ctx.stdin  = child_io[0];
-		ctx.stdout = parent_io[1];
+		ctx.stdout = out_pipe[0];
+		ctx.stdin  = in_pipe[1];
 	}
 
 	return OK;
 }
 
 execute_system_command :: fn (cmd: string_view) Error {
-	assert(false, "Not implemented!");
+	cmd;
+	print_warn("Not implemented!");
 	return OK;
 }
 
 kill_process :: fn (pid: Pid, exit_code: s32) Error {
-	pid;
-	exit_code;
-	assert(false, "Not implemented!");
+	using C;
+	exit_code;  // @Incomplete: use this?
+	if kill(pid, SIGTERM) == -1 then os_get_last_error2();
 	return OK;
 }
 
 peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
-	// We might use select function here or try to use non-blocking read (which might break current system).
 	stream;
 	error_on_close;
 	assert(false, "Not implemented!");
-	return OK, 0, true;
+	return OK, 0, false;
 }
 
-read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
-	stream;
-	dest;
-	bytes_to_read;
-	error_on_close;
-	assert(false, "Not implemented!");
-	return OK, true;
+PollEvent :: enum #flags {
+    READ;
+    CLOSED;
+    WAIT;
 }
 
-write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
-	stream;
-	msg;
-	error_on_close;
-	assert(false, "Not implemented!");
-	return OK, true;
+poll_pipe :: fn (stream: IoStream) (PollEvent, Error) {
+    using C;
+    pfd := pollfd.{
+        fd = stream,
+        events = POLLIN,
+    };
+
+    poll_result :: poll(&pfd, 1, 1);
+    if poll_result > 0 {
+        result := PollEvent.WAIT;
+
+        if (pfd.revents & POLLIN) != 0 {
+            result = PollEvent.READ;
+        }
+        if (pfd.revents & POLLHUP) != 0 {
+            result |= PollEvent.CLOSED;
+        }
+        return result, OK;
+    } else if poll_result == 0 {
+        return PollEvent.WAIT, OK;
+    }
+    return PollEvent.CLOSED, os_get_last_error2();
+}
+
+read_pipe :: fn (stream: IoStream, dest: *string) Error {
+    using C;
+    loop {
+        buf:  [2048]u8 #noinit;
+        n :: read(stream, auto buf.ptr, auto buf.len);
+		if n == -1 then return os_get_last_error2();
+        if n ==  0 then break;
+
+        std.str_append(dest, string_view.{ auto n, buf.ptr });
+    }
+	return OK;
+}
+
+write_pipe :: fn (stream: IoStream, msg: string_view) Error {
+	using C;
+	total_written : s64 = 0;
+	loop total_written < msg.len {
+		write_size :: std.min(msg.len - total_written, 4096);
+		n :: write(stream, auto &msg[total_written], auto write_size);
+		if n == -1 then return os_get_last_error2();
+		total_written += n;
+	}
+	assert(msg.len == total_written);
+	return OK;
 }
 
 close_stream :: fn (handle: IoStream) {
@@ -112,17 +165,15 @@ get_fonts_directory :: fn () string {
 	return std.str_new("/System/Library/Fonts");
 }
 
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	print_warn("Not implemented.");
-	url;
-	assert(false, "Not implemented!");
-	return OK, std.str_new();
+new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: string) {
+    filepath;
+    return OK, std.str_new();
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	filepath;
-	assert(false, "Not implemented!");
-	return OK, std.str_new();
+    url;
+    print_warn("Not implemented!");
+    return OK, std.str_new();
 }
 
 read_clipboard :: fn () string_view {
@@ -141,12 +192,22 @@ Watcher :: struct {
 	using macos;
 
 	stream: FSEventStreamRef;
+	path:   string;
+	flags:  WatchFor;
 }
 
 watch_init :: fn () {
+	using std;
+	mutex_init(&mutex);
 }
 
 watch_terminate :: fn () {
+	using std;
+	assert(watched.len == 0);
+	tbl_terminate(&watched);
+	tbl_terminate(&changed);
+
+	mutex_terminate(&mutex);
 }
 
 WatchFor :: enum u32 #flags {
@@ -158,18 +219,27 @@ WatchFor :: enum u32 #flags {
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 	using macos;
 	using std;
-
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
+
+	print_log("Watch changes: % (%)", directory, flags);
 
 	path :: CFStringCreateWithCString(null, auto strtoc(directory), CFStringEncoding.UTF8);
 	paths   :: CFArrayCreate(null, &path, 1, null);
 	latency :: 3.0;
 
 	w := tbl_lookup_ptr(&watched, hash);
-	if w { return OK; }
+	if w then return OK;
 
 	w = tbl_insert(&watched, hash);
-	w.stream = FSEventStreamCreate(null, &change_callback, auto w, paths, kFSEventStreamEventIdSinceNow, latency, kFSEventStreamCreateFlagNone);
+
+	ctx :: FSEventStreamContext.{
+		info = auto w,
+	};
+
+	w.stream = FSEventStreamCreate(null, auto &change_callback, &ctx, paths, kFSEventStreamEventIdSinceNow, latency, kFSEventStreamCreateFlagNone);
+	w.path   = str_new(directory);
+	w.flags  = flags;
+
 	run_loop :: CFRunLoopGetCurrent();
 	run_loop_mode :: CFStringCreateWithCString(null, auto strtoc("kCFRunLoopDefaultMode"), CFStringEncoding.UTF8);
 	defer CFRelease(run_loop_mode);
@@ -181,40 +251,103 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 }
 
 unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
-	directory;
-	flags;
-	assert(false, "Not implemented!");
+	using std;
+	using macos;
+
+	hash :: hash_combine(str_hash(directory), cast(u32) flags);
+
+	w := tbl_lookup_ptr(&watched, hash);
+	assert(w);
+	FSEventStreamStop(w.stream);
+	FSEventStreamInvalidate(w.stream);
+	FSEventStreamRelease(w.stream);
+	str_delete(&w.path);
+
+	tbl_erase(&watched, hash);
 }
 
 next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
-	changed_directory;
-	change_kind;
-	assert(false, "Not implemented!");
+	using std;
+	mutex_lock(&mutex);
+	defer mutex_unlock(&mutex);
+
+	dt :: frame_delta_time;
+	loop i := 0; i < changed.len; i += 1 {
+		c :: &changed.values[i];
+		c.timeout_ms -= dt;
+		if c.timeout_ms < 0.f {
+			@changed_directory = tprint("%", c.path);
+			@change_kind       = c.flags;
+			tbl_erase(&changed, changed.keys[i]);
+			return true;
+		}
+	}
+
 	return false;
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
-	filepath;
-	assert(false, "Not implemented!");
-	return 0, OK;
+	using C;
+	file_stat: stat_t #noinit;
+	if stat(std.strtoc(filepath), &file_stat) == -1 {
+		return 0, os_get_last_error2();
+	}
+
+	s  :: cast(u64) file_stat.st_mtimespec.tv_sec;
+	ns :: cast(u64) file_stat.st_mtimespec.tv_nsec;
+
+	return s * 1000 + ns / 1000000, OK;
 }
 
 #private
+
+Change :: struct {
+	path:  string;
+	flags: WatchFor;
+	timeout_ms: f32;
+}
+
 watched: std.Table(u32, Watcher);
+changed: std.Table(string_view, Change);
+mutex: std.Mutex;
 
 change_callback :: fn (
-	stream_ref: macos.ConstFSEventStreamRef,
-	client_callback_info: *u8,
-	num_events: usize,
-	event_paths: *u8,
-	event_flags: *macos.FSEventStreamEventFlags,
-	event_ids: *macos.FSEventStreamEventId
+	_: macos.ConstFSEventStreamRef,
+	watcher: *Watcher,
+	_: usize,
+	_: *u8,
+	_: *macos.FSEventStreamEventFlags,
+	_: *macos.FSEventStreamEventId
 ) {
-	stream_ref;
-	client_callback_info;
-	num_events;
-	event_paths;
-	event_flags;
-	event_ids;
-	print_log("Changes!!!");
+	std.mutex_lock(&mutex);
+	defer std.mutex_unlock(&mutex);
+
+	c := std.tbl_lookup_ptr(&changed, watcher.path);
+	if !c {
+		c = std.tbl_insert(&changed, watcher.path);
+		c.path  = watcher.path;
+		c.flags = auto 0;
+	}
+	c.flags |= watcher.flags;
+	c.timeout_ms = 200.f;
 };
+
+lookup_executable :: fn (path: string_view, full_path: *string) Error {
+	using std;
+	full_path.len = 0;
+	if C.access(strtoc(path), C.X_OK) == 0 {
+		str_append(full_path, path);
+		return OK;
+	}
+	env_path :: env_get("PATH");
+	if env_path.len == 0 then return error(ERR_NOT_FOUND, "File not found.");
+	allocator :: application_context.temporary_allocator;
+	paths :: str_split_by(env_path, ':', allocator);
+
+	loop i := 0; i < paths.len; i += 1 {
+		str_clear_concat(full_path, paths[i], "/", path);
+		if C.access(strtoc(@full_path), C.X_OK) == 0 then return OK;
+	}
+	full_path.len = 0;
+	return error(ERR_NOT_FOUND, "File not found.");
+}

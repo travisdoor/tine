@@ -573,6 +573,8 @@ delete_range :: fn (buf: *Buffer, start: s64, end: s64) {
 
 // Change the whole content of the buffer with respect to undo and cursor positions.
 change_content :: fn (buf: *Buffer, content: string_view) {
+	if content.len == 0 then return;
+	
 	// Remember positions of all cursors before changes.
 	cursors:        [..]Cursor;
 	cursor_indices: [..]s32;

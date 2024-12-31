@@ -15,5 +15,5 @@ x86_64-apple-darwin:
 
 arm64-apple-darwin:
   linker_lib_path: "macos"
-  linker_opt: "-lclipboard -lpthread"
+  linker_opt: "-lclipboard -lpthread -framework AppKit"
 

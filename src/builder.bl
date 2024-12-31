@@ -75,36 +75,31 @@ worker :: fn (ctx: *JobContext) s32 {
 	push_result(ctx, &result);
 
 	loop !ctx.kill {
-		err_peek, bytes, is_closed :: peek_pipe(ctx.stdout);
-		if err_peek {
-			print_err(err_peek);
-			ctx.state = FAILED;
-			break;
-		}
-		if is_closed {
-			ctx.state = DONE;
-			break;
+		state, err :: poll_pipe(ctx.stdout);
+		if err {
+			print_err(err);
+            ctx.state = FAILED;
+            break;
 		}
 
-		if bytes > 0 {
-			// @Performance: We allocate for each read, maybe there is better approach, but this one
-			// is safer.
-			rd.text = str_new(cast(s32) bytes);
+		using PollEvent;
+		if is_flag(state, READ) {
+			rd.text = str_new();
 			defer push_result(ctx, &result);
 
-			err_read, is_closed :: read_pipe(ctx.stdout, &rd.text, bytes);
+			err_read :: read_pipe(ctx.stdout, &rd.text);
 			if err_read {
 				print_err(err_read);
 				ctx.state = FAILED;
 				break;
 			}
-			if is_closed {
-				ctx.state = DONE;
-				break;
-			}
-		} else {
-			os_sleep_ms(10);
 		}
+		if is_flag(state, CLOSED) {
+			ctx.state = DONE;
+			break;
+		}
+
+		os_sleep_ms(10);
 	}
 
 	switch ctx.state {
