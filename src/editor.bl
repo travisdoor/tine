@@ -113,7 +113,6 @@ duplicate_editor_cursor :: fn (editor: *Editor) s32 {
 draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call_location) {
 	using draw;
 	using Metric;
-	using std;
 
 	editor :: &editors[index];
 	if editor.buffer_index == -1 { return; }
@@ -144,14 +143,14 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	sliding :: &editor.sliding;
 
 	cursor :: get_cursor(buf, editor.cursor_index);
-	visible_lines :: cast(s32) std.round(h / line_height);
+	visible_lines :: cast(s32) math.round(h / line_height);
 
 	first_line_index := editor.top;
 
 	if is_animating(&sliding.vertical) {
 		interpolated_y :: animate(&sliding.vertical);
 
-		first_line_index = auto floor(interpolated_y / line_height);
+		first_line_index = auto math.floor(interpolated_y / line_height);
 		sliding.vertical_offset = (line_height * auto first_line_index) - interpolated_y;
 		redraw();
 	}
@@ -166,9 +165,9 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	if editor.prev_frame_cursor_position != cursor.position {
 		top := -1;
 		if cursor.row < first_line_index {
-			top = std.max(0, cursor.row);
+			top = math.max(0, cursor.row);
 		} else if cursor.row > last_line_index - BOTTOM_SCROLL_TRIGGER {
-			top = std.max(0, first_line_index + cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
+			top = math.max(0, first_line_index + cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
 		}
 		if top != -1 then start_vertical_animation(editor, top);
 	}
@@ -184,7 +183,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		cursor_w = cw;
 		if cursor_w == 0.f {
 			pilot_char_w :: text_size("X", &font);
-			cursor_w = round(pilot_char_w);
+			cursor_w = math.round(pilot_char_w);
 		}
 	}
 
@@ -197,7 +196,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	tx -= sliding.horizontal_offset;
-	tx = round(tx);
+	tx = math.round(tx);
 
 	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
 	if is_active {
@@ -227,7 +226,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			if settings.show_lsp_inline_diagnostics && error_reported_for_line == false {
 				loc :: get_diagnostic_for_line(buf, i);
 				if loc && loc.is_hidden == false {
-					if loc.line_hash != std.str_hash(line) {
+					if loc.line_hash != str_hash(line) {
 						loc.is_hidden = true;
 					}
 					highliht_only :: is_peeking && cursor.row == i;
@@ -242,7 +241,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	set_shader_color();
 
 	_, first_position :: peek_row(buf, first_line_index);
-	_, last_position  :: peek_row(buf, std.min(cast(s32) buf.lines.len - 2, last_line_index) );
+	_, last_position  :: peek_row(buf, math.min(cast(s32) buf.lines.len - 2, last_line_index) );
 
 	// draw selection
 	{
@@ -281,11 +280,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	// cursor
 	if is_active && caret.visible {
 		color := colors.cursor_background_color;
-		rect(round(tx + cursor_x), current_line_y, cursor_w, line_height, color);
+		rect(math.round(tx + cursor_x), current_line_y, cursor_w, line_height, color);
 	} else if !is_active {
 		// Draw just empty box.
 		lw :: 2.f;
-		cx :: round(tx + cursor_x);
+		cx :: math.round(tx + cursor_x);
 		rect(cx, current_line_y, cursor_w, lw, colors.cursor_background_color);
 		rect(cx, current_line_y + line_height - lw, cursor_w, lw, colors.cursor_background_color);
 		rect(cx, current_line_y, lw, line_height, colors.cursor_background_color);
@@ -293,16 +292,16 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	set_shader_font(&font);
-	line_base_y := round(ty);
+	line_base_y := math.round(ty);
 	loop i := first_line_index; i < last_line_index; i += 1 {
 		line, row_start_index :: peek_row(buf, i);
 		if line.len == 0 { break; }
 
 		line_colors: [1024]u8 #noinit;
 		if buf.colors.len == 0 {
-			memset(line_colors.ptr, 0, auto std.min(line.len, line_colors.len));
+			memset(line_colors.ptr, 0, auto math.min(line.len, line_colors.len));
 		} else {
-			memcpy(line_colors.ptr, &buf.colors[row_start_index], auto std.min(line.len, line_colors.len));
+			memcpy(line_colors.ptr, &buf.colors[row_start_index], auto math.min(line.len, line_colors.len));
 		}
 
 		if settings.block_caret && i == cursor.row  && is_active && caret.visible {
@@ -432,7 +431,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 				start_selection(buf, editor.cursor_index);
 			}
 
-			if abs(mouse.scroll) > 0.f {
+			if math.abs(mouse.scroll) > 0.f {
 				top := editor.top - auto (mouse.scroll * 5.f);
 				if top < 0 {
 					top = 0;
@@ -550,7 +549,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	// draw cursor
 	if is_active && caret.visible {
 		color := colors.cursor_background_color;
-		rect(std.round(text_x + cursor_x), text_y, cursor_w, line_height, color);
+		rect(math.round(text_x + cursor_x), text_y, cursor_w, line_height, color);
 	}
 
 	set_shader_font(&font);
@@ -559,8 +558,8 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 		if line.len > 0 {
 			if settings.block_caret && caret.visible {
 				lhs, rhs: string_view;
-				std.str_split_at_index(line, auto cursor.position, &lhs, &rhs);
-				std.str_split_at_index(rhs, auto char_under_cursor.len, null, &rhs);
+				str_split_at_index(line, auto cursor.position, &lhs, &rhs);
+				str_split_at_index(rhs, auto char_under_cursor.len, null, &rhs);
 				lhs_size :: text_size(lhs, &font);
 
 				text(text_x, text_base_line_y, lhs, colors.command_foreground_color);
@@ -597,7 +596,6 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 }
 
 draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOTTOM) bool {
-	using draw;
 	using Metric;
 
 	has_one, kind, text :: last_message();
@@ -610,14 +608,14 @@ draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOT
 
 	background_color, foreground_color :: get_status_bar_colors(kind);
 
-	set_shader_color();
+	draw.set_shader_color();
 	draw_shadow(x, y, w, title_bar_height, shadow);
-	rect_rounded(x, y, w, title_bar_height, rounding, background_color, background_color);
+	draw.rect_rounded(x, y, w, title_bar_height, rounding, background_color, background_color);
 
-	set_shader_font(&icons);
+	draw.set_shader_font(&icons);
 	draw.text(x + text_padding, y + (title_bar_height*0.5f - icons.height*0.5f), icon(ICON_BELL), foreground_color);
 
-	set_shader_font(&font_ui);
+	draw.set_shader_font(&font_ui);
 	draw.text(x + text_padding + item_spacing, y + (title_bar_height*0.5f - font_ui.height*0.5f), text, foreground_color);
 	return true;
 }
@@ -633,13 +631,13 @@ center_view :: fn (editor: *Editor) {
 	visible_rows :: editor.visible_lines;
 	if visible_rows < 2 { return; }
 
-	top :: std.max(0, first_row + (cursor.row - (first_row + visible_rows / 2)));
+	top :: math.max(0, first_row + (cursor.row - (first_row + visible_rows / 2)));
 	if top != editor.top {
 		start_vertical_animation(editor, top);
 	}
 }
 
-#private
+#scope_private
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
@@ -670,13 +668,13 @@ update_editor_x_offset :: fn (editor: *Editor, line_w: f32, cursor_x: f32) {
 		c :: cursor_x - result;
 		pilot_char_w :: draw.text_size("X", &font);
 		t := pilot_char_w * 6.f;
-		t = std.min(t, line_w * 0.2f);
+		t = math.min(t, line_w * 0.2f);
 		if c < t || c > line_w - t {
 			result = cursor_x - line_w * 0.5f;
 		}
 	}
 
-	result = std.max(0.f, result);
+	result = math.max(0.f, result);
 	if !settings.smooth_movement {
 		sliding.horizontal_offset = result;
 		return;
@@ -715,7 +713,7 @@ draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_v
 
 	line_size    := text_size(line, &font);
 	message_size := text_size(loc.message, &font_ui);
-	err_x :: std.max(x + line_size  - editor.sliding.horizontal_offset + item_spacing * 2.f, x + w - text_padding - message_size - item_spacing);
+	err_x :: math.max(x + line_size  - editor.sliding.horizontal_offset + item_spacing * 2.f, x + w - text_padding - message_size - item_spacing);
 
 	set_shader_font(&icons);
 	text(err_x, y + (line_height * 0.5f - icons.height * 0.5f), ic, fg_color);
@@ -732,7 +730,7 @@ draw_highlight_range :: fn (
 	tx: f32, ty: f32, // True base position of the visible code block.
 	start: s64, end: s64, // Hightlight positions in the buffer bytes.
 	first_visible_position: s64, last_visible_position: s64, // Visible range of code to limit overdraw.
-	color: glm.v4)
+	color: v4)
 {
 	using draw;
 
@@ -753,7 +751,7 @@ draw_highlight_range :: fn (
 		if row_index == first_selection_row_index {
 			// first line
 			x_offset :: text_size(row, &font, auto start - row_start_position);
-			w        :: text_size(string_view.{ std.min(end, auto row_start_position + row.len) - start, &row[start - row_start_position] }, &font);
+			w        :: text_size(string_view.{ math.min(end, auto row_start_position + row.len) - start, &row[start - row_start_position] }, &font);
 			rect(tx + x_offset, y, w, line_height, color);
 		} else if row_index == last_selection_row_index {
 			// last line
@@ -767,7 +765,7 @@ draw_highlight_range :: fn (
 	}
 }
 
-get_status_bar_colors :: fn (kind: PrintLogKind) (bg: glm.v4, fg: glm.v4) #inline {
+get_status_bar_colors :: fn (kind: PrintLogKind) (bg: v4, fg: v4) #inline {
 	using PrintLogKind;
 	white :: rgb(0xffffff);
 	black :: rgb(0x0);

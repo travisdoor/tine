@@ -110,7 +110,7 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	return 0, os_get_last_error2();
 }
 
-#private
+#scope_private
 
 // Note that the file-watch system on Windows is SUPER SHITTY, there is no suitable way to watch changes to
 // individual files, and notification system for directories might generate multiple events for a "single" user

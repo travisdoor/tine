@@ -84,7 +84,7 @@ completion_target_buffer_changed :: fn () {
 	lsp_completion(editor, buf);
 }
 
-#private
+#scope_private
 
 initial_cursor: Cursor;
 

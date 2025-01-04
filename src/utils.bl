@@ -19,15 +19,14 @@ start_animation :: fn (anim: *Animation, start: f32, end: f32, speed: f32, inter
 }
 
 animate :: fn (anim: *Animation) f32 #inline {
-	using std;
 	anim.t += frame_delta_time * anim.speed;
 	if anim.t >= 1.f then return anim.end;
-	anim.t = clamp(anim.t, 0.f, 1.f);
+	anim.t = math.clamp(anim.t, 0.f, 1.f);
 
 	using AnimationInterpolation;
 	switch anim.interp {
-		SMOOTH_STEP { return smooth_step(anim.start, anim.end, anim.t); }
-		LINEAR      { return lerp(anim.start, anim.end, anim.t);        }
+		SMOOTH_STEP { return math.smooth_step(anim.start, anim.end, anim.t); }
+		LINEAR      { return math.lerp(anim.start, anim.end, anim.t);        }
 	}
 
 	unreachable;
@@ -143,7 +142,7 @@ eat_word :: fn (ctx: *TokenizerBase) string_view {
 	len := 0;
 	loop ctx.index < ctx.bytes.len {
 		c :: ctx.bytes[ctx.index];
-		if c != '_' && c != '-' && std.is_alpha(c) == false { break; }
+		if c != '_' && c != '-' && is_alpha(c) == false { break; }
 		len       += 1;
 		ctx.index += 1;
 	}
@@ -173,7 +172,6 @@ get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_undersco
 	tmp: [enum_count(TEnum)]string_view #noinit;
 	info :: cast(*TypeInfoEnum) typeinfo(TEnum);
 	loop i := 0; i < tmp.len; i += 1 {
-		using std;
 		name :: str_new(info.variants[i].name);
 		str_lower(&name);
 		if replace_underscore {
@@ -189,7 +187,6 @@ get_struct_members_as_list :: fn (TStruct: type #comptime) [struct_count(TStruct
 	tmp: [struct_count(TStruct)]string_view #noinit;
 	info :: cast(*TypeInfoStruct) typeinfo(TStruct);
 	loop i := 0; i < tmp.len; i += 1 {
-		using std;
 		name :: str_new(info.members[i].name);
 		str_lower(&name);
 		//str_replace_all(&name, '_', '-');
@@ -199,8 +196,7 @@ get_struct_members_as_list :: fn (TStruct: type #comptime) [struct_count(TStruct
 	return tmp;
 }
 
-rgb :: fn (c: u32) glm.v4 #comptime {
-	using std;
+rgb :: fn (c: u32) v4 #comptime {
 	T :: union {
 		v: u32;
 		ch: [4]u8;
@@ -208,7 +204,7 @@ rgb :: fn (c: u32) glm.v4 #comptime {
 	tmp: T #noinit;
 	tmp.v = c;
 
-	result: glm.v4 #noinit;
+	result: v4 #noinit;
 	result.x = cast(f32) tmp.ch[2] / 255.f;
 	result.y = cast(f32) tmp.ch[1] / 255.f;
 	result.z = cast(f32) tmp.ch[0] / 255.f;
@@ -216,8 +212,7 @@ rgb :: fn (c: u32) glm.v4 #comptime {
 	return result;
 }
 
-rgb2 :: fn (c: u32) glm.v4 {
-	using std;
+rgb2 :: fn (c: u32) v4 {
 	T :: union {
 		v: u32;
 		ch: [4]u8;
@@ -225,7 +220,7 @@ rgb2 :: fn (c: u32) glm.v4 {
 	tmp: T #noinit;
 	tmp.v = c;
 
-	result: glm.v4 #noinit;
+	result: v4 #noinit;
 	result.x = cast(f32) tmp.ch[2] / 255.f;
 	result.y = cast(f32) tmp.ch[1] / 255.f;
 	result.z = cast(f32) tmp.ch[0] / 255.f;
@@ -233,8 +228,7 @@ rgb2 :: fn (c: u32) glm.v4 {
 	return result;
 }
 
-rgba :: fn (c: u32) glm.v4 #comptime {
-	using std;
+rgba :: fn (c: u32) v4 #comptime {
 	T :: union {
 		v: u32;
 		ch: [4]u8;
@@ -242,7 +236,7 @@ rgba :: fn (c: u32) glm.v4 #comptime {
 	tmp: T #noinit;
 	tmp.v = c;
 
-	result: glm.v4 #noinit;
+	result: v4 #noinit;
 	result.x = cast(f32) tmp.ch[3] / 255.f;
 	result.y = cast(f32) tmp.ch[2] / 255.f;
 	result.z = cast(f32) tmp.ch[1] / 255.f;
@@ -252,15 +246,14 @@ rgba :: fn (c: u32) glm.v4 #comptime {
 
 // Converts the unicode icone ID to utf8 string in the compile time.
 icon :: fn (unicode: u32) string_view #inline #comptime {
-	using std;
 	tmp :: str_new();
 	err :: utf32_to_utf8_single_char(unicode, &tmp);
 	if err { panic(err); }
 	return tmp;
 }
 
-load_whole_file :: fn (dest: *[..]u8, stream: *std.Stream, size_limit_bytes : s64 = -1) Error {
-	using std;
+load_whole_file :: fn (dest: *[..]u8, stream: *io.Stream, size_limit_bytes : s64 = -1) Error {
+	using io;
 	using StreamLocator;
 
 	prev_location, err1  :: seek(stream, CURRENT);
@@ -287,7 +280,6 @@ load_whole_file :: fn (dest: *[..]u8, stream: *std.Stream, size_limit_bytes : s6
 }
 
 string_to_url :: fn (src: string_view) string_view {
-	using std;
 	url := str_new(src.len * 2, application_context.temporary_allocator);
 	start := 0;
 	len   := 0;
@@ -316,8 +308,6 @@ string_to_url :: fn (src: string_view) string_view {
 
 open_path :: fn (path: string_view) {
 	#if PLATFORM == Platform.WINDOWS {
-		using win32;
-		using std;
 		// We might have non-zero terminated path here!
 		tmp :: tprint("%", path);
 		ShellExecuteA(null, strtoc("open"), strtoc(tmp), null, null, SW_SHOWDEFAULT);
@@ -344,7 +334,7 @@ trim_right :: fn (str: string_view, chars: []u8) string_view #inline {
 	return result;
 }
 
-trim_left :: fn (str: string_view, chars: []u8, max_num := std.S32_MAX) string_view #inline {
+trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_view #inline {
 	start  := 0;
 	len    := str.len;
 	loop i := 0; i < str.len && i < max_num; i += 1 {
@@ -419,7 +409,7 @@ count_unicode_characters :: fn (str: string_view) s32 {
 	count: s32;
 	loop i := 0; i < str.len; {
 		l :: get_character_len(str[i]);
-		i += std.max(1, l); // To prevent looping!
+		i += math.max(1, l); // To prevent looping!
 		count += 1;
 	}
 	return count;
@@ -434,8 +424,7 @@ get_default_line_ending_for_platform :: fn () string_view #inline {
 }
 
 is_under_directory :: fn (directory: string_view, filepath: string_view) bool #inline {
-	using std;
-	root :: string_view.{ min(filepath.len, directory.len), filepath.ptr };
+	root :: string_view.{ math.min(filepath.len, directory.len), filepath.ptr };
 	return str_match(root, directory);
 }
 
@@ -445,7 +434,7 @@ get_timestamp :: fn () s64 {
 }
 
 unicode_char_to_utf8_with_fallback :: fn (c: u32, fallback: string_view = "?") string_view #inline {
-	tmp :: std.str_new(4, application_context.temporary_allocator);
+	tmp :: str_new(4, application_context.temporary_allocator);
 	err :: utf32_to_utf8_single_char(c, &tmp);
 	if err {
 		print_err(err);
@@ -455,7 +444,6 @@ unicode_char_to_utf8_with_fallback :: fn (c: u32, fallback: string_view = "?") s
 }
 
 get_file_hash :: fn (filepath: string_view) u32 {
-	using std;
 	tmp :: str_new(filepath, application_context.temporary_allocator);
 	#if PLATFORM == Platform.WINDOWS {
 		str_lower(&tmp);
@@ -473,7 +461,6 @@ ShadowMode :: enum {
 
 draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 	using draw;
-	using glm;
 	r :: metrics[auto Metric.CORNER_ROUNDING];
 	s :: metrics[auto Metric.SHADOW_SIZE];
 
@@ -515,7 +502,6 @@ is_whitespace :: fn (char: u8) bool #inline {
 }
 
 insert_all :: fn (tbl: *?T, v: []string_view) #inline {
-	using std;
 	loop i := 0; i < v.len; i += 1 {
 		tbl_insert(tbl, v[i], 0);
 	}
@@ -566,7 +552,6 @@ expand_position_to_whole_line :: fn (buf: string_view, index: s64, max_distance 
 }
 
 get_location_from_search_result_string :: fn (str: string_view) (filepath: string_view, row: s32, col: s32) {
-	using std;
 	if str.len == 0 { return "", 0, 0; }
 	loc, path, row, col: string_view;
 	if !str_split_by_first(str, '\t', &loc) {
@@ -618,8 +603,6 @@ get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") strin
 }
 
 unify_line_endings :: fn (data: []u8, line_ending:  LineEnding) string_view {
-	using std;
-
 	if detect_line_ending(data) == line_ending then return data;
 
 	buf: string;

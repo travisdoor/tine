@@ -18,7 +18,7 @@ search_mode_init :: fn () {
 	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
 		search.last_subject.len = 0;
 		jump_to_first_match = false;
-		std.str_append(&search.last_subject, initial_subject);
+		str_append(&search.last_subject, initial_subject);
 	} else {
 		initial_subject = search.last_subject;
 	}
@@ -65,7 +65,6 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 	
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 
-	using std;
 	using Command;
 	switch cmd {
 		MOVE_UP   { prev_match(target_buf, target_editor); }
@@ -258,7 +257,7 @@ focus_current_search_result :: fn () bool {
 	return true;
 }
 
-#private
+#scope_private
 
 start_position:      s64;
 start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
@@ -272,7 +271,7 @@ commit_current_subject :: fn () string_view #inline {
 	subject :: peek_row(buf, 0);
 	if subject.len == 0 { return ""; }
 	search.last_subject.len = 0;
-	std.str_append(&search.last_subject, subject);
+	str_append(&search.last_subject, subject);
 
 	return search.last_subject;
 }

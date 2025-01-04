@@ -12,7 +12,7 @@ quick_open_mode_init :: fn () {
 
 quick_open_mode_terminate :: fn () {
 	active_editor = command_editor;
-	std.str_delete(&base_path);
+	str_delete(&base_path);
 }
 
 draw_quick_open_mode :: fn () {
@@ -41,7 +41,6 @@ invoke_command_quick_open_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) 
 	assert(active_editor == command_editor);
 	assert(editors[active_editor].buffer_index == buf.index);
 
-	using std;
 	using Command;
 
 	switch cmd {
@@ -68,7 +67,7 @@ quick_open_cmd_changed :: fn () {
 	filter_list(user_path);
 }
 
-#private
+#scope_private
 
 base_path: string;
 

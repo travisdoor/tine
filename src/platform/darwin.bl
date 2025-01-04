@@ -199,7 +199,7 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	return 0, OK;
 }
 
-#private
+#scope_private
 watched: std.Table(u32, Watcher);
 
 change_callback :: fn (
@@ -218,3 +218,6 @@ change_callback :: fn (
 	event_ids;
 	print_log("Changes!!!");
 };
+
+#scope_private
+// clipboard :: #import "extra/clipboard"; // 2025-01-03 we need init for this...

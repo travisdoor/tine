@@ -46,7 +46,6 @@ invoke_command_list_functions_mode :: fn (buf: *Buffer #maybe_unused, cmd: Comma
 	assert(active_editor == command_editor);
 	assert(editors[active_editor].buffer_index == buf.index);
 
-	using std;
 	using Command;
 
 	switch cmd {
@@ -74,7 +73,7 @@ list_functions_cmd_changed :: fn () {
 	filter_list(filter_function_name);
 }
 
-#private
+#scope_private
 
 commit :: fn () {
 	item :: get_selected_item_in_list();

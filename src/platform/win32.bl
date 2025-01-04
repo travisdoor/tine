@@ -1,3 +1,5 @@
+#import "os/windows"
+
 BUILD_SCRIPT :: "build.bat";
 SHELL :: "cmd.exe";
 BUILD_ARGS :: [_]string_view.{ "/c", BUILD_SCRIPT };
@@ -6,20 +8,18 @@ BUILD_ARGS :: [_]string_view.{ "/c", BUILD_SCRIPT };
 // Process
 //
 
-IoStream :: win32.HANDLE;
-Pid :: win32.DWORD;
+IoStream :: HANDLE;
+Pid :: DWORD;
 
 start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
-	using win32;
-
 	static_assert(has_member2(TContext, "pid"));
 	static_assert(has_member2(TContext, "stdin"));
 	static_assert(has_member2(TContext, "stdout"));
 
-	stdin_read:   win32.HANDLE;
-	stdin_write:  win32.HANDLE;
-	stdout_read:  win32.HANDLE;
-	stdout_write: win32.HANDLE;
+	stdin_read:   HANDLE;
+	stdin_write:  HANDLE;
+	stdout_read:  HANDLE;
+	stdout_write: HANDLE;
 
 	security_attributes :: SECURITY_ATTRIBUTES.{
 		nLength = auto sizeof(SECURITY_ATTRIBUTES),
@@ -44,12 +44,12 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		wShowWindow = auto SW_HIDE,
 	};
 
-	tmp := std.str_new(cmd, application_context.temporary_allocator);
+	tmp := str_new(cmd, application_context.temporary_allocator);
 	loop i := 0; i < args.len; i += 1 {
-		std.str_append(&tmp, " ");
-		std.str_append(&tmp, args[i]);
+		str_append(&tmp, " ");
+		str_append(&tmp, args[i]);
 	}
-	if CreateProcessA(null, std.strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
+	if CreateProcessA(null, strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
@@ -64,13 +64,11 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 }
 
 execute_system_command :: fn (cmd: string_view) Error {
-	using win32;
-
 	// Create process attributes
 	startup_info: STARTUPINFOA;
 	process_info: PROCESS_INFORMATION;
 	startup_info.cb = auto sizeof(STARTUPINFOA);
-	if CreateProcessA(null, std.strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
+	if CreateProcessA(null, strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 	WaitForSingleObject(process_info.hProcess, INFINITE);
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
@@ -78,7 +76,6 @@ execute_system_command :: fn (cmd: string_view) Error {
 }
 
 kill_process :: fn (pid: Pid, exit_code: s32) Error {
-	using win32;
 	handle :: OpenProcess(PROCESS_TERMINATE, FALSE, pid);
 	if !handle {
 		return os_get_last_error2();
@@ -93,8 +90,6 @@ kill_process :: fn (pid: Pid, exit_code: s32) Error {
 }
 
 peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
-	using win32;
-
 	available_bytes: u32 #noinit;
 	if PeekNamedPipe(stream, null, 0, null, &available_bytes, null) == 0 {
 		code, desc :: os_get_last_error();
@@ -105,9 +100,6 @@ peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, availab
 }
 
 read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
-	using win32;
-	using std;
-
 	str_reserve(dest, auto bytes_to_read);
 
 	total_read : u32 = 0;
@@ -129,9 +121,6 @@ read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_c
 }
 
 write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
-	using std;
-	using win32;
-
 	tmp := msg;
 	loop tmp.len > 0 {
 		written: DWORD;
@@ -148,7 +137,7 @@ write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (
 }
 
 close_stream :: fn (handle: IoStream) {
-	win32.CloseHandle(handle);
+	CloseHandle(handle);
 }
 
 //
@@ -156,7 +145,6 @@ close_stream :: fn (handle: IoStream) {
 //
 
 get_current_date_as_YYYY_MM_DD :: fn () string_view {
-	using win32;
 	time: SYSTEMTIME #noinit;
 	GetLocalTime(&time);
 
@@ -168,15 +156,12 @@ get_current_date_as_YYYY_MM_DD :: fn () string_view {
 }
 
 get_fonts_directory :: fn () string {
-	path :: std.get_home();
-	std.str_append(&path, "/AppData/Local/Microsoft/Windows/Fonts");
+	path :: get_home();
+	str_append(&path, "/AppData/Local/Microsoft/Windows/Fonts");
 	return path;
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	using win32;
-	using std;
-
 	url_dup :: tprint("%", url); // Might not be zero-terminated...
 	buf: [MAX_PATH]u8 #noinit;
 	len: DWORD = auto buf.len;
@@ -190,9 +175,6 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 }
 
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
-	using win32;
-	using std;
-
 	filepath_dup :: tprint("%", filepath); // Might not be zero-terminated...
 	buf: [2084]u8 #noinit; // INTERNET_MAX_URL_LENGTH
 	len: DWORD = auto buf.len;
@@ -205,8 +187,6 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 }
 
 read_clipboard :: fn () string_view {
-	using win32;
-
 	if OpenClipboard(null) == 0 { return ""; }
 	defer CloseClipboard();
 	if IsClipboardFormatAvailable(CF_UNICODETEXT) == 0 { return ""; }
@@ -218,15 +198,13 @@ read_clipboard :: fn () string_view {
 	utf16len :: C.wcslen(unicode_ptr);
 	utf8len :: WideCharToMultiByte(CP_UTF8, null, unicode_ptr, auto utf16len, null, 0, null, null);
 	if utf8len == 0 { return ""; }
-	result := std.str_new(utf8len, application_context.temporary_allocator);
+	result := str_new(utf8len, application_context.temporary_allocator);
 	result.len = utf8len;
 	if WideCharToMultiByte(CP_UTF8, null, unicode_ptr, auto utf16len, auto result.ptr, auto utf8len, null, null) == 0 { return ""; }
 	return result;
 }
 
 write_clipboard :: fn (text: string_view) {
-	using win32;
-	using std;
 	if text.len == 0 { return; }
 	utf16len := cast(usize) MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, null, 0);
 	if utf16len == 0 {
@@ -271,7 +249,6 @@ write_clipboard :: fn (text: string_view) {
 //
 
 Watcher :: struct {
-	using win32;
 	handle: HANDLE;
 	path:   string;
 	flags:  WatchFor;
@@ -279,28 +256,23 @@ Watcher :: struct {
 }
 
 watch_init :: fn () {
-	using std;
 	mutex_init(&worker_context.mutex);
 	async(&job, &worker_context, &worker);
 }
 
 watch_terminate :: fn () {
-	using std;
 	worker_context.cancel = true;
 	async_wait(&job);
 	mutex_terminate(&worker_context.mutex);
 }
 
 WatchFor :: enum u32 #flags {
-	FILE_CHANGES      = win32.FILE_NOTIFY_CHANGE_FILE_NAME;
-	DIRECTORY_CHANGES = win32.FILE_NOTIFY_CHANGE_DIR_NAME;
-	MODIFICATIONS     = win32.FILE_NOTIFY_CHANGE_LAST_WRITE;
+	FILE_CHANGES      = FILE_NOTIFY_CHANGE_FILE_NAME;
+	DIRECTORY_CHANGES = FILE_NOTIFY_CHANGE_DIR_NAME;
+	MODIFICATIONS     = FILE_NOTIFY_CHANGE_LAST_WRITE;
 }
 
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
-	using win32;
-	using std;
-
 	assert(directory.len > 0);
 
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
@@ -331,9 +303,6 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 }
 
 unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
-	using win32;
-	using std;
-
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
 	print_log("Unwatch changes in '%' for %.", directory, flags);
 
@@ -348,7 +317,6 @@ unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 }
 
 next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
-	using std;
 	mutex_lock(&worker_context.mutex);
 	defer mutex_unlock(&worker_context.mutex);
 
@@ -370,10 +338,8 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
-	using win32;
-
 	attributes: WIN32_FILE_ATTRIBUTE_DATA;
-	if GetFileAttributesExA(std.strtoc(filepath), GET_FILEEX_INFO_LEVELS.GetFileExInfoStandard, auto &attributes) == TRUE {
+	if GetFileAttributesExA(strtoc(filepath), GET_FILEEX_INFO_LEVELS.GetFileExInfoStandard, auto &attributes) == TRUE {
 		tmp: union {
 			wt: FILETIME;
 			t: u64;
@@ -385,7 +351,7 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	return 0, os_get_last_error2();
 }
 
-#private
+#scope_private
 
 // Note that the file-watch system on Windows is SUPER SHITTY, there is no suitable way to watch changes to
 // individual files, and notification system for directories might generate multiple events for a "single" user
@@ -398,11 +364,9 @@ Change :: struct {
 	timeout_ms: f32;
 }
 
-job: std.Async(*typeof(worker_context), s32);
+job: Async(*typeof(worker_context), s32);
 
 worker_context: struct {
-	using std;
-
 	watched: Table(u32, Watcher);
 	changed: Table(string_view, Change);
 	mutex: Mutex;
@@ -411,9 +375,6 @@ worker_context: struct {
 }
 
 worker :: fn (ctx: *typeof(worker_context)) s32 {
-	using win32;
-	using std;
-
 	print_log("File watch started.");
 
 	handles:   [..]HANDLE;

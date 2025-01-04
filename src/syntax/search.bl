@@ -1,6 +1,4 @@
 highlight_search_syntax :: fn (buf: *Buffer) {
-	using std;
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	buf.colors.len = 0;
@@ -27,7 +25,7 @@ highlight_search_syntax :: fn (buf: *Buffer) {
 	}
 }
 
-#private
+#scope_private
 
 Tokenizer :: struct #base TokenizerBase {
 }
@@ -62,7 +60,6 @@ next_token :: fn (ctx: *Tokenizer) Token {
 }
 
 parse_message :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using std;
 	using Token.kind;
 
 	start_index := ctx.index;
@@ -79,7 +76,6 @@ parse_message :: fn (ctx: *Tokenizer, t: *Token) bool {
 }
 
 parse_match :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using std;
 	using Token.kind;
 
 	if search.last_subject.len == 0 {

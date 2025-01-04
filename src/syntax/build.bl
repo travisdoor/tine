@@ -1,6 +1,4 @@
 highlight_build_syntax :: fn (buf: *Buffer) {
-	using std;
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	clear_error_list();
@@ -27,7 +25,7 @@ highlight_build_syntax :: fn (buf: *Buffer) {
 	}
 }
 
-#private
+#scope_private
 
 Tokenizer :: struct #base TokenizerBase {
 }
@@ -61,7 +59,6 @@ next_token :: fn (ctx: *Tokenizer) Token {
 }
 
 parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using std;
 	using Token.kind;
 
 	line := eat_line_and_trim_eol(ctx);
@@ -102,8 +99,6 @@ parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
 }
 
 try_location_clang_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_line: *string_view) bool #inline {
-	using std;
-
 	l := line;
 
 	lhs: string_view;
@@ -135,8 +130,6 @@ try_location_clang_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_t
 }
 
 try_location_cl_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_line: *string_view) bool #inline {
-	using std;
-
 	l := line;
 
 	lhs: string_view;

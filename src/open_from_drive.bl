@@ -7,7 +7,7 @@ open_from_drive_mode_init :: fn () {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 
-	base_path = std.get_cwd();
+	base_path = get_cwd();
 	err :: list_directory(tprint("%/", base_path));
 	if err {
 		print_err(err);
@@ -16,7 +16,7 @@ open_from_drive_mode_init :: fn () {
 
 open_from_drive_mode_terminate :: fn () {
 	active_editor = command_editor;
-	std.str_delete(&base_path);
+	str_delete(&base_path);
 }
 
 draw_open_from_drive_mode :: fn () {
@@ -85,12 +85,11 @@ open_from_drive_cmd_changed :: fn () {
 	filter_list(user_path);
 }
 
-#private
+#scope_private
 
 base_path: string;
 
 commit :: fn () {
-	using std;
 	buf :: get_active_buffer_and_editor();
 
 	item :: get_selected_item_in_list();

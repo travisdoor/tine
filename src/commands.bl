@@ -318,7 +318,6 @@ keymap_entry_to_string :: fn (keymap_index: s32) string_view {
 	e :: &key_binding[keymap_index];
 	if e.key < 0 { return ""; }
 
-	using std;
 	using glfw;
 
 	tmp :: str_new(application_context.temporary_allocator);
@@ -363,7 +362,7 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 	if maybe_report_readonly(buf) then return;
 
 	text :: string_view.{ end - start, &buf.bytes[start] };
-	if std.str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
+	if str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
 		write_clipboard(text);
 	}
 	clear_selection(buf, editor.cursor_index);
@@ -473,7 +472,6 @@ select_paragraph :: fn (editor: *Editor, buf: *Buffer) {
 
 // The range is expanded to cover whole line.
 indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
-	using std;
 	if maybe_report_readonly(buf) { return false; }
 	assert(end >= start);
 
@@ -495,7 +493,7 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 	assert(new_line[new_line.len-1] == '\n');
 	lines :: str_split_by(str, '\n', application_context.temporary_allocator);
 
-	indented := str_new(max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
+	indented := str_new(math.max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
 	defer str_delete(&indented);
 
 	if lines.len == 0 {
@@ -539,7 +537,7 @@ help :: fn () {
 	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
 }
 
-#private
+#scope_private
 
 SmartSelectionLevel :: enum {
 	WORD;
@@ -752,7 +750,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 				} else {
 					rec.kind = INSERT;
 					rec.data.insert.position = data.start;
-					rec.data.insert.str      = std.str_new(text);
+					rec.data.insert.str      = str_new(text);
 				}
 
 				set_cursor_position(buf, editor.cursor_index, data.start);
@@ -777,7 +775,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 				rec.data.delete.start = data.position;
 				rec.data.delete.end   = data.position + data.str.len;
 
-				std.str_delete(&data.str);
+				str_delete(&data.str);
 			}
 			COMMIT   {
 				if commit_count > 0 { break; }
@@ -826,7 +824,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 				rec.data.delete.start = data.position;
 				rec.data.delete.end   = data.position + data.str.len;
 
-				std.str_delete(&data.str);
+				str_delete(&data.str);
 			}
 			DELETE {
 				data :: rec.data.delete; // copy
@@ -842,7 +840,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 				} else {
 					rec.kind = INSERT;
 					rec.data.insert.position = data.start;
-					rec.data.insert.str      = std.str_new(text);
+					rec.data.insert.str      = str_new(text);
 				}
 
 				set_cursor_position(buf, editor.cursor_index, data.start);
@@ -1021,7 +1019,7 @@ move_down :: fn (editor: *Editor, buf: *Buffer) bool {
 	if settings.vertical_move_tries_follow_indentation {
 		// Moves the cursor to the indentation in case we end up in whitespace.
 		indent_cols :: get_row_visual_indentation_cols(editor, buf);
-		num_cols = std.max(num_cols, indent_cols);
+		num_cols = math.max(num_cols, indent_cols);
 	}
 	move_by_visual_cols(editor, buf, num_cols);
 	return true;
@@ -1038,7 +1036,7 @@ move_up :: fn (editor: *Editor, buf: *Buffer) bool {
 	if settings.vertical_move_tries_follow_indentation {
 		// Moves the cursor to the indentation in case we end up in whitespace.
 		indent_cols :: get_row_visual_indentation_cols(editor, buf);
-		num_cols = std.max(num_cols, indent_cols);
+		num_cols = math.max(num_cols, indent_cols);
 	}
 	move_by_visual_cols(editor, buf, num_cols);
 	return true;
@@ -1063,7 +1061,6 @@ jump_page_up :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 append_indentation :: fn (str: *string, n := 1) s64 {
-	using std;
 	orig_len :: str.len;
 	if settings.insert_spaces_instead_tabs {
 		loop i := 0; i < settings.tab_size * n; i += 1 {
@@ -1085,7 +1082,7 @@ insert_tab :: fn (editor: *Editor, buf: *Buffer) {
 		return;
 	}
 
-	tmp :: std.str_new(64, application_context.temporary_allocator);
+	tmp :: str_new(64, application_context.temporary_allocator);
 	append_indentation(&tmp);
 
 	position :: get_cursor_position(buf, editor.cursor_index);
@@ -1325,13 +1322,13 @@ jump_prev_word :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 increase_font_size :: fn () bool {
-	settings.font_size = std.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	settings.font_size = math.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
 	rebuild_fonts();
 	return true;
 }
 
 decrease_font_size :: fn () bool {
-	settings.font_size = std.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	settings.font_size = math.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
 	rebuild_fonts();
 	return true;
 }
@@ -1487,7 +1484,6 @@ ToUpperOrLower :: enum {
 }
 
 selection_to_upper_or_lower :: fn (editor: *Editor, buf: *Buffer, op: ToUpperOrLower) {
-	using std;
 	using ToUpperOrLower;
 
 	if maybe_report_readonly(buf) { return; }
@@ -1533,7 +1529,6 @@ build :: fn () {
 }
 
 alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
-	using std;
 	if maybe_report_readonly(buf) { return; }
 	if !has_selection(buf, editor.cursor_index) { return; }
 
@@ -1551,7 +1546,7 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 	if lines.len < 2 { return; }
 
 	sort(lines, &fn (a: *string_view, b: *string_view) bool {
-		return std.str_compare(@a, @b) < 0;
+		return str_compare(@a, @b) < 0;
 	});
 
 	set_cursor_position(buf, editor.cursor_index, start);
@@ -1579,7 +1574,6 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
-	using std;
 	if maybe_report_readonly(buf) { return; }
 
 	comment_with :: FILE_TYPE_COMMENT_WITH[auto buf.file_type];
@@ -1608,7 +1602,7 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 
 	if lines.len == 0 { return; }
 
-	commented := str_new(max(str.len, 32));
+	commented := str_new(math.max(str.len, 32));
 	defer str_delete(&commented);
 
 	nesting := 1000;
@@ -1616,7 +1610,7 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 	loop i := 0; i < lines.len; i += 1 {
 		line :: lines[i];
 		if line.len > 0 {
-			nesting = min(nesting, find_indentation_for_range(buf, position, position + line.len));
+			nesting = math.min(nesting, find_indentation_for_range(buf, position, position + line.len));
 		}
 		position += line.len + 1;
 	}
@@ -1665,7 +1659,6 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 open_error_location :: fn (loc: *ErrorLocation) {
-	using std;
 	filepath :: str_new(loc.file);
 	defer str_delete(&filepath);
 	str_replace_all(&filepath, '\\', '/'); // we love windows
@@ -1708,7 +1701,6 @@ support_me :: fn () {
 }
 
 open_file_location :: fn (buf: *Buffer) {
-	using std;
 	dir :: path_split(buf.filepath);
 	if dir.len == 0 {
 		print_err("Cannot open file location.");

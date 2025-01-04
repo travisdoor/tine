@@ -2,8 +2,6 @@
 // we should try to deduplicate this...
 
 highlight_syntax_cpp :: fn (buf: *Buffer) {
-	using std;
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	buf.colors.len = 0;
@@ -46,11 +44,11 @@ highlight_syntax_cpp :: fn (buf: *Buffer) {
 		}
 	}
 
-	std.tbl_terminate(&ctx.keyword_table);
-	std.tbl_terminate(&ctx.directive_table);
+	tbl_terminate(&ctx.keyword_table);
+	tbl_terminate(&ctx.directive_table);
 }
 
-#private
+#scope_private
 
 kind_to_color :: fn (kind: Token.kind) u8 #inline {
 	using Token.kind;
@@ -69,8 +67,8 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 }
 
 Tokenizer :: struct #base TokenizerBase {
-	keyword_table:   std.Table(string_view, u8); // We need set!
-	directive_table: std.Table(string_view, u8);
+	keyword_table:   Table(string_view, u8); // We need set!
+	directive_table: Table(string_view, u8);
 }
 
 Token :: struct {
@@ -114,13 +112,12 @@ max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
 	tmp :: []string_view.{ count, ptrs };
 	l := 0;
 	loop i := 0; i < tmp.len; i += 1 {
-		l = std.max(l, auto tmp[i].len);
+		l = math.max(l, auto tmp[i].len);
 	}
 	return l;
 }
 
 insert_all :: fn (tbl: *?T, v: []string_view) #inline {
-	using std;
 	loop i := 0; i < v.len; i += 1 {
 		tbl_insert(tbl, v[i], 0);
 	}
@@ -242,7 +239,7 @@ parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
 
 	loop ctx.index < ctx.bytes.len {
 		c :: ctx.bytes[ctx.index];
-		if c != '_' && std.is_alpha(c) == false { break; }
+		if c != '_' && is_alpha(c) == false { break; }
 		t.len     += 1;
 		ctx.index += 1;
 	}
@@ -254,7 +251,7 @@ parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
 	}
 
 	maybe_directive :: string_view.{ t.len-1, &ctx.bytes[t.index+1] }; // strip #
-	if std.tbl_contains(&ctx.directive_table, maybe_directive) {
+	if tbl_contains(&ctx.directive_table, maybe_directive) {
 		t.kind = DIRECTIVE;
 	} else {
 		t.kind = INVALID;
@@ -268,7 +265,7 @@ parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
 
 	loop ctx.index < ctx.bytes.len {
 		c :: ctx.bytes[ctx.index];
-		if c == '_' || std.is_alpha(c) || (t.len > 0 && std.is_digit(c)) {
+		if c == '_' || is_alpha(c) || (t.len > 0 && is_digit(c)) {
 			t.len     += 1;
 			ctx.index += 1;
 		} else {
@@ -279,7 +276,7 @@ parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
 	if t.len == 0 { return false; }
 
 	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
-	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && std.tbl_contains(&ctx.keyword_table, maybe_keyword);
+	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && tbl_contains(&ctx.keyword_table, maybe_keyword);
 	if is_keyword {
 		t.kind = KEYWORD;
 	} else {
@@ -294,14 +291,14 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
 	dot  := false;
 	base := FmtIntBase.DEC;
 
-	if c != '-' && std.is_digit(c) == false { return false; }
+	if c != '-' && is_digit(c) == false { return false; }
 	t.kind = NUMBER;
 
 	if c == '-' {
 		if ctx.index+1 >= ctx.bytes.len {
 			return false;
 		}
-		if std.is_digit(ctx.bytes[ctx.index+1]) == false {
+		if is_digit(ctx.bytes[ctx.index+1]) == false {
 			return false;
 		}
 		t.len     += 1;
@@ -340,7 +337,7 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
 			continue;
 		}
 
-		if !std.is_digit(c, base) {
+		if !is_digit(c, base) {
 			break;
 		}
 		t.len += 1;

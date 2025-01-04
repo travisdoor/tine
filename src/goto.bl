@@ -34,11 +34,11 @@ invoke_command_goto_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
 	return true;
 }
 
-#private
+#scope_private
 
 commit :: fn (buf: *Buffer) {
 	line_str :: peek_row(buf, 0);
-	line, err := std.strtos64(line_str);
+	line, err := strtos64(line_str);
 	if err { return; }
 
 	set_mode(Mode.TEXT_EDIT);
