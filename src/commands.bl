@@ -295,8 +295,15 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 
 		// Does nothing in case we're already in default mode (TEXT_EDIT).
 		CANCEL_MODE {
-			set_default_mode();
+			mode_changed :: set_default_mode();
 			clear_selection(buf, editor.cursor_index);
+			if !mode_changed && build.buffer_index != -1 {
+				buffer_index :: build.buffer_index;
+				assert(buffer_index >= 0 && buffer_index < buffers.len);
+				if !buffers[buffer_index].is_removed {
+					close_buffer(buffer_index);
+				}
+			}
 		}
 
 		// Not handled...
@@ -610,7 +617,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		BREAK_IN_REMEDYBG   { set_current_buffer_breakpoint_in_remedybg(editor, buf);      }
 		DEBUG_IN_REMEDYBG   { debug_in_remedybg   ();                                      }
 		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
-		BUILD               { build               ();                                      }
+		BUILD               { start_build         ();                                      }
 		BUILD_KILL          { kill_build          ();                                      }
 		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
 		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
@@ -1520,7 +1527,7 @@ clang_format :: fn (buf: *Buffer) {
 	if err { print_err(err); }
 }
 
-build :: fn () {
+start_build :: fn () {
 	if settings.save_all_before_build {
 		save_all();
 	}

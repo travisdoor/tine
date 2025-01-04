@@ -907,9 +907,10 @@ get_last_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
 	return buf, editor;
 }
 
+// Returns true in case the mode was changed.
 set_mode :: fn (m: Mode) bool #inline {
 	using Mode;
-	if m == mode { return false; }
+	if m == mode then return false;
 
 	notify_changes_to_buffer = -1;
 
@@ -967,8 +968,8 @@ set_mode :: fn (m: Mode) bool #inline {
 }
 
 // Cancel the current mode (e.g. goto line) and switch the editor back to main text edit mode.
-set_default_mode :: fn () #inline {
-	set_mode(Mode.TEXT_EDIT);
+set_default_mode :: fn () bool #inline {
+	return set_mode(Mode.TEXT_EDIT);
 }
 
 get_command_editor_size :: fn () (w: f32, h: f32) #inline {
