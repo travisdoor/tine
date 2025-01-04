@@ -84,10 +84,12 @@ Command :: enum {
 
 	// MISC
 	BREAK_IN_REMEDYBG;
+	BREAK_IN_RADDBG;
 	BUILD;
 	BUILD_KILL;
 	CLEAR_MESSAGES;
 	DEBUG_IN_REMEDYBG;
+	DEBUG_IN_RADDBG;
 	DECREASE_FONT_SIZE;
 	GOOGLE_SELECTION;
 	HELP;
@@ -98,6 +100,7 @@ Command :: enum {
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
 	OPEN_IN_REMEDYBG;
+	OPEN_IN_RADDBG;
 	OPEN_IN_VISUAL_STUDIO;
 	OPEN_MESSAGES;
 	OPEN_PROJECTS_DIRECTORY;
@@ -194,10 +197,12 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto LIST_FUNCTIONS]    = "List functions in current buffer. This information might not be available for all file types.";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
+	help[auto BREAK_IN_RADDBG]         = "Set current file location as breakpoint in RAD Debugger.";
 	help[auto BUILD]                   = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
 	help[auto BUILD_KILL]              = "Try to kill running build script.";
 	help[auto CLEAR_MESSAGES]          = "Clear 'messages' buffer.";
 	help[auto DEBUG_IN_REMEDYBG]       = "Start debugging in running RemedyBG instance.";
+	help[auto DEBUG_IN_RADDBG]         = "Start debugging in running RAD Debugger instance.";
 	help[auto DECREASE_FONT_SIZE]      = "";
 	help[auto GOOGLE_SELECTION]        = "Pass the current selection to the google.com search in default system browser.";
 	help[auto HELP]                    = "";
@@ -208,6 +213,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto LSP_RESTART_SERVER]      = "";
 	help[auto OPEN_DEFAULT_CONFIG]     = "";
 	help[auto OPEN_IN_REMEDYBG]        = "Open current file location in RemedyBG.";
+	help[auto OPEN_IN_RADDBG]          = "Open current file location in RAD Debugger.";
 	help[auto OPEN_IN_VISUAL_STUDIO]   = "Open current file location in Visual Studio.";
 	help[auto OPEN_MESSAGES]           = "";
 	help[auto OPEN_PROJECTS_DIRECTORY] = "";
@@ -614,8 +620,11 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_MESSAGES       { open_messages       ();                                      }
 		OPEN_IN_VISUAL_STUDIO { open_current_buffer_in_visual_studio(buf);                 }
 		OPEN_IN_REMEDYBG    { open_current_buffer_in_remedybg(editor, buf);                }
+		OPEN_IN_RADDBG      { open_current_buffer_in_raddbg(editor, buf);                }
 		BREAK_IN_REMEDYBG   { set_current_buffer_breakpoint_in_remedybg(editor, buf);      }
+		BREAK_IN_RADDBG     { set_current_buffer_breakpoint_in_raddbg(editor, buf);        }
 		DEBUG_IN_REMEDYBG   { debug_in_remedybg   ();                                      }
+		DEBUG_IN_RADDBG     { debug_in_raddbg     ();                                      }
 		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
 		BUILD               { start_build         ();                                      }
 		BUILD_KILL          { kill_build          ();                                      }
@@ -1461,6 +1470,32 @@ debug_in_remedybg :: fn () {
 	err = execute_system_command("remedybg.exe start-debugging");
 	if err { print_err(err); return; }
 	print_info("Debugging started in RemedyBG.");
+}
+
+open_current_buffer_in_raddbg :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	err := OK;
+	err = execute_system_command(tprint("raddbg --ipc find_code_location %:%", buf.filepath, cursor.row + 1));
+	if err { print_err(err); return; }
+	print_info("Current file openned in RAD Debugger.");
+}
+
+set_current_buffer_breakpoint_in_raddbg :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	err := OK;
+	err = execute_system_command(tprint("raddbg --ipc find_code_location %:%", buf.filepath, cursor.row + 1));
+	if err { print_err(err); return; }
+	err = execute_system_command(tprint("raddbg --ipc add_breakpoint %:%", buf.filepath, cursor.row + 1));
+	if err { print_err(err); return; }
+	print_info("Breakpoint set in RAD Debugger.");
+}
+
+debug_in_raddbg :: fn () {
+	err := execute_system_command("raddbg --ipc kill_all");
+	if err { print_err(err); return; }
+	err = execute_system_command("raddbg --ipc launch_and_run");
+	if err { print_err(err); return; }
+	print_info("Debugging started in RAD Debugger.");
 }
 
 open_project_config :: fn () {

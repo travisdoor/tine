@@ -195,6 +195,17 @@ redo                 Ctrl+Y
 clang-format          F1
 build                 F4
 open-in-visual-studio F5
+
+# Remedy debugger support https://remedybg.itch.io/remedybg
+debug-in-remedybg
+open-in-remedybg
+break-in-remedybg
+
+# RAD Debugger support https://github.com/EpicGamesExt/raddebugger
+debug-in-raddbg
+open-in-raddbg
+break-in-raddbg
+
 peek-error            Alt+/
 list-functions        Alt+F
 
