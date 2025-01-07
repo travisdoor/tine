@@ -164,7 +164,7 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 	return true;
 }
 
-#private
+#scope_private
 
 is_replacing: bool;
 last_replacement_position: s64;
@@ -175,7 +175,7 @@ commit_current_replacement :: fn () string_view #inline {
 	search.last_replacement.len = 0;
 
 	if replacement.len > 0 {
-		std.str_append(&search.last_replacement, replacement);
+		str_append(&search.last_replacement, replacement);
 	}
 
 	return search.last_replacement;

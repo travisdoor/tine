@@ -338,7 +338,7 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	return s * 1000 + ns / 1000000, OK;
 }
 
-#private
+#scope_private
 
 Change :: struct {
 	path:  string;
@@ -346,9 +346,9 @@ Change :: struct {
 	timeout_ms: f32;
 }
 
-watched: std.Table(u32, Watcher);
-changed: std.Table(string_view, Change);
-mutex: std.Mutex;
+watched: Table(u32, Watcher);
+changed: Table(string_view, Change);
+mutex: Mutex;
 
 change_callback :: fn (
 	_: macos.ConstFSEventStreamRef,
@@ -358,12 +358,12 @@ change_callback :: fn (
 	_: *macos.FSEventStreamEventFlags,
 	_: *macos.FSEventStreamEventId
 ) {
-	std.mutex_lock(&mutex);
-	defer std.mutex_unlock(&mutex);
+	mutex_lock(&mutex);
+	defer mutex_unlock(&mutex);
 
-	c := std.tbl_lookup_ptr(&changed, watcher.path);
+	c := tbl_lookup_ptr(&changed, watcher.path);
 	if !c {
-		c = std.tbl_insert(&changed, watcher.path);
+		c = tbl_insert(&changed, watcher.path);
 		c.path  = watcher.path;
 		c.flags = auto 0;
 	}
@@ -372,7 +372,6 @@ change_callback :: fn (
 };
 
 lookup_executable :: fn (path: string_view, full_path: *string) Error {
-	using std;
 	full_path.len = 0;
 	if C.access(strtoc(path), C.X_OK) == 0 {
 		str_append(full_path, path);

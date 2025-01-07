@@ -59,7 +59,7 @@ buffer_open_cmd_changed :: fn () {
 	filter_list(user_path);
 }
 
-#private
+#scope_private
 
 base_path: string;
 

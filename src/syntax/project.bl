@@ -1,6 +1,4 @@
 highlight_syntax_proj :: fn (buf: *Buffer) {
-	using std;
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	buf.colors.len = 0;
@@ -15,7 +13,7 @@ highlight_syntax_proj :: fn (buf: *Buffer) {
 	};
 
 	insert_all(&ctx.commands_table, COMMAND_NAMES);
-	defer std.tbl_terminate(&ctx.commands_table);
+	defer tbl_terminate(&ctx.commands_table);
 
 	loop {
 		using Token.kind;
@@ -30,14 +28,14 @@ highlight_syntax_proj :: fn (buf: *Buffer) {
 	}
 }
 
-#private
+#scope_private
 
 Tokenizer :: struct #base TokenizerBase {
 	current_section: ProjectSection;
 	prev_token:      Token.kind;
 	expect_keys:     bool;
 
-	commands_table: std.Table(string_view, s16);
+	commands_table: Table(string_view, s16);
 }
 
 Token :: struct {
@@ -109,7 +107,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 						t.kind = VALUE;
 						return t;
 					}
-				} else if std.is_alpha(c) {
+				} else if is_alpha(c) {
 					parse_entry_name(ctx, &t, SETTINGS_ENTRIES);
 					return t;
 				}
@@ -117,7 +115,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			COLORS {
 				if ctx.prev_token == IDENT {
 					if parse_number(ctx, &t, FmtIntBase.HEX) { return t; }
-				} else if std.is_alpha(c) {
+				} else if is_alpha(c) {
 					parse_entry_name (ctx, &t, COLOR_ENTRIES);
 					return t;
 				}
@@ -126,7 +124,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 				if ctx.expect_keys {
 					if c == '+' { ctx.index += 1; continue; }
 					if parse_key(ctx, &t) { return t; }
-				} else if std.is_alpha(c) {
+				} else if is_alpha(c) {
 					parse_command_name(ctx, &t);
 					ctx.expect_keys = true;
 					return t;
@@ -145,7 +143,6 @@ next_token :: fn (ctx: *Tokenizer) Token {
 
 parse_command_name :: fn (ctx: *Tokenizer, t: *Token) {
 	using Token.kind;
-	using std;
 	t.kind = IDENT;
 	command_name :: eat_till_whitespace(auto ctx);
 	t.len = auto command_name.len;
@@ -156,7 +153,6 @@ parse_command_name :: fn (ctx: *Tokenizer, t: *Token) {
 
 parse_key :: fn (ctx: *Tokenizer, t: *Token) bool {
 	using Token.kind;
-	using std;
 	t.kind = VALUE;
 
 	key :: eat_till(auto ctx, " \n\r\t#+");
@@ -200,7 +196,7 @@ parse_entry_name :: fn (ctx: *Tokenizer, t: *Token, valid_names: []string_view) 
 	t.kind = IDENT;
 	ident :: eat_till_whitespace(auto ctx);
 	t.len += cast(s32) ident.len;
-	if !std.str_match_one_of(ident, valid_names) {
+	if !str_match_one_of(ident, valid_names) {
 		t.kind = INVALID;
 	}
 }
@@ -209,7 +205,7 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token, base := FmtIntBase.DEC) bool {
 	using Token.kind;
 	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
 		c :: ctx.bytes[ctx.index];
-		if !std.is_digit(c, base) {
+		if !is_digit(c, base) {
 			break;
 		}
 		t.len += 1;
@@ -231,7 +227,7 @@ parse_section :: fn (ctx: *Tokenizer, t: *Token) {
 	section_name :: eat_word(auto ctx);
 	t.len += cast(s32) section_name.len;
 
-	section_index :: std.str_first_match(section_name, PROJECT_SECTIONS);
+	section_index :: str_first_match(section_name, PROJECT_SECTIONS);
 	if section_index == -1 || section_index == auto ProjectSection.NONE {
 		t.kind = INVALID;
 	} else {

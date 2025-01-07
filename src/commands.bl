@@ -84,10 +84,12 @@ Command :: enum {
 
 	// MISC
 	BREAK_IN_REMEDYBG;
+	BREAK_IN_RADDBG;
 	BUILD;
 	BUILD_KILL;
 	CLEAR_MESSAGES;
 	DEBUG_IN_REMEDYBG;
+	DEBUG_IN_RADDBG;
 	DECREASE_FONT_SIZE;
 	GOOGLE_SELECTION;
 	HELP;
@@ -98,6 +100,7 @@ Command :: enum {
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
 	OPEN_IN_REMEDYBG;
+	OPEN_IN_RADDBG;
 	OPEN_IN_VISUAL_STUDIO;
 	OPEN_MESSAGES;
 	OPEN_PROJECTS_DIRECTORY;
@@ -194,10 +197,12 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto LIST_FUNCTIONS]    = "List functions in current buffer. This information might not be available for all file types.";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
+	help[auto BREAK_IN_RADDBG]         = "Set current file location as breakpoint in RAD Debugger.";
 	help[auto BUILD]                   = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
 	help[auto BUILD_KILL]              = "Try to kill running build script.";
 	help[auto CLEAR_MESSAGES]          = "Clear 'messages' buffer.";
 	help[auto DEBUG_IN_REMEDYBG]       = "Start debugging in running RemedyBG instance.";
+	help[auto DEBUG_IN_RADDBG]         = "Start debugging in running RAD Debugger instance.";
 	help[auto DECREASE_FONT_SIZE]      = "";
 	help[auto GOOGLE_SELECTION]        = "Pass the current selection to the google.com search in default system browser.";
 	help[auto HELP]                    = "";
@@ -208,6 +213,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto LSP_RESTART_SERVER]      = "";
 	help[auto OPEN_DEFAULT_CONFIG]     = "";
 	help[auto OPEN_IN_REMEDYBG]        = "Open current file location in RemedyBG.";
+	help[auto OPEN_IN_RADDBG]          = "Open current file location in RAD Debugger.";
 	help[auto OPEN_IN_VISUAL_STUDIO]   = "Open current file location in Visual Studio.";
 	help[auto OPEN_MESSAGES]           = "";
 	help[auto OPEN_PROJECTS_DIRECTORY] = "";
@@ -295,8 +301,15 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 
 		// Does nothing in case we're already in default mode (TEXT_EDIT).
 		CANCEL_MODE {
-			set_default_mode();
+			mode_changed :: set_default_mode();
 			clear_selection(buf, editor.cursor_index);
+			if !mode_changed && build.buffer_index != -1 {
+				buffer_index :: build.buffer_index;
+				assert(buffer_index >= 0 && buffer_index < buffers.len);
+				if !buffers[buffer_index].is_removed {
+					close_buffer(buffer_index);
+				}
+			}
 		}
 
 		// Not handled...
@@ -318,7 +331,6 @@ keymap_entry_to_string :: fn (keymap_index: s32) string_view {
 	e :: &key_binding[keymap_index];
 	if e.key < 0 { return ""; }
 
-	using std;
 	using glfw;
 
 	tmp :: str_new(application_context.temporary_allocator);
@@ -363,7 +375,7 @@ cut_selection :: fn (editor: *Editor, buf: *Buffer, copy_to_clipboard := true) {
 	if maybe_report_readonly(buf) then return;
 
 	text :: string_view.{ end - start, &buf.bytes[start] };
-	if std.str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
+	if str_match(text, get_line_ending(buf.line_ending)) == false && copy_to_clipboard {
 		write_clipboard(text);
 	}
 	clear_selection(buf, editor.cursor_index);
@@ -473,7 +485,6 @@ select_paragraph :: fn (editor: *Editor, buf: *Buffer) {
 
 // The range is expanded to cover whole line.
 indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
-	using std;
 	if maybe_report_readonly(buf) { return false; }
 	assert(end >= start);
 
@@ -495,7 +506,7 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 	assert(new_line[new_line.len-1] == '\n');
 	lines :: str_split_by(str, '\n', application_context.temporary_allocator);
 
-	indented := str_new(max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
+	indented := str_new(math.max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
 	defer str_delete(&indented);
 
 	if lines.len == 0 {
@@ -539,7 +550,7 @@ help :: fn () {
 	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
 }
 
-#private
+#scope_private
 
 SmartSelectionLevel :: enum {
 	WORD;
@@ -609,10 +620,13 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_MESSAGES       { open_messages       ();                                      }
 		OPEN_IN_VISUAL_STUDIO { open_current_buffer_in_visual_studio(buf);                 }
 		OPEN_IN_REMEDYBG    { open_current_buffer_in_remedybg(editor, buf);                }
+		OPEN_IN_RADDBG      { open_current_buffer_in_raddbg(editor, buf);                }
 		BREAK_IN_REMEDYBG   { set_current_buffer_breakpoint_in_remedybg(editor, buf);      }
+		BREAK_IN_RADDBG     { set_current_buffer_breakpoint_in_raddbg(editor, buf);        }
 		DEBUG_IN_REMEDYBG   { debug_in_remedybg   ();                                      }
+		DEBUG_IN_RADDBG     { debug_in_raddbg     ();                                      }
 		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
-		BUILD               { build               ();                                      }
+		BUILD               { start_build         ();                                      }
 		BUILD_KILL          { kill_build          ();                                      }
 		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
 		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
@@ -752,7 +766,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 				} else {
 					rec.kind = INSERT;
 					rec.data.insert.position = data.start;
-					rec.data.insert.str      = std.str_new(text);
+					rec.data.insert.str      = str_new(text);
 				}
 
 				set_cursor_position(buf, editor.cursor_index, data.start);
@@ -777,7 +791,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 				rec.data.delete.start = data.position;
 				rec.data.delete.end   = data.position + data.str.len;
 
-				std.str_delete(&data.str);
+				str_delete(&data.str);
 			}
 			COMMIT   {
 				if commit_count > 0 { break; }
@@ -826,7 +840,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 				rec.data.delete.start = data.position;
 				rec.data.delete.end   = data.position + data.str.len;
 
-				std.str_delete(&data.str);
+				str_delete(&data.str);
 			}
 			DELETE {
 				data :: rec.data.delete; // copy
@@ -842,7 +856,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 				} else {
 					rec.kind = INSERT;
 					rec.data.insert.position = data.start;
-					rec.data.insert.str      = std.str_new(text);
+					rec.data.insert.str      = str_new(text);
 				}
 
 				set_cursor_position(buf, editor.cursor_index, data.start);
@@ -1021,7 +1035,7 @@ move_down :: fn (editor: *Editor, buf: *Buffer) bool {
 	if settings.vertical_move_tries_follow_indentation {
 		// Moves the cursor to the indentation in case we end up in whitespace.
 		indent_cols :: get_row_visual_indentation_cols(editor, buf);
-		num_cols = std.max(num_cols, indent_cols);
+		num_cols = math.max(num_cols, indent_cols);
 	}
 	move_by_visual_cols(editor, buf, num_cols);
 	return true;
@@ -1038,7 +1052,7 @@ move_up :: fn (editor: *Editor, buf: *Buffer) bool {
 	if settings.vertical_move_tries_follow_indentation {
 		// Moves the cursor to the indentation in case we end up in whitespace.
 		indent_cols :: get_row_visual_indentation_cols(editor, buf);
-		num_cols = std.max(num_cols, indent_cols);
+		num_cols = math.max(num_cols, indent_cols);
 	}
 	move_by_visual_cols(editor, buf, num_cols);
 	return true;
@@ -1063,7 +1077,6 @@ jump_page_up :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 append_indentation :: fn (str: *string, n := 1) s64 {
-	using std;
 	orig_len :: str.len;
 	if settings.insert_spaces_instead_tabs {
 		loop i := 0; i < settings.tab_size * n; i += 1 {
@@ -1085,7 +1098,7 @@ insert_tab :: fn (editor: *Editor, buf: *Buffer) {
 		return;
 	}
 
-	tmp :: std.str_new(64, application_context.temporary_allocator);
+	tmp :: str_new(64, application_context.temporary_allocator);
 	append_indentation(&tmp);
 
 	position :: get_cursor_position(buf, editor.cursor_index);
@@ -1325,13 +1338,13 @@ jump_prev_word :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 increase_font_size :: fn () bool {
-	settings.font_size = std.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	settings.font_size = math.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
 	rebuild_fonts();
 	return true;
 }
 
 decrease_font_size :: fn () bool {
-	settings.font_size = std.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	settings.font_size = math.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
 	rebuild_fonts();
 	return true;
 }
@@ -1459,6 +1472,32 @@ debug_in_remedybg :: fn () {
 	print_info("Debugging started in RemedyBG.");
 }
 
+open_current_buffer_in_raddbg :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	err := OK;
+	err = execute_system_command(tprint("raddbg --ipc find_code_location %:%", buf.filepath, cursor.row + 1));
+	if err { print_err(err); return; }
+	print_info("Current file openned in RAD Debugger.");
+}
+
+set_current_buffer_breakpoint_in_raddbg :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	err := OK;
+	err = execute_system_command(tprint("raddbg --ipc find_code_location %:%", buf.filepath, cursor.row + 1));
+	if err { print_err(err); return; }
+	err = execute_system_command(tprint("raddbg --ipc add_breakpoint %:%", buf.filepath, cursor.row + 1));
+	if err { print_err(err); return; }
+	print_info("Breakpoint set in RAD Debugger.");
+}
+
+debug_in_raddbg :: fn () {
+	err := execute_system_command("raddbg --ipc kill_all");
+	if err { print_err(err); return; }
+	err = execute_system_command("raddbg --ipc launch_and_run");
+	if err { print_err(err); return; }
+	print_info("Debugging started in RAD Debugger.");
+}
+
 open_project_config :: fn () {
 	if project.filepath.len == 0 || project.is_default {
 		print_warn("No project is open. Use 'open-project' command first to open one.");
@@ -1487,7 +1526,6 @@ ToUpperOrLower :: enum {
 }
 
 selection_to_upper_or_lower :: fn (editor: *Editor, buf: *Buffer, op: ToUpperOrLower) {
-	using std;
 	using ToUpperOrLower;
 
 	if maybe_report_readonly(buf) { return; }
@@ -1524,7 +1562,7 @@ clang_format :: fn (buf: *Buffer) {
 	if err { print_err(err); }
 }
 
-build :: fn () {
+start_build :: fn () {
 	if settings.save_all_before_build {
 		save_all();
 	}
@@ -1533,7 +1571,6 @@ build :: fn () {
 }
 
 alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
-	using std;
 	if maybe_report_readonly(buf) { return; }
 	if !has_selection(buf, editor.cursor_index) { return; }
 
@@ -1551,7 +1588,7 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 	if lines.len < 2 { return; }
 
 	sort(lines, &fn (a: *string_view, b: *string_view) bool {
-		return std.str_compare(@a, @b) < 0;
+		return str_compare(@a, @b) < 0;
 	});
 
 	set_cursor_position(buf, editor.cursor_index, start);
@@ -1579,7 +1616,6 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
-	using std;
 	if maybe_report_readonly(buf) { return; }
 
 	comment_with :: FILE_TYPE_COMMENT_WITH[auto buf.file_type];
@@ -1608,7 +1644,7 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 
 	if lines.len == 0 { return; }
 
-	commented := str_new(max(str.len, 32));
+	commented := str_new(math.max(str.len, 32));
 	defer str_delete(&commented);
 
 	nesting := 1000;
@@ -1616,7 +1652,7 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 	loop i := 0; i < lines.len; i += 1 {
 		line :: lines[i];
 		if line.len > 0 {
-			nesting = min(nesting, find_indentation_for_range(buf, position, position + line.len));
+			nesting = math.min(nesting, find_indentation_for_range(buf, position, position + line.len));
 		}
 		position += line.len + 1;
 	}
@@ -1665,7 +1701,6 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 open_error_location :: fn (loc: *ErrorLocation) {
-	using std;
 	filepath :: str_new(loc.file);
 	defer str_delete(&filepath);
 	str_replace_all(&filepath, '\\', '/'); // we love windows
@@ -1708,7 +1743,6 @@ support_me :: fn () {
 }
 
 open_file_location :: fn (buf: *Buffer) {
-	using std;
 	dir :: path_split(buf.filepath);
 	if dir.len == 0 {
 		print_err("Cannot open file location.");

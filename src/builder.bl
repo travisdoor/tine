@@ -9,7 +9,6 @@ build_init :: fn () {
 }
 
 request_build :: fn () Error {
-	using std;
 	clear_error_list();
 
 	if !file_exist(BUILD_SCRIPT) {
@@ -35,13 +34,15 @@ request_build :: fn () Error {
 }
 
 apply_build :: fn (_: JobContext.state, request: *Request) {
-	if build.buffer_index == -1 { return; }
+	if build.buffer_index == -1 then return;
 	assert(build.buffer_index >= 0 && build.buffer_index < buffers.len);
 	buf :: &buffers[build.buffer_index];
-	assert(!buf.is_removed);
-
-	rd :: &request.data.build;
-	append_readonly_buffer(buf, rd.text);
+	if buf.is_removed {
+		kill_build();
+	} else {
+		rd :: &request.data.build;
+		append_readonly_buffer(buf, rd.text);
+	}
 }
 
 kill_build :: fn () {
@@ -55,10 +56,9 @@ kill_build :: fn () {
 	remove_async_job(build.job_index);
 }
 
-#private
+#scope_private
 
 worker :: fn (ctx: *JobContext) s32 {
-	using std;
 	using JobContext.state;
 
 	err :: start_process(ctx, SHELL, BUILD_ARGS);

@@ -17,7 +17,6 @@ peek_error_mode_terminate :: fn () {
 }
 
 draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32) {
-	using draw;
 	using Metric;
 
 	buf, editor :: get_active_buffer_and_editor();
@@ -47,7 +46,7 @@ draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 
 	px := active_editor_x + line_w - editor.sliding.horizontal_offset;
 	py := active_editor_y * 2.f + line_height * auto (cursor.row - first_line_index + 1); // +1 one line down
-	pw := std.min(active_editor_w * 0.5f, text_font.height * 50.f);
+	pw := math.min(active_editor_w * 0.5f, text_font.height * 50.f);
 
 	py += text_padding;
 
@@ -66,11 +65,11 @@ draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 	}
 
 	draw_shadow(px, py, pw, ph, ShadowMode.ALL);
-	rect_rounded(px, py, pw, ph, r, bg_color, bg_color);
+	draw.rect_rounded(px, py, pw, ph, r, bg_color, bg_color);
 	px += text_padding;
 	py += text_padding;
 
-	set_shader_font(text_font);
+	draw.set_shader_font(text_font);
 
 	loop i := 0; i < lines.len; i += 1 {
 		line :: string_view.{ lines[i].len, &text[lines[i].start_index] };
@@ -79,6 +78,6 @@ draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 	}
 }
 
-#private
+#scope_private
 
 current_loc: *ErrorLocation;

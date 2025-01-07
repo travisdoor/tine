@@ -1,6 +1,4 @@
 request_format :: fn (buf: *Buffer) Error {
-	using std;
-
 	if buf.file_type != FileType.C {
 		return error("Buffer '%' is not recognized as C/C++ source file.", buf.name);
 	}
@@ -39,7 +37,7 @@ apply_format :: fn (job_state: JobContext.state, request: *Request) {
 	if job_state == JobContext.state.DONE then change_content(buf, rd.src);
 }
 
-#private
+#scope_private
 
 get_clang_format_executable :: fn () string_view {
 	if settings.clang_format_executable.len > 0 then return settings.clang_format_executable;
@@ -50,7 +48,6 @@ get_clang_format_executable :: fn () string_view {
 }
 
 worker :: fn (ctx: *JobContext) s32 {
-	using std;
 	using JobContext.state;
 
 	// wait for request

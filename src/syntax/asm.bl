@@ -2,8 +2,6 @@
 // we should try to deduplicate this...
 
 highlight_syntax_asm :: fn (buf: *Buffer) {
-	using std;
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	buf.colors.len = 0;
@@ -33,7 +31,7 @@ highlight_syntax_asm :: fn (buf: *Buffer) {
 	}
 }
 
-#private
+#scope_private
 
 kind_to_color :: fn (kind: Token.kind) u8 #inline {
 	using Token.kind;
@@ -136,14 +134,14 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
 	dot  := false;
 	base := FmtIntBase.DEC;
 
-	if c != '-' && std.is_digit(c) == false { return false; }
+	if c != '-' && is_digit(c) == false { return false; }
 	t.kind = NUMBER;
 
 	if c == '-' {
 		if ctx.index+1 >= ctx.bytes.len {
 			return false;
 		}
-		if std.is_digit(ctx.bytes[ctx.index+1]) == false {
+		if is_digit(ctx.bytes[ctx.index+1]) == false {
 			return false;
 		}
 		t.len     += 1;
@@ -182,7 +180,7 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
 			continue;
 		}
 
-		if !std.is_digit(c, base) {
+		if !is_digit(c, base) {
 			break;
 		}
 		t.len += 1;

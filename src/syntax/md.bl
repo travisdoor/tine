@@ -1,8 +1,6 @@
 // @Incomplete: Currently we highlight only headers...
 
 highlight_syntax_md :: fn (buf: *Buffer) {
-	using std;
-
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	buf.colors.len = 0;
@@ -30,7 +28,7 @@ highlight_syntax_md :: fn (buf: *Buffer) {
 	}
 }
 
-#private
+#scope_private
 
 kind_to_color :: fn (kind: Token.kind) u8 #inline {
 	using Token.kind;

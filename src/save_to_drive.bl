@@ -8,7 +8,7 @@ save_to_drive_mode_init :: fn () {
 	notify_changes_to_buffer = buf.index;
 	may_override_file        = false;
 
-	base_path = std.get_cwd();
+	base_path = get_cwd();
 	err :: list_directory(tprint("%/", base_path));
 	if err {
 		print_err(err);
@@ -17,7 +17,7 @@ save_to_drive_mode_init :: fn () {
 
 save_to_drive_mode_terminate :: fn () {
 	active_editor = command_editor;
-	std.str_delete(&base_path);
+	str_delete(&base_path);
 }
 
 draw_save_to_drive_mode :: fn () {
@@ -88,8 +88,6 @@ save_to_drive_list_select_changed :: fn () {
 }
 
 dir_up :: fn (path: *string) {
-	using std;
-
 	lhs: string_view;
 	#if PLATFORM == Platform.WINDOWS {
 		if str_split_by_last(@path, '/', &lhs) {
@@ -127,7 +125,7 @@ dir_up :: fn (path: *string) {
 	}
 }
 
-#private
+#scope_private
 
 base_path: string;
 may_override_file: bool;
@@ -143,12 +141,12 @@ commit :: fn () {
 			return;
 		}
 		filepath :: tprint("%/%", base_path, filename);
-		is_dir :: std.is_directory(filepath);
+		is_dir :: is_directory(filepath);
 		if is_dir {
 			print_err("Directory with the same name already exists at the destination.");
 			return;
 		}
-		if std.file_exist(filepath) && may_override_file == false {
+		if file_exist(filepath) && may_override_file == false {
 			print_warn("File exists, press [ENTER] again to override it, [ESC] to cancel or change the file name and try again.");
 			may_override_file = true;
 			return;
@@ -185,7 +183,7 @@ commit :: fn () {
 	}
 
 	base_path.len = 0;
-	std.str_append(&base_path, path);
+	str_append(&base_path, path);
 
 	//std.set_cwd(base_path); // Not sure about this...
 }

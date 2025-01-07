@@ -31,7 +31,6 @@ invoke_command_open_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command
 	assert(active_editor == command_editor);
 	assert(editors[active_editor].buffer_index == buf.index);
 
-	using std;
 	using Command;
 
 	switch cmd {
@@ -57,7 +56,7 @@ open_project_cmd_changed :: fn () {
 	filter_list(cmd);
 }
 
-#private
+#scope_private
 
 commit :: fn () {
 	item :: get_selected_item_in_list();

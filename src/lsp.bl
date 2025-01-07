@@ -55,12 +55,10 @@ lsp_init :: fn () {
 }
 
 lsp_terminate :: fn () {
-	std.str_delete(&lsp.server_name);
+	str_delete(&lsp.server_name);
 }
 
 start_lsp_server :: fn () Error {
-	using std;
-
 	print_info("LSP: Starting server.");
 	lsp.job_index  = start_async_job(JobKind.LSP, "lsp", &worker);
 
@@ -102,8 +100,6 @@ lsp_is_supported_document_type :: fn (buf: *Buffer) bool #inline {
 }
 
 lsp_open_document :: fn (buf: *Buffer) {
-	using std;
-
 	if !check_running() {
 		return;
 	}
@@ -124,8 +120,6 @@ lsp_open_document :: fn (buf: *Buffer) {
 }
 
 lsp_change_document :: fn (buf: *Buffer) {
-	using std;
-
 	if !check_running() {
 		return;
 	}
@@ -146,7 +140,6 @@ lsp_change_document :: fn (buf: *Buffer) {
 }
 
 lsp_save_document :: fn (buf: *Buffer) {
-	using std;
 	if !check_running() {
 		return;
 	}
@@ -161,8 +154,6 @@ lsp_save_document :: fn (buf: *Buffer) {
 }
 
 lsp_close_document :: fn (buf: *Buffer) {
-	using std;
-
 	if !check_running() {
 		return;
 	}
@@ -177,7 +168,6 @@ lsp_close_document :: fn (buf: *Buffer) {
 }
 
 lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer, open_in_other_split := false) {
-	using std;
 	if !check_running() then return;
 	if !lsp_is_supported_document_type(buf) {
 		print_warn("LSP: Buffer type not supported.");
@@ -199,8 +189,6 @@ lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer, open_in_other_split :
 }
 
 lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
-	using std;
-
 	if !lsp_is_supported_document_type(buf) {
 		print_warn("LSP: Buffer type not supported.");
 		return;
@@ -223,8 +211,6 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
 }
 
 lsp_completion :: fn (editor: *Editor, buf: *Buffer) {
-	using std;
-
 	if !check_running() {
 		return;
 	}
@@ -250,8 +236,6 @@ lsp_completion :: fn (editor: *Editor, buf: *Buffer) {
 
 apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
 	check_main_thread();
-
-	using std;
 
 	request_data :: &request.data.lsp;
 	using LspRequestKind;
@@ -294,7 +278,7 @@ apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
 			loop i := 0; i < buf.lsp.dia.len; i += 1 {
 				loc :: &buf.lsp.dia[i];
 				line :: peek_row(buf, loc.line);
-				loc.line_hash = std.str_hash(line);
+				loc.line_hash = str_hash(line);
 			}
 		}
 
@@ -383,7 +367,7 @@ get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
 	return icon(ICON_CODE_TEXT);
 }
 
-#private
+#scope_private
 
 get_clangd_executable :: fn () string_view {
 	#if PLATFORM == Platform.WINDOWS {
@@ -426,7 +410,6 @@ check_running :: fn () bool #inline {
 }
 
 worker :: fn (ctx: *JobContext) s32 {
-	using std;
 	using JobContext.state;
 
 	// Maybe customizable?
@@ -503,7 +486,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 
 	// Filepath is used in call requests so we can convert it every time, feel free to change this as needed.
 	uri_err, uri_filepath :: new_url_from_filepath(rd.filepath);
-	defer std.str_delete(&uri_filepath);
+	defer str_delete(&uri_filepath);
 	if uri_err {
 		return uri_err;
 	}
@@ -601,8 +584,6 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 }
 
 process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Error {
-	using std;
-
 	using PollEvent;
 	state, err :: poll_pipe(ctx.stdout);
 	if err then return err;
@@ -622,7 +603,7 @@ process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Er
 
 	loop tok.index < tok.bytes.len {
 		filter :: "Content-Length";
-		if std.str_match(string_view.{ filter.len, &tok.bytes[tok.index] }, filter) {
+		if str_match(string_view.{ filter.len, &tok.bytes[tok.index] }, filter) {
 			header :: eat_line_and_trim_eol(&tok);
 			size_str: string_view;
 			if !str_split_by_first(header, ' ', null, &size_str) {
@@ -664,7 +645,7 @@ process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Er
 			}
 			if maybe_process_response(ctx, &json, pending_response) { continue; }
 
-			print_warn("Unexpected LSP response: %", string_view.{ std.min(content.len, 128), content.ptr });
+			print_warn("Unexpected LSP response: %", string_view.{ math.min(content.len, 128), content.ptr });
 		}
 
 		line :: eat_line_and_trim_eol(&tok);
@@ -689,7 +670,6 @@ write_request :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
 	json :: &local.temp_string;
 
 	{
-		using std;
 		str_append(json, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"");
 		str_append(json, method);
 		str_append(json, "\",\"params\":");
@@ -708,7 +688,6 @@ write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Erro
 	json :: &local.temp_string;
 
 	{
-		using std;
 		str_append(json, "{\"jsonrpc\":\"2.0\",\"method\":\"");
 		str_append(json, method);
 		str_append(json, "\",\"params\":");
@@ -722,8 +701,6 @@ write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Erro
 }
 
 maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_response: *PendingResponse) bool {
-	using std;
-
 	if !pending_response.is_waiting { return false; }
 
 	assert(!is_notification(pending_response.kind));
@@ -812,7 +789,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 maybe_process_error :: fn (json: *JsonTokenizer) bool {
 	// @Incomplete: Use json parser to detect method...
 	maybe_error :: "{\"error\":";
-	if !std.str_match(string_view.{ maybe_error.len, &json.bytes[json.index] }, maybe_error) { return false; }
+	if !str_match(string_view.{ maybe_error.len, &json.bytes[json.index] }, maybe_error) { return false; }
 	lsp_error: LspError;
 	err :: deserialize_object(lsp_error, json);
 	if err { print_err(err); }
@@ -824,7 +801,7 @@ maybe_process_error :: fn (json: *JsonTokenizer) bool {
 maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
 	// @Incomplete: Use json parser to detect method...
 	maybe_dia :: "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\"";
-	if !std.str_match(string_view.{ maybe_dia.len, &json.bytes[json.index] }, maybe_dia) { return false; }
+	if !str_match(string_view.{ maybe_dia.len, &json.bytes[json.index] }, maybe_dia) { return false; }
 
 	dia_result: RpcParams(LspPublishDiagnosticsParams);
 	err :: deserialize_object(dia_result, json);
@@ -845,7 +822,6 @@ maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
 		array_reserve(&rd.strs, 128);
 
 		loop i := 0; i < dia_result.params.diagnostics.len; i += 1 {
-			using std;
 			d :: &dia_result.params.diagnostics[i];
 
 			using ErrorLocation.kind;
@@ -890,7 +866,6 @@ maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
 TAG_JSON_ENCODE : u64 : 1;
 
 serialize_object :: fn (obj: Any, json: *string) {
-	using std;
 	info :: cast(*TypeInfoStruct) obj.type_info;
 	assert(info.kind == TypeKind.STRUCT);
 
@@ -1005,7 +980,7 @@ deserialize_object :: fn (obj: Any, json: *JsonTokenizer, top_level := true) Err
 		member: *TypeInfoStructMember;
 		loop i := 0; i < info.members.len; i += 1 {
 			m :: &info.members[i];
-			if std.str_match(m.name, name) {
+			if str_match(m.name, name) {
 				member = m;
 				break;
 			}
@@ -1070,7 +1045,7 @@ deserialize_array :: fn (ident: string_view, arr: Any, json: *JsonTokenizer) Err
 
 	loop i : usize = 0;; i += 1 {
 		if i == allocated {
-			new_allocated :: std.max(ARRAY_CHUNK_SIZE, allocated * 2);
+			new_allocated :: math.max(ARRAY_CHUNK_SIZE, allocated * 2);
 			mem, err :: realloc(dest.ptr, elem_size * new_allocated, elem_alignment, allocator);
 			if err { return err; }
 			allocated = new_allocated;
@@ -1195,13 +1170,13 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 	using Token.kind;
 
 	parse_bool :: fn (ctx: *JsonTokenizer, t: *Token) bool {
-		if std.str_match(string_view.{ 4, &ctx.bytes[ctx.index] }, "true") {
+		if str_match(string_view.{ 4, &ctx.bytes[ctx.index] }, "true") {
 			t.kind     = Token.kind.BOOL;
 			t.data.b   = true;
 			ctx.index += 4;
 			return true;
 		}
-		if std.str_match(string_view.{ 5, &ctx.bytes[ctx.index] }, "false") {
+		if str_match(string_view.{ 5, &ctx.bytes[ctx.index] }, "false") {
 			t.kind     = Token.kind.BOOL;
 			t.data.b   = false;
 			ctx.index += 5;
@@ -1217,7 +1192,7 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		is_float := false;
 		loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
 			c :: ctx.bytes[ctx.index];
-			if std.is_digit(c) == false && c != '-' && c != '.' {
+			if is_digit(c) == false && c != '-' && c != '.' {
 				break;
 			}
 			if c == '.' {
@@ -1229,13 +1204,13 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		if len == 0 { return false; }
 		if is_float {
 			t.kind = FLOAT;
-			f, err :: std.strtof64(string_view.{ len, &ctx.bytes[start_index] });
+			f, err :: strtof64(string_view.{ len, &ctx.bytes[start_index] });
 			if !err {
 				t.data.f = auto f;
 			}
 		} else {
 			t.kind = NUMBER;
-			n, err :: std.strtos64(string_view.{ len, &ctx.bytes[start_index] });
+			n, err :: strtos64(string_view.{ len, &ctx.bytes[start_index] });
 			if !err {
 				t.data.n = auto n;
 			}
@@ -1288,7 +1263,6 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 }
 
 json_source_to_str :: fn (dest: *string, src: string_view) {
-	using std;
 	start := 0;
 	len   := 0;
 	loop j := 0; j < src.len; {

@@ -44,7 +44,6 @@ mod_name :: fn (mod: s32) string_view {
 
 mod_from_name :: fn (mod: string_view) s32 {
 	using glfw;
-	using std;
 
 	if str_match_ignore_case(mod, "alt")      { return MOD_ALT;       }
 	if str_match_ignore_case(mod, "ctrl")     { return MOD_CONTROL;   }
@@ -56,7 +55,7 @@ mod_from_name :: fn (mod: string_view) s32 {
 	return -1;
 }
 
-#private
+#scope_private
 KeyName :: struct { code: s32; name: string_view };
 
 KEYCODE_TO_NAME :: [33]KeyName.{

@@ -1,10 +1,20 @@
-#import "clipboard"
-#import "extra/draw"
-#import "extra/glfw3"
+draw      :: #import "extra/draw";
+glfw      :: #import "extra/glfw3";
+math      :: #import "std/math";
+io        :: #import "std/io";
+C         :: #import "libc";
+
 #import "std/async"
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
+#import "std/string"
+#import "std/print"
+#import "std/array"
+#import "std/table"
+#import "std/thread"
+#import "std/sync"
+#import "extra/glm"
 
 #load "buffer.bl"
 #load "builder.bl"
@@ -28,16 +38,6 @@
 #load "search.bl"
 #load "search_in_project.bl"
 #load "utils.bl"
-
-#load "syntax/asm.bl"
-#load "syntax/bl.bl"
-#load "syntax/build.bl"
-#load "syntax/cpp.bl"
-#load "syntax/glsl.bl"
-#load "syntax/md.bl"
-#load "syntax/messages.bl"
-#load "syntax/project.bl"
-#load "syntax/search.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -201,8 +201,6 @@ InputMode :: enum {
 input_mode: InputMode;
 
 Message :: struct {
-	using std;
-
 	kind:  PrintLogKind;
 	text:  string;
 
@@ -242,8 +240,6 @@ FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//"
 FILE_TYPE_REINDENT_ON ::  [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
 
 project: struct {
-	using std;
-
 	name:       string_view;
 	filepath:   string_view;
 	is_default: bool;
@@ -256,7 +252,7 @@ project: struct {
 	indexed_files: [..]string_view;
 
 	mutex: Mutex;
-	string_cache: std.PoolAllocator;
+	string_cache: PoolAllocator;
 }
 
 // Global application settings loaded from the configuraiton file. These might be overriden by local project settings.
@@ -287,8 +283,6 @@ Settings :: struct {
 settings: Settings;
 
 Colors :: struct {
-	using glm;
-
 	background_color                    : v4;
 	foreground_color                    : v4;
 	cursor_background_color             : v4;
@@ -325,7 +319,7 @@ Colors :: struct {
 }
 
 colors:           Colors;
-code_color_table: [12]glm.v4;
+code_color_table: [12]v4;
 
 //
 // Build errors
@@ -452,7 +446,7 @@ MouseCursor :: enum {
 }
 
 mouse: struct {
-	position: glm.v2;
+	position: v2;
 	scroll:   f32;
 
 	last_hover_elem_id:  u32;
@@ -464,14 +458,13 @@ mouse: struct {
 	current_cursor: MouseCursor;
 	beam_cursor:   *glfw.Cursor;
 
-	prev_mouse_pos: glm.v2;
-	prev_lmb_pos:   glm.v2;
+	prev_mouse_pos: v2;
+	prev_lmb_pos:   v2;
 	prev_click_time_s: f64;
 };
 
 main :: fn () s32 {
 	using glfw;
-	using std;
 
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
@@ -492,10 +485,6 @@ main :: fn () s32 {
 	defer mutex_terminate(&message.mutex);
 	defer str_delete(&message.text);
 
-	// Clipboard @Note This is not used on windows since cliboard lib seems to be laggy... check it on other platforms and eventually
-	// reimplement it to native solution...
-	clipboard.init();
-	defer clipboard.terminate();
 
 	// Recent location
 	recent_locations.index = -1;
@@ -765,7 +754,7 @@ main :: fn () s32 {
 		} else {
 			title = tprint("% - %", project.name, buf.name);
 		}
-		SetWindowTitle(window, auto std.strtoc(title));
+		SetWindowTitle(window, auto strtoc(title));
 
 		clear_mouse_events();
 		prev_frame_delta = frame_delta_time;
@@ -795,7 +784,6 @@ in_bounds :: fn (arr: []?T, v: s64) bool #inline {
 }
 
 lookup_font :: fn (font_name: string_view) string_view {
-	using std;
 	assert(font_name.len > 0);
 	if file_exist(font_name) {
 		return font_name;
@@ -822,7 +810,7 @@ rebuild_fonts :: fn () Error {
 				FONT_DIRECTORY
 			);
 		} else {
-			font_hash = std.str_hash(custom_font_path);
+			font_hash = str_hash(custom_font_path);
 		}
 	}
 
@@ -832,7 +820,7 @@ rebuild_fonts :: fn () Error {
 	}
 
 	print_log("Scale = %", WINDOW_SCALE);
-	scaled_size :: cast(s32) std.round(WINDOW_SCALE * auto size);
+	scaled_size :: cast(s32) math.round(WINDOW_SCALE * auto size);
 
 	draw.font_terminate(&font);
 	draw.font_terminate(&font_ui);
@@ -919,9 +907,10 @@ get_last_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
 	return buf, editor;
 }
 
+// Returns true in case the mode was changed.
 set_mode :: fn (m: Mode) bool #inline {
 	using Mode;
-	if m == mode { return false; }
+	if m == mode then return false;
 
 	notify_changes_to_buffer = -1;
 
@@ -979,8 +968,8 @@ set_mode :: fn (m: Mode) bool #inline {
 }
 
 // Cancel the current mode (e.g. goto line) and switch the editor back to main text edit mode.
-set_default_mode :: fn () #inline {
-	set_mode(Mode.TEXT_EDIT);
+set_default_mode :: fn () bool #inline {
+	return set_mode(Mode.TEXT_EDIT);
 }
 
 get_command_editor_size :: fn () (w: f32, h: f32) #inline {
@@ -991,7 +980,6 @@ get_command_editor_size :: fn () (w: f32, h: f32) #inline {
 }
 
 last_message :: fn () (exists: bool, kind: PrintLogKind, text: string_view) {
-	using std;
 	mutex_lock(&message.mutex);
 	defer mutex_unlock(&message.mutex);
 
@@ -1003,7 +991,6 @@ last_message :: fn () (exists: bool, kind: PrintLogKind, text: string_view) {
 }
 
 clear_message :: fn () {
-	using std;
 	mutex_lock(&message.mutex);
 	defer mutex_unlock(&message.mutex);
 	message.text.len = 0;
@@ -1104,7 +1091,6 @@ get_buffer_by_filepath :: fn (filepath: string_view) *Buffer {
 }
 
 open :: fn (filepath: string_view, open_in_other_split := false) Error {
-	using std;
 	normalized_path := str_new(filepath, application_context.temporary_allocator);
 	norm_err :: path_normalize(&normalized_path);
 	if norm_err {
@@ -1179,7 +1165,7 @@ open_project :: fn (directory: string_view, filepath: string_view) Error {
 	// Use the first path in the included directories as a working directory since it's supposed to be
 	// a project root.
 	if project.included_directories.len > 0 {
-		std.set_cwd(project.included_directories[0]);
+		set_cwd(project.included_directories[0]);
 	}
 
 	print_info("Project % loaded.", project.name);
@@ -1299,7 +1285,6 @@ activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
 
 detect_filetype :: fn (filename: string_view) FileType {
 	using FileType;
-	using std;
 	_, ext :: path_splitext(filename);
 	extension :: str_new(ext, application_context.temporary_allocator);
 	str_lower(&extension);
@@ -1353,7 +1338,7 @@ JobContext :: struct {
 
 	pending:  [..]Request;
 	complete: [..]Request;
-	mutex:    std.Mutex;
+	mutex:    Mutex;
 
 	kill: bool;
 	is_removed: bool;
@@ -1393,19 +1378,16 @@ JobKind :: enum {
 	LSP;
 }
 
-Job :: std.Async2(JobContext, s32);
+Job :: Async2(JobContext, s32);
 jobs: [..]Job;
 
 jobs_init :: fn () {}
 
 jobs_terminate :: fn () {
-	using std;
 	kill_async_jobs();
 }
 
 start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobContext) s32) s32 {
-	using std;
-
 	ctx := JobContext.{
 		state = JobContext.state.RUNNING,
 		name  = name,
@@ -1434,7 +1416,6 @@ start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobC
 }
 
 remove_async_job :: fn (index: s32) {
-	using std;
 	using JobContext.state;
 
 	job :: &jobs[index];
@@ -1471,13 +1452,12 @@ remove_async_job :: fn (index: s32) {
 
 	array_terminate(&ctx.pending);
 	array_terminate(&ctx.complete);
-	std.mutex_terminate(&ctx.mutex);
+	mutex_terminate(&ctx.mutex);
 
 	ctx.is_removed = true;
 }
 
 kill_async_jobs :: fn () {
-	using std;
 	using JobContext.state;
 
 	has_running_jobs := false;
@@ -1496,7 +1476,6 @@ kill_async_jobs :: fn () {
 }
 
 consume_job_results :: fn (job: *Job, required := false) {
-	using std;
 	using JobContext.state;
 	using JobKind;
 
@@ -1531,7 +1510,6 @@ consume_job_results :: fn (job: *Job, required := false) {
 }
 
 update_jobs :: fn () {
-	using std;
 	using JobContext.state;
 	using JobKind;
 
@@ -1554,7 +1532,6 @@ get_job_context :: fn (index: s32) *JobContext {
 }
 
 push_request :: fn (ctx: *JobContext, request: *Request) {
-	using std;
 	assert(request.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
@@ -1563,7 +1540,6 @@ push_request :: fn (ctx: *JobContext, request: *Request) {
 }
 
 pop_request :: fn (ctx: *JobContext, request: *Request) bool {
-	using std;
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
 	if array_pop_first(&ctx.pending, request) {
@@ -1574,7 +1550,6 @@ pop_request :: fn (ctx: *JobContext, request: *Request) bool {
 }
 
 push_result :: fn (ctx: *JobContext, request: *Request) {
-	using std;
 	assert(request.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
@@ -1584,7 +1559,6 @@ push_result :: fn (ctx: *JobContext, request: *Request) {
 
 // ctx.mutex should be locked before this is called
 pop_result :: fn (ctx: *JobContext, request: *Request) bool {
-	using std;
 	if array_pop_first(&ctx.complete, request) {
 		assert(request.job_kind == ctx.kind);
 		return true;
@@ -1593,7 +1567,6 @@ pop_result :: fn (ctx: *JobContext, request: *Request) bool {
 }
 
 terminate_request :: fn (request: *Request) {
-	using std;
 	using JobKind;
 	switch request.job_kind {
 		CLANG_FORMAT {
@@ -1620,7 +1593,7 @@ terminate_request :: fn (request: *Request) {
 }
 
 check_main_thread :: fn (loc := #call_location) #enable_if IS_DEBUG {
-	if MAIN_THREAD_ID != std.get_thread_id() {
+	if MAIN_THREAD_ID != get_thread_id() {
 		panic("Location: %:% is expected to be reached only from the main thread!", loc.file, loc.line);
 	}
 }
@@ -1742,12 +1715,12 @@ redraw :: fn () {
 	draw_next_frame = true;
 }
 
-#private
+#scope_private
 
 MAIN_THREAD_ID: u64;
 
 message: Message;
-debug_allocator: std.DebugAllocator;
+debug_allocator: DebugAllocator;
 ignore_char_input: bool;
 
 draw_next_frame := true;
@@ -1891,7 +1864,7 @@ character_callback :: fn (_: *glfw.Window, codepoint: u32) {
 	position = get_cursor_position(buf, editor.cursor_index);
 	inserted :: insert_unicode_character(buf, position, codepoint);
 
-	if has_indentation_info(buf) && std.str_match(FILE_TYPE_REINDENT_ON[auto buf.file_type], inserted) {
+	if has_indentation_info(buf) && str_match(FILE_TYPE_REINDENT_ON[auto buf.file_type], inserted) {
 		indent_range(buf, position, position);
 	}
 
@@ -1909,7 +1882,7 @@ mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) 
 				set_flag(&mouse.state, LB_PRESS);
 				set_flag(&mouse.state, LB_DOWN);
 				// detect double-click
-				if GetTime() - mouse.prev_click_time_s < MOUSE_DBL_CLICK_S && glm.distance(mouse.prev_lmb_pos, mouse.position) < 4.f {
+				if GetTime() - mouse.prev_click_time_s < MOUSE_DBL_CLICK_S && distance(mouse.prev_lmb_pos, mouse.position) < 4.f {
 					set_flag(&mouse.state, LB_DBL_PRESS);
 				}
 				mouse.prev_click_time_s = GetTime();
@@ -1971,7 +1944,7 @@ window_focus_callback :: fn (_: *glfw.Window, f: s32) {
 drop_callback :: fn (_: *glfw.Window, count: s32, paths: **u8) {
 	p :: []*u8.{ count, paths };
 	loop i := 0; i < p.len; i += 1 {
-		filepath :: std.ctostr(auto p[i]);
+		filepath :: ctostr(auto p[i]);
 		buf_error :: open(filepath);
 		if buf_error {
 			print_err(buf_error);
@@ -1996,24 +1969,23 @@ recalculate_metrics :: fn () {
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {
-	using std;
-	using StreamLocator;
+	using io.StreamLocator;
 
 	stream, open_err :: open_file(filepath);
 	defer close_file(&stream);
 	if open_err {
 		panic(open_err);
 	}
-	size, seek_end_err :: seek(&stream, END);
+	size, seek_end_err :: io.seek(&stream, END);
 	if seek_end_err { panic(seek_end_err); }
 
-	_, seek_begin_err :: seek(&stream, BEGIN);
+	_, seek_begin_err :: io.seek(&stream, BEGIN);
 	if seek_begin_err { panic(seek_begin_err); }
 
 	data, alloc_err :: new_slice(u8, size, true);
 	if alloc_err { panic(alloc_err); }
 
-	read_err :: read_all(&stream, data.ptr, data.len, 2048);
+	read_err :: io.read_all(&stream, data.ptr, data.len, 2048);
 	if read_err { panic(read_err); }
 	return data;
 }
@@ -2022,8 +1994,8 @@ set_allocator_allocator :: fn (allocator: *Allocator) *Allocator {
 	if !allocator { return null; }
 	prev_allocator :: application_context.allocator;
 	if prev_allocator == &debug_allocator {
-		std.dump_memory_leaks(auto prev_allocator);
-		std.debug_allocator_release(auto prev_allocator);
+		dump_memory_leaks(auto prev_allocator);
+		debug_allocator_release(auto prev_allocator);
 	}
 	application_context.allocator = allocator;
 	return prev_allocator;
@@ -2057,7 +2029,6 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 		log_reported = false;
 	}();
 
-	using std;
 	using PrintLogKind;
 	switch kind {
 		INFO, WARNING, ERROR {
@@ -2142,7 +2113,6 @@ update_mouse :: fn () {
 	mouse.last_hover_elem_id = mouse.hover_elem_id;
 	mouse.hover_elem_id = 0;
 
-	using glm;
 	if is_lmb_press() {
 		mouse.prev_mouse_pos = mouse.position;
 	}

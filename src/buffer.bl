@@ -23,7 +23,7 @@ Buffer :: struct {
 	dirty_syntax: bool;
 	batch_active: bool;
 
-	mutex: std.Mutex;
+	mutex: Mutex;
 
 	lines:     [..]s64;
 
@@ -123,15 +123,15 @@ add_buffer :: fn (name := "") s32 {
 	}
 
 	if name.len > 0 {
-		buf.name = std.str_new(name);
+		buf.name = str_new(name);
 	} else {
-		buf.name = std.str_new("scratch");
+		buf.name = str_new("scratch");
 	}
 	buf.line_ending = detect_line_ending(buf.bytes);
 	rebuild_lines(buf);
 
 	reset_undo(buf);
-	std.mutex_init(&buf.mutex);
+	mutex_init(&buf.mutex);
 	return buf.index;
 }
 
@@ -142,8 +142,8 @@ add_command_buffer :: fn () s32 {
 	buf.line_ending = detect_line_ending(buf.bytes);
 	buf.flags       = BufferFlags.NO_UNDO;
 
-	std.str_clear(&buf.name);
-	std.str_append(&buf.name, "cmd");
+	str_clear(&buf.name);
+	str_append(&buf.name, "cmd");
 	return index;
 }
 
@@ -154,8 +154,8 @@ add_messages_buffer :: fn (name: string_view) s32 {
 	buf.line_ending = LineEnding.LF;
 	buf.flags = BufferFlags.READONLY;
 
-	std.str_clear(&buf.name);
-	std.str_append(&buf.name, name);
+	str_clear(&buf.name);
+	str_append(&buf.name, name);
 	return index;
 }
 
@@ -163,8 +163,8 @@ add_implicit_file_buffer :: fn (name: string_view, data: []u8, file_type := File
 	index :: add_buffer();
 	buf :: &buffers[index];
 	buf.flags = BufferFlags.READONLY;
-	std.str_clear(&buf.name);
-	std.str_append(&buf.name, name);
+	str_clear(&buf.name);
+	str_append(&buf.name, name);
 	array_push_all(&buf.bytes, data);
 	buf.line_ending = detect_line_ending(buf.bytes);
 	buf.file_type = file_type;
@@ -175,7 +175,6 @@ add_implicit_file_buffer :: fn (name: string_view, data: []u8, file_type := File
 }
 
 remove_buffer :: fn (index: s32) {
-	using std;
 	assert(index >= 0 && index < buffers.len);
 	check_main_thread();
 
@@ -206,11 +205,11 @@ remove_buffer :: fn (index: s32) {
 }
 
 lock_buffer :: fn (buf: *Buffer) {
-	std.mutex_lock(&buf.mutex);
+	mutex_lock(&buf.mutex);
 }
 
 unlock_buffer :: fn (buf: *Buffer) {
-	std.mutex_unlock(&buf.mutex);
+	mutex_unlock(&buf.mutex);
 }
 
 add_cursor :: fn (buf: *Buffer, initial_position: s64, selection_start : s64 = -1) s32 {
@@ -296,7 +295,7 @@ get_closest_cursor_row_col_position :: fn (buf: *Buffer, row: s32, col: s32) s64
 	line, start_index := peek_row(buf, row);
 	valid_cols: s32;
 	loop i := 0; i < line.len && valid_cols < col; valid_cols += 1 {
-		char_len :: std.min(get_character_len(line[i]), 1);
+		char_len :: math.min(get_character_len(line[i]), 1);
 		i += char_len;
 		start_index += char_len;
 	}
@@ -404,7 +403,6 @@ clear_buffer :: fn (buf: *Buffer) {
 }
 
 load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
-	using std;
 	check_main_thread();
 
 	assert(filepath.len > 0);
@@ -426,7 +424,6 @@ load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
 }
 
 save_buffer_to_file :: fn (buf: *Buffer, filepath: string_view) Error {
-	using std;
 	check_main_thread();
 
 	assert(filepath.len > 0);
@@ -684,8 +681,6 @@ count_visual_cols_to_position :: fn (buf: *Buffer, position: s64) s32 {
 }
 
 trim_trailing_whitespace :: fn (buf: *Buffer) {
-	using std;
-
 	if buf.bytes.len == 0 {
 		print_info("No traling whitespace in '%'.", buf.name);
 		return;
@@ -833,7 +828,7 @@ reset_undo_top_before_inserting :: fn (buf: *Buffer) {
 	loop i := buf.undo.len-1; i > buf.undo_top; i -= 1 {
 		rec :: &buf.undo[i];
 		if rec.kind == INSERT {
-			std.str_delete(&rec.data.insert.str);
+			str_delete(&rec.data.insert.str);
 		}
 	}
 	assert(buf.undo_top >= 0);
@@ -866,7 +861,7 @@ add_undo_insert :: fn (buf: *Buffer, position: s64, str: string_view) {
 	rec.kind = INSERT;
 	data :: &rec.data.insert;
 	data.position = position;
-	data.str      = std.str_new(str);
+	data.str      = str_new(str);
 }
 
 add_undo_insert_char :: fn (buf: *Buffer, position: s64, c: u32) {
@@ -933,7 +928,7 @@ find_indentation_for_cursor :: fn (buf: *Buffer, cursor_index: s32) s32 {
 		if indent.position >= position { break; }
 		n = indent.nesting;
 	}
-	return std.max(n, 0);
+	return math.max(n, 0);
 }
 
 find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
@@ -945,14 +940,14 @@ find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
 		n = indent.nesting;
 	}
 	if i < buf.indent.len && buf.indent[i].position <= end {
-		n = std.min(n, buf.indent[i].nesting);
+		n = math.min(n, buf.indent[i].nesting);
 	}
-	return std.max(n, 0);
+	return math.max(n, 0);
 }
 
 terminate_buffer_diagnostics :: fn (buf: *Buffer) {
 	loop i := 0; i < buf.lsp.dia_strs.len; i += 1 {
-		std.str_delete(&buf.lsp.dia_strs[i]);
+		str_delete(&buf.lsp.dia_strs[i]);
 	}
 	array_terminate(&buf.lsp.dia);
 	array_terminate(&buf.lsp.dia_strs);
@@ -1019,7 +1014,16 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 	}
 }
 
-#private
+#scope_private
+#load "syntax/asm.bl"
+#load "syntax/bl.bl"
+#load "syntax/build.bl"
+#load "syntax/cpp.bl"
+#load "syntax/glsl.bl"
+#load "syntax/md.bl"
+#load "syntax/messages.bl"
+#load "syntax/project.bl"
+#load "syntax/search.bl"
 
 SMALL_STRING_EDIT :: 16;
 
@@ -1027,7 +1031,7 @@ clear_undo :: fn (buf: *Buffer) {
 	loop i := 0; i < buf.undo.len; i += 1 {
 		r :: &buf.undo[i];
 		if r.kind == Rec.kind.INSERT {
-			std.str_delete(&r.data.insert.str);
+			str_delete(&r.data.insert.str);
 		}
 	}
 	buf.undo.len = 0;
@@ -1059,7 +1063,7 @@ count_characters :: fn (buf: *Buffer, str: string_view) s64 {
 		} else {
 			l = get_character_len(str[i]);
 		}
-		i += std.max(1, l); // To prevent looping!
+		i += math.max(1, l); // To prevent looping!
 		count += 1;
 	}
 	return count;
@@ -1072,7 +1076,7 @@ is_line_end_ptr :: fn (buf: *Buffer, start: *u8) s32 #inline {
 
 is_line_end_str :: fn (buf: *Buffer, str: string_view) s32 #inline {
 	ending :: get_line_ending(buf.line_ending);
-	if std.str_match(ending, str) { return auto ending.len; }
+	if str_match(ending, str) { return auto ending.len; }
 	return 0;
 }
 
@@ -1104,8 +1108,6 @@ notify :: fn () {
 }
 
 set_buffer_file_info :: fn (buf: *Buffer, filepath: string_view) {
-	using std;
-
 	_, name :: path_split(filepath);
 
 	buf.dirty_syntax = true;
@@ -1174,7 +1176,7 @@ rebuild_lines :: fn (buf: *Buffer) {
 */
 }
 
-load_buffer_bytes :: fn (buf: *Buffer, stream: *std.Stream) Error {
+load_buffer_bytes :: fn (buf: *Buffer, stream: *io.Stream) Error {
 	if buf.bytes.len > 0 {
 		// Reload and keep undo and stuff...
 		bytes: [..]u8;
@@ -1199,11 +1201,10 @@ load_buffer_bytes :: fn (buf: *Buffer, stream: *std.Stream) Error {
 	return OK;
 }
 
-save_buffer_bytes :: fn (buf: *Buffer, stream: *std.Stream) Error {
-	using std;
+save_buffer_bytes :: fn (buf: *Buffer, stream: *io.Stream) Error {
 	assert(stream);
 
-	_, err :: write_data(stream, buf.bytes);
+	_, err :: io.write_data(stream, buf.bytes);
 	if err { return err; }
 
 	buf.saved_top = buf.undo_top;
