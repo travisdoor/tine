@@ -13,8 +13,8 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	in_pipe:  [2]s32 #noinit;
 	out_pipe: [2]s32 #noinit;
 
-	executable :: std.str_new(256);
-	defer std.str_delete(&executable);
+	executable :: str_new(256);
+	defer str_delete(&executable);
 
 	err :: lookup_executable(cmd, &executable);
 	if err then return err;
@@ -46,16 +46,16 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		buf: [16]*C.char #noinit;
 		assert(argc < buf.len);
 
-		_, exec_name :: std.path_split(executable);
+		_, exec_name :: path_split(executable);
 
 		cargs := []*C.char.{ ptr = auto buf.ptr, len = argc };
-		cargs[0] = std.strtoc(exec_name);
+		cargs[0] = strtoc(exec_name);
 		cargs[cargs.len-1] = null;
 		loop i := 1; i < cargs.len-1; i += 1 {
-			cargs[i] = std.strtoc(args[i-1]);
+			cargs[i] = strtoc(args[i-1]);
 		}
 
-		C.execv(std.strtoc(executable), cargs.ptr);
+		C.execv(strtoc(executable), cargs.ptr);
 		print_err("Execution failed with error: %", os_get_last_error2());
 		C.exit(1);
 	} else {
@@ -124,7 +124,7 @@ read_pipe :: fn (stream: IoStream, dest: *string) Error {
 		if n == -1 then return os_get_last_error2();
         if n ==  0 then break;
 
-        std.str_append(dest, string_view.{ auto n, buf.ptr });
+        str_append(dest, string_view.{ auto n, buf.ptr });
     }
 	return OK;
 }
@@ -133,7 +133,7 @@ write_pipe :: fn (stream: IoStream, msg: string_view) Error {
 	using C;
 	total_written : s64 = 0;
 	loop total_written < msg.len {
-		write_size :: std.min(msg.len - total_written, 4096);
+		write_size :: math.min(msg.len - total_written, 4096);
 		n :: write(stream, auto &msg[total_written], auto write_size);
 		if n == -1 then return os_get_last_error2();
 		total_written += n;
@@ -154,65 +154,69 @@ get_current_date_as_YYYY_MM_DD :: fn () string_view {
 	time :: C.time(null);
 	tm :: C.localtime(&time);
 	buf: [11]C.char;
-	C.strftime(buf.ptr, auto buf.len, std.strtoc("%Y-%m-%d"), tm);
-	return tprint("%", std.ctostr(buf.ptr));
+	C.strftime(buf.ptr, auto buf.len, strtoc("%Y-%m-%d"), tm);
+	return tprint("%", ctostr(buf.ptr));
 }
 
 get_fonts_directory :: fn () string {
-	return std.str_new("/System/Library/Fonts");
+	return str_new("/System/Library/Fonts");
 }
 
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: string) {
-	using macos;
+	result :: str_new();
 
-	result :: std.str_new();
-
-	cf_file_path :: CFStringCreateWithCString(kCFAllocatorDefault, auto std.strtoc(filepath), CFStringEncoding.UTF8);
+	cf_file_path :: CFStringCreateWithCString(kCFAllocatorDefault, auto strtoc(filepath), CFStringEncoding.UTF8);
 	defer CFRelease(cf_file_path);
 	if !cf_file_path then return error("Failed to create CFString."), result;
 
 	file_url :: CFURLCreateWithFileSystemPath(kCFAllocatorDefault, cf_file_path, 0, 0);
 	defer CFRelease(file_url);
 	if !file_url then return error("Failed to create CFURL."), result;
-	
+
 	url_string :: CFURLGetString(file_url);
 	if !url_string then return error("Failed to get url string."), result;
-	
-	
+
+
 	buf: [2048]C.char #noinit;
 	if CFStringGetCString(url_string, buf.ptr, buf.len, CFStringEncoding.UTF8) == 0 {
 		return error("Failed to get url string."), result;
 	}
-	
-	std.str_append(&result, std.ctostr(buf.ptr));
+
+	str_append(&result, ctostr(buf.ptr));
 	print_log("URL: %", result);
     return OK, result;
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	using macos;
+	result :: str_new();
 
-	result :: std.str_new();
-
-	cf_url_string :: CFStringCreateWithCString(kCFAllocatorDefault, auto std.strtoc(url), CFStringEncoding.UTF8);
+	cf_url_string :: CFStringCreateWithCString(kCFAllocatorDefault, auto strtoc(url), CFStringEncoding.UTF8);
 	defer CFRelease(cf_url_string);
 	if !cf_url_string then return error("Failed to create file path from URL."), result;
-	
+
 	cf_url :: CFURLCreateWithString(kCFAllocatorDefault, cf_url_string, null);
 	defer CFRelease(cf_url);
 	if !cf_url then return error("Failed to create file path from URL."), result;
-	
+
 	cf_filepath :: CFURLCopyFileSystemPath(cf_url, 0);
 	defer CFRelease(cf_filepath);
 	if !cf_filepath then return error("Failed to create file path from URL."), result;
-	
+
 	buf: [2048]C.char #noinit;
 	if CFStringGetCString(cf_filepath, buf.ptr, buf.len, CFStringEncoding.UTF8) == 0 {
 		return error("Failed to create file path from URL."), result;
 	}
 
-	std.str_append(&result, std.ctostr(buf.ptr));
+	str_append(&result, ctostr(buf.ptr));
     return OK, result;
+}
+
+init_clipboard :: fn () {
+	clipboard.init();
+}
+
+terminate_clipboard :: fn () {
+	clipboard.terminate();
 }
 
 read_clipboard :: fn () string_view {
@@ -228,20 +232,16 @@ write_clipboard :: fn (text: string_view) {
 //
 
 Watcher :: struct {
-	using macos;
-
 	stream: FSEventStreamRef;
 	path:   string;
 	flags:  WatchFor;
 }
 
 watch_init :: fn () {
-	using std;
 	mutex_init(&mutex);
 }
 
 watch_terminate :: fn () {
-	using std;
 	assert(watched.len == 0);
 	tbl_terminate(&watched);
 	tbl_terminate(&changed);
@@ -256,8 +256,6 @@ WatchFor :: enum u32 #flags {
 }
 
 watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
-	using macos;
-	using std;
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
 
 	print_log("Watch changes: % (%)", directory, flags);
@@ -290,9 +288,6 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 }
 
 unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
-	using std;
-	using macos;
-
 	hash :: hash_combine(str_hash(directory), cast(u32) flags);
 
 	w := tbl_lookup_ptr(&watched, hash);
@@ -306,7 +301,6 @@ unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 }
 
 next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
-	using std;
 	mutex_lock(&mutex);
 	defer mutex_unlock(&mutex);
 
@@ -328,7 +322,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	using C;
 	file_stat: stat_t #noinit;
-	if stat(std.strtoc(filepath), &file_stat) == -1 {
+	if stat(strtoc(filepath), &file_stat) == -1 {
 		return 0, os_get_last_error2();
 	}
 
@@ -339,6 +333,8 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 }
 
 #scope_private
+#import "os/macos"
+clipboard :: #import "extra/clipboard";
 
 Change :: struct {
 	path:  string;
@@ -351,12 +347,12 @@ changed: Table(string_view, Change);
 mutex: Mutex;
 
 change_callback :: fn (
-	_: macos.ConstFSEventStreamRef,
+	_: ConstFSEventStreamRef,
 	watcher: *Watcher,
 	_: usize,
 	_: *u8,
-	_: *macos.FSEventStreamEventFlags,
-	_: *macos.FSEventStreamEventId
+	_: *FSEventStreamEventFlags,
+	_: *FSEventStreamEventId
 ) {
 	mutex_lock(&mutex);
 	defer mutex_unlock(&mutex);

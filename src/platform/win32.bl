@@ -186,6 +186,9 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 	return OK, result;
 }
 
+init_clipboard :: fn () {}
+terminate_clipboard :: fn () {}
+
 read_clipboard :: fn () string_view {
 	if OpenClipboard(null) == 0 { return ""; }
 	defer CloseClipboard();
