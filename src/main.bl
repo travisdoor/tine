@@ -421,6 +421,48 @@ jump_to_next_location :: fn () bool {
 	return true;
 }
 
+//
+// Macros
+//
+
+macros: struct {
+	is_recording: bool;
+	queue: [..]Command;
+};
+
+#scope_private
+init_macros :: fn () {}
+
+terminate_macros :: fn () {
+	array_terminate(&macros.queue);
+}
+#scope_public
+
+add_macro_record :: fn (command: Command) #inline {
+	assert(macros.is_recording);
+	print_log("Add macro command: %", command);
+	array_push(&macros.queue, command);
+}
+
+start_macro_recording :: fn () {
+	if macros.is_recording then stop_macro_recording();
+	macros.is_recording = true;
+	macros.queue.len = 0;
+}
+
+stop_macro_recording :: fn () {
+	if !macros.is_recording then return;
+	macros.is_recording = false;
+}
+
+replay_macro :: fn () {
+	if macros.is_recording then stop_macro_recording();
+	loop i := 0; i < macros.queue.len; i += 1 {
+		target_buf, target_editor :: get_active_buffer_and_editor();
+		invoke_command(target_editor, target_buf, macros.queue[i]);
+	}
+}
+
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
 
@@ -545,6 +587,9 @@ main :: fn () s32 {
 
 	init_project();
 	defer terminate_project();
+
+	init_macros();
+	defer terminate_macros();
 
 	defer array_terminate(&key_binding);
 

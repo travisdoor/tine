@@ -110,6 +110,8 @@ Command :: enum {
 	UNDO;
 	OPEN_FILE_LOCATION;
 	DATE;
+	TOGGLE_MACRO_RECORDING;
+	REPLAY_MACRO;
 
 	SUPPORT_ME;
 }
@@ -263,58 +265,61 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	}
 
 	// Command was handled by current mode.
-	if handled { return; }
+	if !handled {
 
-	// handle general commands used in all modes
-	switch cmd {
-		MOVE_LEFT            { move_left             (editor, buf); }
-		MOVE_RIGHT           { move_right            (editor, buf); }
-		JUMP_LINE_END        { jump_line_end         (editor, buf); }
-		JUMP_LINE_BEGIN      { jump_line_begin       (editor, buf); }
-		JUMP_NEXT_WORD       { jump_next_word        (editor, buf); }
-		JUMP_PREV_WORD       { jump_prev_word        (editor, buf); }
-		INSERT_TAB           { insert_tab            (editor, buf); }
-		DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
-		DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
-		DELETE_LINE          { delete_line           (editor, buf); }
-		DUPLICATE_LINE       { duplicate_line        (editor, buf); }
-		DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
-		SMART_SELECTION      { smart_selection       (editor, buf); }
-		SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
-		SELECT_ALL           { select_all            (editor, buf); }
-		SELECT_WORD          { select_word           (editor, buf); }
-		SELECT_LINE          { select_line           (editor, buf); }
-		SELECT_WHOLE_LINE    { select_whole_line     (editor, buf); }
-		SELECT_PARAGRAPH     { select_paragraph      (editor, buf); }
-		COPY                 { copy_selection        (editor, buf); }
-		PASTE                { paste                 (editor, buf); }
-		CUT                  { cut_selection         (editor, buf); }
-		GOOGLE_SELECTION     { google_selection      (editor, buf); }
+		// handle general commands used in all modes
+		switch cmd {
+			MOVE_LEFT            { move_left             (editor, buf); }
+			MOVE_RIGHT           { move_right            (editor, buf); }
+			JUMP_LINE_END        { jump_line_end         (editor, buf); }
+			JUMP_LINE_BEGIN      { jump_line_begin       (editor, buf); }
+			JUMP_NEXT_WORD       { jump_next_word        (editor, buf); }
+			JUMP_PREV_WORD       { jump_prev_word        (editor, buf); }
+			INSERT_TAB           { insert_tab            (editor, buf); }
+			DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
+			DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
+			DELETE_LINE          { delete_line           (editor, buf); }
+			DUPLICATE_LINE       { duplicate_line        (editor, buf); }
+			DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
+			SMART_SELECTION      { smart_selection       (editor, buf); }
+			SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
+			SELECT_ALL           { select_all            (editor, buf); }
+			SELECT_WORD          { select_word           (editor, buf); }
+			SELECT_LINE          { select_line           (editor, buf); }
+			SELECT_WHOLE_LINE    { select_whole_line     (editor, buf); }
+			SELECT_PARAGRAPH     { select_paragraph      (editor, buf); }
+			COPY                 { copy_selection        (editor, buf); }
+			PASTE                { paste                 (editor, buf); }
+			CUT                  { cut_selection         (editor, buf); }
+			GOOGLE_SELECTION     { google_selection      (editor, buf); }
 
-		TO_LOWER {
-			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.LOWER);
-		}
+			TO_LOWER {
+				selection_to_upper_or_lower(editor, buf, ToUpperOrLower.LOWER);
+			}
 
-		TO_UPPER {
-			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.UPPER);
-		}
+			TO_UPPER {
+				selection_to_upper_or_lower(editor, buf, ToUpperOrLower.UPPER);
+			}
 
-		// Does nothing in case we're already in default mode (TEXT_EDIT).
-		CANCEL_MODE {
-			mode_changed :: set_default_mode();
-			clear_selection(buf, editor.cursor_index);
-			if !mode_changed && build.buffer_index != -1 {
-				buffer_index :: build.buffer_index;
-				assert(buffer_index >= 0 && buffer_index < buffers.len);
-				if !buffers[buffer_index].is_removed {
-					close_buffer(buffer_index);
+			// Does nothing in case we're already in default mode (TEXT_EDIT).
+			CANCEL_MODE {
+				mode_changed :: set_default_mode();
+				clear_selection(buf, editor.cursor_index);
+				if !mode_changed && build.buffer_index != -1 {
+					buffer_index :: build.buffer_index;
+					assert(buffer_index >= 0 && buffer_index < buffers.len);
+					if !buffers[buffer_index].is_removed {
+						close_buffer(buffer_index);
+					}
 				}
 			}
-		}
 
-		// Not handled...
-		default;
+			// Not handled...
+			default;
+		}
 	}
+
+	if cmd != TOGGLE_MACRO_RECORDING && macros.is_recording then add_macro_record(cmd);
 }
 
 lookup_command_keymap_index :: fn (cmd: Command, start_index := 0) s32 {
@@ -647,10 +652,20 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
 		SUPPORT_ME               { support_me();                  }
 
+		TOGGLE_MACRO_RECORDING {
+			if macros.is_recording {
+				stop_macro_recording();
+			} else {
+				start_macro_recording();
+			}
+		}
+		REPLAY_MACRO { replay_macro(); }
+
 
 		// Not handled.
 		default { return false; }
 	}
+
 	return true;
 }
 

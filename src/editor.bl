@@ -355,7 +355,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		default;
 	}
 	title_bar_color := colors.title_bar_color;
-	if is_active { title_bar_color = colors.title_bar_active; }
+	if is_active then title_bar_color = colors.title_bar_active;
+	if macros.is_recording then title_bar_color = colors.error_color; // @Incomplete 2025-01-08 Customize color?
 
 	// Status bar background
 	set_shader_color();
