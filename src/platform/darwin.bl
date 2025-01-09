@@ -28,6 +28,10 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		return os_get_last_error2();
 	}
 
+	flags :: C.fcntl(out_pipe[0], C.F_GETFL);
+	if flags == -1 then return os_get_last_error2();
+	if C.fcntl(out_pipe[0], C.F_SETFL, flags | C.O_NONBLOCK) == -1 then return os_get_last_error2();
+
 	pid :: C.fork();
 	if pid == -1 {
 		return os_get_last_error2();
@@ -118,12 +122,17 @@ poll_pipe :: fn (stream: IoStream) (PollEvent, Error) {
 
 read_pipe :: fn (stream: IoStream, dest: *string) Error {
     using C;
-    loop {
+    loop i := 0;; i+=1 {
         buf:  [2048]u8 #noinit;
         n :: read(stream, auto buf.ptr, auto buf.len);
-		if n == -1 then return os_get_last_error2();
+		if n == -1 {
+			err :: os_get_last_error2();
+			if err.code == EAGAIN then return OK;
+			return err;
+		}
         if n ==  0 then break;
 
+		print_log("%", string_view.{ auto n, buf.ptr });
         str_append(dest, string_view.{ auto n, buf.ptr });
     }
 	return OK;
@@ -165,7 +174,7 @@ get_fonts_directory :: fn () string {
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: string) {
 	result :: str_new();
 
-	cf_file_path :: CFStringCreateWithCString(kCFAllocatorDefault, auto strtoc(filepath), CFStringEncoding.UTF8);
+	cf_file_path :: CFStringCreateWithBytes(kCFAllocatorDefault, auto filepath.ptr, filepath.len, CFStringEncoding.UTF8, 0);
 	defer CFRelease(cf_file_path);
 	if !cf_file_path then return error("Failed to create CFString."), result;
 
@@ -190,7 +199,7 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: strin
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	result :: str_new();
 
-	cf_url_string :: CFStringCreateWithCString(kCFAllocatorDefault, auto strtoc(url), CFStringEncoding.UTF8);
+	cf_url_string :: CFStringCreateWithBytes(kCFAllocatorDefault, auto url.ptr, url.len, CFStringEncoding.UTF8, 0);
 	defer CFRelease(cf_url_string);
 	if !cf_url_string then return error("Failed to create file path from URL."), result;
 
@@ -260,7 +269,7 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 
 	print_log("Watch changes: % (%)", directory, flags);
 
-	path :: CFStringCreateWithCString(null, auto strtoc(directory), CFStringEncoding.UTF8);
+	path :: CFStringCreateWithBytes(kCFAllocatorDefault, auto directory.ptr, directory.len, CFStringEncoding.UTF8, 0);
 	paths   :: CFArrayCreate(null, &path, 1, null);
 	latency :: 3.0;
 
