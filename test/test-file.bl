@@ -469,4 +469,3 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 	}
 }
 
-

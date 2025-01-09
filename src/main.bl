@@ -106,6 +106,7 @@ ICON_CODE_TYPE      : u32 : 0x0054;
 ICON_CODE_VARIABLE  : u32 : 0x0056;
 ICON_CODE_ENUM      : u32 : 0x0045;
 ICON_CODE_MODULE    : u32 : 0xF1B2;
+ICON_CAMERA         : u32 : 0x25CF;
 
 ICON_BUILD    : u32 : 0xF6E3;
 ICON_MESSAGES : u32 : 0x2709;
@@ -305,6 +306,7 @@ Colors :: struct {
 	error_color                         : v4;
 	inline_error_background_color       : v4;
 	inline_warning_background_color     : v4;
+	macro_record_icon_color             : v4;
 
 	// code
 	code_comment   : v4;
@@ -427,7 +429,9 @@ jump_to_next_location :: fn () bool {
 
 macros: struct {
 	is_recording: bool;
+	is_replaying: bool;
 	queue: [..]Command;
+	text:  [..]u32;
 };
 
 #scope_private
@@ -435,32 +439,61 @@ init_macros :: fn () {}
 
 terminate_macros :: fn () {
 	array_terminate(&macros.queue);
+	array_terminate(&macros.text);
 }
 #scope_public
 
-add_macro_record :: fn (command: Command) #inline {
-	assert(macros.is_recording);
-	print_log("Add macro command: %", command);
-	array_push(&macros.queue, command);
+add_macro_record :: fn {
+	fn (command: Command) #inline {
+		assert(macros.is_recording);
+		array_push(&macros.queue, command);
+	};
+
+	fn (char: u32) #inline {
+		assert(macros.is_recording);
+		array_push(&macros.queue, Command.UNKNOWN);
+		array_push(&macros.text, char);
+	};
 }
 
 start_macro_recording :: fn () {
 	if macros.is_recording then stop_macro_recording();
 	macros.is_recording = true;
 	macros.queue.len = 0;
+	macros.text.len  = 0;
+	toggle_binding :: get_keybinding_for_command(Command.TOGGLE_MACRO_RECORDING);
+	print_info("Start recording macro. Use [%] to stop recording.", toggle_binding);
 }
 
 stop_macro_recording :: fn () {
 	if !macros.is_recording then return;
 	macros.is_recording = false;
+	replay_binding :: get_keybinding_for_command(Command.REPLAY_MACRO);
+	print_info("Stop recording macro. Use [%] to replay recording.", replay_binding);
 }
 
 replay_macro :: fn () {
 	if macros.is_recording then stop_macro_recording();
+	char_index := 0;
+	macros.is_replaying = true;
 	loop i := 0; i < macros.queue.len; i += 1 {
-		target_buf, target_editor :: get_active_buffer_and_editor();
-		invoke_command(target_editor, target_buf, macros.queue[i]);
+		cmd :: macros.queue[i];
+		if cmd == Command.UNKNOWN {
+			character_callback(null, macros.text[char_index]);
+			char_index += 1;
+		} else {
+			target_buf, target_editor :: get_active_buffer_and_editor();
+			invoke_command(target_editor, target_buf, cmd);
+		}
 	}
+	macros.is_replaying = false;
+	
+	loop i := 0; i < buffers.len; i += 1 {
+		if buffers[i].is_removed then continue;
+		commit_undo(&buffers[i]);
+	}
+	
+	print_info("Replay macro.");
 }
 
 // Points to the directory containing editor executable (does not contain the last path separator).
@@ -921,7 +954,7 @@ rebuild_fonts :: fn () Error {
 		ICON_WARNING, ICON_ERROR, ICON_BUILD, ICON_MESSAGES,
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
-		ICON_CODE_MODULE,
+		ICON_CODE_MODULE, ICON_CAMERA,
 	};
 
 	array_push_all(&icon_set, ICONS);
@@ -1914,6 +1947,8 @@ character_callback :: fn (_: *glfw.Window, codepoint: u32) {
 	}
 
 	set_prev_executed_command(Command.UNKNOWN);
+
+	if macros.is_recording then add_macro_record(codepoint);
 }
 
 mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) {
@@ -1982,6 +2017,7 @@ window_focus_callback :: fn (_: *glfw.Window, f: s32) {
 		reset_caret_blinking();
 	} else {
 		focused = false;
+		stop_macro_recording();
 		print_log("Focus out!");
 	}
 }
