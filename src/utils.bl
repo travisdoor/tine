@@ -493,10 +493,35 @@ is_ident :: fn (buf: *Buffer, char: string_view) bool #inline {
 	return true;
 }
 
+is_number :: fn (buf: *Buffer, char: string_view, base := FmtIntBase.DEC) bool #inline {
+	NUMERIC_CHARS := "0123456789";
+	using FmtIntBase;
+	switch base {
+		HEX { NUMERIC_CHARS = "0123456789abcdefABCDEF"; }
+		OCT { NUMERIC_CHARS = "012345"; }
+		BIN { NUMERIC_CHARS = "01"; }
+		default;
+	}
+
+	if char.len == 0              { return false; }
+	if is_line_end(buf, char) > 0 { return false; }
+	loop i := 0; i < NUMERIC_CHARS.len; i += 1 {
+		if char[0] == NUMERIC_CHARS[i] then return true;
+	}
+	return false;
+}
+
 is_whitespace :: fn (char: u8) bool #inline {
 	WHITESPACE :: " \t\n\r";
 	loop i := 0; i < WHITESPACE.len; i += 1 {
 		if char == WHITESPACE[i] { return true; }
+	}
+	return false;
+}
+
+is_one_of :: fn (char: u8, other: string_view) bool #inline {
+	loop i := 0; i < other.len; i += 1 {
+		if char == other[i] then return true;
 	}
 	return false;
 }

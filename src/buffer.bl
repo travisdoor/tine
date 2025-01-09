@@ -365,8 +365,12 @@ count_characters_in_selection :: fn (buf: *Buffer, cursor_index: s32) s64 #inlin
 
 commit_undo :: fn (buf: *Buffer) {
 	using Rec.kind;
-	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return; }
-	if buf.undo.len > 0 && buf.undo[buf.undo.len-1].kind == COMMIT { return; }
+	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO then return;
+	if buf.undo.len > 0 && buf.undo[buf.undo.len-1].kind == COMMIT then return;
+
+	// We need all undo actions in replay macro sequence to be recorder as a single undo action.
+	// Note that we need to commit all modified buffers when macro is finished.
+	if macros.is_replaying then return;
 
 	reset_undo_top_before_inserting(buf);
 	buf.undo_top = buf.undo.len;

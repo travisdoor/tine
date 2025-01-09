@@ -209,6 +209,13 @@ break-in-raddbg
 peek-error            Alt+/
 list-functions        Alt+F
 
+# Macros
+toggle-macro-recording Alt+R
+replay-macro           F11
+
+increase-number Alt+PageUp
+decrease-number Alt+PageDown
+
 ;colors
 # Color code is expected to be RRGGBB hex number.
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block.
@@ -236,6 +243,7 @@ warning_color                       DCC80B
 error_color                         E92204
 inline_error_background_color       400809
 inline_warning_background_color     4F4F2D
+macro_record_icon_color             E92204
 
 code_comment                        00FF80
 code_keyword                        FFF200
@@ -270,6 +278,7 @@ code_function                       FFFFFF
 # error_color                         E92204
 # inline_error_background_color       400809
 # inline_warning_background_color     4F4F2D
+# macro_record_icon_color             E92204
 
 # code_comment                        7F9F7F
 # code_keyword                        F0DFAF
@@ -304,6 +313,7 @@ code_function                       FFFFFF
 # error_color                         E92204
 # inline_error_background_color       400809
 # inline_warning_background_color     4F4F2D
+# macro_record_icon_color             E92204
 
 # code_comment                        7F7F7F
 # code_keyword                        B8860B
@@ -338,6 +348,7 @@ code_function                       FFFFFF
 # error_color                         ED1C24
 # inline_error_background_color       EDCFD0
 # inline_warning_background_color     FFF8C8
+# macro_record_icon_color             ED1C24
 
 # code_comment                        008000
 # code_keyword                        0000FF

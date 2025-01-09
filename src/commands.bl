@@ -55,6 +55,8 @@ Command :: enum {
 	CLANG_FORMAT;
 	TOGGLE_COMMENT;
 	SORT;
+	INCREASE_NUMBER;
+	DECREASE_NUMBER;
 
 	// Splits
 	OTHER_SPLIT;
@@ -110,6 +112,8 @@ Command :: enum {
 	UNDO;
 	OPEN_FILE_LOCATION;
 	DATE;
+	TOGGLE_MACRO_RECORDING;
+	REPLAY_MACRO;
 
 	SUPPORT_ME;
 }
@@ -224,7 +228,13 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto OPEN_FILE_LOCATION]      = "Open current file location in default system file manager.";
 	help[auto DATE]                    = "Inserts current system date into focused buffer.";
 
-	help[auto SUPPORT_ME]              = "Consider supporting author of this project via PayPal.";
+	help[auto SUPPORT_ME]              = "Consider supporting this project via PayPal.";
+
+	help[auto TOGGLE_MACRO_RECORDING]  = "Start/Stop macro sequence recording.";
+	help[auto REPLAY_MACRO]            = "Replay last recorded macro sequence.";
+
+	help[auto INCREASE_NUMBER]         = "Increase number under cursor by one.";
+	help[auto DECREASE_NUMBER]         = "Decrease number under cursor by one.";
 
 	return help;
 }
@@ -263,58 +273,61 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	}
 
 	// Command was handled by current mode.
-	if handled { return; }
+	if !handled {
 
-	// handle general commands used in all modes
-	switch cmd {
-		MOVE_LEFT            { move_left             (editor, buf); }
-		MOVE_RIGHT           { move_right            (editor, buf); }
-		JUMP_LINE_END        { jump_line_end         (editor, buf); }
-		JUMP_LINE_BEGIN      { jump_line_begin       (editor, buf); }
-		JUMP_NEXT_WORD       { jump_next_word        (editor, buf); }
-		JUMP_PREV_WORD       { jump_prev_word        (editor, buf); }
-		INSERT_TAB           { insert_tab            (editor, buf); }
-		DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
-		DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
-		DELETE_LINE          { delete_line           (editor, buf); }
-		DUPLICATE_LINE       { duplicate_line        (editor, buf); }
-		DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
-		SMART_SELECTION      { smart_selection       (editor, buf); }
-		SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
-		SELECT_ALL           { select_all            (editor, buf); }
-		SELECT_WORD          { select_word           (editor, buf); }
-		SELECT_LINE          { select_line           (editor, buf); }
-		SELECT_WHOLE_LINE    { select_whole_line     (editor, buf); }
-		SELECT_PARAGRAPH     { select_paragraph      (editor, buf); }
-		COPY                 { copy_selection        (editor, buf); }
-		PASTE                { paste                 (editor, buf); }
-		CUT                  { cut_selection         (editor, buf); }
-		GOOGLE_SELECTION     { google_selection      (editor, buf); }
+		// handle general commands used in all modes
+		switch cmd {
+			MOVE_LEFT            { move_left             (editor, buf); }
+			MOVE_RIGHT           { move_right            (editor, buf); }
+			JUMP_LINE_END        { jump_line_end         (editor, buf); }
+			JUMP_LINE_BEGIN      { jump_line_begin       (editor, buf); }
+			JUMP_NEXT_WORD       { jump_next_word        (editor, buf); }
+			JUMP_PREV_WORD       { jump_prev_word        (editor, buf); }
+			INSERT_TAB           { insert_tab            (editor, buf); }
+			DELETE_CHAR_LEFT     { delete_left           (editor, buf); }
+			DELETE_CHAR_RIGHT    { delete_right          (editor, buf); }
+			DELETE_LINE          { delete_line           (editor, buf); }
+			DUPLICATE_LINE       { duplicate_line        (editor, buf); }
+			DELETE_WORD_LEFT     { delete_word_left      (editor, buf); }
+			SMART_SELECTION      { smart_selection       (editor, buf); }
+			SET_SELECTION_MARKER { start_selection       (buf, editor.cursor_index); }
+			SELECT_ALL           { select_all            (editor, buf); }
+			SELECT_WORD          { select_word           (editor, buf); }
+			SELECT_LINE          { select_line           (editor, buf); }
+			SELECT_WHOLE_LINE    { select_whole_line     (editor, buf); }
+			SELECT_PARAGRAPH     { select_paragraph      (editor, buf); }
+			COPY                 { copy_selection        (editor, buf); }
+			PASTE                { paste                 (editor, buf); }
+			CUT                  { cut_selection         (editor, buf); }
+			GOOGLE_SELECTION     { google_selection      (editor, buf); }
 
-		TO_LOWER {
-			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.LOWER);
-		}
+			TO_LOWER {
+				selection_to_upper_or_lower(editor, buf, ToUpperOrLower.LOWER);
+			}
 
-		TO_UPPER {
-			selection_to_upper_or_lower(editor, buf, ToUpperOrLower.UPPER);
-		}
+			TO_UPPER {
+				selection_to_upper_or_lower(editor, buf, ToUpperOrLower.UPPER);
+			}
 
-		// Does nothing in case we're already in default mode (TEXT_EDIT).
-		CANCEL_MODE {
-			mode_changed :: set_default_mode();
-			clear_selection(buf, editor.cursor_index);
-			if !mode_changed && build.buffer_index != -1 {
-				buffer_index :: build.buffer_index;
-				assert(buffer_index >= 0 && buffer_index < buffers.len);
-				if !buffers[buffer_index].is_removed {
-					close_buffer(buffer_index);
+			// Does nothing in case we're already in default mode (TEXT_EDIT).
+			CANCEL_MODE {
+				mode_changed :: set_default_mode();
+				clear_selection(buf, editor.cursor_index);
+				if !mode_changed && build.buffer_index != -1 {
+					buffer_index :: build.buffer_index;
+					assert(buffer_index >= 0 && buffer_index < buffers.len);
+					if !buffers[buffer_index].is_removed {
+						close_buffer(buffer_index);
+					}
 				}
 			}
-		}
 
-		// Not handled...
-		default;
+			// Not handled...
+			default;
+		}
 	}
+
+	if cmd != TOGGLE_MACRO_RECORDING && macros.is_recording then add_macro_record(cmd);
 }
 
 lookup_command_keymap_index :: fn (cmd: Command, start_index := 0) s32 {
@@ -592,6 +605,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		CLANG_FORMAT        { clang_format        (buf);                                   }
 		TOGGLE_COMMENT      { toggle_comment      (editor, buf);                           }
 		SORT                { alpha_sort_lines    (editor, buf);                           }
+		INCREASE_NUMBER     { add_number_under_cursor(editor, buf,  1);                    }
+		DECREASE_NUMBER     { add_number_under_cursor(editor, buf, -1);                    }
 		OTHER_SPLIT         { other_split         (buf);                                   }
 		CLOSE_SPLIT         { close_split         ();                                      }
 		CLOSE_OTHER_SPLIT   { close_other_split   ();                                      }
@@ -647,10 +662,20 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
 		SUPPORT_ME               { support_me();                  }
 
+		TOGGLE_MACRO_RECORDING {
+			if macros.is_recording {
+				stop_macro_recording();
+			} else {
+				start_macro_recording();
+			}
+		}
+		REPLAY_MACRO { replay_macro(); }
+
 
 		// Not handled.
 		default { return false; }
 	}
+
 	return true;
 }
 
@@ -1611,6 +1636,110 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 	delete_range(buf, start, start + str.len);
 	insert_string(buf, start, sorted);
 	batch_end(buf);
+
+	commit_undo(buf);
+}
+
+get_number_under_cursor :: fn (editor: *Editor, buf: *Buffer) (start_index: s64, end_index: s64, base: FmtIntBase, is_negative: bool, uppercase: bool) {
+	position := get_cursor_position(buf, editor.cursor_index);
+
+	using FmtIntBase;
+	base := FmtIntBase.DEC;
+
+	curr_char, prev_char := " ";
+
+	end_position := position;
+	loop {
+		curr_char = peek_position(buf, position);
+		if curr_char.len != 1 then break;
+		if is_line_end(buf, curr_char) > 0 then break;
+		if !is_digit(curr_char[0], FmtIntBase.HEX) && !is_one_of(curr_char[0], "xXbB") then break;
+		end_position = position;
+		position    += curr_char.len;
+	}
+
+	// Try to find the prefix 0x/0b.
+	position = end_position;
+	start_position := position;
+	loop {
+		prev_char = curr_char;
+		curr_char = peek_position(buf, position);
+		if curr_char.len != 1 then break;
+		if is_line_end(buf, curr_char) > 0 then break;
+		if curr_char[0] == '0' && (prev_char[0] == 'x' || prev_char[0] == 'X') {
+			base = HEX; // 0x
+			// start_position = position;
+		}
+		if curr_char[0] == '0' && (prev_char[0] == 'b' || prev_char[0] == 'B') {
+			base = BIN; // 0b
+			// start_position = position;
+		}
+		if curr_char[0] == '0' && is_digit(prev_char[0], FmtIntBase.OCT) {
+			base = OCT; // 0
+			// start_position = position;
+		}
+		if !is_digit(curr_char[0], FmtIntBase.HEX) && !is_one_of(curr_char[0], "xXbB") then break;
+		start_position = position;
+		position      -= curr_char.len;
+	}
+
+	is_hex_uppercase := false;
+	end_position = start_position;
+	switch base {
+		HEX, BIN { end_position += 2; }
+		OCT      { end_position += 1; }
+		default;
+	}
+	loop {
+		curr_char = peek_position(buf, end_position);
+		if curr_char.len != 1 then break;
+		if is_line_end(buf, curr_char) > 0 then break;
+		if !is_digit(curr_char[0], base) then break;
+		if base == HEX && !is_hex_uppercase && is_one_of(curr_char[0], "ABCDEF") then is_hex_uppercase = true;
+		end_position += curr_char.len;
+	}
+
+	is_negative := false;
+	negative_char :: peek_before_position(buf, start_position);
+	if negative_char.len == 1 && negative_char[0] == '-' then is_negative = true;
+
+	return start_position, end_position, base, is_negative, is_hex_uppercase;
+}
+
+add_number_under_cursor :: fn (editor: *Editor, buf: *Buffer, v : s64) {
+	start_index, end_index, base, is_negative, uppercase := get_number_under_cursor(editor, buf);
+
+	number_text: string_view;
+
+	using FmtIntBase;
+	switch base {
+		HEX, BIN { number_text = peek_range(buf, start_index+2, end_index); }
+		OCT      { number_text = peek_range(buf, start_index+1, end_index); }
+		DEC      { number_text = peek_range(buf, start_index, end_index);   }
+	}
+
+	if number_text.len == 0 {
+		print_err("No number under current cursor.");
+		return;
+	}
+
+	n, err := strtos64(number_text, base);
+	if err {
+		print_err("Cannot convert to number.");
+		return;
+	}
+	if is_negative then n *= -1;
+	n += v;
+
+	set_cursor_position(buf, editor.cursor_index, if is_negative then start_index - 1 else start_index);
+	start_selection(buf, editor.cursor_index);
+	set_cursor_position(buf, editor.cursor_index, end_index);
+	cut_selection(editor, buf, false);
+
+	start :: get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, start, tprint("%", fmt_int(n, base, true, -1, uppercase)));
+
+	set_cursor_position(buf, editor.cursor_index, get_cursor_position(buf, editor.cursor_index)-1);
 
 	commit_undo(buf);
 }
