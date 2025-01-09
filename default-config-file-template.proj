@@ -213,6 +213,9 @@ list-functions        Alt+F
 toggle-macro-recording Alt+R
 replay-macro           F11
 
+increase-number Alt+PageUp
+decrease-number Alt+PageDown
+
 ;colors
 # Color code is expected to be RRGGBB hex number.
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block.

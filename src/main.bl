@@ -106,7 +106,7 @@ ICON_CODE_TYPE      : u32 : 0x0054;
 ICON_CODE_VARIABLE  : u32 : 0x0056;
 ICON_CODE_ENUM      : u32 : 0x0045;
 ICON_CODE_MODULE    : u32 : 0xF1B2;
-ICON_CAMERA         : u32 : 0x25CF;
+ICON_CIRCLE         : u32 : 0x25CF;
 
 ICON_BUILD    : u32 : 0xF6E3;
 ICON_MESSAGES : u32 : 0x2709;
@@ -487,12 +487,12 @@ replay_macro :: fn () {
 		}
 	}
 	macros.is_replaying = false;
-	
+
 	loop i := 0; i < buffers.len; i += 1 {
 		if buffers[i].is_removed then continue;
 		commit_undo(&buffers[i]);
 	}
-	
+
 	print_info("Replay macro.");
 }
 
@@ -954,7 +954,7 @@ rebuild_fonts :: fn () Error {
 		ICON_WARNING, ICON_ERROR, ICON_BUILD, ICON_MESSAGES,
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
-		ICON_CODE_MODULE, ICON_CAMERA,
+		ICON_CODE_MODULE, ICON_CIRCLE,
 	};
 
 	array_push_all(&icon_set, ICONS);

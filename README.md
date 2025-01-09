@@ -26,6 +26,15 @@
   | Markdown | YES (basic)      | NO   |
   | GLSL     | YES              | NO   |
 
+# Feature Highlights
+
+- Lightweight single executable distribution.
+- Fast keyboard oriented navigation.
+- Project structure with search in files.
+- Simple UI.
+- Simple integration of RemedyBG and RAD Debugger.
+- Macro system.
+
 # Philosophy of Tine
 
 Tine is a simple text/code editor initially designed as a main work tool just for me,

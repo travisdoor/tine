@@ -356,7 +356,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 	title_bar_color := colors.title_bar_color;
 	if is_active then title_bar_color = colors.title_bar_active;
-	// if macros.is_recording then title_bar_color = colors.error_color; // @Incomplete 2025-01-08 Customize color?
 
 	// Status bar background
 	set_shader_color();
@@ -375,10 +374,10 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	text(status_x, icon_y, get_icon_for_buffer(buf), colors.title_bar_text_color);
 	status_x += item_spacing + 4.f;
 
-	if macros.is_recording {
+	if macros.is_recording && is_active {
 		color := colors.macro_record_icon_color;
 		color.w = (math.sin(cast(f32) glfw.GetTime() * 6.f) + 1.f) * 0.5f;
-		text(status_x, icon_y, icon(ICON_CAMERA), color);
+		text(status_x, icon_y, icon(ICON_CIRCLE), color);
 		status_x += item_spacing;
 		redraw();
 	}
