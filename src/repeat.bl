@@ -1,0 +1,73 @@
+last_command_repeat_count: s32;
+
+repeat_mode_init :: fn () {
+	// Activate command buffer.
+	active_editor = command_editor;
+	buf, editor :: get_active_buffer_and_editor();
+	clear_buffer(buf);
+
+	input_mode               = InputMode.NUMBERS;
+	notify_changes_to_buffer = buf.index;
+}
+
+draw_repeat_mode :: fn () {
+	assert(active_editor == command_editor);
+
+	w, h :: get_command_editor_size();
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Repeat Next Command: ");
+}
+
+//
+// Commands
+//
+
+invoke_command_repeat_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
+	using Command;
+	assert(active_editor == command_editor);
+	assert(editors[active_editor].buffer_index == buf.index);
+
+	line_str :: peek_row(buf, 0);
+	num := strtos64(line_str);
+
+	if num < 1 {
+		set_mode(Mode.TEXT_EDIT);
+		return true;
+	}
+
+	switch cmd {
+		CANCEL_MODE { return false; }
+		RUN_COMMAND {
+			last_command_repeat_count = auto num;
+			set_mode(Mode.RUN_COMMAND);
+		}
+
+		default {
+			set_mode(Mode.TEXT_EDIT);
+			if is_command_valid_for_repeating(cmd) {
+				target_buf, target_editor :: get_active_buffer_and_editor();
+				loop i := 0; i < num; i += 1 {
+					invoke_command(target_editor, target_buf, cmd);
+				}
+			} else {
+				print_err("Command '%' cannot be repeated.", COMMAND_NAMES[auto cmd]);
+			}
+		}
+	}
+
+	return true;
+}
+
+#scope_private
+
+commit :: fn (buf: *Buffer) {
+	line_str :: peek_row(buf, 0);
+	line, err := strtos64(line_str);
+	if err { return; }
+
+	set_mode(Mode.TEXT_EDIT);
+
+	// Note we changed mode back to previous text editor, we need to apply jump to it!
+	// target_buf, target_editor :: get_active_buffer_and_editor();
+	// repeat_line(target_editor, target_buf, line-1);
+}
+
