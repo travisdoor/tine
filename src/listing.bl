@@ -261,11 +261,12 @@ list_completion :: fn (strs: []string, ids: []s32) {
 	}
 }
 
-list_commands :: fn () {
+list_commands :: fn (repeatable_only := false) {
 	reset_listing();
 
 	loop i := 0; i < COMMAND_NAMES.len; i += 1 {
 		if i <= auto Command._PUBLIC { continue; }
+		if repeatable_only && !is_command_valid_for_repeating(auto i) then continue;
 
 		command_name : string_view : COMMAND_NAMES[i];
 		title :: str_new(command_name, &string_cache[DEFAULT_CACHE_INDEX]);

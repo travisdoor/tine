@@ -83,6 +83,7 @@ Command :: enum {
 	SEARCH_REPLACE;
 	PEEK_ERROR;
 	LIST_FUNCTIONS;
+	REPEAT;
 
 	// MISC
 	BREAK_IN_REMEDYBG;
@@ -199,6 +200,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto SEARCH_REPLACE]    = "";
 	help[auto PEEK_ERROR]        = "Peek full error message on current line if there is one.";
 	help[auto LIST_FUNCTIONS]    = "List functions in current buffer. This information might not be available for all file types.";
+	help[auto REPEAT]            = "Activate repeat mode (execute next comand N times).";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
 	help[auto BREAK_IN_RADDBG]         = "Set current file location as breakpoint in RAD Debugger.";
@@ -252,6 +254,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	defer set_prev_executed_command(cmd);
 
 	if prev_executed_command != cmd { commit_undo(buf); }
+	print_log("Executed command: %", cmd);
 
 	handled := false;
 
@@ -268,6 +271,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		Mode.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
 		Mode.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
 		Mode.LIST_FUNCTIONS    { handled = invoke_command_list_functions_mode    (buf, cmd); }
+		Mode.REPEAT            { handled = invoke_command_repeat_line_mode       (buf, cmd); }
 
 		default;
 	}
@@ -563,6 +567,41 @@ help :: fn () {
 	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
 }
 
+is_command_valid_for_repeating :: fn (cmd: Command) bool {
+	using Command;
+	switch cmd {
+		MOVE_RIGHT,
+		MOVE_LEFT,
+		MOVE_UP,
+		MOVE_DOWN,
+		JUMP_NEXT_PARAGRAPH,
+		JUMP_PREV_PARAGRAPH,
+		JUMP_NEXT_WORD,
+		JUMP_PREV_WORD,
+		JUMP_PAGE_UP,
+		JUMP_PAGE_DOWN,
+		NEXT_ERROR,
+		PREV_ERROR,
+		NEXT_LOCATION,
+		PREV_LOCATION,
+		INSERT_NEW_LINE,
+		INSERT_TAB,
+		DELETE_CHAR_LEFT,
+		DELETE_CHAR_RIGHT,
+		DELETE_WORD_LEFT,
+		DELETE_LINE,
+		DUPLICATE_LINE,
+		PASTE,
+		INCREASE_NUMBER,
+		DECREASE_NUMBER,
+		REDO,
+		UNDO,
+		DATE { return true; }
+		default;
+	}
+	return false;
+}
+
 #scope_private
 
 SmartSelectionLevel :: enum {
@@ -623,6 +662,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		QUICK_OPEN          { set_mode            (Mode.QUICK_OPEN);                       }
 		SAVE_AS             { set_mode            (Mode.SAVE_TO_DRIVE);                    }
 		GOTO_LINE           { set_mode            (Mode.GOTO_LINE);                        }
+		REPEAT              { set_mode            (Mode.REPEAT);                           }
 		RUN_COMMAND         { set_mode            (Mode.RUN_COMMAND);                      }
 		SEARCH_FILE         { set_mode            (Mode.SEARCH_FILE);                      }
 		OPEN_PROJECT        { set_mode            (Mode.OPEN_PROJECT);                     }
@@ -635,7 +675,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_MESSAGES       { open_messages       ();                                      }
 		OPEN_IN_VISUAL_STUDIO { open_current_buffer_in_visual_studio(buf);                 }
 		OPEN_IN_REMEDYBG    { open_current_buffer_in_remedybg(editor, buf);                }
-		OPEN_IN_RADDBG      { open_current_buffer_in_raddbg(editor, buf);                }
+		OPEN_IN_RADDBG      { open_current_buffer_in_raddbg(editor, buf);                  }
 		BREAK_IN_REMEDYBG   { set_current_buffer_breakpoint_in_remedybg(editor, buf);      }
 		BREAK_IN_RADDBG     { set_current_buffer_breakpoint_in_raddbg(editor, buf);        }
 		DEBUG_IN_REMEDYBG   { debug_in_remedybg   ();                                      }
