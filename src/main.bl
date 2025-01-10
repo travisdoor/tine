@@ -24,6 +24,7 @@ C         :: #import "libc";
 #load "completion.bl"
 #load "editor.bl"
 #load "goto.bl"
+#load "repeat.bl"
 #load "key_names.bl"
 #load "list_functions.bl"
 #load "listing.bl"
@@ -211,6 +212,7 @@ Message :: struct {
 Mode :: enum {
 	TEXT_EDIT;
 	GOTO_LINE;
+	REPEAT;
 	OPEN_FROM_DRIVE;
 	QUICK_OPEN;
 	SAVE_TO_DRIVE;
@@ -1022,6 +1024,7 @@ set_mode :: fn (m: Mode) bool #inline {
 			assert(active_editor >= 0 && active_editor < editors.len);
 		}
 		GOTO_LINE         { goto_mode_init();              }
+		REPEAT            { repeat_mode_init();            }
 		OPEN_FROM_DRIVE   { open_from_drive_mode_init();   }
 		QUICK_OPEN        { quick_open_mode_init();        }
 		SAVE_TO_DRIVE     { save_to_drive_mode_init();     }
@@ -1800,7 +1803,6 @@ MAIN_THREAD_ID: u64;
 message: Message;
 debug_allocator: DebugAllocator;
 ignore_char_input: bool;
-
 draw_next_frame := true;
 
 // Might be changed when window is not focused.
@@ -1852,6 +1854,7 @@ draw_frame :: fn () {
 		switch mode {
 			TEXT_EDIT;
 			GOTO_LINE         { draw_goto_mode();              }
+			REPEAT            { draw_repeat_mode();            }
 			OPEN_FROM_DRIVE   { draw_open_from_drive_mode();   }
 			QUICK_OPEN        { draw_quick_open_mode();        }
 			SAVE_TO_DRIVE     { draw_save_to_drive_mode();     }
@@ -1886,7 +1889,7 @@ print_glfw_error :: fn () {
 	print_err("GLFW Error: %", tmp);
 }
 
-key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
+key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 	using glfw;
 
 	redraw();
@@ -1895,42 +1898,64 @@ key_callback :: fn (_: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 	if is_lmb_dragging() then return;
 
 	key := k;
-	if key == KEY_KP_ENTER {
-		key = KEY_ENTER;
+	switch key {
+		KEY_KP_ENTER { key = KEY_ENTER; }
+		KEY_KP_0     { key = KEY_0; }
+		KEY_KP_1     { key = KEY_1; }
+		KEY_KP_2     { key = KEY_2; }
+		KEY_KP_3     { key = KEY_3; }
+		KEY_KP_4     { key = KEY_4; }
+		KEY_KP_5     { key = KEY_5; }
+		KEY_KP_6     { key = KEY_6; }
+		KEY_KP_7     { key = KEY_7; }
+		KEY_KP_8     { key = KEY_8; }
+		KEY_KP_9     { key = KEY_9; }
+		default;
 	}
 
+
 	if action == PRESS || action == REPEAT {
-		ignore_char_input = ((mods & MOD_CONTROL) == MOD_CONTROL) || ((mods & MOD_ALT) == MOD_ALT);
+		redirect_to_character_input := false;
 		loop i := 0; i < key_binding.len; i += 1 {
 			m :: &key_binding[i];
-			if m.key == key && m.mods == mods {
-				buf, editor :: get_active_buffer_and_editor();
-				clear_message();
-				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
-				// error_marker_visible = false;
-				invoke_command(editor, buf, m.cmd);
-
-				break;
+			if m.mods != mods then continue;
+			if key >= KEY_0 && key <= KEY_9 && m.key == KEY_NUMBERS {
+				redirect_to_character_input = true;
+				if mode == Mode.REPEAT then break;
+			} else if m.key != key {
+				continue;
 			}
+
+			buf, editor :: get_active_buffer_and_editor();
+			clear_message();
+			if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+			// error_marker_visible = false;
+			invoke_command(editor, buf, m.cmd);
+
+			break;
+		}
+		if redirect_to_character_input {
+			ignore_char_input = false;
+			character_callback(window, auto k);
+		} else {
+			ignore_char_input = ((mods & MOD_CONTROL) == MOD_CONTROL) || ((mods & MOD_ALT) == MOD_ALT);
 		}
 	}
 }
 
 character_callback :: fn (_: *glfw.Window, codepoint: u32) {
-	if ignore_char_input { return; }
+	if ignore_char_input then return;
+	if is_lmb_dragging() then return;
+	if input_mode == InputMode.NUMBERS && ((codepoint < cast(u32) '0') || (codepoint > cast(u32) '9')) then return;
+
 	redraw();
 	reset_caret_blinking();
-
-	if input_mode == InputMode.NUMBERS && ((codepoint < cast(u32) '0') || (codepoint > cast(u32) '9')) {
-		return;
-	}
-	if is_lmb_dragging() { return; }
 
 	clear_message();
 	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 
 	buf, editor :: get_active_buffer_and_editor();
-	if maybe_report_readonly(buf) { return; }
+	if maybe_report_readonly(buf) then return;
 
 	cut_selection(editor, buf, editor.index != command_editor);
 

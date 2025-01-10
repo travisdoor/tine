@@ -120,6 +120,9 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	lock_buffer(buf);
 	defer unlock_buffer(buf);
+	
+	line_number_w :: text_size("123", &font);
+	content_x :: x + line_number_w;
 
 	set_scissor(x, y, w, h);
 	defer clear_scissor();
@@ -135,7 +138,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	item_spacing :: metrics[auto ITEM_SPACING ];
 
 	line_w :: w-text_padding*2.f;
-
+	
 	// Draw background
 	set_shader_color();
 	rect(x, y, w, h, colors.background_color);
@@ -187,7 +190,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		}
 	}
 
-	tx := x + text_padding;
+	tx := content_x + text_padding;
 	ty :: y + text_padding + sliding.vertical_offset;
 
 	// Adjust text x offset
@@ -218,7 +221,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			if inline_compilation_error {
 				loc :: inline_compilation_error;
 				if i == loc.line-1 && cursor.row == loc.line-1 && loc.file_hash == buf.hash {
-					draw_inline_error(editor, x, line_base_y, w, line, loc, is_peeking);
+					draw_inline_error(editor, content_x, line_base_y, w, line, loc, is_peeking);
 					error_reported_for_line = true;
 				}
 			}
@@ -230,7 +233,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 						loc.is_hidden = true;
 					}
 					highliht_only :: is_peeking && cursor.row == i;
-					draw_inline_error(editor, x, line_base_y, w, line, loc, highliht_only);
+					draw_inline_error(editor, content_x, line_base_y, w, line, loc, highliht_only);
 				}
 			}
 
@@ -293,6 +296,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	set_shader_font(&font);
 	line_base_y := math.round(ty);
+	line_number := first_line_index - cursor.row;
 	loop i := first_line_index; i < last_line_index; i += 1 {
 		line, row_start_index :: peek_row(buf, i);
 		if line.len == 0 { break; }
@@ -324,8 +328,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 		} else {
 			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
+			text(x, ly, tprint("%", math.abs(line_number)), colors.foreground_color);
 			code(tx, ly, line, line_colors, code_color_table);
 			line_base_y += line_height;
+			
+			line_number += 1;
 		}
 	}
 
