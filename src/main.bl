@@ -309,6 +309,8 @@ Colors :: struct {
 	inline_error_background_color       : v4;
 	inline_warning_background_color     : v4;
 	macro_record_icon_color             : v4;
+	background_line_numbers_color       : v4;
+	foreground_line_numbers_color       : v4;
 
 	// code
 	code_comment   : v4;
@@ -1936,7 +1938,10 @@ key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32
 		}
 		if redirect_to_character_input {
 			ignore_char_input = false;
-			character_callback(window, auto k);
+
+			#if PLATFORM == Platform.WINDOWS {
+				character_callback(window, auto k);
+			}
 		} else {
 			ignore_char_input = ((mods & MOD_CONTROL) == MOD_CONTROL) || ((mods & MOD_ALT) == MOD_ALT);
 		}

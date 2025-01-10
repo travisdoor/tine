@@ -120,28 +120,31 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	lock_buffer(buf);
 	defer unlock_buffer(buf);
-	
-	line_number_w :: text_size("123", &font);
+
+	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
+	line_height      :: metrics[auto LINE_HEIGHT ];
+	text_padding     :: metrics[auto TEXT_PADDING];
+	item_spacing     :: metrics[auto ITEM_SPACING ];
+
+	line_number_w := text_size(tprint("%", get_row_count(buf)), &font);
+	line_number_w += item_spacing;
+
 	content_x :: x + line_number_w;
+	content_w :: w - line_number_w;
 
 	set_scissor(x, y, w, h);
 	defer clear_scissor();
 
-	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
 
 	rebuild_coloring_and_indentation_info(buf);
-
 	is_active    :: active_editor == editor.index;
 
-	line_height  :: metrics[auto LINE_HEIGHT ];
-	text_padding :: metrics[auto TEXT_PADDING];
-	item_spacing :: metrics[auto ITEM_SPACING ];
-
 	line_w :: w-text_padding*2.f;
-	
+
 	// Draw background
 	set_shader_color();
-	rect(x, y, w, h, colors.background_color);
+	rect(x, y, line_number_w, h, colors.background_line_numbers_color);
+	rect(content_x, y, content_w, h, colors.background_color);
 
 	sliding :: &editor.sliding;
 
@@ -328,10 +331,13 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 		} else {
 			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
-			text(x, ly, tprint("%", math.abs(line_number)), colors.foreground_color);
+			
+			line_number_str :: tprint("%", math.abs(line_number));
+			line_number_x := x + line_number_w - text_size(line_number_str, &font).width - item_spacing * 0.5f;
+			text(line_number_x, ly, line_number_str, colors.foreground_line_numbers_color);
 			code(tx, ly, line, line_colors, code_color_table);
 			line_base_y += line_height;
-			
+
 			line_number += 1;
 		}
 	}
