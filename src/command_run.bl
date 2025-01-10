@@ -6,7 +6,10 @@ run_command_mode_init :: fn () {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 
-	list_commands();
+	repeat_command_count = math.max(1, last_command_repeat_count);
+	last_command_repeat_count = 0;
+
+	list_commands(repeat_command_count > 1);
 }
 
 run_command_mode_terminate :: fn () {}
@@ -15,7 +18,9 @@ draw_run_command_mode :: fn () {
 	assert(active_editor == command_editor);
 	w, h :: get_command_editor_size();
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Run: ");
+	title := "Run: ";
+	if repeat_command_count > 1 then title = tprint("Run [%x]: ", repeat_command_count);
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, title);
 
 	using DrawListCols;
 	list_h, clicked :: draw_list(0.f, h, w, TITLE | HINT | PREVIEW);
@@ -58,6 +63,8 @@ run_command_cmd_changed :: fn () {
 
 #scope_private
 
+repeat_command_count := 0;
+
 commit :: fn () {
 	set_mode(Mode.TEXT_EDIT);
 
@@ -65,6 +72,8 @@ commit :: fn () {
 	if !item { return; }
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
-	invoke_command(target_editor, target_buf, auto item.index);
+	loop i := 0; i < repeat_command_count; i += 1 {
+		invoke_command(target_editor, target_buf, auto item.index);
+	}
 }
 
