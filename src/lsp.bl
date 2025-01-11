@@ -370,6 +370,7 @@ get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
 #scope_private
 
 get_clangd_executable :: fn () string_view {
+	if settings.clangd_executable.len > 0 then return settings.clangd_executable;
 	#if PLATFORM == Platform.WINDOWS {
 		return "clangd.exe";
 	}

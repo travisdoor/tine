@@ -41,6 +41,10 @@ font_size                              12
 # system PATH.
 #clang_format_executable                C:/Program Files/LLVM/bin/clang-format.exe
 
+# Customize path to clangd LSP server executable, otherwise editor tries to search the executable in
+# system PATH.
+#clangd_executable                      C:/Program Files/LLVM/bin/clangd.exe
+
 # Visual size of the tab character as if it was replaced by spaces. In case the
 # 'insert_spaces_instead_tabs' is false this value is used as a count of spaces for
 # indentation.

@@ -266,6 +266,7 @@ Settings :: struct {
 	font: string;
 
 	clang_format_executable: string;
+	clangd_executable:       string;
 
 	insert_spaces_instead_tabs:             bool;
 	trim_trailing_whitespace_on_save:       bool;

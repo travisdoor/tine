@@ -89,51 +89,62 @@ kill_process :: fn (pid: Pid, exit_code: s32) Error {
 	return OK;
 }
 
-peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
+PollEvent :: enum #flags {
+	READ;
+	CLOSED;
+	WAIT;
+}
+
+poll_pipe :: fn (stream: IoStream) (PollEvent, Error) {
 	available_bytes: u32 #noinit;
 	if PeekNamedPipe(stream, null, 0, null, &available_bytes, null) == 0 {
-		code, desc :: os_get_last_error();
-		if error_on_close == false && code == ERROR_BROKEN_PIPE { return OK, 0, true; }
-		return error(code, desc), 0, false;
+		err :: os_get_last_error2();
+		if err.code == ERROR_BROKEN_PIPE then return PollEvent.CLOSED, OK;
+		return PollEvent.CLOSED, err;
 	}
-	return OK, available_bytes, false;
+
+	if available_bytes > 0 then return PollEvent.READ, OK;
+	return PollEvent.WAIT, OK;
 }
 
-read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
-	str_reserve(dest, auto bytes_to_read);
+read_pipe :: fn (stream: IoStream, dest: *string) Error {
+	// @Incomplete 2025-01-11: This is a bit weird solution, but ReadFile would block in case
+	// there are no data to read. This does not map well with POSIX version with non-blocking
+	// pipes; we might come up with some better handling of this on windows.
+	//
+	// In general we use peek pipe to get available bytes for read and read just that data.
+	available_bytes: u32 #noinit;
+	if PeekNamedPipe(stream, null, 0, null, &available_bytes, null) == 0 then return os_get_last_error2();
+	assert(available_bytes > 0, "Read should be called only in case there is data available in the pipe!");
 
 	total_read : u32 = 0;
-	loop total_read < bytes_to_read {
+	loop total_read < available_bytes {
 		buf:  [2048]u8 #noinit;
-		read: DWORD;
-		state :: ReadFile(stream, buf.ptr, auto buf.len, &read, null);
-		if state == 0 {
-			code, desc :: os_get_last_error();
-			if error_on_close == false && code == ERROR_BROKEN_PIPE { return OK, true; }
-			return error(code, desc), false;
-		}
-		if read == 0 { break; }
-		str_append(dest, string_view.{ auto read, buf.ptr });
-		total_read += read;
+
+		n: DWORD;
+		if ReadFile(stream, buf.ptr, auto buf.len, &n, null) == 0 then return os_get_last_error2();
+		str_append(dest, string_view.{ auto n, buf.ptr });
+		total_read += n;
 	}
 
-	return OK, false;
+	assert(total_read == available_bytes, "Not all data read from the pipe!");
+	// print_log("Read: %", @dest);
+	return OK;
 }
 
-write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
-	tmp := msg;
-	loop tmp.len > 0 {
-		written: DWORD;
-		state :: WriteFile(stream, tmp.ptr, auto tmp.len, &written, null);
-		if state == 0 {
-			code, desc :: os_get_last_error();
-			if error_on_close == false && code == ERROR_BROKEN_PIPE { return OK, true; }
-			return error(code, desc), false;
-		}
-		tmp.ptr = &tmp[auto written];
-		tmp.len -= cast(s32) written;
+write_pipe :: fn (stream: IoStream, msg: string_view) Error {
+	total_written : u32 = 0;
+	msg_len :: cast(u32) msg.len;
+	loop total_written < msg_len {
+		write_size :: math.min(msg_len - total_written, 4096);
+
+		n: DWORD;
+		if WriteFile(stream, auto &msg[auto total_written], write_size, &n, null) == 0 then return os_get_last_error2();
+		total_written += n;
 	}
-	return OK, false;
+	assert(msg_len == total_written);
+	// print_log("Write: %", msg);
+	return OK;
 }
 
 close_stream :: fn (handle: IoStream) {
@@ -186,6 +197,8 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 	return OK, result;
 }
 
+// @Note 2025-01-11: We use native windows implementation which does not require any
+// initialization now.
 init_clipboard :: fn () {}
 terminate_clipboard :: fn () {}
 
@@ -225,14 +238,16 @@ write_clipboard :: fn (text: string_view) {
 		return;
 	}
 	defer GlobalUnlock(dest_mem);
-	if MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, dest_text, auto utf16len) == 0 {
+
+if MultiByteToWideChar(CP_UTF8, 0, auto text.ptr, auto text.len, dest_text, auto utf16len) == 0 {
 		assert(false);
 		return;
 	}
 	last_char :: cast(*u16)ptr_shift_bytes(auto dest_text, auto utf16len * sizeof(u16));
 	@last_char = 0;
 
-	if OpenClipboard(null) == 0 {
+
+if OpenClipboard(null) == 0 {
 		assert(false);
 		return;
 	}
