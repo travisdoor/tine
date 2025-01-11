@@ -1906,7 +1906,7 @@ print_glfw_error :: fn () {
 	print_err("GLFW Error: %", tmp);
 }
 
-key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
+key_callback :: fn (window: *glfw.Window #maybe_unused, k: s32, _: s32, action: s32, mods: s32) {
 	using glfw;
 
 	redraw();
