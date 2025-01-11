@@ -573,6 +573,8 @@ main :: fn () s32 {
 	defer mutex_terminate(&message.mutex);
 	defer str_delete(&message.text);
 
+	init_clipboard();
+	defer terminate_clipboard();
 
 	// Recent location
 	recent_locations.index = -1;

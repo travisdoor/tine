@@ -369,6 +369,13 @@ get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
 
 #scope_private
 
+get_clangd_executable :: fn () string_view {
+	#if PLATFORM == Platform.WINDOWS {
+		return "clangd.exe";
+	}
+	return "clangd";
+}
+
 PendingResponse :: struct {
 	kind:  LspRequestKind;
 	flags: LspRequestFlags;
@@ -415,7 +422,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		"--header-insertion=never",
 		"--function-arg-placeholders"
 	};
-	executable :: "clangd.exe"; // @Incomplete 2024-09-18: This should work also on linux. + We want to specify the executable and args from the config!
+	executable :: get_clangd_executable();
 	err :: start_process(ctx, executable, args);
 	if err {
 		if err.code == ERR_NOT_FOUND {
@@ -577,17 +584,19 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 }
 
 process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Error {
-	err_peek, bytes :: peek_pipe(ctx.stdout, true);
-	if err_peek {
-		return err_peek;
+	using PollEvent;
+	state, err :: poll_pipe(ctx.stdout);
+	if err then return err;
+
+	if is_flag(state, CLOSED) {
+		return error("Pipe closed.");
 	}
-	if bytes == 0 { return OK; }
+	if is_flag(state, WAIT) then return OK;
+	assert(is_flag(state, READ));
 
 	local.temp_string.len = 0;
-	err_read :: read_pipe(ctx.stdout, &local.temp_string, bytes, true);
-	if err_read {
-		return err_read;
-	}
+	err_read :: read_pipe(ctx.stdout, &local.temp_string);
+	if err_read then return err_read;
 
 	Tokenizer :: TokenizerBase;
 	tok := Tokenizer.{ bytes = local.temp_string };
@@ -606,18 +615,21 @@ process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Er
 
 			loop (tok.bytes.len - tok.index < json_size) {
 				// Wait for more data from the pipe!!!
-				err_peek, bytes :: peek_pipe(ctx.stdout, true);
-				if err_peek {
-					return err_peek;
+				state, err :: poll_pipe(ctx.stdout);
+				if err then return err;
+
+				if is_flag(state, CLOSED) {
+					return error("Pipe closed.");
 				}
-				if bytes > 0 {
-					err_read :: read_pipe(ctx.stdout, &local.temp_string, bytes, true);
-					if err_read {
-						return err_read;
-					}
-					tok.bytes = local.temp_string;
+				if is_flag(state, WAIT) {
+					os_sleep_ms(10);
+					continue;
 				}
-				os_sleep_ms(10);
+				assert(is_flag(state, READ));
+
+				err_read :: read_pipe(ctx.stdout, &local.temp_string);
+				if err_read then return err_read;
+				tok.bytes = local.temp_string;
 			}
 
 			content :: string_view.{ json_size, &tok.bytes[tok.index] };
@@ -665,9 +677,9 @@ write_request :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
 		str_append(json, "}");
 	}
 
-	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len), true);
-	if err1 { return err1; }
-	err2 :: write_pipe(ctx.stdin, @json, true);
+	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len));
+	if err1 then return err1;
+	err2 :: write_pipe(ctx.stdin, @json);
 	return err2;
 }
 
@@ -682,9 +694,9 @@ write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Erro
 		serialize_object(data, json);
 		str_append(json, "}");
 	}
-	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len), true);
+	err1 :: write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len));
 	if err1 { return err1; }
-	err2 :: write_pipe(ctx.stdin, @json, true);
+	err2 :: write_pipe(ctx.stdin, @json);
 	return err2;
 }
 

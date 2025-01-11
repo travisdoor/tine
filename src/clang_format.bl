@@ -2,6 +2,7 @@ request_format :: fn (buf: *Buffer) Error {
 	if buf.file_type != FileType.C {
 		return error("Buffer '%' is not recognized as C/C++ source file.", buf.name);
 	}
+	if buf.bytes.len == 0 then return OK;
 
 	// set buffer temporarily as readonly
 	buf.flags |= BufferFlags.READONLY;
@@ -38,7 +39,7 @@ apply_format :: fn (job_state: JobContext.state, request: *Request) {
 
 #scope_private
 
-get_clang_format_executable :: fn () string_view #comptime {
+get_clang_format_executable :: fn () string_view {
 	if settings.clang_format_executable.len > 0 then return settings.clang_format_executable;
 	#if PLATFORM == Platform.WINDOWS {
 		return "clang-format.exe";
@@ -72,45 +73,42 @@ worker :: fn (ctx: *JobContext) s32 {
 		return 0;
 	}
 
-	err_write, write_closed :: write_pipe(ctx.stdin, request_data.src);
+	err_write :: write_pipe(ctx.stdin, request_data.src);
 	if err_write {
 		print_err("The '%' failed with error: %", executable, err_write);
 		ctx.state = FAILED;
-		return 0;
-	}
-	if write_closed {
-		ctx.state = DONE;
+		kill_process(ctx.pid, 0);
 		return 0;
 	}
 
 	// Submit the source to the clang-format.
 	close_stream(ctx.stdin);
-	request_data.src.len = 0; // Just for debugging.
+	request_data.src.len = 0;
 
 	loop !ctx.kill {
-		err_peek, bytes, peek_closed :: peek_pipe(ctx.stdout);
-		if err_peek {
-			print_err("The '%' failed with error: %", executable, err_peek);
+		state, err :: poll_pipe(ctx.stdout);
+		if err {
+			print_err("The '%' failed with error: %", executable, err);
 			ctx.state = FAILED;
-
+			kill_process(ctx.pid, 0);
 			return 0;
 		}
-		if peek_closed {
+
+		using PollEvent;
+		if is_flag(state, READ) {
+			err_read :: read_pipe(ctx.stdout, &request_data.src);
+			if err_read {
+				print_err("The '%' failed with error: %", executable, err_read);
+				ctx.state = FAILED;
+				kill_process(ctx.pid, 0);
+				return 0;
+			}
+		}
+		if is_flag(state, CLOSED) {
+			print_log("Closed");
 			ctx.state = DONE;
 			return 0;
 		}
-
-		err_read, read_closed :: read_pipe(ctx.stdout, &request_data.src, bytes);
-		if err_read {
-			print_err("The '%' failed with error: %", executable, err_read);
-			ctx.state = FAILED;
-			return 0;
-		}
-		if read_closed {
-			ctx.state = DONE;
-			return 0;
-		}
-
 		os_sleep_ms(10);
 	}
 
