@@ -3,11 +3,19 @@ last_command_repeat_count: s32;
 repeat_mode_init :: fn () {
 	// Activate command buffer.
 	active_editor = command_editor;
-	buf, editor :: get_active_buffer_and_editor();
+	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
 	input_mode               = InputMode.NUMBERS;
 	notify_changes_to_buffer = buf.index;
+	
+	if settings.show_hints {
+		run_command_binding :: get_keybinding_for_command(Command.RUN_COMMAND);
+		cancel_binding :: get_keybinding_for_command(Command.CANCEL_MODE);
+		
+		hint :: tprint("[%] list commands\t[%] cancel\tOr execute any command using shortcut.", run_command_binding, cancel_binding);
+		print_info(hint);
+	}
 }
 
 draw_repeat_mode :: fn () {
@@ -15,6 +23,7 @@ draw_repeat_mode :: fn () {
 
 	w, h :: get_command_editor_size();
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Repeat Next Command: ");
+	draw_last_status_message(0.f, h, w);
 }
 
 //
@@ -45,7 +54,12 @@ invoke_command_repeat_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
 			set_mode(Mode.TEXT_EDIT);
 			if is_command_valid_for_repeating(cmd) {
 				target_buf, target_editor :: get_active_buffer_and_editor();
+				start_time := glfw.GetTime();
 				loop i := 0; i < num; i += 1 {
+					if glfw.GetTime() - start_time > 5. {
+						print_warn("Execution took too long, stopping now.");
+						break;
+					}
 					invoke_command(target_editor, target_buf, cmd);
 				}
 			} else {
@@ -56,18 +70,3 @@ invoke_command_repeat_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 	return true;
 }
-
-#scope_private
-
-commit :: fn (buf: *Buffer) {
-	line_str :: peek_row(buf, 0);
-	line, err := strtos64(line_str);
-	if err { return; }
-
-	set_mode(Mode.TEXT_EDIT);
-
-	// Note we changed mode back to previous text editor, we need to apply jump to it!
-	// target_buf, target_editor :: get_active_buffer_and_editor();
-	// repeat_line(target_editor, target_buf, line-1);
-}
-

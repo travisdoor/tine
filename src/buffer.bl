@@ -358,9 +358,9 @@ has_selection :: fn (buf: *Buffer, cursor_index: s32) bool #inline {
 	return end > start;
 }
 
-count_characters_in_selection :: fn (buf: *Buffer, cursor_index: s32) s64 #inline {
+count_characters_and_rows_in_selection :: fn (buf: *Buffer, cursor_index: s32) (chars: s64, lines: s32) #inline {
 	selected :: peek_selection(buf, cursor_index);
-	return count_characters(buf, selected);
+	return count_characters_and_rows(buf, selected);
 }
 
 commit_undo :: fn (buf: *Buffer) {
@@ -1055,20 +1055,22 @@ adjust_all_cursors_from_position :: fn (buf: *Buffer, position: s64, offset: s64
 }
 
 // Count unicode characters in the string. (the new line is always counted as a one character).
-count_characters :: fn (buf: *Buffer, str: string_view) s64 {
-	count: s64;
+count_characters_and_rows :: fn (buf: *Buffer, str: string_view) (characters: s64, rows: s32) {
+	chars: s64;
+	lines: s32;
 	loop i := 0; i < str.len; {
 		nll :: is_line_end(buf, &str[i]);
 		l: s32 #noinit;
 		if nll > 0 {
 			l = nll;
+			lines += 1;
 		} else {
 			l = get_character_len(str[i]);
 		}
 		i += math.max(1, l); // To prevent looping!
-		count += 1;
+		chars += 1;
 	}
-	return count;
+	return chars, lines;
 }
 
 is_line_end_ptr :: fn (buf: *Buffer, start: *u8) s32 #inline {

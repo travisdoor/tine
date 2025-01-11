@@ -16,7 +16,9 @@ list_functions_mode_init :: fn () {
 		next_binding   :: get_keybinding_for_command(Command.MOVE_DOWN);
 		prev_binding   :: get_keybinding_for_command(Command.MOVE_UP);
 		commit_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
-		hint :: tprint("[%] next function\t[%] prev function\t[%] jump to the function", next_binding, prev_binding, commit_binding);
+		cancel_binding :: get_keybinding_for_command(Command.CANCEL_MODE);
+
+		hint :: tprint("[%] next function\t[%] prev function\t[%] jump to the function\t[%] cancel", next_binding, prev_binding, commit_binding, cancel_binding);
 		print_info(hint);
 	}
 }

@@ -83,6 +83,10 @@ show_hints                             true
 # Enable smooth animated navigation.
 smooth_movement                        true
 
+# Line numbers
+show_line_numbers                      false
+line_numbers_relative                  false
+
 ;keys
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:
@@ -216,9 +220,14 @@ replay-macro           F11
 increase-number Alt+PageUp
 decrease-number Alt+PageDown
 
+# Repeat command mode is acitivated directly in case following modifier key is pressed in
+# combination with number.
+repeat Ctrl
+
 ;colors
 # Color code is expected to be RRGGBB hex number.
-# Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block.
+# Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block, this
+# way you can easily change editor colors.
 
 # dark colors
 background_color                    0C1924
@@ -244,6 +253,8 @@ error_color                         E92204
 inline_error_background_color       400809
 inline_warning_background_color     4F4F2D
 macro_record_icon_color             E92204
+background_line_numbers_color       09121A
+foreground_line_numbers_color       606060
 
 code_comment                        00FF80
 code_keyword                        FFF200
@@ -279,6 +290,8 @@ code_function                       FFFFFF
 # inline_error_background_color       400809
 # inline_warning_background_color     4F4F2D
 # macro_record_icon_color             E92204
+# background_line_numbers_color       545454
+# foreground_line_numbers_color       202020
 
 # code_comment                        7F9F7F
 # code_keyword                        F0DFAF
@@ -314,6 +327,8 @@ code_function                       FFFFFF
 # inline_error_background_color       400809
 # inline_warning_background_color     4F4F2D
 # macro_record_icon_color             E92204
+# background_line_numbers_color       292621
+# foreground_line_numbers_color       786349
 
 # code_comment                        7F7F7F
 # code_keyword                        B8860B
@@ -349,6 +364,8 @@ code_function                       FFFFFF
 # inline_error_background_color       EDCFD0
 # inline_warning_background_color     FFF8C8
 # macro_record_icon_color             ED1C24
+# background_line_numbers_color       DDE8F2
+# foreground_line_numbers_color       505050
 
 # code_comment                        008000
 # code_keyword                        0000FF

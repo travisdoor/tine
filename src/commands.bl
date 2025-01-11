@@ -253,8 +253,8 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	using Command;
 	defer set_prev_executed_command(cmd);
 
-	if prev_executed_command != cmd { commit_undo(buf); }
-	print_log("Executed command: %", cmd);
+	if prev_executed_command != cmd then commit_undo(buf);
+	// print_log("Executed command: %", cmd);
 
 	handled := false;
 
@@ -596,6 +596,7 @@ is_command_valid_for_repeating :: fn (cmd: Command) bool {
 		DECREASE_NUMBER,
 		REDO,
 		UNDO,
+		REPLAY_MACRO,
 		DATE { return true; }
 		default;
 	}

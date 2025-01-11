@@ -126,8 +126,16 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	text_padding     :: metrics[auto TEXT_PADDING];
 	item_spacing     :: metrics[auto ITEM_SPACING ];
 
-	line_number_w := text_size(tprint("%", get_row_count(buf)), &font);
-	line_number_w += item_spacing;
+	show_line_numbers := settings.show_line_numbers
+	&& buf.index != messages_buffer_index
+	&& buf.index != help_buffer_index
+	&& buf.index != build.buffer_index;
+
+	line_number_w: f32;
+	if show_line_numbers {
+		line_number_w = text_size(tprint("%", get_row_count(buf)), &font).width;
+		line_number_w += item_spacing;
+	}
 
 	content_x :: x + line_number_w;
 	content_w :: w - line_number_w;
@@ -135,15 +143,14 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	set_scissor(x, y, w, h);
 	defer clear_scissor();
 
-
 	rebuild_coloring_and_indentation_info(buf);
 	is_active    :: active_editor == editor.index;
 
-	line_w :: w-text_padding*2.f;
+	line_w :: content_w - text_padding*2.f;
 
 	// Draw background
 	set_shader_color();
-	rect(x, y, line_number_w, h, colors.background_line_numbers_color);
+	// rect(x, y, line_number_w, h, colors.background_line_numbers_color);
 	rect(content_x, y, content_w, h, colors.background_color);
 
 	sliding :: &editor.sliding;
@@ -205,10 +212,9 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	tx = math.round(tx);
 
 	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
-	if is_active {
-		// current line highlight
-		rect(x, current_line_y, w, line_height, colors.current_line_background_color);
-	}
+
+	// current line highlight
+	rect(x, current_line_y, w, line_height, colors.current_line_background_color);
 
 	inline_compilation_error :: get_current_compilation_error();
 	has_inline_errors :: settings.show_lsp_inline_diagnostics || inline_compilation_error;
@@ -299,7 +305,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	set_shader_font(&font);
 	line_base_y := math.round(ty);
-	line_number := first_line_index - cursor.row;
 	loop i := first_line_index; i < last_line_index; i += 1 {
 		line, row_start_index :: peek_row(buf, i);
 		if line.len == 0 { break; }
@@ -331,17 +336,32 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 		} else {
 			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
-			
-			line_number_str :: tprint("%", math.abs(line_number));
-			line_number_x := x + line_number_w - text_size(line_number_str, &font).width - item_spacing * 0.5f;
-			text(line_number_x, ly, line_number_str, colors.foreground_line_numbers_color);
 			code(tx, ly, line, line_colors, code_color_table);
 			line_base_y += line_height;
-
-			line_number += 1;
 		}
 	}
 
+	// Line numbers
+	if show_line_numbers {
+		set_shader_color();
+		rect(x, y, line_number_w, h, colors.background_line_numbers_color);
+
+		set_shader_font(&font);
+		line_base_y = math.round(ty);
+		line_number := if settings.line_numbers_relative then first_line_index - cursor.row else first_line_index + 1;
+		loop i := first_line_index; i < last_line_index; i += 1 {
+			line :: peek_row(buf, i);
+			if line.len == 0 then break;
+
+			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
+			line_number_str :: tprint("%", math.abs(line_number));
+			line_number_x := x + line_number_w - text_size(line_number_str, &font).width - item_spacing * 0.5f;
+			text(line_number_x, ly, line_number_str, colors.foreground_line_numbers_color);
+
+			line_number += 1;
+			line_base_y += line_height;
+		}
+	}
 
 	// shadow
 	set_shader_color();
@@ -410,11 +430,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	title := str_new(256, application_context.temporary_allocator);
 
-	str_concat(&title, "ln: ", cursor.row+1, " cl: ", cursor.col+1);
+	str_concat(&title, "Ln: ", cursor.row+1, "    Col: ", cursor.col+1);
 
-	selected_chars :: count_characters_in_selection(buf, editor.cursor_index);
+	selected_chars, selected_rows :: count_characters_and_rows_in_selection(buf, editor.cursor_index);
 	if selected_chars > 0 {
-		str_concat(&title, " [", selected_chars, "]    ");
+		str_concat(&title, "    Lns: ", selected_rows + 1, "    Chars: ", selected_chars, "    ");
 	} else {
 		str_concat(&title, "    ");
 	}

@@ -1,5 +1,3 @@
-KEY_NUMBERS :: -2;
-
 key_name :: fn (code: s32) string_view {
 	if code >= cast(s32) '!' && code <= cast(s32) '~' && code != cast(s32) ';' {
 		c :: C.toupper(auto code);
@@ -82,7 +80,6 @@ KEYCODE_TO_NAME :: [_]KeyName.{
 	.{ glfw.KEY_NUM_LOCK     ,"NumLock"     },
 	.{ glfw.KEY_PRINT_SCREEN ,"PrintScreen" },
 	.{ glfw.KEY_PAUSE        ,"Pause"       },
-	.{ KEY_NUMBERS           ,"Numbers"     },
 	.{ glfw.KEY_F1           ,"F1"          },
 	.{ glfw.KEY_F2           ,"F2"          },
 	.{ glfw.KEY_F3           ,"F3"          },

@@ -34,6 +34,7 @@
 - Simple UI.
 - Simple integration of RemedyBG and RAD Debugger.
 - Macro system.
+- Relative line nubers.
 
 # Philosophy of Tine
 
@@ -164,6 +165,14 @@ Search text recursively in all files included in the projec as you type.
 
 Use `Ctrl+Enter` to show search results in split buffer.
 
+### Repeat
+Command: `repeat`
+Shortcut: `Ctrl+Number`
+
+Repeat mode can be used to repeat any following command N times. Number of invocations can be specified
+right after pressing Ctrl; you can use Ctrl+X to show list of all command which can be repeated or directly
+invoke such command using shortcut.
+
 ## Build
 Command: `build`
 Shortcut: `F4`
@@ -191,6 +200,13 @@ system `PATH`. The formatting configuration is supposed to be in project root di
 
 Tine has simple RemedyBG integration where you can open current file location in the RemedyBG debugger and
 set breakpoints. The `remedybg` executable must be available in your system `PATH`.
+
+# Macros
+
+Tine provides simple way to record and repeat command sequence, use Alt+R (toggle-macro-recording) to start
+or stop recording mode. Recorded command sequence can be replayed by pressing F11 (replay-macro). In
+combination with repeat mode, this reature provides powerful way to do more complex repetitive text
+modifications.
 
 # Developer
 

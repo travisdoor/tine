@@ -30,7 +30,9 @@ search_in_project_mode_init :: fn () {
 		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
 		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
 		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
-		hint :: tprint("[%] next match\t[%] prev match\t[%] show results in buffer", next_binding, prev_binding, result_to_buffer_binding);
+		cancel_binding           :: get_keybinding_for_command(Command.CANCEL_MODE);
+
+		hint :: tprint("[%] next match\t[%] prev match\t[%] show results in buffer\t[%] cancel", next_binding, prev_binding, result_to_buffer_binding, cancel_binding);
 		print_info(hint);
 	}
 }

@@ -281,6 +281,8 @@ Settings :: struct {
 	save_all_before_build:                  bool;
 	show_hints:                             bool;
 	smooth_movement:                        bool;
+	show_line_numbers:                      bool;
+	line_numbers_relative:                  bool;
 };
 
 settings: Settings;
@@ -480,7 +482,14 @@ replay_macro :: fn () {
 	if macros.is_recording then stop_macro_recording();
 	char_index := 0;
 	macros.is_replaying = true;
+
+	start_time := glfw.GetTime();
 	loop i := 0; i < macros.queue.len; i += 1 {
+		if glfw.GetTime() - start_time > 5. {
+			print_warn("Execution took too long, stopping now.");
+			break;
+		}
+
 		cmd :: macros.queue[i];
 		if cmd == Command.UNKNOWN {
 			character_callback(null, macros.text[char_index]);
@@ -1073,7 +1082,10 @@ last_message :: fn () (exists: bool, kind: PrintLogKind, text: string_view) {
 	return true, message.kind, text_dup;
 }
 
+keep_last_message := false;
+
 clear_message :: fn () {
+	if keep_last_message then return;
 	mutex_lock(&message.mutex);
 	defer mutex_unlock(&message.mutex);
 	message.text.len = 0;
@@ -1918,10 +1930,14 @@ key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32
 
 	if action == PRESS || action == REPEAT {
 		redirect_to_character_input := false;
+		ignore_char_input = ((mods & MOD_CONTROL) == MOD_CONTROL) || ((mods & MOD_ALT) == MOD_ALT);
+
 		loop i := 0; i < key_binding.len; i += 1 {
 			m :: &key_binding[i];
 			if m.mods != mods then continue;
-			if key >= KEY_0 && key <= KEY_9 && m.key == KEY_NUMBERS {
+			// Special case for repeat command which is invoked directly when modifier key + number is pressed.
+			// This way we can repeat commands more ergonomically without too much keystrokes.
+			if key >= KEY_0 && key <= KEY_9 && m.cmd == Command.REPEAT {
 				redirect_to_character_input = true;
 				if mode == Mode.REPEAT then break;
 			} else if m.key != key {
@@ -1940,10 +1956,10 @@ key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32
 			ignore_char_input = false;
 
 			#if PLATFORM == Platform.WINDOWS {
+				keep_last_message = true;
 				character_callback(window, auto k);
+				keep_last_message = false;
 			}
-		} else {
-			ignore_char_input = ((mods & MOD_CONTROL) == MOD_CONTROL) || ((mods & MOD_ALT) == MOD_ALT);
 		}
 	}
 }

@@ -158,21 +158,21 @@ const char *confreads(struct config *conf, const char *path, const char *default
 	return conf->data[index].value;
 }
 
-foo[0] = VK_ATTACHMENT_UNUSED              (~0U)
-foo[1] = VK_FALSE                          0U
-foo[2] = VK_LOD_CLAMP_NONE                 1000.0F
-foo[3] = VK_QUEUE_FAMILY_IGNORED           (~0U)
-foo[4] = VK_REMAINING_ARRAY_LAYERS         (~0U)
-foo[5] = VK_REMAINING_MIP_LEVELS           (~0U)
-foo[6] = VK_SUBPASS_EXTERNAL               (~0U)
-foo[7] = VK_TRUE                           1U
-foo[8] = VK_WHOLE_SIZE                     (~0ULL)
-foo[9] = VK_MAX_MEMORY_TYPES               32U
-foo[10] = VK_MAX_PHYSICAL_DEVICE_NAME_SIZE  256U
-foo[11] = VK_UUID_SIZE                      16U
-foo[12] = VK_MAX_EXTENSION_NAME_SIZE        256U
-foo[13] = VK_MAX_DESCRIPTION_SIZE           256U
-foo[14] = VK_MAX_MEMORY_HEAPS               16U
+#define VK_ATTACHMENT_UNUSED              (~0U)
+#define VK_FALSE                          0U
+#define VK_LOD_CLAMP_NONE                 1000.0F
+#define VK_QUEUE_FAMILY_IGNORED           (~0U)
+#define VK_REMAINING_ARRAY_LAYERS         (~0U)
+#define VK_REMAINING_MIP_LEVELS           (~0U)
+#define VK_SUBPASS_EXTERNAL               (~0U)
+#define VK_TRUE                           1U
+#define VK_WHOLE_SIZE                     (~0ULL)
+#define VK_MAX_MEMORY_TYPES               32U
+#define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE  256U
+#define VK_UUID_SIZE                      16U
+#define VK_MAX_EXTENSION_NAME_SIZE        256U
+#define VK_MAX_DESCRIPTION_SIZE           256U
+#define VK_MAX_MEMORY_HEAPS               16U
 
 typedef enum VkResult {
 	VK_SUCCESS = 0,

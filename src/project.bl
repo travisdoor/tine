@@ -492,7 +492,7 @@ parse_keymap_entry :: fn (ctx: *Tokenizer) Error {
 
 	unmap_binding_for_command(auto command_id);
 
-	key_code := -1;
+	key_code := glfw.KEY_UNKNOWN;
 	mods     :=  0;
 
 	loop {
@@ -533,7 +533,7 @@ parse_keymap_entry :: fn (ctx: *Tokenizer) Error {
 		break;
 	}
 
-	if key_code != -1 {
+	if key_code != glfw.KEY_UNKNOWN || mods != 0 {
 		map_key_binding(ctx, auto command_id, key_code, mods);
 	} else if mods != 0 {
 		return report(ctx, "Invalid key binding.");

@@ -72,7 +72,12 @@ commit :: fn () {
 	if !item { return; }
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
+	start_time := glfw.GetTime();
 	loop i := 0; i < repeat_command_count; i += 1 {
+		if glfw.GetTime() - start_time > 5. {
+			print_warn("Execution took too long, stopping now.");
+			break;
+		}
 		invoke_command(target_editor, target_buf, auto item.index);
 	}
 }

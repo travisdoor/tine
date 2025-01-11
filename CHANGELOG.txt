@@ -1,7 +1,13 @@
 MASTER
 ---------------------------------------------------------------------------------------
-Close build buffer using ESC.
 Add RAD Debugger support.
+Add few more hints.
+Add line numbers.
+Add macro recording and replay.
+Add relative line numbers.
+Add repeat command mode.
+Close build buffer using ESC.
+Improve search.
 
 0.8 2024-12-09
 ---------------------------------------------------------------------------------------

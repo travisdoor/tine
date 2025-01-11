@@ -622,9 +622,17 @@ is_multiline :: fn (str: string_view, first_line: *string_view = null) bool #inl
 }
 
 get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") string_view #inline {
-	keymap_index :: lookup_command_keymap_index(cmd);
-	if keymap_index == -1 { return missing; }
-	return keymap_entry_to_string(keymap_index);
+	tmp :: str_new(application_context.temporary_allocator);
+	loop keymap_index := 0;; keymap_index += 1 {
+		keymap_index = lookup_command_keymap_index(cmd, keymap_index);
+		if keymap_index == -1 then break;
+
+		if tmp.len > 0 then str_append(&tmp, " | ");
+		str_append(&tmp, keymap_entry_to_string(keymap_index));
+	}
+	
+	if tmp.len == 0 then return missing;
+	return tmp;
 }
 
 unify_line_endings :: fn (data: []u8, line_ending:  LineEnding) string_view {
