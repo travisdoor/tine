@@ -315,7 +315,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 
 			// Does nothing in case we're already in default mode (TEXT_EDIT).
 			CANCEL_MODE {
-				// mode_changed :: set_default_mode();
+				set_default_mode();
 				clear_selection(buf, editor.cursor_index);
 				// if !mode_changed && build.buffer_index != -1 {
 				// 	buffer_index :: build.buffer_index;
