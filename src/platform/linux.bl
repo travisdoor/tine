@@ -41,14 +41,14 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		args_mem :: alloc(sizeof(*char) * auto argc);
 		defer free(args_mem);
 		cargs := []*char.{ ptr = auto args_mem, len = argc };
-		_, exec_name :: std.path_split(cmd);
-		cargs[0] = std.strtoc(exec_name);
+		_, exec_name :: path_split(cmd);
+		cargs[0] = strtoc(exec_name);
 		cargs[cargs.len-1] = null;
 		loop i := 1; i < cargs.len-1; i += 1 {
-			cargs[i] = std.strtoc(args[i-1]);
+			cargs[i] = strtoc(args[i-1]);
 		}
 		// Return execution status???
-		if execv(std.strtoc(cmd), cargs.ptr) == -1 then error_and_exit();
+		if execv(strtoc(cmd), cargs.ptr) == -1 then error_and_exit();
 		exit(0);
 	} else {
 		// parent
@@ -77,57 +77,63 @@ kill_process :: fn (pid: Pid, exit_code: s32) Error {
 	return OK;
 }
 
-peek_pipe :: fn (stream: IoStream, error_on_close := false) (err: Error, available_bytes: u32, is_closed: bool) {
-	using C;
-
-	bytes_available: int;
-	if ioctl(stream, FIONREAD, auto &bytes_available) == -1 {
-		return error("Cannot peek pipe!"), 0, true;
-	}
-
-	if bytes_available > 0 then return OK, auto bytes_available, false;
-
-	pfd :: pollfd.{
-		fd = stream,
-		events = POLLHUP,
-	};
-	if poll(&pfd, 1, 1) == -1 then return os_get_last_error2(), 0, false;
-	if (pfd.revents & POLLHUP) > 0 {
-		if error_on_close then return error("Pipe closed!"), 0, true;
-		return OK, 0, true;
-	}
-
-	return OK, auto bytes_available, false;
+PollEvent :: enum #flags {
+	READ;
+	CLOSED;
+	WAIT;
 }
 
-read_pipe :: fn (stream: IoStream, dest: *string, bytes_to_read: u32, error_on_close := false) (err: Error, is_closed: bool) {
+poll_pipe :: fn (stream: IoStream) (PollEvent, Error) {
 	using C;
+	pfd := pollfd.{
+		fd = stream,
+		events = POLLIN,
+	};
 
-	std.str_reserve(dest, auto bytes_to_read);
+	poll_result :: poll(&pfd, 1, 1);
+	if poll_result > 0 {
+		result := PollEvent.WAIT;
 
-	total_read : u32 = 0;
-	loop total_read < bytes_to_read {
+		if (pfd.revents & POLLIN) != 0 {
+			result = PollEvent.READ;
+		}
+		if (pfd.revents & POLLHUP) != 0 {
+			result |= PollEvent.CLOSED;
+		}
+		return result, OK;
+	} else if poll_result == 0 {
+		return PollEvent.WAIT, OK;
+	}
+	return PollEvent.CLOSED, os_get_last_error2();
+}
+
+read_pipe :: fn (stream: IoStream, dest: *string) Error {
+	using C;
+	loop {
 		buf:  [2048]u8 #noinit;
 		n :: read(stream, auto buf.ptr, auto buf.len);
-		if n == -1 then return os_get_last_error2(), true;
-		if n == 0 {
-			if !error_on_close then return OK, true;
-			return error("Pipe closed!"), false;
+		if n == -1 {
+			err :: os_get_last_error2();
+			if err.code == EAGAIN then return OK;
+			return err;
 		}
-
-		std.str_append(dest, string_view.{ auto n, buf.ptr });
-		total_read += auto n;
+		if n ==  0 then break;
+		str_append(dest, string_view.{ auto n, buf.ptr });
 	}
-
-	return OK, false;
+	return OK;
 }
 
-write_pipe :: fn (stream: IoStream, msg: string_view, error_on_close := false) (err: Error, is_closed: bool) {
-	stream;
-	msg;
-	error_on_close;
-	print_warn("Not implemented!");
-	return OK, true;
+write_pipe :: fn (stream: IoStream, msg: string_view) Error {
+	using C;
+	total_written : s64 = 0;
+	loop total_written < msg.len {
+		write_size :: math.min(msg.len - total_written, 4096);
+		n :: write(stream, auto &msg[total_written], auto write_size);
+		if n == -1 then return os_get_last_error2();
+		total_written += n;
+	}
+	assert(msg.len == total_written);
+	return OK;
 }
 
 close_stream :: fn (handle: IoStream) {
@@ -139,26 +145,69 @@ close_stream :: fn (handle: IoStream) {
 //
 
 get_current_date_as_YYYY_MM_DD :: fn () string_view {
-	return "Not implemented";
+	time :: C.time(null);
+	tm :: C.localtime(&time);
+	buf: [11]C.char;
+	C.strftime(buf.ptr, auto buf.len, strtoc("%Y-%m-%d"), tm);
+	return tprint("%", ctostr(buf.ptr));
 }
 
 get_fonts_directory :: fn () string {
-	return std.str_new("/usr/share/fonts");
+	return str_new("/usr/share/fonts");
 }
 
-new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: string) {
-	filepath;
-	return OK, std.str_new();
+// Note 2025-01-11: We might reuse the same function on mac and windows.
+new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
+	// @Incomplete 2025-01-11: Are there any possible fail cases to handle?
+
+	result :: str_new(filepath.len);
+	str_append(&result, "file://");
+	loop i := 0; i < filepath.len; i += 1 {
+		c :: filepath[i];
+		if is_alpha(c) || is_digit(c) || c == '_' || c == '-' || c == '.' || c == '~' || c == '/' {
+			str_append(&result, string_view.{ 1, &c });
+		} else {
+			str_append(&result, tprint("%%", "%", fmt_int(c, FmtIntBase.HEX, false, 2, true)));
+		}
+	}
+	return OK, result;
 }
 
+// Note 2025-01-11: We might reuse the same function on mac and windows.
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	url;
-	print_warn("Not implemented!");
-	return OK, std.str_new();
+	result :: str_new();
+	if !str_match(url, "file://", 7) then return error("Proveded URL does not refer file."), result;
+	if url.len == 7 then return error("No file path specified in URL."), result;
+
+	filepath :: slice_range(url, 7);
+	loop i := 0; i < filepath.len; {
+		c := filepath[i];
+		if is_alpha(c) || is_digit(c) || c == '_' || c == '-' || c == '.' || c == '~' || c == '/' {
+			str_append(&result, string_view.{ 1, &c });
+		} else if c == '%' && i + 2 < filepath.len {
+			digits :: string_view.{ 2, &filepath[i+1] };
+			n, err :: strtos64(digits, FmtIntBase.HEX);
+			if err then return err, result;
+			c = auto n;
+			str_append(&result, string_view.{ 1, &c });
+			i += 3;
+			continue;
+		} else {
+			return error("Invalid URL."), result;
+		}
+		i += 1;
+	}
+
+	return OK, result;
 }
 
-init_clipboard :: fn () {}
-terminate_clipboard :: fn () {}
+init_clipboard :: fn () {
+	clipboard.init();
+}
+
+terminate_clipboard :: fn () {
+	clipboard.terminate();
+}
 
 read_clipboard :: fn () string_view {
 	return clipboard.get();
@@ -175,6 +224,7 @@ write_clipboard :: fn (text: string_view) {
 Watcher :: struct { _: u8; }
 
 watch_init :: fn () {
+	// Use inotify here.
 }
 
 watch_terminate :: fn () {
@@ -204,9 +254,19 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
+	// using C;
+	// file_stat: stat_t #noinit;
+	// if stat(strtoc(filepath), &file_stat) == -1 {
+	// 	return 0, os_get_last_error2();
+	// }
+
+	// s  :: cast(u64) file_stat.st_mtime;
+	// ns :: cast(u64) file_stat.st_mtimespec.tv_nsec;
+
+	// return s * 1000 + ns / 1000000, OK;
 	filepath;
-	print_warn("Not implemented");
 	return 0, OK;
 }
 
 #scope_private
+clipboard :: #import "extra/clipboard";
