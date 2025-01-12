@@ -66,6 +66,13 @@ process execution there.
 - **Martin Dorazil** (travis) [**SUPPORT**](https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6)
 - **bovacu**
 
+# Platform
+
+Tine editor is actively developed on Windows and only Windows executable is currently available on
+https://travisdp.itch.io/tine. However, it's possible to compile Tine also for Linux and mac from
+the source code, but there might be some incomplete stuff and issues. See the [developer](#developer)
+section.
+
 # First Run
 
 ## Windows
@@ -224,3 +231,49 @@ To compile release version use:
 ```
 blc -build --release
 ```
+
+## Linux
+
+Linux version currently does not support file hot-reload, other editor features should work. You might
+have to install some dependencies, here is the full list of libraries linked by the executable on my system:
+
+```
+libc.so.6
+libm.so.6
+libglfw.so.3
+libxcb-util.so.1
+libxcb.so.1
+libGL.so.1
+libpng16.so.16
+libz.so.1
+libbz2.so.1.0
+libfreetype.so.6
+libwayland-client.so.0
+libXau.so.6
+libXdmcp.so.6
+libGLdispatch.so.0
+libGLX.so.0
+libbrotlidec.so.1
+libffi.so.8
+libbsd.so.0
+libX11.so.6
+libbrotlicommon.so.1
+libmd.so.0
+```
+
+For Wayland support you'll need `libglfw3-wayland` to be installed on your system.
+
+## Macos
+
+MacOS version (on Apple Silicon) should be feature complete, however, not tested so much. Dependencies
+might be installed using `brew` package manager, you'll need development packages for:
+
+```
+glfw3
+freetype2
+png16
+```
+
+To creates self-contained application bundle use `build-macos-app.sh`. This script creates release
+version of the editor, and use `dylibbundler` (installed via `brew`) to resolve all dependencies
+and packing them into the application bundle. Result can be found in `tine-macos-arm64` directory.
