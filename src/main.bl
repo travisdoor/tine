@@ -1906,7 +1906,7 @@ print_glfw_error :: fn () {
 	print_err("GLFW Error: %", tmp);
 }
 
-key_callback :: fn (window: *glfw.Window #maybe_unused, k: s32, _: s32, action: s32, mods: s32) {
+key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 	using glfw;
 
 	redraw();
@@ -1958,11 +1958,9 @@ key_callback :: fn (window: *glfw.Window #maybe_unused, k: s32, _: s32, action: 
 		if redirect_to_character_input {
 			ignore_char_input = false;
 
-			#if PLATFORM == Platform.WINDOWS {
-				keep_last_message = true;
-				character_callback(window, auto k);
-				keep_last_message = false;
-			}
+			keep_last_message = true;
+			character_callback(window, auto k);
+			keep_last_message = false;
 		}
 	}
 }

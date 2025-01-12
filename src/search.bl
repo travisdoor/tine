@@ -198,7 +198,7 @@ next_match :: fn (buf: *Buffer, editor: *Editor) {
 	}
 
 	cursor :: get_cursor_position(buf, editor.cursor_index);
-	if cursor == search.results[search.result_index].start {
+	if search.result_index != -1 && cursor == search.results[search.result_index].start {
 		if search.results.len == 1 {
 			print_warn("No other match!");
 			return;
@@ -228,7 +228,7 @@ prev_match :: fn (buf: *Buffer, editor: *Editor) {
 	}
 
 	cursor :: get_cursor_position(buf, editor.cursor_index);
-	if cursor == search.results[search.result_index].start {
+	if search.result_index != -1 && cursor == search.results[search.result_index].start {
 		if search.results.len == 1 {
 			print_warn("No other match!");
 			return;
