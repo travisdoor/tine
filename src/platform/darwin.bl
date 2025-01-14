@@ -1,6 +1,6 @@
-BUILD_SCRIPT :: "build.sh";
-SHELL :: "/bin/zsh";
-BUILD_ARGS :: [_]string_view.{ BUILD_SCRIPT };
+BUILD_SCRIPT  :: "build.sh";
+DEFAULT_SHELL :: "/bin/zsh";
+BUILD_ARGS    :: [_]string_view.{ BUILD_SCRIPT };
 
 //
 // Process

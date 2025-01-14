@@ -45,6 +45,9 @@ font_size                              12
 # system PATH.
 #clangd_executable                      C:/Program Files/LLVM/bin/clangd.exe
 
+# Customize shell executable.
+# shell_executable                      cmd.exe
+
 # Visual size of the tab character as if it was replaced by spaces. In case the
 # 'insert_spaces_instead_tabs' is false this value is used as a count of spaces for
 # indentation.

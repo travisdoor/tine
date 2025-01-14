@@ -1,8 +1,7 @@
 #import "os/windows"
 
-BUILD_SCRIPT :: "build.bat";
-SHELL :: "cmd.exe";
-BUILD_ARGS :: [_]string_view.{ "/c", BUILD_SCRIPT };
+BUILD_SCRIPT  :: "build.bat";
+DEFAULT_SHELL :: "cmd.exe";
 
 //
 // Process

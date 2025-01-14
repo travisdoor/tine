@@ -84,6 +84,7 @@ Command :: enum {
 	PEEK_ERROR;
 	LIST_FUNCTIONS;
 	REPEAT;
+	SHELL;
 
 	// MISC
 	BREAK_IN_REMEDYBG;
@@ -201,6 +202,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto PEEK_ERROR]        = "Peek full error message on current line if there is one.";
 	help[auto LIST_FUNCTIONS]    = "List functions in current buffer. This information might not be available for all file types.";
 	help[auto REPEAT]            = "Activate repeat mode (execute next comand N times).";
+	help[auto SHELL]             = "Execute shell command in current working directory.";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
 	help[auto BREAK_IN_RADDBG]         = "Set current file location as breakpoint in RAD Debugger.";
@@ -272,6 +274,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		Mode.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
 		Mode.LIST_FUNCTIONS    { handled = invoke_command_list_functions_mode    (buf, cmd); }
 		Mode.REPEAT            { handled = invoke_command_repeat_line_mode       (buf, cmd); }
+		Mode.SHELL_RUN         { handled = invoke_command_shell_run_mode         (buf, cmd); }
 
 		default;
 	}
@@ -664,6 +667,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		SAVE_AS             { set_mode            (Mode.SAVE_TO_DRIVE);                    }
 		GOTO_LINE           { set_mode            (Mode.GOTO_LINE);                        }
 		REPEAT              { set_mode            (Mode.REPEAT);                           }
+		SHELL               { set_mode            (Mode.SHELL_RUN);                        }
 		RUN_COMMAND         { set_mode            (Mode.RUN_COMMAND);                      }
 		SEARCH_FILE         { set_mode            (Mode.SEARCH_FILE);                      }
 		OPEN_PROJECT        { set_mode            (Mode.OPEN_PROJECT);                     }
@@ -1632,8 +1636,8 @@ start_build :: fn () {
 	if settings.save_all_before_build {
 		save_all();
 	}
-	err :: request_build();
-	if err { print_err(err); }
+	err :: request_build(BUILD_SCRIPT);
+	if err then print_err(err);
 }
 
 alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {

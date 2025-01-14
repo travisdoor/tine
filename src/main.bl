@@ -39,6 +39,7 @@ C         :: #import "libc";
 #load "search.bl"
 #load "search_in_project.bl"
 #load "utils.bl"
+#load "shell_run.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -224,6 +225,7 @@ Mode :: enum {
 	REPLACE;
 	PEEK_ERROR;
 	LIST_FUNCTIONS;
+	SHELL_RUN;
 }
 
 mode: Mode;
@@ -264,6 +266,12 @@ Settings :: struct {
 	tab_size:  s32;
 
 	font: string;
+
+	shell_executable:        string;
+
+	// @Note 2025-01-14: We might don't need it or we should come up with better solution.
+	// This is essentially used only on windows to inject '/c' before the command string.
+	shell_prologue:          string; // @Cleanup 2025-01-14 maybe.
 
 	clang_format_executable: string;
 	clangd_executable:       string;
@@ -564,7 +572,7 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
-	//debug_allocator_break(&debug_allocator, 3);
+	// debug_allocator_break(&debug_allocator, 33);
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
@@ -724,8 +732,11 @@ main :: fn () s32 {
 
 	print_log("Settings: %", settings);
 
+	// Cleanup settings!
 	defer str_delete(&settings.font);
 	defer str_delete(&settings.clang_format_executable);
+	defer str_delete(&settings.clangd_executable);
+	defer str_delete(&settings.shell_executable);
 
 	rebuild_fonts();
 	defer draw.font_terminate(&font);
@@ -1022,6 +1033,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		REPLACE           { replace_mode_terminate();                }
 		PEEK_ERROR        { peek_error_mode_terminate();             }
 		LIST_FUNCTIONS    { list_functions_mode_terminate();         }
+		SHELL_RUN         { shell_run_mode_terminate();              }
 
 		default;
 	}
@@ -1050,6 +1062,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		REPLACE           { replace_mode_init();           }
 		PEEK_ERROR        { peek_error_mode_init();        }
 		LIST_FUNCTIONS    { list_functions_mode_init();    }
+		SHELL_RUN         { shell_run_mode_init();         }
 
 		default;
 	}
@@ -1422,8 +1435,6 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 // Jobs
 //
 
-// @Cleanup: Move to separate file?
-
 JobContext :: struct {
 	state: enum { RUNNING; DONE; FAILED; KILLED; };
 	kind: JobKind;
@@ -1452,7 +1463,9 @@ Request :: struct {
 			buffer_hash:  u32;
 		};
 		build: struct {
-			text: string;
+			shell: string;
+			args:  string;
+			text:  string;
 		};
 		lsp: struct {
 			kind:           LspRequestKind;
@@ -1624,7 +1637,7 @@ update_jobs :: fn () {
 	}
 }
 
-get_job_context :: fn (index: s32) *JobContext {
+get_job_context :: fn (index: s32) *JobContext #inline {
 	assert(index >= 0 && index < jobs.len);
 	return &jobs[index].worker_context;
 }
@@ -1668,11 +1681,15 @@ terminate_request :: fn (request: *Request) {
 	using JobKind;
 	switch request.job_kind {
 		CLANG_FORMAT {
-			str_delete(&request.data.clang_format.src);
-			str_delete(&request.data.clang_format.filepath);
+			rd :: &request.data.clang_format;
+			str_delete(&rd.src);
+			str_delete(&rd.filepath);
 		}
 		BUILD {
-			str_delete(&request.data.build.text);
+			rd :: &request.data.build;
+			str_delete(&rd.shell);
+			str_delete(&rd.args);
+			str_delete(&rd.text);
 		}
 		LSP {
 			rd :: &request.data.lsp;
@@ -1881,6 +1898,7 @@ draw_frame :: fn () {
 			SEARCH_IN_PROJECT { draw_search_in_project_mode(); }
 			REPLACE           { draw_replace_mode();           }
 			LIST_FUNCTIONS    { draw_list_functions_mode();    }
+			SHELL_RUN         { draw_shell_run_mode();         }
 			PEEK_ERROR        {
 				draw_peek_error_mode(active_x, y, w);
 			}
