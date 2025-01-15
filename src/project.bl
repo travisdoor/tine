@@ -69,13 +69,23 @@ load_default_project_from_template :: fn () {
 		file = "TEMPLATE",
 	};
 
+	// Clear settings
+	info :: cast(*TypeInfoStruct) typeinfo(Settings);
+	loop i := 0; i < info.members.len; i += 1 {
+		member :: &info.members[i];
+		if member.base_type == typeinfo(string) {
+			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
+			str.len = 0;
+		}
+	}
+
 	err :: parse(&ctx);
 	if err { panic(err); } // This is really bad! Even the template project file is broken.
 
 	project.is_default = true;
 }
 
-is_default_project_exists :: fn () bool #inline {
+is_default_project_present :: fn () bool #inline {
 	return file_exist(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE));
 }
 

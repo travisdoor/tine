@@ -1,7 +1,7 @@
 #import "os/windows"
 
-BUILD_SCRIPT  :: "build.bat";
-DEFAULT_SHELL :: "cmd.exe";
+BUILD_COMMAND :: "build.bat";
+DEFAULT_SHELL :: "cmd.exe /c";
 
 //
 // Process
@@ -34,6 +34,8 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	// Create process
 	process_info: PROCESS_INFORMATION;
 
+	allocator :: application_context.temporary_allocator;
+
 	startup_info :: STARTUPINFOA.{
 		cb          = auto sizeof(STARTUPINFOA),
 		hStdError   = stdout_write,
@@ -43,10 +45,11 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		wShowWindow = auto SW_HIDE,
 	};
 
-	tmp := str_new(cmd, application_context.temporary_allocator);
+	// We must duplicate all arguments because they might not be zero terminated...
+	tmp := str_new(cmd, allocator);
 	loop i := 0; i < args.len; i += 1 {
 		str_append(&tmp, " ");
-		str_append(&tmp, args[i]);
+		str_append(&tmp, str_new(args[i], allocator));
 	}
 	if CreateProcessA(null, strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 

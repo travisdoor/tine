@@ -1636,7 +1636,10 @@ start_build :: fn () {
 	if settings.save_all_before_build {
 		save_all();
 	}
-	err :: request_build(BUILD_SCRIPT);
+
+	build_command :: if settings.build_command.len == 0 then BUILD_COMMAND else settings.build_command;
+
+	err :: request_build(build_command);
 	if err then print_err(err);
 }
 

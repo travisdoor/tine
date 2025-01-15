@@ -630,7 +630,7 @@ get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") strin
 		if tmp.len > 0 then str_append(&tmp, " | ");
 		str_append(&tmp, keymap_entry_to_string(keymap_index));
 	}
-	
+
 	if tmp.len == 0 then return missing;
 	return tmp;
 }
@@ -657,4 +657,49 @@ unify_line_endings :: fn (data: []u8, line_ending:  LineEnding) string_view {
 	}
 
 	return buf;
+}
+
+// The args might be modified in case some escape characters are present. Resulting array points to original args, so keep
+// the args alive as long as parsed version is needed!
+split_command_line_arguments :: fn (args: *string, allocator: *Allocator = null)  [..]string_view {
+	result: [..]string_view;
+	array_init(&result, 0, allocator);
+
+	in_quotes: u8;
+	loop i := 0; i < args.len; {
+		c :: (@args)[i];
+		if is_whitespace(c) {
+			i += 1;
+			continue;
+		}
+
+		len := 0;
+
+		if c == '\"' || c == '\'' {
+			in_quotes = c;
+			i += 1;
+			start_index :: i;
+
+			// Quoted argument.
+			loop ;i < args.len && (@args)[i] != in_quotes; i += 1 {
+				len += 1;
+			}
+
+			array_push(&result, .{ len, &(@args)[start_index] });
+		} else {
+			start_index := i;
+			loop ;i < args.len && !is_whitespace((@args)[i]); {
+				if (@args)[i] == '\\' && i+1 < args.len {
+					str_erase(args, i);
+				}
+				len += 1;
+				i += 1;
+			}
+			array_push(&result, .{ len, &(@args)[start_index] });
+		}
+
+		i += 1;
+	}
+
+	return result;
 }

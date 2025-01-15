@@ -8,35 +8,12 @@ build_init :: fn () {
 	build.buffer_index = -1;
 }
 
-request_build :: fn (args: string_view) Error {
+request_build :: fn (cmd: string_view) Error {
 	clear_error_list();
-
-	// if !file_exist(BUILD_SCRIPT) {
-	// 	cwd :: get_cwd();
-	// 	defer str_delete(&cwd);
-	// 	return error("Build script '%' not found in '%' (current working directory).", BUILD_SCRIPT, cwd);
-	// }
 
 	if build.job_index != -1 {
 		return error("Build is already in progress, use 'build-kill' for interruption and try again.");
 	}
-
-	shell_executable_path :: if settings.shell_executable.len == 0 then DEFAULT_SHELL else settings.shell_executable;
-	assert(shell_executable_path.len > 0, "Invalid shell executable!");
-
-	// @Incomplete 2025-01-14: Check if shell_executable_path points to valid executable file?
-
-	// shell_name :: path_splitext(path_split(shell_executable_path).tail).head;
-	// if shell_name.len == 0 {
-	// 	print_err("Invalid shell executable path: '%'.", shell_executable_path);
-	// 	return 0;
-	// }
-	// #if PLATFORM == Platform.WINDOWS {
-	// 	shell_name_uppercase :: str_new(shell_name, application_context.temporary_allocator);
-	// 	str_upper(&shell_name_uppercase);
-	// 	if str_match(shell_name_uppercase, "CMD") then array_push(&args, "/c");
-	// }
-
 
 	_, prev_editor :: get_active_buffer_and_editor();
 
@@ -50,8 +27,7 @@ request_build :: fn (args: string_view) Error {
 
 	request := Request.{ job_kind = JobKind.BUILD };
 	request_data :: &request.data.build;
-	request_data.shell = str_new(shell_executable_path);
-	request_data.args  = sprint("\"%\"", args);
+	request_data.args = sprint("\\\"%\\\"", cmd);
 
 	push_request(get_job_context(job_index), &request);
 
@@ -95,23 +71,35 @@ worker :: fn (ctx: *JobContext) s32 {
 	request_data :: &request.data.build;
 	defer terminate_request(&request);
 
-	shell_executable_path :: request_data.shell;
-	args                  :: [_]string_view.{ "/c", request_data.args };
+	allocator :: application_context.temporary_allocator;
 
-	print_log("Execute: % %", shell_executable_path, args);
+	shell_command :: str_new(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
+	if shell_command.len > 0 && shell_command[shell_command.len-1] != ' ' then str_append(&shell_command, " ");
+	str_append(&shell_command, request_data.args);
 
-	err :: start_process(ctx, shell_executable_path, args);
+	result :: Request.{ job_kind = JobKind.BUILD };
+	result_data :: &result.data.build;
+
+	result_data.text = sprint("Execute '%'.\n", shell_command);
+	push_result(ctx, &result);
+
+
+	args_with_executable :: split_command_line_arguments(&shell_command);
+	if args_with_executable.len == 0 {
+		print_err("Cannot resolve shell executable name.");
+		ctx.state = FAILED;
+		return 0;
+	}
+
+	executable :: args_with_executable[0];
+	args       :: []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
+
+	err :: start_process(ctx, executable, args);
 	if err {
 		print_err(err);
 		ctx.state = FAILED;
 		return 0;
 	}
-
-	result :: Request.{ job_kind = JobKind.BUILD };
-	result_data :: &result.data.build;
-
-	result_data.text = sprint("Building project '%'.\n", project.name);
-	push_result(ctx, &result);
 
 	loop !ctx.kill {
 		state, err :: poll_pipe(ctx.stdout);

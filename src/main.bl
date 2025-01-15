@@ -267,11 +267,9 @@ Settings :: struct {
 
 	font: string;
 
-	shell_executable:        string;
+	shell: string;
 
-	// @Note 2025-01-14: We might don't need it or we should come up with better solution.
-	// This is essentially used only on windows to inject '/c' before the command string.
-	shell_prologue:          string; // @Cleanup 2025-01-14 maybe.
+	build_command: string;
 
 	clang_format_executable: string;
 	clangd_executable:       string;
@@ -597,6 +595,12 @@ main :: fn () s32 {
 	default_logger :: set_logger(&logger);
 	defer set_logger(default_logger);
 
+	{
+		args :: str_new("echo \"hello world\" \\\"This is supposed to be in quotes\\\"");
+		tmp :: split_command_line_arguments(&args);
+		print_log(">>> %", tmp);
+	}
+
 	print_log("Font directory: '%'", FONT_DIRECTORY);
 
 	editor_start_time = get_timestamp();
@@ -711,7 +715,7 @@ main :: fn () s32 {
 	show_help := false;
 
 	// Check whether the default project file exists.
-	if !is_default_project_exists() {
+	if !is_default_project_present() {
 		show_help = true;
 		err :: setup_after_first_run();
 		if err {
@@ -736,7 +740,9 @@ main :: fn () s32 {
 	defer str_delete(&settings.font);
 	defer str_delete(&settings.clang_format_executable);
 	defer str_delete(&settings.clangd_executable);
-	defer str_delete(&settings.shell_executable);
+	defer str_delete(&settings.shell);
+	defer str_delete(&settings.build_command);
+
 
 	rebuild_fonts();
 	defer draw.font_terminate(&font);
@@ -1463,7 +1469,6 @@ Request :: struct {
 			buffer_hash:  u32;
 		};
 		build: struct {
-			shell: string;
 			args:  string;
 			text:  string;
 		};
@@ -1687,7 +1692,6 @@ terminate_request :: fn (request: *Request) {
 		}
 		BUILD {
 			rd :: &request.data.build;
-			str_delete(&rd.shell);
 			str_delete(&rd.args);
 			str_delete(&rd.text);
 		}
