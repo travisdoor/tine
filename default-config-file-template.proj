@@ -255,6 +255,8 @@ decrease-number Alt+PageDown
 # combination with number.
 repeat Ctrl
 
+shell Alt+C
+
 ;colors
 # Color code is expected to be RRGGBB hex number.
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block, this
