@@ -154,7 +154,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	result :: Request.{ job_kind = JobKind.BUILD };
 	result_data :: &result.data.build;
 
-	result_data.text = sprint("Execute: % \"%\"\n", shell_command, request_data.args);
+	result_data.text = sprint("Execute: % %\n", shell_command, cmd);
 	push_result(ctx, &result);
 
 	err :: start_process(ctx, executable, args);
@@ -192,7 +192,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		os_sleep_ms(10);
 	}
 
-	
+
 
 	switch ctx.state {
 		DONE,
