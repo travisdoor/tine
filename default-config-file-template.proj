@@ -317,15 +317,6 @@ code_warning                        DCC80B
 code_error                          E92204
 code_function                       FFFFFF
 
-ansi_black                          5E5E5E
-ansi_red                            D75F5F
-ansi_green                          A8B56D
-ansi_yellow                         F0E68C
-ansi_blue                           5F87D7
-ansi_magenta                        D787AF
-ansi_cyan                           5FD7D7
-ansi_white                          D0D0D0
-
 # dark colors zenburn-like
 # background_color                    3F3F3F
 # foreground_color                    DCDCCC
@@ -379,8 +370,8 @@ ansi_white                          D0D0D0
 # command_select_color                1E4747
 # command_list_background_color       202020
 # modification_indicator_color        FFFF00
-# selection_background_color          0100CD
-# selection_background_inactive_color 00005E
+# selection_background_color          1A3D3D
+# selection_background_inactive_color 0F2424
 # message_color                       09975A
 # warning_color                       DCC80B
 # error_color                         E92204
@@ -436,3 +427,13 @@ ansi_white                          D0D0D0
 # code_warning                        948C00
 # code_error                          ED1C24
 # code_function                       B8860B
+
+# ANSI colors used in shell output.
+ansi_black                          5E5E5E
+ansi_red                            D75F5F
+ansi_green                          A8B56D
+ansi_yellow                         F0E68C
+ansi_blue                           5F87D7
+ansi_magenta                        D787AF
+ansi_cyan                           5FD7D7
+ansi_white                          D0D0D0
