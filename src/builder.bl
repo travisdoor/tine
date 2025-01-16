@@ -100,7 +100,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 			i += 1;
 		}
 
-		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
+		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, 0);
 	}
 }
 
