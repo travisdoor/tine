@@ -470,7 +470,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		temporary_reset();
 	}
 
-	err_kill :: kill_process(ctx.pid, 0);
+	err_kill :: kill_process(ctx);
 	if err_kill {
 		print_err("The '%' failed with error: %", executable, err_kill);
 		ctx.state = FAILED;

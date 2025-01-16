@@ -77,7 +77,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	if err_write {
 		print_err("The '%' failed with error: %", executable, err_write);
 		ctx.state = FAILED;
-		kill_process(ctx.pid, 0);
+		kill_process(ctx);
 		return 0;
 	}
 
@@ -90,7 +90,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		if err {
 			print_err("The '%' failed with error: %", executable, err);
 			ctx.state = FAILED;
-			kill_process(ctx.pid, 0);
+			kill_process(ctx);
 			return 0;
 		}
 
@@ -100,7 +100,7 @@ worker :: fn (ctx: *JobContext) s32 {
 			if err_read {
 				print_err("The '%' failed with error: %", executable, err_read);
 				ctx.state = FAILED;
-				kill_process(ctx.pid, 0);
+				kill_process(ctx);
 				return 0;
 			}
 		}
@@ -112,7 +112,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		os_sleep_ms(10);
 	}
 
-	err_kill :: kill_process(ctx.pid, 0);
+	err_kill :: kill_process(ctx);
 	if err_kill {
 		print_err(err_kill);
 		ctx.state = FAILED;

@@ -210,7 +210,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		default;
 	}
 
-	err_kill :: kill_process(ctx.pid, -1);
+	err_kill :: kill_process(ctx);
 	if err_kill {
 		print_err(err_kill);
 		ctx.state = FAILED;

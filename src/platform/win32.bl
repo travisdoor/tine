@@ -14,6 +14,20 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	static_assert(has_member2(TContext, "pid"));
 	static_assert(has_member2(TContext, "stdin"));
 	static_assert(has_member2(TContext, "stdout"));
+	static_assert(has_member2(TContext, "win_job_handle"));
+
+	job_handle :: CreateJobObjectA(null, null);
+	if job_handle == INVALID_HANDLE_VALUE {
+		return os_get_last_error2();
+	}
+
+	job_info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION;
+	job_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+	if SetInformationJobObject(job_handle, JOBOBJECTINFOCLASS.JobObjectExtendedLimitInformation, auto &job_info, auto sizeof(job_info)) == 0 {
+		CloseHandle(job_handle);
+		return os_get_last_error2();
+	}
 
 	stdin_read:   HANDLE;
 	stdin_write:  HANDLE;
@@ -51,16 +65,37 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		str_append(&tmp, " ");
 		str_append(&tmp, str_new(args[i], allocator));
 	}
-	if CreateProcessA(null, strtoc(tmp), null, null, TRUE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
+	if CreateProcessA(null, strtoc(tmp), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
+		CloseHandle(stdout_read);
+		CloseHandle(stdout_write);
+		CloseHandle(stdin_read);
+		CloseHandle(stdin_write);
+		return os_get_last_error2();
+	}
+
+	CloseHandle(stdout_write);
+	CloseHandle(stdin_read);
+
+	if AssignProcessToJobObject(job_handle, process_info.hProcess) == 0 {
+		TerminateProcess(process_info.hProcess, 1);
+		CloseHandle(process_info.hProcess);
+		CloseHandle(process_info.hThread);
+		CloseHandle(job_handle);
+		CloseHandle(stdout_read);
+		CloseHandle(stdin_write);
+		return os_get_last_error2();
+	}
+
+	ResumeThread(process_info.hThread);
 
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
-	CloseHandle(stdout_write);
-	CloseHandle(stdin_read);
 
 	ctx.pid    = process_info.dwProcessId;
 	ctx.stdin  = stdin_write;
 	ctx.stdout = stdout_read;
+
+	ctx.win_job_handle = job_handle;
 
 	return OK;
 }
@@ -94,17 +129,9 @@ execute_system_command :: fn (cmd: string_view) Error {
 	return OK;
 }
 
-kill_process :: fn (pid: Pid, exit_code: s32) Error {
-	handle :: OpenProcess(PROCESS_TERMINATE, FALSE, pid);
-	if !handle {
-		return os_get_last_error2();
-	}
-	defer CloseHandle(handle);
-
-	if TerminateProcess(handle, auto exit_code) == 0 {
-		return os_get_last_error2();
-	}
-
+kill_process :: fn (ctx: *?TContext) Error {
+	// Closing the job will terminate all nested processes.
+	CloseHandle(ctx.win_job_handle);
 	return OK;
 }
 

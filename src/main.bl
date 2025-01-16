@@ -1468,6 +1468,9 @@ JobContext :: struct {
 
 	pid: Pid;
 
+	// Extra shit needed only on Windows.
+	win_job_handle: *u8;
+
 	stdin:  IoStream;
 	stdout: IoStream;
 
