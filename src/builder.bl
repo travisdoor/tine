@@ -88,14 +88,9 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 						}
 					}
 				}
-
-				// builder.last_ansi_color
-				// len :: end_escape - start_escape + 1;
-				// memset(&buf.colors[buf.bytes.len + start_escape], CODE_COLOR_WARNING_INDEX, auto len);
 			} else {
 				if append_len == 0 then append_start_index = i;
 				append_len += 1;
-				// buf.colors[buf.bytes.len + i] = 0;
 			}
 			i += 1;
 		}
@@ -133,7 +128,19 @@ worker :: fn (ctx: *JobContext) s32 {
 	shell_command :: str_new(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
 
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
-	array_push(&args_with_executable, tprint("\"%\"", request_data.args));
+
+	// Escape all quotes
+	cmd :: str_new(request_data.args.len + 2, allocator);
+	str_append(&cmd, "\"");
+	loop i := 0; i < request_data.args.len; i += 1 {
+		c :: request_data.args[i];
+		if c == '\"' || c == '\'' {
+			str_append(&cmd, "\\");
+		}
+		str_append(&cmd, string_view.{ 1, &c });
+	}
+	str_append(&cmd, "\"");
+	array_push(&args_with_executable, cmd);
 
 	if args_with_executable.len == 0 {
 		print_err("Cannot resolve shell executable name.");
@@ -185,19 +192,20 @@ worker :: fn (ctx: *JobContext) s32 {
 		os_sleep_ms(10);
 	}
 
+	
+
 	switch ctx.state {
-		DONE {
-			result_data.text = str_new("\nProcess exited...\n");
-			push_result(ctx, &result);
-			return 0;
-		}
+		DONE,
 		FAILED {
+			exit_code :: get_process_exit_code(ctx.pid);
+			result_data.text = sprint("\nProcess exited with status %.\n", exit_code);
+			push_result(ctx, &result);
 			return 0;
 		}
 		default;
 	}
 
-	err_kill :: kill_process(ctx.pid, 0);
+	err_kill :: kill_process(ctx.pid, -1);
 	if err_kill {
 		print_err(err_kill);
 		ctx.state = FAILED;

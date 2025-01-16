@@ -49,12 +49,12 @@ invoke_command_shell_run_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) b
 		INSERT_NEW_LINE { commit(); }
 
 		MOVE_UP   {
-			list_item_up();
+			if is_current_selected_same_as_command() then list_item_up();
 			set_current_item_as_caption();
 		}
 
 		MOVE_DOWN {
-			list_item_down();
+			if is_current_selected_same_as_command() then list_item_down();
 			set_current_item_as_caption();
 		}
 
@@ -113,13 +113,22 @@ lookup_history_item :: fn (title: string_view) s32 {
 	return -1;
 }
 
+is_current_selected_same_as_command :: fn () bool {
+	item :: get_selected_item_in_list();
+	if !item then return false;
+
+	buf :: get_active_buffer_and_editor();
+	current_cmd := peek_row(buf, 0);
+	return str_match(current_cmd, item.title);
+}
+
 set_current_item_as_caption :: fn () {
 	item :: get_selected_item_in_list();
-	if item {
-		buf :: get_active_buffer_and_editor();
-		notify_changes_to_buffer = -1;
-		clear_buffer(buf);
-		insert_string(buf, 0, item.title);
-		notify_changes_to_buffer = buf.index;
-	}
+	if !item then return;
+	
+	buf :: get_active_buffer_and_editor();
+	notify_changes_to_buffer = -1;
+	clear_buffer(buf);
+	insert_string(buf, 0, item.title);
+	notify_changes_to_buffer = buf.index;
 }
