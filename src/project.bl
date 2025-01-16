@@ -283,6 +283,15 @@ do_the_stuff_after_project_load :: fn () {
 	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
 	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
 	code_color_table[auto CODE_COLOR_FUNCTION_INDEX ] = colors.code_function;
+	
+	code_color_table[auto ANSI_COLOR_BLACK]   = colors.ansi_black;
+	code_color_table[auto ANSI_COLOR_RED]     = colors.ansi_red;
+	code_color_table[auto ANSI_COLOR_GREEN]   = colors.ansi_green;
+	code_color_table[auto ANSI_COLOR_YELLOW]  = colors.ansi_yellow;
+	code_color_table[auto ANSI_COLOR_BLUE]    = colors.ansi_blue;
+	code_color_table[auto ANSI_COLOR_MAGENTA] = colors.ansi_magenta;
+	code_color_table[auto ANSI_COLOR_CYAN]    = colors.ansi_cyan;
+	code_color_table[auto ANSI_COLOR_WHITE]   = colors.ansi_white;
 
 	indexed_files_ditry = true;
 
@@ -464,7 +473,7 @@ parse_settings_entry :: fn (ctx: *Tokenizer) Error {
 		v :: eat_till(ctx, "#\n\r\t");
 		str_ptr :: cast(*string) member_ptr;
 		str_ptr.len = 0;
-		str_append(str_ptr, v);
+		str_append(str_ptr, trim_right(v, " "));
 	} else {
 		panic(report(ctx, "Unsupported settings entry type '%'!", @member_type));
 	}

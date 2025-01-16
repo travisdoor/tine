@@ -1,6 +1,7 @@
 build: struct {
-	job_index:    s32;
-	buffer_index: s32;
+	job_index:       s32;
+	buffer_index:    s32;
+	last_ansi_color: u8;
 };
 
 build_init :: fn () {
@@ -23,11 +24,13 @@ request_build :: fn (cmd: string_view) Error {
 	active_editor = prev_editor.index;
 
 	clear_buffer(buf);
+	build.last_ansi_color = 0;
+
 	job_index :: start_async_job(JobKind.BUILD, "build", &worker);
 
 	request := Request.{ job_kind = JobKind.BUILD };
 	request_data :: &request.data.build;
-	request_data.args = sprint("\\\"%\\\"", cmd);
+	request_data.args = str_new(cmd);
 
 	push_request(get_job_context(job_index), &request);
 
@@ -43,7 +46,61 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 		kill_build();
 	} else {
 		request_data :: &request.data.build;
-		append_readonly_buffer(buf, request_data.text);
+		text :: request_data.text;
+
+		append :: fn (buf: *Buffer, text: string_view, color: u8) {
+			array_resize(&buf.colors, buf.colors.len + text.len);
+			memset(&buf.colors[buf.bytes.len], color, auto text.len);
+			append_readonly_buffer(buf, text);
+		};
+
+		append_start_index, append_len := 0;
+
+		// ANSI color codes...
+		loop i := 0; i < text.len; {
+			if text[i] == 27 { // Escape character
+				i += 1;
+
+				if append_len > 0 {
+					append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
+					append_len = 0;
+				}
+
+				if i < text.len && text[i] == '[' {
+					i += 1;
+					start_colors :: i;
+					loop ;i < text.len && text[i] != 'm'; i += 1 {}
+					len :: i - start_colors;
+					if len > 0 {
+						color_string := string_view.{ len, &text[start_colors] };
+						loop i := 0; i < color_string.len; i += 1 {
+							if color_string[i] == ';' {
+								color_string.len = i;
+								break;
+							}
+						}
+
+						n, err :: strtos64(color_string);
+						if err {
+							build.last_ansi_color = 0;
+						} else {
+							build.last_ansi_color = get_ansi_color_index_from_code(auto n);
+						}
+					}
+				}
+
+				// builder.last_ansi_color
+				// len :: end_escape - start_escape + 1;
+				// memset(&buf.colors[buf.bytes.len + start_escape], CODE_COLOR_WARNING_INDEX, auto len);
+			} else {
+				if append_len == 0 then append_start_index = i;
+				append_len += 1;
+				// buf.colors[buf.bytes.len + i] = 0;
+			}
+			i += 1;
+		}
+
+		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
 	}
 }
 
@@ -75,16 +132,11 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	shell_command :: str_new(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
 	if shell_command.len > 0 && shell_command[shell_command.len-1] != ' ' then str_append(&shell_command, " ");
-	str_append(&shell_command, request_data.args);
-
-	result :: Request.{ job_kind = JobKind.BUILD };
-	result_data :: &result.data.build;
-
-	result_data.text = sprint("Execute '%'.\n", shell_command);
-	push_result(ctx, &result);
 
 
-	args_with_executable :: split_command_line_arguments(&shell_command);
+	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
+	array_push(&args_with_executable, tprint("\"%\"", request_data.args));
+
 	if args_with_executable.len == 0 {
 		print_err("Cannot resolve shell executable name.");
 		ctx.state = FAILED;
@@ -93,6 +145,12 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	executable :: args_with_executable[0];
 	args       :: []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
+
+	result :: Request.{ job_kind = JobKind.BUILD };
+	result_data :: &result.data.build;
+
+	result_data.text = sprint("Execute: % \"%\"\n", shell_command, request_data.args);
+	push_result(ctx, &result);
 
 	err :: start_process(ctx, executable, args);
 	if err {
@@ -131,7 +189,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	switch ctx.state {
 		DONE {
-			result_data.text = str_new("\nDONE!\n");
+			result_data.text = str_new("\nProcess exited...\n");
 			push_result(ctx, &result);
 			return 0;
 		}
@@ -153,4 +211,19 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	ctx.state = KILLED;
 	return 0;
+}
+
+get_ansi_color_index_from_code :: fn (n: s32) u8 #inline {
+	switch n {
+		30 { return ANSI_COLOR_BLACK;   }
+		31 { return ANSI_COLOR_RED;     }
+		32 { return ANSI_COLOR_GREEN;   }
+		33 { return ANSI_COLOR_YELLOW;  }
+		34 { return ANSI_COLOR_BLUE;    }
+		35 { return ANSI_COLOR_MAGENTA; }
+		36 { return ANSI_COLOR_CYAN;    }
+		37 { return ANSI_COLOR_WHITE;   }
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
 }

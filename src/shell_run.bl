@@ -6,10 +6,19 @@ shell_run_mode_init :: fn () {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 
-	// list_commands(repeat_command_count > 1);
+	list_history(history);
 }
 
 shell_run_mode_terminate :: fn () {}
+
+shell_run_mode_on_start :: fn () {
+	string_cache = pool_make(null, 2048);
+}
+
+shell_run_mode_on_exit :: fn () {
+	release_allocator(&string_cache);
+	array_terminate(&history);
+}
 
 draw_shell_run_mode :: fn () {
 	assert(active_editor == command_editor);
@@ -17,10 +26,13 @@ draw_shell_run_mode :: fn () {
 
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Shell: ");
 
-	// using DrawListCols;
-	// list_h, clicked :: draw_list(0.f, h, w, TITLE | HINT | PREVIEW);
-	// draw_last_status_message(0.f, h + list_h, w);
-	// if clicked { commit(); }
+	using DrawListCols;
+	list_h, clicked :: draw_list(0.f, h, w, TITLE);
+	draw_last_status_message(0.f, h + list_h, w);
+	if clicked {
+		set_current_item_as_caption();
+		commit();
+	}
 }
 
 //
@@ -36,8 +48,15 @@ invoke_command_shell_run_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) b
 	switch cmd {
 		INSERT_NEW_LINE { commit(); }
 
-		// MOVE_UP   { list_item_up();   }
-		// MOVE_DOWN { list_item_down(); }
+		MOVE_UP   {
+			list_item_up();
+			set_current_item_as_caption();
+		}
+
+		MOVE_DOWN {
+			list_item_down();
+			set_current_item_as_caption();
+		}
 
 		default { return false; }
 	}
@@ -45,27 +64,62 @@ invoke_command_shell_run_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) b
 	return true;
 }
 
-// shell_run_cmd_changed :: fn () {
-// 	buf :: get_active_buffer_and_editor();
-// 	cmd :: peek_row(buf, 0);
-// 	if cmd.len == 0 {
-// 		clear_list_filters();
-// 		return;
-// 	}
-// 	filter_list(cmd);
-// }
+shell_run_cmd_changed :: fn () {
+	buf :: get_active_buffer_and_editor();
+	cmd :: peek_row(buf, 0);
+	if cmd.len == 0 {
+		clear_list_filters();
+		return;
+	}
+	filter_list(cmd);
+}
 
 #scope_private
 
+string_cache: PoolAllocator;
+history: [..]HistoryItem;
+current_priority: s32;
+
 commit :: fn () {
 	buf :: get_active_buffer_and_editor();
-	cmd :: peek_row(buf, 0);
+	cmd := peek_row(buf, 0);
 	set_mode(Mode.TEXT_EDIT);
 
-	// item :: get_selected_item_in_list();
-	// if !item { return; }
+	trim_chars :: " \t";
+	cmd = trim_right(trim_left(cmd, trim_chars), trim_chars);
+	
+	if cmd.len == 0 then return;
 
 	err :: request_build(cmd);
-	if err then print_err(err);
+	if err {
+		print_err(err);
+	} else {
+		index :: lookup_history_item(cmd);
+		if index == -1 {
+			array_push(&history, .{ str_new(cmd, &string_cache), current_priority });
+		} else {
+			history[index].priority = current_priority;
+		}
+		current_priority += 1;
+	}
 }
 
+lookup_history_item :: fn (title: string_view) s32 {
+	loop i := 0; i < history.len; i += 1 {
+		if str_match(title, history[i].title) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+set_current_item_as_caption :: fn () {
+	item :: get_selected_item_in_list();
+	if item {
+		buf :: get_active_buffer_and_editor();
+		notify_changes_to_buffer = -1;
+		clear_buffer(buf);
+		insert_string(buf, 0, item.title);
+		notify_changes_to_buffer = buf.index;
+	}
+}

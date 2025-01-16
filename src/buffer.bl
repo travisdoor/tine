@@ -394,6 +394,7 @@ reset_undo :: fn (buf: *Buffer) {
 
 clear_buffer :: fn (buf: *Buffer) {
 	buf.bytes.len       = 0;
+	buf.colors.len      = 0;
 	buf.last_write_time = 0;
 
 	loop i := 0; i < buf.cursors.len; i += 1 {
@@ -575,7 +576,7 @@ delete_range :: fn (buf: *Buffer, start: s64, end: s64) {
 // Change the whole content of the buffer with respect to undo and cursor positions.
 change_content :: fn (buf: *Buffer, content: string_view) {
 	if content.len == 0 then return;
-	
+
 	// Remember positions of all cursors before changes.
 	cursors:        [..]Cursor;
 	cursor_indices: [..]s32;
@@ -989,7 +990,7 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 	if buf.index == messages_buffer_index {
 		highlight_messages_syntax(buf);
 	} else if buf.index == build.buffer_index {
-		highlight_build_syntax(buf);
+		// highlight_build_syntax(buf);
 	} else if buf.index == search_buffer_index {
 		highlight_search_syntax(buf);
 	}
@@ -1108,6 +1109,7 @@ notify :: fn () {
 		SEARCH_IN_PROJECT { search_in_project_cmd_changed();    }
 		COMPLETION        { completion_target_buffer_changed(); }
 		LIST_FUNCTIONS    { list_functions_cmd_changed();       }
+		SHELL_RUN         { shell_run_cmd_changed();            }
 
 		default;
 	}

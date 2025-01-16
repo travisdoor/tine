@@ -91,6 +91,7 @@ Command :: enum {
 	BREAK_IN_RADDBG;
 	BUILD;
 	BUILD_KILL;
+	SHELL_KILL;
 	CLEAR_MESSAGES;
 	DEBUG_IN_REMEDYBG;
 	DEBUG_IN_RADDBG;
@@ -208,6 +209,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto BREAK_IN_RADDBG]         = "Set current file location as breakpoint in RAD Debugger.";
 	help[auto BUILD]                   = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
 	help[auto BUILD_KILL]              = "Try to kill running build script.";
+	help[auto SHELL_KILL]              = "Try to kill running shell script.";
 	help[auto CLEAR_MESSAGES]          = "Clear 'messages' buffer.";
 	help[auto DEBUG_IN_REMEDYBG]       = "Start debugging in running RemedyBG instance.";
 	help[auto DEBUG_IN_RADDBG]         = "Start debugging in running RAD Debugger instance.";
@@ -688,6 +690,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
 		BUILD               { start_build         ();                                      }
 		BUILD_KILL          { kill_build          ();                                      }
+		SHELL_KILL          { kill_build          ();                                      }
 		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
 		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
 		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }

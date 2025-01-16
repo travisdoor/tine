@@ -17,7 +17,9 @@ replace_mode_init :: fn () {
 	// @Incomplete: use search.last_replacement
 
 	assert(search.last_subject.len > 0);
-	focus_current_search_result();
+	if !focus_current_search_result() {
+		next_match(buf, editor);
+	}
 
 	if settings.show_hints {
 		using Command;

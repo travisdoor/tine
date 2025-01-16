@@ -45,8 +45,32 @@ font_size                              12
 # system PATH.
 #clangd_executable                      C:/Program Files/LLVM/bin/clangd.exe
 
-# Customize shell executable.
-# shell_executable                      cmd.exe
+# Customize shell command. Command line arguments including the shell executable used when 'shell' or
+# 'build' editor commands are invoked.
+# The shell executable (or full path) should be the first followed by optional arguments passed directly
+# to the shell. When 'shell' command is invoked from the editor it's appended in quotes after content
+# of this entry.
+#
+# Default values are:
+# - Windows: CMD.exe
+# - MacOS:   /bin/zsh
+# - Linux:   /bin/bash
+#
+# Examples:
+# shell                                  pwsh -c # Use powershell
+# shell                                  C:/Program\ Files/Git/bin/bash.exe -c # Use git bash
+
+# Build command used when 'build' editor command is invoked, this entry is appended to the content of
+# shell variable.
+#
+# Default values are:
+# - Windows: build.bat
+# - Other:   build.sh
+#
+# Examples:
+# build_command                          make -j4
+# build_command                          blc -build
+# build_command                          ./build.ps1
 
 # Visual size of the tab character as if it was replaced by spaces. In case the
 # 'insert_spaces_instead_tabs' is false this value is used as a count of spaces for
@@ -272,6 +296,15 @@ code_invalid                        FF0000
 code_warning                        DCC80B
 code_error                          E92204
 code_function                       FFFFFF
+
+ansi_black                          000000
+ansi_red                            FF0000
+ansi_green                          00FF00
+ansi_yellow                         FFFF00
+ansi_blue                           0000FF
+ansi_magenta                        FF00FF
+ansi_cyan                           00FFFF
+ansi_white                          FFFFFF
 
 # dark colors zenburn-like
 # background_color                    3F3F3F

@@ -293,6 +293,25 @@ list_commands :: fn (repeatable_only := false) {
 	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
 }
 
+HistoryItem :: struct {
+	title:    string_view;
+	priority: s32;
+}
+
+list_history :: fn (history: []HistoryItem) {
+	reset_listing();
+
+	loop i := 0; i < history.len; i += 1 {
+		title :: str_new(history[i].title, &string_cache[DEFAULT_CACHE_INDEX]);
+		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
+				title = title,
+				score = history[i].priority,
+			});
+	}
+	// quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+	quick_sort_by_score(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+}
+
 list_directory :: fn (dirpath: string_view, file_extension_filter := []string_view.{}, dirs_only := false, as_projects := false) Error {
 	file_visitor :: fn (info: *FileVisitInfo, ctx: *FileVisitorContext) Error {
 

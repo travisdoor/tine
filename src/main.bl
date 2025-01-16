@@ -69,6 +69,14 @@ CODE_COLOR_NUMBER_INDEX    : u8 : 7;
 CODE_COLOR_ERROR_INDEX     : u8 : 9;
 CODE_COLOR_WARNING_INDEX   : u8 : 10;
 CODE_COLOR_FUNCTION_INDEX  : u8 : 11;
+ANSI_COLOR_BLACK           : u8 : 12;
+ANSI_COLOR_RED             : u8 : 13;
+ANSI_COLOR_GREEN           : u8 : 14;
+ANSI_COLOR_YELLOW          : u8 : 15;
+ANSI_COLOR_BLUE            : u8 : 16;
+ANSI_COLOR_MAGENTA         : u8 : 17;
+ANSI_COLOR_CYAN            : u8 : 18;
+ANSI_COLOR_WHITE           : u8 : 19;
 
 DEFAULT_FONT_SIZE              :: 20;
 MAX_FONT_SIZE                  :: 64;
@@ -331,10 +339,19 @@ Colors :: struct {
 	code_error     : v4;
 	code_warning   : v4;
 	code_function  : v4;
+
+	ansi_black   : v4;
+	ansi_red     : v4;
+	ansi_green   : v4;
+	ansi_yellow  : v4;
+	ansi_blue    : v4;
+	ansi_magenta : v4;
+	ansi_cyan    : v4;
+	ansi_white   : v4;
 }
 
 colors:           Colors;
-code_color_table: [12]v4;
+code_color_table: [20]v4;
 
 //
 // Build errors
@@ -570,7 +587,7 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
-	// debug_allocator_break(&debug_allocator, 33);
+	// debug_allocator_break(&debug_allocator, 12);
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
@@ -594,12 +611,6 @@ main :: fn () s32 {
 
 	default_logger :: set_logger(&logger);
 	defer set_logger(default_logger);
-
-	{
-		args :: str_new("echo \"hello world\" \\\"This is supposed to be in quotes\\\"");
-		tmp :: split_command_line_arguments(&args);
-		print_log(">>> %", tmp);
-	}
 
 	print_log("Font directory: '%'", FONT_DIRECTORY);
 
@@ -654,12 +665,16 @@ main :: fn () s32 {
 
 	defer array_terminate(&key_binding);
 
+	shell_run_mode_on_start();
+	defer shell_run_mode_on_exit();
+
 	// Initialize GLFW.
 	if glfw.Init() == 0 {
 		print_glfw_error();
 		panic("Cannot initialize glfw.\n");
 	}
 	defer glfw.Terminate();
+
 
 	// Create GLFW window.
 	WindowHint(CONTEXT_VERSION_MAJOR, 3);
