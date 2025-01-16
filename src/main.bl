@@ -303,6 +303,12 @@ Settings :: struct {
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
 	shell_enable_error_location_colors:     bool;
+
+	// Language support related things
+	c_extensions:    string;
+	bl_extensions:   string;
+	glsl_extensions: string;
+	asm_extensions:  string;
 };
 
 settings: Settings;
@@ -756,14 +762,7 @@ main :: fn () s32 {
 
 	print_log("Settings: %", settings);
 
-	// Cleanup settings!
-	defer str_delete(&settings.font);
-	defer str_delete(&settings.clang_format_executable);
-	defer str_delete(&settings.clangd_executable);
-	defer str_delete(&settings.shell);
-	defer str_delete(&settings.build_command);
-
-
+	
 	rebuild_fonts();
 	defer draw.font_terminate(&font);
 	defer draw.font_terminate(&font_ui);
@@ -905,6 +904,15 @@ main :: fn () s32 {
 
 	array_terminate(&editors);
 	array_terminate(&buffers);
+	
+	info :: cast(*TypeInfoStruct) typeinfo(Settings);
+	loop i := 0; i < info.members.len; i += 1 {
+		member :: &info.members[i];
+		if member.base_type == typeinfo(string) {
+			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
+			str_delete(str);
+		}
+	}
 
 	print_log("DONE.");
 	return 0;
@@ -1426,10 +1434,12 @@ detect_filetype :: fn (filename: string_view) FileType {
 	extension :: str_new(ext, application_context.temporary_allocator);
 	str_lower(&extension);
 
-	if str_match_one_of(extension, [5]string_view.{ ".c", ".cpp", ".h", ".hpp", ".cc" }) {
+	allocator :: application_context.temporary_allocator;
+
+	if str_match_one_of(extension, str_split_by(settings.c_extensions, ' ', allocator)) {
 		return C;
 	}
-	if str_match(extension, ".bl") {
+	if str_match_one_of(extension, str_split_by(settings.bl_extensions, ' ', allocator)) {
 		return BL;
 	}
 	if str_match(extension, ".proj") {
@@ -1438,10 +1448,10 @@ detect_filetype :: fn (filename: string_view) FileType {
 	if str_match(extension, ".md") {
 		return MD;
 	}
-	if str_match(extension, ".glsl") {
+	if str_match_one_of(extension, str_split_by(settings.glsl_extensions, ' ', allocator)) {
 		return GLSL;
 	}
-	if str_match(extension, ".asm") {
+	if str_match_one_of(extension, str_split_by(settings.asm_extensions, ' ', allocator)) {
 		return ASM;
 	}
 	return FileType.UNKNOWN;

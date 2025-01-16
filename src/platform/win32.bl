@@ -41,9 +41,9 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	};
 
 	if CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0) == 0 then return os_get_last_error2();
-	if SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0) == 0        then return os_get_last_error2();
-	if CreatePipe(&stdin_read, &stdin_write, &security_attributes, 0) == 0   then return os_get_last_error2();
-	if SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0) == 0        then return os_get_last_error2();
+	if SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0)        == 0 then return os_get_last_error2();
+	if CreatePipe(&stdin_read, &stdin_write, &security_attributes, 0)   == 0 then return os_get_last_error2();
+	if SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0)        == 0 then return os_get_last_error2();
 
 	// Create process
 	process_info: PROCESS_INFORMATION;

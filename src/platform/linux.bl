@@ -1,6 +1,5 @@
-BUILD_SCRIPT  :: "build.sh";
-DEFAULT_SHELL :: "/bin/bash";
-BUILD_ARGS    :: [_]string_view.{ BUILD_SCRIPT };
+BUILD_COMMAND :: "build.sh";
+DEFAULT_SHELL :: "/bin/bash -c";
 
 //
 // Process
@@ -70,10 +69,9 @@ execute_system_command :: fn (cmd: string_view) Error {
 	return OK;
 }
 
-kill_process :: fn (pid: Pid, exit_code: s32) Error {
+kill_process :: fn (ctx: *?TContext) Error {
 	using C;
-	exit_code;  // @Incomplete: use this?
-	if kill(pid, SIGTERM) == -1 then os_get_last_error2();
+	if kill(ctx.pid, SIGTERM) == -1 then os_get_last_error2();
 	return OK;
 }
 

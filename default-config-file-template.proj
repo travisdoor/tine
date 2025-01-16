@@ -130,6 +130,12 @@ smooth_movement                        true
 show_line_numbers                      false
 line_numbers_relative                  false
 
+# Recognize following file extenstions as source files of given type.
+c_extensions                           .c .cpp .h .hpp .cc
+bl_extensions                          .bl
+glsl_extensions                        .glsl
+asm_extensions                         .asm
+
 ;keys
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:
