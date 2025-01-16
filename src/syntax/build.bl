@@ -3,9 +3,9 @@ highlight_build_syntax :: fn (buf: *Buffer) {
 
 	clear_error_list();
 
-	buf.colors.len = 0;
-	array_resize(&buf.colors, buf.bytes.len);
-	zero_slice(buf.colors);
+	if settings.shell_enable_error_location_colors {
+		array_resize(&buf.colors, buf.bytes.len);
+	}
 
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
@@ -19,7 +19,7 @@ highlight_build_syntax :: fn (buf: *Buffer) {
 		token :: next_token(&ctx);
 		if token.kind == EOF { break; }
 
-		if token.len > 0 {
+		if token.len > 0 && settings.shell_enable_error_location_colors {
 			memset(&buf.colors[token.index], auto token.kind, auto token.len);
 		}
 	}

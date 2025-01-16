@@ -146,8 +146,6 @@ read_pipe :: fn (stream: IoStream, dest: *string) Error {
 		total_read += n;
 	}
 
-	assert(total_read == available_bytes, "Not all data read from the pipe!");
-	// print_log("Read: %", @dest);
 	return OK;
 }
 

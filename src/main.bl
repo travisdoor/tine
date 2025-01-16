@@ -122,7 +122,8 @@ ICON_BUILD    : u32 : 0xF6E3;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
-FONT                          :: "JetBrainsMono-Regular.ttf";
+// FONT                          :: "JetBrainsMono-Regular.ttf";
+FONT                          :: "GeistMono-Regular.ttf";
 FONT_UI                       :: "SourceSans3-Regular.ttf";
 FONT_UI_B                     :: "SourceSans3-Bold.ttf";
 
@@ -298,6 +299,10 @@ Settings :: struct {
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
 	line_numbers_relative:                  bool;
+
+	shell_parse_error_locations:            bool;
+	shell_enable_ansi_colors:               bool;
+	shell_enable_error_location_colors:     bool;
 };
 
 settings: Settings;

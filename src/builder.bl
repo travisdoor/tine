@@ -54,6 +54,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 			append_readonly_buffer(buf, text);
 		};
 
+		allocator :: application_context.temporary_allocator;
 		append_start_index, append_len := 0;
 
 		// ANSI color codes...
@@ -72,19 +73,18 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 					loop ;i < text.len && text[i] != 'm'; i += 1 {}
 					len :: i - start_colors;
 					if len > 0 {
-						color_string := string_view.{ len, &text[start_colors] };
-						loop i := 0; i < color_string.len; i += 1 {
-							if color_string[i] == ';' {
-								color_string.len = i;
-								break;
-							}
+						text_style :: str_split_by(string_view.{ len, &text[start_colors] }, ';', allocator);
+						foreground_color : s32 = -1;
+						loop i := 0; i < text_style.len; i += 1 {
+							n, err :: strtos64(text_style[i]);
+							if err then continue;
+							if n >= 30 && n <= 37 then foreground_color = auto n;
 						}
 
-						n, err :: strtos64(color_string);
-						if err {
+						if foreground_color == -1 {
 							build.last_ansi_color = 0;
-						} else {
-							build.last_ansi_color = get_ansi_color_index_from_code(auto n);
+						} else if settings.shell_enable_ansi_colors {
+							build.last_ansi_color = get_ansi_color_index_from_code(foreground_color);
 						}
 					}
 				}

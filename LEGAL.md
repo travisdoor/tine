@@ -740,6 +740,7 @@ is in the public domain.
 
 # Font Awesome
 # JetBrains-Mono
+# GeistMono
 # SourceSans3
 
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

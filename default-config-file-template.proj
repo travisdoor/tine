@@ -60,6 +60,18 @@ font_size                              12
 # shell                                  pwsh -c # Use powershell
 # shell                                  C:/Program\ Files/Git/bin/bash.exe -c # Use git bash
 
+# Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
+# locations parsed from the output are available later in error list for quick navigation (used with
+# 'next-error' and 'prev-error' commands).
+shell_parse_error_locations            true
+
+# Enable ANSI color codes in shell output.
+shell_enable_ansi_colors               true
+
+# Enable additional error or warning highlight in the shell output. This feature require
+# shell_parse_error_locations enabled.
+shell_enable_error_location_colors     false
+
 # Build command used when 'build' editor command is invoked, this entry is appended to the content of
 # shell variable.
 #
@@ -299,14 +311,14 @@ code_warning                        DCC80B
 code_error                          E92204
 code_function                       FFFFFF
 
-ansi_black                          000000
-ansi_red                            FF0000
-ansi_green                          00FF00
-ansi_yellow                         FFFF00
-ansi_blue                           0000FF
-ansi_magenta                        FF00FF
-ansi_cyan                           00FFFF
-ansi_white                          FFFFFF
+ansi_black                          5E5E5E
+ansi_red                            D75F5F
+ansi_green                          A8B56D
+ansi_yellow                         F0E68C
+ansi_blue                           5F87D7
+ansi_magenta                        D787AF
+ansi_cyan                           5FD7D7
+ansi_white                          D0D0D0
 
 # dark colors zenburn-like
 # background_color                    3F3F3F
