@@ -131,8 +131,6 @@ worker :: fn (ctx: *JobContext) s32 {
 	allocator :: application_context.temporary_allocator;
 
 	shell_command :: str_new(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
-	if shell_command.len > 0 && shell_command[shell_command.len-1] != ' ' then str_append(&shell_command, " ");
-
 
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
 	array_push(&args_with_executable, tprint("\"%\"", request_data.args));
