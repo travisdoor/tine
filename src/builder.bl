@@ -47,6 +47,9 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 	} else {
 		request_data :: &request.data.build;
 		text :: request_data.text;
+		
+		// append_readonly_buffer(buf, text);
+		// return;
 
 		append :: fn (buf: *Buffer, text: string_view, color: u8) {
 			array_resize(&buf.colors, buf.colors.len + text.len);
@@ -86,6 +89,8 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 						} else if settings.shell_enable_ansi_colors {
 							build.last_ansi_color = get_ansi_color_index_from_code(foreground_color);
 						}
+					} else {
+						build.last_ansi_color = 0;
 					}
 				}
 			} else {
