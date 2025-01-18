@@ -1,0 +1,162 @@
+#import "std/print"
+#import "std/string"
+#import "std/table"
+#import "std/fs"
+#import "os/windows"
+
+VSVARS :: "c:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build/vcvars64.bat";
+
+main :: fn () s32 {
+	vsvars :: if command_line_arguments.len > 1 then command_line_arguments[1] else VSVARS;
+	if !file_exist(vsvars) {
+		print_err("File not found: '%'. The 'vsvars64.bat' location can be provided as command line argument.", vsvars);
+		return 1;
+	}
+	
+	before, err1 :: run("set");
+	if err1 { 
+		print_err(err1);
+		return 1;
+	}
+	
+	after, err2 :: run(tprint("\"%\" & set", VSVARS));
+	if err2 {
+		print_err(err2);
+		return 1;
+	}
+
+	before_lines :: str_split_by(before, '\n');
+	after_lines  :: str_split_by(after, '\n');
+	
+	lookup: Table(string_view, string_view);
+	
+	loop i := 0; i < before_lines.len; i += 1 {
+		key, value: string_view;
+		if !str_split_by_first(before_lines[i], '=', &key, &value) then continue;
+		tbl_insert(&lookup, key, value);
+	}
+	
+	new_values := str_new(256);
+	
+	loop i := 0; i < after_lines.len; i += 1 {
+		if str_match(after_lines[i], "__", 2) then continue;
+		key, value: string_view;
+		if !str_split_by_first(after_lines[i], '=', &key, &value) then continue;
+		
+		before_value, found :: tbl_lookup(&lookup, key);
+		if found {
+			before_values :: str_split_by(before_value, ';');
+			after_values  :: str_split_by(value, ';');
+			
+			new_values.len = 0;
+			
+			loop i := 0; i < after_values.len; i += 1 {
+				after_value :: after_values[i];
+				if after_value.len == 0 then continue;
+				should_append := true;
+				loop j := 0; j < before_values.len; j += 1 {
+					if str_match(after_value, before_values[j]) {
+						should_append = false;
+						break;
+					}
+				}
+				if !should_append then continue;
+				str_concat(&new_values, ";", trim(after_value, " \n\r\t"));
+			}
+			
+			if new_values.len > 0 {
+				print("$env:% += \"%\"\n", key, new_values);
+			}
+		} else if value.len > 0 {
+			print("$env:% = \"%\"\n", key, trim(value, " \n\r\t"));
+		}
+	}
+	
+	return 0;
+}
+
+run :: fn (cmd: string_view) (out: string, err: Error) {
+	result :: str_new(1024);
+
+	sa: SECURITY_ATTRIBUTES;
+	sa.nLength        = auto sizeof(SECURITY_ATTRIBUTES);
+	sa.bInheritHandle = TRUE;
+
+	read_pipe, write_pipe: HANDLE;
+	if CreatePipe(&read_pipe, &write_pipe, &sa, 0) == 0 {
+		return result, os_get_last_error2();
+	}
+
+	proc_info: PROCESS_INFORMATION;
+
+	start_info: STARTUPINFOA;
+	start_info.cb = auto sizeof(start_info);
+	start_info.hStdOutput = write_pipe;
+	start_info.hStdError  = write_pipe;
+	start_info.dwFlags |= STARTF_USESTDHANDLES;
+
+	command :: tprint("cmd.exe /C \"%\"", cmd);
+
+	if CreateProcessA(null, strtoc(command), null, null, TRUE, 0, null, null, &start_info, &proc_info) == 0 {
+		CloseHandle(read_pipe);
+		CloseHandle(write_pipe);
+		return result, os_get_last_error2();
+	}
+
+	CloseHandle(write_pipe);
+
+	buffer: [4096]u8 #noinit;
+	bytes_read: DWORD;
+	loop ReadFile(read_pipe, buffer.ptr, auto buffer.len - 1, &bytes_read, null) > 0 {
+		str_append(&result, string_view.{ auto bytes_read, buffer.ptr });
+	}
+
+	WaitForSingleObject(proc_info.hProcess, INFINITE);
+
+	CloseHandle(proc_info.hProcess);
+	CloseHandle(proc_info.hThread);
+	CloseHandle(read_pipe);
+	
+	return result, OK;
+}
+
+trim_right :: fn (str: string_view, chars: string_view) string_view #inline {
+	result := str;
+	loop i := str.len-1; i >= 0; i -= 1 {
+		c :: str[i];
+		stop := true;
+		loop j := 0; j < chars.len; j += 1 {
+			if c == chars[j] {
+				result.len -= 1;
+				stop        = false;
+				break;
+			}
+		}
+		if stop { break; }
+	}
+	return result;
+}
+
+trim_left :: fn (str: string_view, chars: string_view) string_view #inline {
+	start  := 0;
+	len    := str.len;
+	loop i := 0; i < str.len; i += 1 {
+		c :: str[i];
+		stop := true;
+		loop j := 0; j < chars.len; j += 1 {
+			if c == chars[j] {
+				len   -= 1;
+				start += 1;
+				stop   = false;
+				break;
+			}
+		}
+		if stop { break; }
+	}
+	assert(len >= 0 && len <= str.len);
+	return string_view.{ len, &str[start] };
+}
+
+trim :: fn (str: string_view, chars: string_view) string_view #inline {
+	return trim_right(trim_left(str, chars), chars);
+}
