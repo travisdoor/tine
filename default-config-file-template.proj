@@ -48,8 +48,8 @@ font_size                              12
 # Customize shell command. Command line arguments including the shell executable used when 'shell' or
 # 'build' editor commands are invoked.
 # The shell executable (or full path) should be the first followed by optional arguments passed directly
-# to the shell. When 'shell' command is invoked from the editor it's appended in quotes after content
-# of this entry.
+# to the shell.
+# Requested shell command is later passed into the running shell via pipe.
 #
 # Default values are:
 # - Windows: CMD.exe
@@ -57,8 +57,9 @@ font_size                              12
 # - Linux:   /bin/bash
 #
 # Examples:
-# shell                                  pwsh -c
-# shell                                  C:/Program\ Files/Git/bin/bash.exe -c
+# shell                                  pwsh -c "-"
+# shell                                  CMD.exe /Q /K prompt $
+# shell                                  C:/Program\ Files/Git/bin/bash.exe
 
 # Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
 # locations parsed from the output are available later in error list for quick navigation (used with

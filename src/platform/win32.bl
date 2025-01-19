@@ -1,7 +1,7 @@
 #import "os/windows"
 
 BUILD_COMMAND :: "build.bat";
-DEFAULT_SHELL :: "cmd.exe /c";
+DEFAULT_SHELL :: "CMD.exe /Q /K prompt $";
 
 //
 // Process
@@ -10,7 +10,7 @@ DEFAULT_SHELL :: "cmd.exe /c";
 IoStream :: HANDLE;
 Pid :: DWORD;
 
-start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
+start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_view) Error {
 	static_assert(has_member2(TContext, "pid"));
 	static_assert(has_member2(TContext, "stdin"));
 	static_assert(has_member2(TContext, "stdout"));
@@ -60,21 +60,11 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	};
 
 	// We must duplicate all arguments because they might not be zero terminated...
-	command_line := str_new(cmd, allocator);
+	command_line := str_new(executable, allocator);
 
 	loop i := 0; i < args.len; i += 1 {
-		str_append(&command_line, " ");
-		arg :: args[i];
-		loop j := 0; j < arg.len; j += 1 {
-			c :: arg[j];
-			// if c == '\"' || c == '\'' {
-			// 	str_append(&command_line, "\\");
-			// }
-			str_append(&command_line, string_view.{ 1, &c });
-		}
+		str_concat(&command_line, " ", args[i]);
 	}
-
-	print_log(">>> %", command_line);
 
 	if CreateProcessA(null, strtoc(command_line), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
 		CloseHandle(stdout_read);
@@ -198,11 +188,10 @@ write_pipe :: fn (stream: IoStream, msg: string_view) Error {
 		total_written += n;
 	}
 	assert(msg_len == total_written);
-	// print_log("Write: %", msg);
 	return OK;
 }
 
-close_stream :: fn (handle: IoStream) {
+close_pipe :: fn (handle: IoStream) {
 	CloseHandle(handle);
 }
 

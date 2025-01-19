@@ -131,11 +131,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	allocator :: application_context.temporary_allocator;
 
 	shell_command :: str_new(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
-
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
-
-	cmd :: request_data.args;
-	array_push(&args_with_executable, cmd);
 
 	if args_with_executable.len == 0 {
 		print_err("Cannot resolve shell executable name.");
@@ -149,7 +145,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	result :: Request.{ job_kind = JobKind.BUILD };
 	result_data :: &result.data.build;
 
-	result_data.text = sprint("Execute: % %\n", shell_command, cmd);
+	result_data.text = sprint("Execute: %\n", request_data.args);
 	push_result(ctx, &result);
 
 	err :: start_process(ctx, executable, args);
@@ -158,6 +154,10 @@ worker :: fn (ctx: *JobContext) s32 {
 		ctx.state = FAILED;
 		return 0;
 	}
+
+	write_pipe(ctx.stdin, request_data.args);
+	write_pipe(ctx.stdin, "\n");
+	close_pipe(ctx.stdin);
 
 	loop !ctx.kill {
 		state, err :: poll_pipe(ctx.stdout);

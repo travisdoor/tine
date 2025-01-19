@@ -82,7 +82,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	// Submit the source to the clang-format.
-	close_stream(ctx.stdin);
+	close_pipe(ctx.stdin);
 	request_data.src.len = 0;
 
 	loop !ctx.kill {

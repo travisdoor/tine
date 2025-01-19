@@ -87,8 +87,12 @@ commit :: fn () {
 
 	trim_chars :: " \t";
 	cmd = trim_right(trim_left(cmd, trim_chars), trim_chars);
-	
-	if cmd.len == 0 then return;
+
+	if cmd.len == 0 {
+		item :: get_selected_item_in_list();
+		if !item then return;
+		cmd = item.title;
+	}
 
 	err :: request_build(cmd);
 	if err {
@@ -125,7 +129,7 @@ is_current_selected_same_as_command :: fn () bool {
 set_current_item_as_caption :: fn () {
 	item :: get_selected_item_in_list();
 	if !item then return;
-	
+
 	buf :: get_active_buffer_and_editor();
 	notify_changes_to_buffer = -1;
 	clear_buffer(buf);
