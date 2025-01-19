@@ -57,8 +57,8 @@ font_size                              12
 # - Linux:   /bin/bash
 #
 # Examples:
-# shell                                  pwsh -c # Use powershell
-# shell                                  C:/Program\ Files/Git/bin/bash.exe -c # Use git bash
+# shell                                  pwsh -c
+# shell                                  C:/Program\ Files/Git/bin/bash.exe -c
 
 # Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
 # locations parsed from the output are available later in error list for quick navigation (used with

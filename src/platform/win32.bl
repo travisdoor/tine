@@ -60,12 +60,23 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	};
 
 	// We must duplicate all arguments because they might not be zero terminated...
-	tmp := str_new(cmd, allocator);
+	command_line := str_new(cmd, allocator);
+
 	loop i := 0; i < args.len; i += 1 {
-		str_append(&tmp, " ");
-		str_append(&tmp, str_new(args[i], allocator));
+		str_append(&command_line, " ");
+		arg :: args[i];
+		loop j := 0; j < arg.len; j += 1 {
+			c :: arg[j];
+			// if c == '\"' || c == '\'' {
+			// 	str_append(&command_line, "\\");
+			// }
+			str_append(&command_line, string_view.{ 1, &c });
+		}
 	}
-	if CreateProcessA(null, strtoc(tmp), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
+
+	print_log(">>> %", command_line);
+
+	if CreateProcessA(null, strtoc(command_line), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
 		CloseHandle(stdout_read);
 		CloseHandle(stdout_write);
 		CloseHandle(stdin_read);

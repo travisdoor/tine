@@ -703,3 +703,12 @@ split_command_line_arguments :: fn (args: *string, allocator: *Allocator = null)
 
 	return result;
 }
+
+contains_any_of :: fn (str: string_view, chars: string_view) bool #inline {
+	loop i := 0; i < str.len; i += 1 {
+		loop j := 0; j < chars.len; j += 1 {
+			if str[i] == chars[j] then return true;
+		}
+	}
+	return false;
+}

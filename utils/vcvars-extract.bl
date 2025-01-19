@@ -4,12 +4,12 @@
 #import "std/fs"
 #import "os/windows"
 
-VSVARS :: "c:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build/vcvars64.bat";
+VCVARS :: "c:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build/vcvars64.bat";
 
 main :: fn () s32 {
-	vsvars :: if command_line_arguments.len > 1 then command_line_arguments[1] else VSVARS;
-	if !file_exist(vsvars) {
-		print_err("File not found: '%'. The 'vsvars64.bat' location can be provided as command line argument.", vsvars);
+	vcvars :: if command_line_arguments.len > 1 then command_line_arguments[1] else VCVARS;
+	if !file_exist(vcvars) {
+		print_err("File not found: '%'. The 'vcvars64.bat' location can be provided as command line argument.", vcvars);
 		return 1;
 	}
 	
@@ -19,7 +19,7 @@ main :: fn () s32 {
 		return 1;
 	}
 	
-	after, err2 :: run(tprint("\"%\" & set", VSVARS));
+	after, err2 :: run(tprint("\"%\" & set", vcvars));
 	if err2 {
 		print_err(err2);
 		return 1;

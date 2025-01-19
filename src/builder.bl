@@ -47,7 +47,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 	} else {
 		request_data :: &request.data.build;
 		text :: request_data.text;
-		
+
 		// append_readonly_buffer(buf, text);
 		// return;
 
@@ -134,17 +134,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
 
-	// Escape all quotes
-	cmd :: str_new(request_data.args.len + 2, allocator);
-	str_append(&cmd, "\"");
-	loop i := 0; i < request_data.args.len; i += 1 {
-		c :: request_data.args[i];
-		if c == '\"' || c == '\'' {
-			str_append(&cmd, "\\");
-		}
-		str_append(&cmd, string_view.{ 1, &c });
-	}
-	str_append(&cmd, "\"");
+	cmd :: request_data.args;
 	array_push(&args_with_executable, cmd);
 
 	if args_with_executable.len == 0 {
