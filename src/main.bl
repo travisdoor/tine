@@ -69,14 +69,14 @@ CODE_COLOR_NUMBER_INDEX    : u8 : 7;
 CODE_COLOR_ERROR_INDEX     : u8 : 9;
 CODE_COLOR_WARNING_INDEX   : u8 : 10;
 CODE_COLOR_FUNCTION_INDEX  : u8 : 11;
-ANSI_COLOR_BLACK           : u8 : 12;
-ANSI_COLOR_RED             : u8 : 13;
-ANSI_COLOR_GREEN           : u8 : 14;
-ANSI_COLOR_YELLOW          : u8 : 15;
-ANSI_COLOR_BLUE            : u8 : 16;
-ANSI_COLOR_MAGENTA         : u8 : 17;
-ANSI_COLOR_CYAN            : u8 : 18;
-ANSI_COLOR_WHITE           : u8 : 19;
+ANSI_COLOR_BLACK_INDEX     : u8 : 12;
+ANSI_COLOR_RED_INDEX       : u8 : 13;
+ANSI_COLOR_GREEN_INDEX     : u8 : 14;
+ANSI_COLOR_YELLOW_INDEX    : u8 : 15;
+ANSI_COLOR_BLUE_INDEX      : u8 : 16;
+ANSI_COLOR_MAGENTA_INDEX   : u8 : 17;
+ANSI_COLOR_CYAN_INDEX      : u8 : 18;
+ANSI_COLOR_WHITE_INDEX     : u8 : 19;
 
 DEFAULT_FONT_SIZE              :: 20;
 MAX_FONT_SIZE                  :: 64;
@@ -785,6 +785,7 @@ main :: fn () s32 {
 	defer lsp_terminate();
 
 	build_init();
+	defer build_terminate();
 
 	// Cleanup error list...
 	defer array_terminate(&error_list);
@@ -1485,7 +1486,8 @@ JobContext :: struct {
 	pid: Pid;
 
 	// Extra shit needed only on Windows.
-	win_job_handle: *u8;
+	win_job_handle:     *u8;
+	win_process_handle: *u8;
 
 	stdin:  IoStream;
 	stdout: IoStream;

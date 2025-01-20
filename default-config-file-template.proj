@@ -282,44 +282,57 @@ shell Alt+C
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block, this
 # way you can easily change editor colors.
 
+#-------------------------------------------
 # dark colors
-background_color                    0C1924
-foreground_color                    CCCCCC
-cursor_background_color             00FF00
-cursor_foreground_color             303030
-current_line_background_color       142A3D
-search_result_background_color      A349A4
-title_bar_color                     202020
-title_bar_active                    01574C
-title_bar_text_color                CCCCCC
-command_background_color            000000
-command_foreground_color            CCCCCC
-command_title_color                 3CC7CF
-command_select_color                01574C
-command_list_background_color       162E42
-modification_indicator_color        FFFF00
-selection_background_color          00129A
-selection_background_inactive_color 404040
-message_color                       09975A
-warning_color                       DCC80B
-error_color                         E92204
-inline_error_background_color       400809
-inline_warning_background_color     4F4F2D
-macro_record_icon_color             E92204
-background_line_numbers_color       09121A
-foreground_line_numbers_color       606060
+#-------------------------------------------
+# background_color                    0C1924
+# foreground_color                    CCCCCC
+# cursor_background_color             00FF00
+# cursor_foreground_color             303030
+# current_line_background_color       142A3D
+# search_result_background_color      A349A4
+# title_bar_color                     202020
+# title_bar_active                    01574C
+# title_bar_text_color                CCCCCC
+# command_background_color            000000
+# command_foreground_color            CCCCCC
+# command_title_color                 3CC7CF
+# command_select_color                01574C
+# command_list_background_color       162E42
+# modification_indicator_color        FFFF00
+# selection_background_color          00129A
+# selection_background_inactive_color 404040
+# message_color                       09975A
+# warning_color                       DCC80B
+# error_color                         E92204
+# inline_error_background_color       400809
+# inline_warning_background_color     4F4F2D
+# macro_record_icon_color             E92204
+# background_line_numbers_color       09121A
+# foreground_line_numbers_color       606060
 
-code_comment                        00FF80
-code_keyword                        FFF200
-code_directive                      9B9B9B
-code_string                         4EC9B0
-code_number                         FFAC9C
-code_invalid                        FF0000
-code_warning                        DCC80B
-code_error                          E92204
-code_function                       FFFFFF
+# code_comment                        00FF80
+# code_keyword                        FFF200
+# code_directive                      9B9B9B
+# code_string                         4EC9B0
+# code_number                         FFAC9C
+# code_invalid                        FF0000
+# code_warning                        DCC80B
+# code_error                          E92204
+# code_function                       FFFFFF
 
+# ansi_black                          5E5E5E
+# ansi_red                            D75F5F
+# ansi_green                          A8B56D
+# ansi_yellow                         F0E68C
+# ansi_blue                           5F87D7
+# ansi_magenta                        D787AF
+# ansi_cyan                           5FD7D7
+# ansi_white                          D0D0D0
+
+#-------------------------------------------
 # dark colors zenburn-like
+#-------------------------------------------
 # background_color                    3F3F3F
 # foreground_color                    DCDCCC
 # cursor_background_color             00FF00
@@ -356,7 +369,18 @@ code_function                       FFFFFF
 # code_error                          E92204
 # code_function                       93E0E3
 
+# ansi_black                          5E5E5E
+# ansi_red                            D75F5F
+# ansi_green                          A8B56D
+# ansi_yellow                         F0E68C
+# ansi_blue                           5F87D7
+# ansi_magenta                        D787AF
+# ansi_cyan                           5FD7D7
+# ansi_white                          D0D0D0
+
+#-------------------------------------------
 # dark colors casey style
+#-------------------------------------------
 # background_color                    161616
 # foreground_color                    CDAA7D
 # cursor_background_color             00FF00
@@ -393,49 +417,59 @@ code_function                       FFFFFF
 # code_error                          E92204
 # code_function                       BFC9DB
 
+# ansi_black                          5E5E5E
+# ansi_red                            D75F5F
+# ansi_green                          A8B56D
+# ansi_yellow                         F0E68C
+# ansi_blue                           5F87D7
+# ansi_magenta                        D787AF
+# ansi_cyan                           5FD7D7
+# ansi_white                          D0D0D0
+
+#-------------------------------------------
 # light colors
-# background_color                    FFFFFF
-# foreground_color                    000000
-# cursor_background_color             0000FF
-# cursor_foreground_color             F7F7F7
-# current_line_background_color       FFFFFF
-# search_result_background_color      E8E4A7
-# title_bar_color                     EBEBED
-# title_bar_active                    C0D8F4
-# title_bar_text_color                000000
-# command_background_color            F7F7F7
-# command_foreground_color            373A3F
-# command_title_color                 984EA5
-# command_select_color                C0D8F4
-# command_list_background_color       DCDCDE
-# modification_indicator_color        984EA5
-# selection_background_color          C0D8F4
-# selection_background_inactive_color E9F4FF
-# message_color                       22B14C
-# warning_color                       C2990B
-# error_color                         ED1C24
-# inline_error_background_color       EDCFD0
-# inline_warning_background_color     FFF8C8
-# macro_record_icon_color             ED1C24
-# background_line_numbers_color       DDE8F2
-# foreground_line_numbers_color       505050
+#-------------------------------------------
+background_color                    FFFFFF
+foreground_color                    000000
+cursor_background_color             0000FF
+cursor_foreground_color             F7F7F7
+current_line_background_color       FFFFFF
+search_result_background_color      E8E4A7
+title_bar_color                     EBEBED
+title_bar_active                    C0D8F4
+title_bar_text_color                000000
+command_background_color            F7F7F7
+command_foreground_color            373A3F
+command_title_color                 984EA5
+command_select_color                C0D8F4
+command_list_background_color       DCDCDE
+modification_indicator_color        984EA5
+selection_background_color          C0D8F4
+selection_background_inactive_color E9F4FF
+message_color                       22B14C
+warning_color                       C2990B
+error_color                         ED1C24
+inline_error_background_color       EDCFD0
+inline_warning_background_color     FFF8C8
+macro_record_icon_color             ED1C24
+background_line_numbers_color       DDE8F2
+foreground_line_numbers_color       505050
 
-# code_comment                        008000
-# code_keyword                        0000FF
-# code_directive                      FF00FF
-# code_string                         A349A4
-# code_number                         A349A4
-# code_invalid                        FF0000
-# code_warning                        948C00
-# code_error                          ED1C24
-# code_function                       B8860B
+code_comment                        008000
+code_keyword                        0000FF
+code_directive                      FF00FF
+code_string                         A349A4
+code_number                         A349A4
+code_invalid                        FF0000
+code_warning                        948C00
+code_error                          ED1C24
+code_function                       009999
 
-# ANSI colors used in shell output.
-ansi_black                          5E5E5E
-ansi_red                            D75F5F
-ansi_green                          A8B56D
-ansi_yellow                         F0E68C
-ansi_blue                           5F87D7
-ansi_magenta                        D787AF
-ansi_cyan                           5FD7D7
-ansi_white                          D0D0D0
+ansi_black                          4C4C4C
+ansi_red                            D00000
+ansi_green                          008000
+ansi_yellow                         DAA520
+ansi_blue                           005FFF
+ansi_magenta                        FF00FF
+ansi_cyan                           00AFAF
+ansi_white                          BFBFBF

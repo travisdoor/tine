@@ -34,8 +34,8 @@ Token :: struct {
 	kind: enum u8 {
 		EOF = -1;
 
-		ERROR   = CODE_COLOR_ERROR_INDEX;
-		WARNING = CODE_COLOR_WARNING_INDEX;
+		ERROR   = ANSI_COLOR_RED_INDEX;
+		WARNING = ANSI_COLOR_YELLOW_INDEX;
 	};
 
 	index: s32;

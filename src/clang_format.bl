@@ -63,6 +63,8 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	args :: [_]string_view.{ tprint("--assume-filename=\"%\"", request_data.filepath) };
 	err :: start_process(ctx, executable, args);
+	defer stop_process(ctx);
+
 	if err {
 		if err.code == ERR_NOT_FOUND {
 			print_err("Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
@@ -70,15 +72,14 @@ worker :: fn (ctx: *JobContext) s32 {
 			print_err("Cannot execute '%' with error: %", executable, err);
 		}
 		ctx.state = FAILED;
-		return 0;
+		return 1;
 	}
 
 	err_write :: write_pipe(ctx.stdin, request_data.src);
 	if err_write {
 		print_err("The '%' failed with error: %", executable, err_write);
 		ctx.state = FAILED;
-		kill_process(ctx);
-		return 0;
+		return 1;
 	}
 
 	// Submit the source to the clang-format.
@@ -90,8 +91,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		if err {
 			print_err("The '%' failed with error: %", executable, err);
 			ctx.state = FAILED;
-			kill_process(ctx);
-			return 0;
+			return 1;
 		}
 
 		using PollEvent;
@@ -100,8 +100,7 @@ worker :: fn (ctx: *JobContext) s32 {
 			if err_read {
 				print_err("The '%' failed with error: %", executable, err_read);
 				ctx.state = FAILED;
-				kill_process(ctx);
-				return 0;
+				return 1;
 			}
 		}
 		if is_flag(state, CLOSED) {
@@ -110,13 +109,6 @@ worker :: fn (ctx: *JobContext) s32 {
 			return 0;
 		}
 		os_sleep_ms(10);
-	}
-
-	err_kill :: kill_process(ctx);
-	if err_kill {
-		print_err(err_kill);
-		ctx.state = FAILED;
-		return 0;
 	}
 
 	ctx.state = KILLED;

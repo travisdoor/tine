@@ -6,7 +6,7 @@ DEFAULT_SHELL :: "/bin/bash";
 //
 
 IoStream :: C.int;
-Pid :: C.pid_t;
+Pid      :: C.pid_t;
 
 start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
 	using C;

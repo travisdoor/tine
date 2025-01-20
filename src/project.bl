@@ -284,14 +284,14 @@ do_the_stuff_after_project_load :: fn () {
 	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
 	code_color_table[auto CODE_COLOR_FUNCTION_INDEX ] = colors.code_function;
 	
-	code_color_table[auto ANSI_COLOR_BLACK]   = colors.ansi_black;
-	code_color_table[auto ANSI_COLOR_RED]     = colors.ansi_red;
-	code_color_table[auto ANSI_COLOR_GREEN]   = colors.ansi_green;
-	code_color_table[auto ANSI_COLOR_YELLOW]  = colors.ansi_yellow;
-	code_color_table[auto ANSI_COLOR_BLUE]    = colors.ansi_blue;
-	code_color_table[auto ANSI_COLOR_MAGENTA] = colors.ansi_magenta;
-	code_color_table[auto ANSI_COLOR_CYAN]    = colors.ansi_cyan;
-	code_color_table[auto ANSI_COLOR_WHITE]   = colors.ansi_white;
+	code_color_table[auto ANSI_COLOR_BLACK_INDEX]   = colors.ansi_black;
+	code_color_table[auto ANSI_COLOR_RED_INDEX]     = colors.ansi_red;
+	code_color_table[auto ANSI_COLOR_GREEN_INDEX]   = colors.ansi_green;
+	code_color_table[auto ANSI_COLOR_YELLOW_INDEX]  = colors.ansi_yellow;
+	code_color_table[auto ANSI_COLOR_BLUE_INDEX]    = colors.ansi_blue;
+	code_color_table[auto ANSI_COLOR_MAGENTA_INDEX] = colors.ansi_magenta;
+	code_color_table[auto ANSI_COLOR_CYAN_INDEX]    = colors.ansi_cyan;
+	code_color_table[auto ANSI_COLOR_WHITE_INDEX]   = colors.ansi_white;
 
 	indexed_files_ditry = true;
 

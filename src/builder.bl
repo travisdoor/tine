@@ -2,11 +2,17 @@ build: struct {
 	job_index:       s32;
 	buffer_index:    s32;
 	last_ansi_color: u8;
+
+	tmp: string;
 };
 
 build_init :: fn () {
 	build.job_index    = -1;
 	build.buffer_index = -1;
+}
+
+build_terminate :: fn () {
+	str_delete(&build.tmp);
 }
 
 request_build :: fn (cmd: string_view) Error {
@@ -46,10 +52,15 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 		kill_build();
 	} else {
 		request_data :: &request.data.build;
-		text :: request_data.text;
+		if request_data.text.len == 0 then return;
 
-		// append_readonly_buffer(buf, text);
-		// return;
+		text: string_view #noinit;
+		if build.tmp.len > 0 {
+			str_append(&build.tmp, request_data.text);
+			text = build.tmp;
+		} else {
+			text = request_data.text;
+		}
 
 		append :: fn (buf: *Buffer, text: string_view, color: u8) {
 			array_resize(&buf.colors, buf.colors.len + text.len);
@@ -63,6 +74,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 		// ANSI color codes...
 		loop i := 0; i < text.len; {
 			if text[i] == 27 { // Escape character
+				escape_seq_start_index :: i;
 				i += 1;
 
 				if append_len > 0 {
@@ -70,12 +82,27 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 					append_len = 0;
 				}
 
+				is_complete := false;
 				if i < text.len && text[i] == '[' {
 					i += 1;
 					start_colors :: i;
-					loop ;i < text.len && text[i] != 'm'; i += 1 {}
-					len :: i - start_colors;
-					if len > 0 {
+					len := 0;
+					MAX_SEQ_LEN :: 64;
+					loop ;i < text.len && len < MAX_SEQ_LEN; i += 1 {
+						if text[i] == 'm' {
+							is_complete = true;
+							break;
+						}
+						len += 1;
+					}
+
+					if len == 0 && is_complete {
+						// Empty terminator.
+						build.last_ansi_color = 0;
+					} else if len >= MAX_SEQ_LEN {
+						// Unterminated too long color code (missing 'm' at the end).
+					} else if is_complete {
+						assert(len > 0 && len < MAX_SEQ_LEN);
 						text_style :: str_split_by(string_view.{ len, &text[start_colors] }, ';', allocator);
 						foreground_color : s32 = -1;
 						loop i := 0; i < text_style.len; i += 1 {
@@ -89,9 +116,16 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 						} else if settings.shell_enable_ansi_colors {
 							build.last_ansi_color = get_ansi_color_index_from_code(foreground_color);
 						}
-					} else {
-						build.last_ansi_color = 0;
 					}
+				}
+
+				if !is_complete {
+					len :: i - escape_seq_start_index;
+					assert(len > 0);
+					escape_seq :: string_view.{ len, &text[escape_seq_start_index] };
+					build.tmp.len = 0;
+					str_append(&build.tmp, escape_seq);
+					return;
 				}
 			} else {
 				if append_len == 0 then append_start_index = i;
@@ -101,6 +135,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 		}
 
 		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, 0);
+		build.tmp.len = 0;
 	}
 }
 
@@ -149,10 +184,12 @@ worker :: fn (ctx: *JobContext) s32 {
 	push_result(ctx, &result);
 
 	err :: start_process(ctx, executable, args);
+	defer stop_process(ctx);
+
 	if err {
 		print_err(err);
 		ctx.state = FAILED;
-		return 0;
+		return 1;
 	}
 
 	write_pipe(ctx.stdin, request_data.args);
@@ -164,7 +201,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		if err {
 			print_err(err);
             ctx.state = FAILED;
-            break;
+            return 1;
 		}
 
 		using PollEvent;
@@ -176,7 +213,7 @@ worker :: fn (ctx: *JobContext) s32 {
 			if err_read {
 				print_err(err_read);
 				ctx.state = FAILED;
-				break;
+				return 1;
 			}
 		}
 		if is_flag(state, CLOSED) {
@@ -186,17 +223,10 @@ worker :: fn (ctx: *JobContext) s32 {
 
 		os_sleep_ms(10);
 	}
-	
+
 	if ctx.state == DONE {
 		result_data.text = sprint("\nProcess exited with status %.\n", ctx.exit_code);
 		push_result(ctx, &result);
-		return 0;
-	}
-
-	err_kill :: kill_process(ctx);
-	if err_kill {
-		print_err(err_kill);
-		ctx.state = FAILED;
 		return 0;
 	}
 
@@ -209,14 +239,14 @@ worker :: fn (ctx: *JobContext) s32 {
 
 get_ansi_color_index_from_code :: fn (n: s32) u8 #inline {
 	switch n {
-		30 { return ANSI_COLOR_BLACK;   }
-		31 { return ANSI_COLOR_RED;     }
-		32 { return ANSI_COLOR_GREEN;   }
-		33 { return ANSI_COLOR_YELLOW;  }
-		34 { return ANSI_COLOR_BLUE;    }
-		35 { return ANSI_COLOR_MAGENTA; }
-		36 { return ANSI_COLOR_CYAN;    }
-		37 { return ANSI_COLOR_WHITE;   }
+		30 { return ANSI_COLOR_BLACK_INDEX;   }
+		31 { return ANSI_COLOR_RED_INDEX;     }
+		32 { return ANSI_COLOR_GREEN_INDEX;   }
+		33 { return ANSI_COLOR_YELLOW_INDEX;  }
+		34 { return ANSI_COLOR_BLUE_INDEX;    }
+		35 { return ANSI_COLOR_MAGENTA_INDEX; }
+		36 { return ANSI_COLOR_CYAN_INDEX;    }
+		37 { return ANSI_COLOR_WHITE_INDEX;   }
 		default;
 	}
 	return CODE_COLOR_DEFAULT_INDEX;
