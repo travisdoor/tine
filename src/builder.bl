@@ -160,7 +160,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	close_pipe(ctx.stdin);
 
 	loop !ctx.kill {
-		state, err :: poll_pipe(ctx.stdout);
+		state, err :: poll_process(ctx);
 		if err {
 			print_err(err);
             ctx.state = FAILED;
@@ -186,18 +186,11 @@ worker :: fn (ctx: *JobContext) s32 {
 
 		os_sleep_ms(10);
 	}
-
-
-
-	switch ctx.state {
-		DONE,
-		FAILED {
-			exit_code :: get_process_exit_code(ctx.pid);
-			result_data.text = sprint("\nProcess exited with status %.\n", exit_code);
-			push_result(ctx, &result);
-			return 0;
-		}
-		default;
+	
+	if ctx.state == DONE {
+		result_data.text = sprint("\nProcess exited with status %.\n", ctx.exit_code);
+		push_result(ctx, &result);
+		return 0;
 	}
 
 	err_kill :: kill_process(ctx);
@@ -207,7 +200,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		return 0;
 	}
 
-	result_data.text = str_new("\nJob killed.\n");
+	result_data.text = str_new("\nProcess killed.\n");
 	push_result(ctx, &result);
 
 	ctx.state = KILLED;

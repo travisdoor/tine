@@ -60,6 +60,7 @@ font_size                              12
 # shell                                  pwsh -c "-"
 # shell                                  CMD.exe /Q /K prompt $
 # shell                                  C:/Program\ Files/Git/bin/bash.exe
+# shell                                  /bin/fish
 
 # Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
 # locations parsed from the output are available later in error list for quick navigation (used with

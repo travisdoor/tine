@@ -686,6 +686,12 @@ main :: fn () s32 {
 	}
 	defer glfw.Terminate();
 
+	{
+		major, minor, revision: s32;
+		glfw.GetVersion(&major, &minor, &revision);
+		print_log("Running against GLFW %.%.%", major, minor, revision);
+	}
+
 
 	// Create GLFW window.
 	WindowHint(CONTEXT_VERSION_MAJOR, 3);
@@ -762,7 +768,7 @@ main :: fn () s32 {
 
 	print_log("Settings: %", settings);
 
-	
+
 	rebuild_fonts();
 	defer draw.font_terminate(&font);
 	defer draw.font_terminate(&font_ui);
@@ -904,7 +910,7 @@ main :: fn () s32 {
 
 	array_terminate(&editors);
 	array_terminate(&buffers);
-	
+
 	info :: cast(*TypeInfoStruct) typeinfo(Settings);
 	loop i := 0; i < info.members.len; i += 1 {
 		member :: &info.members[i];
@@ -1490,6 +1496,8 @@ JobContext :: struct {
 
 	kill: bool;
 	is_removed: bool;
+
+	exit_code: s32;
 }
 
 Request :: struct {

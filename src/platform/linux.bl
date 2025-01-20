@@ -1,5 +1,5 @@
 BUILD_COMMAND :: "build.sh";
-DEFAULT_SHELL :: "/bin/bash -c";
+DEFAULT_SHELL :: "/bin/bash";
 
 //
 // Process
@@ -16,6 +16,8 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 
 	if pipe(to_child_pipe.ptr) != 0   then return os_get_last_error2();
 	if pipe(from_child_pipe.ptr) != 0 then return os_get_last_error2();
+
+	print_log("Execute: %: %", cmd, args);
 
 	pid :: fork();
 	if pid == -1 then return os_get_last_error2();
@@ -38,17 +40,19 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 
 		argc :: args.len + 2; // +2 executable and null terminator
 		args_mem :: alloc(sizeof(*char) * auto argc);
-		defer free(args_mem);
 		cargs := []*char.{ ptr = auto args_mem, len = argc };
-		_, exec_name :: path_split(cmd);
-		cargs[0] = strtoc(exec_name);
+
+		cmd_dup :: str_new(cmd);
+
+		cargs[0] = strtoc(cmd_dup);
 		cargs[cargs.len-1] = null;
+
 		loop i := 1; i < cargs.len-1; i += 1 {
-			cargs[i] = strtoc(args[i-1]);
+			cargs[i] = strtoc(str_new(args[i-1]));
 		}
-		// Return execution status???
-		if execv(strtoc(cmd), cargs.ptr) == -1 then error_and_exit();
-		exit(0);
+
+		if execv(strtoc(cmd_dup), cargs.ptr) == -1 then error_and_exit();
+		exit(1);
 	} else {
 		// parent
 		print_log("Starting process with PID %.", pid);
@@ -81,10 +85,10 @@ PollEvent :: enum #flags {
 	WAIT;
 }
 
-poll_pipe :: fn (stream: IoStream) (PollEvent, Error) {
+poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 	using C;
 	pfd := pollfd.{
-		fd = stream,
+		fd = ctx.stdout,
 		events = POLLIN,
 	};
 
@@ -96,6 +100,9 @@ poll_pipe :: fn (stream: IoStream) (PollEvent, Error) {
 			result = PollEvent.READ;
 		}
 		if (pfd.revents & POLLHUP) != 0 {
+			status: s32;
+			if waitpid(ctx.pid, &status, 0) == -1 then return result, os_get_last_error2();
+			ctx.exit_code = C.WEXITSTATUS(status);
 			result |= PollEvent.CLOSED;
 		}
 		return result, OK;
@@ -134,7 +141,7 @@ write_pipe :: fn (stream: IoStream, msg: string_view) Error {
 	return OK;
 }
 
-close_stream :: fn (handle: IoStream) {
+close_pipe :: fn (handle: IoStream) {
 	C.close(handle);
 }
 

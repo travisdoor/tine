@@ -264,8 +264,16 @@ list_completion :: fn (strs: []string, ids: []s32) {
 list_commands :: fn (repeatable_only := false) {
 	reset_listing();
 
+	skip := false;
 	loop i := 0; i < COMMAND_NAMES.len; i += 1 {
-		if i <= auto Command._PUBLIC { continue; }
+		if i <= auto Command._PUBLIC then continue;
+		if (i == auto Command._WINDOWS_BEGIN) {
+			skip = PLATFORM != Platform.WINDOWS;
+			continue;
+		} else if i == auto Command._WINDOWS_END {
+			skip = false;
+			continue;
+		}
 		if repeatable_only && !is_command_valid_for_repeating(auto i) then continue;
 
 		command_name : string_view : COMMAND_NAMES[i];

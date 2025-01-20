@@ -86,7 +86,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	request_data.src.len = 0;
 
 	loop !ctx.kill {
-		state, err :: poll_pipe(ctx.stdout);
+		state, err :: poll_process(ctx);
 		if err {
 			print_err("The '%' failed with error: %", executable, err);
 			ctx.state = FAILED;

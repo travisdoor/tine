@@ -586,7 +586,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 
 process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Error {
 	using PollEvent;
-	state, err :: poll_pipe(ctx.stdout);
+	state, err :: poll_process(ctx);
 	if err then return err;
 
 	if is_flag(state, CLOSED) {
@@ -616,7 +616,7 @@ process_response :: fn (ctx: *JobContext, pending_response: *PendingResponse) Er
 
 			loop (tok.bytes.len - tok.index < json_size) {
 				// Wait for more data from the pipe!!!
-				state, err :: poll_pipe(ctx.stdout);
+				state, err :: poll_process(ctx);
 				if err then return err;
 
 				if is_flag(state, CLOSED) {
