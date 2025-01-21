@@ -1552,7 +1552,7 @@ start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobC
 		name  = name,
 		kind  = kind,
 	};
-	mutex_init(&ctx.mutex);
+	mutex_init(&ctx.mutex, MutexKind.RECURSIVE);
 
 	job: *Job;
 	index := -1;

@@ -1,0 +1,217 @@
+//
+// Process
+//
+
+IoStream :: C.int;
+Pid      :: C.pid_t;
+
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
+	in_pipe:  [2]s32 #noinit;
+	out_pipe: [2]s32 #noinit;
+
+	executable :: str_new(256);
+	defer str_delete(&executable);
+
+	err :: lookup_executable(cmd, &executable);
+	if err then return err;
+
+	print_log("Execute '%' with args: %", executable, args);
+
+	if C.pipe(in_pipe.ptr) != 0 {
+		return os_get_last_error2();
+	}
+	if C.pipe(out_pipe.ptr) != 0 {
+		return os_get_last_error2();
+	}
+
+	flags :: C.fcntl(out_pipe[0], C.F_GETFL);
+	if flags == -1 then return os_get_last_error2();
+	if C.fcntl(out_pipe[0], C.F_SETFL, flags | C.O_NONBLOCK) == -1 then return os_get_last_error2();
+
+	pid :: C.fork();
+	if pid == -1 {
+		return os_get_last_error2();
+	}
+	if pid == 0 {
+		// child
+		C.dup2(in_pipe[0], C.STDIN);
+		C.dup2(out_pipe[1], C.STDOUT);
+
+		C.close(in_pipe[1]);
+		C.close(out_pipe[0]);
+
+		C.dup2(C.STDOUT, C.STDERR);
+
+		argc :: args.len + 2; // +2 executable and null terminator
+		buf: [16]*C.char #noinit;
+		assert(argc < buf.len);
+
+		_, exec_name :: path_split(executable);
+
+		cargs := []*C.char.{ ptr = auto buf.ptr, len = argc };
+		cargs[0] = strtoc(exec_name);
+		cargs[cargs.len-1] = null;
+		loop i := 1; i < cargs.len-1; i += 1 {
+			cargs[i] = strtoc(str_new(args[i-1]));
+		}
+
+		C.execv(strtoc(executable), cargs.ptr);
+		print_err("Execution failed with error: %", os_get_last_error2());
+		C.exit(1);
+	} else {
+		// parent
+		print_log("Starting process with PID %.", pid);
+		ctx.pid = pid;
+
+		C.close(out_pipe[1]);
+		C.close(in_pipe[0]);
+
+		ctx.stdout = out_pipe[0];
+		ctx.stdin  = in_pipe[1];
+	}
+
+	return OK;
+}
+
+stop_process :: fn (ctx: *?TContext) Error {
+	using C;
+	close_pipe(&ctx.stdin);
+	close_pipe(&ctx.stdout);
+
+	assert(ctx.pid > 0);
+	kill(ctx.pid, SIGTERM);
+	ctx.pid = -1;
+
+	return OK;
+}
+
+execute_system_command :: fn (cmd: string_view) Error {
+	cmd;
+	print_warn("Not implemented!");
+	return OK;
+}
+
+PollEvent :: enum #flags {
+	READ;
+	CLOSED;
+	WAIT;
+}
+
+poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
+	using C;
+	pfd := pollfd.{
+		fd = ctx.stdout,
+		events = POLLIN,
+	};
+
+	poll_result :: poll(&pfd, 1, 1);
+	if poll_result > 0 {
+		result := PollEvent.WAIT;
+
+		if (pfd.revents & POLLIN) != 0 {
+			result = PollEvent.READ;
+		}
+		if (pfd.revents & POLLHUP) != 0 {
+			status: s32;
+			if waitpid(ctx.pid, &status, 0) == -1 then return result, os_get_last_error2();
+			ctx.exit_code = C.WEXITSTATUS(status);
+			result |= PollEvent.CLOSED;
+		}
+		return result, OK;
+	} else if poll_result == 0 {
+		return PollEvent.WAIT, OK;
+	}
+	return PollEvent.CLOSED, os_get_last_error2();
+}
+
+read_pipe :: fn (stream: IoStream, dest: *string) Error {
+	using C;
+	loop {
+		buf: [4096]u8 #noinit;
+		n :: read(stream, auto buf.ptr, auto buf.len);
+		if n == -1 {
+			err :: os_get_last_error2();
+			if err.code == EAGAIN then return OK;
+			return err;
+		}
+		if n ==  0 then break;
+		str_append(dest, string_view.{ auto n, buf.ptr });
+	}
+	print_log("READ: %", @dest);
+	return OK;
+}
+
+write_pipe :: fn (stream: IoStream, msg: string_view) Error {
+	using C;
+	total_written : s64 = 0;
+	loop total_written < msg.len {
+		write_size :: math.min(msg.len - total_written, 4096);
+		n :: write(stream, auto &msg[total_written], auto write_size);
+		if n == -1 then return os_get_last_error2();
+		total_written += n;
+	}
+	assert(msg.len == total_written);
+	print_log("WRITE: %", msg);
+	return OK;
+}
+
+close_pipe :: fn (handle: *IoStream) {
+	if @handle < 0 then return;
+	C.close(@handle);
+	@handle = -1;
+}
+
+//
+// Clipboard
+//
+
+// @Incomplete: We'll need platform specific implementation here so we can drop libclipboard.
+init_clipboard :: fn () {
+	clipboard.init();
+}
+
+terminate_clipboard :: fn () {
+	clipboard.terminate();
+}
+
+read_clipboard :: fn () string_view {
+	return clipboard.get();
+}
+
+write_clipboard :: fn (text: string_view) {
+	clipboard.set(text);
+}
+
+//
+// MISC
+//
+
+get_current_date_as_YYYY_MM_DD :: fn () string_view {
+	time :: C.time(null);
+	tm :: C.localtime(&time);
+	buf: [11]C.char;
+	C.strftime(buf.ptr, auto buf.len, strtoc("%Y-%m-%d"), tm);
+	return tprint("%", ctostr(buf.ptr));
+}
+
+#scope_private
+clipboard :: #import "extra/clipboard";
+
+lookup_executable :: fn (path: string_view, full_path: *string) Error {
+	full_path.len = 0;
+	if C.access(strtoc(path), C.X_OK) == 0 {
+		str_append(full_path, path);
+		return OK;
+	}
+	env_path :: env_get("PATH");
+	if env_path.len == 0 then return error(ERR_NOT_FOUND, "File not found.");
+	allocator :: application_context.temporary_allocator;
+	paths :: str_split_by(env_path, ':', allocator);
+
+	loop i := 0; i < paths.len; i += 1 {
+		str_clear_concat(full_path, paths[i], "/", path);
+		if C.access(strtoc(@full_path), C.X_OK) == 0 then return OK;
+	}
+	full_path.len = 0;
+	return error(ERR_NOT_FOUND, "File not found.");
+}

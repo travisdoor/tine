@@ -1,161 +1,12 @@
+#load "posix.bl"
+
 BUILD_COMMAND :: "build.sh";
 DEFAULT_SHELL :: "/bin/bash";
 
-//
-// Process
-//
-
-IoStream :: C.int;
-Pid      :: C.pid_t;
-
-start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
-	using C;
-
-	to_child_pipe:   [2]s32 #noinit;
-	from_child_pipe: [2]s32 #noinit;
-
-	if pipe(to_child_pipe.ptr) != 0   then return os_get_last_error2();
-	if pipe(from_child_pipe.ptr) != 0 then return os_get_last_error2();
-
-	print_log("Execute: %: %", cmd, args);
-
-	pid :: fork();
-	if pid == -1 then return os_get_last_error2();
-
-	if pid == 0 {
-		error_and_exit :: fn () {
-			print_err(os_get_last_error2());
-			C.exit(1);
-		};
-
-		close(to_child_pipe[1]);
-		close(from_child_pipe[0]);
-
-		if dup2(to_child_pipe[0], 0) == -1 then error_and_exit();
-		close(to_child_pipe[0]);
-
-		if dup2(from_child_pipe[1], 1) == -1 then error_and_exit();
-		if dup2(from_child_pipe[1], 2) == -1 then error_and_exit();
-		close(from_child_pipe[1]);
-
-		argc :: args.len + 2; // +2 executable and null terminator
-		args_mem :: alloc(sizeof(*char) * auto argc);
-		cargs := []*char.{ ptr = auto args_mem, len = argc };
-
-		cmd_dup :: str_new(cmd);
-
-		cargs[0] = strtoc(cmd_dup);
-		cargs[cargs.len-1] = null;
-
-		loop i := 1; i < cargs.len-1; i += 1 {
-			cargs[i] = strtoc(str_new(args[i-1]));
-		}
-
-		if execv(strtoc(cmd_dup), cargs.ptr) == -1 then error_and_exit();
-		exit(1);
-	} else {
-		// parent
-		print_log("Starting process with PID %.", pid);
-		close(to_child_pipe[0]);
-		close(from_child_pipe[1]);
-
-		ctx.pid = pid;
-		ctx.stdin  = to_child_pipe[1];
-		ctx.stdout = from_child_pipe[0];
-	}
-
-	return OK;
-}
-
-execute_system_command :: fn (cmd: string_view) Error {
-	cmd;
-	print_warn("Not implemented!");
-	return OK;
-}
-
-kill_process :: fn (ctx: *?TContext) Error {
-	using C;
-	if kill(ctx.pid, SIGTERM) == -1 then os_get_last_error2();
-	return OK;
-}
-
-PollEvent :: enum #flags {
-	READ;
-	CLOSED;
-	WAIT;
-}
-
-poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
-	using C;
-	pfd := pollfd.{
-		fd = ctx.stdout,
-		events = POLLIN,
-	};
-
-	poll_result :: poll(&pfd, 1, 1);
-	if poll_result > 0 {
-		result := PollEvent.WAIT;
-
-		if (pfd.revents & POLLIN) != 0 {
-			result = PollEvent.READ;
-		}
-		if (pfd.revents & POLLHUP) != 0 {
-			status: s32;
-			if waitpid(ctx.pid, &status, 0) == -1 then return result, os_get_last_error2();
-			ctx.exit_code = C.WEXITSTATUS(status);
-			result |= PollEvent.CLOSED;
-		}
-		return result, OK;
-	} else if poll_result == 0 {
-		return PollEvent.WAIT, OK;
-	}
-	return PollEvent.CLOSED, os_get_last_error2();
-}
-
-read_pipe :: fn (stream: IoStream, dest: *string) Error {
-	using C;
-	loop {
-		buf:  [2048]u8 #noinit;
-		n :: read(stream, auto buf.ptr, auto buf.len);
-		if n == -1 {
-			err :: os_get_last_error2();
-			if err.code == EAGAIN then return OK;
-			return err;
-		}
-		if n ==  0 then break;
-		str_append(dest, string_view.{ auto n, buf.ptr });
-	}
-	return OK;
-}
-
-write_pipe :: fn (stream: IoStream, msg: string_view) Error {
-	using C;
-	total_written : s64 = 0;
-	loop total_written < msg.len {
-		write_size :: math.min(msg.len - total_written, 4096);
-		n :: write(stream, auto &msg[total_written], auto write_size);
-		if n == -1 then return os_get_last_error2();
-		total_written += n;
-	}
-	assert(msg.len == total_written);
-	return OK;
-}
-
-close_pipe :: fn (handle: IoStream) {
-	C.close(handle);
-}
 
 //
 // MISC
 //
-
-get_current_date_as_YYYY_MM_DD :: fn () string_view {
-	time :: C.time(null);
-	tm :: C.localtime(&time);
-	buf: [11]C.char;
-	C.strftime(buf.ptr, auto buf.len, strtoc("%Y-%m-%d"), tm);
-	return tprint("%", ctostr(buf.ptr));
-}
 
 get_fonts_directory :: fn () string {
 	return str_new("/usr/share/fonts");
@@ -204,22 +55,6 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	}
 
 	return OK, result;
-}
-
-init_clipboard :: fn () {
-	clipboard.init();
-}
-
-terminate_clipboard :: fn () {
-	clipboard.terminate();
-}
-
-read_clipboard :: fn () string_view {
-	return clipboard.get();
-}
-
-write_clipboard :: fn (text: string_view) {
-	clipboard.set(text);
 }
 
 //
@@ -272,6 +107,3 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	print_log("time = %", t);
 	return t, OK;
 }
-
-#scope_private
-clipboard :: #import "extra/clipboard";
