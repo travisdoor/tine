@@ -101,10 +101,12 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 }
 
 stop_process :: fn (ctx: *?TContext) Error {
-	CloseHandle(ctx.win_process_handle);
-	CloseHandle(ctx.win_job_handle);
-	CloseHandle(ctx.stdout);
-	CloseHandle(ctx.stdin);
+	handles :: [_]*HANDLE.{ &ctx.win_process_handle, &ctx.win_job_handle, &ctx.stdout, &ctx.stdin };
+	loop i := 0; i < handles.len; i += 1 {
+		CloseHandle(@handles[i]);
+		@handles[i] = INVALID_HANDLE_VALUE;
+	}
+
 	return OK;
 }
 
@@ -130,29 +132,26 @@ PollEvent :: enum #flags {
 poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 	result := PollEvent.WAIT;
 
-	// Check if process is still alive.
-	exit_code: DWORD;
-	if GetExitCodeProcess(ctx.win_process_handle, &exit_code) != 0 {
-		if exit_code != STILL_ACTIVE {
-			ctx.exit_code = auto exit_code;
-			result = PollEvent.CLOSED;
-		}
-	}
-
 	// Check if pipe has any data to read (process might be already closed).
 	available_bytes: u32 #noinit;
 	if PeekNamedPipe(ctx.stdout, null, 0, null, &available_bytes, null) == 0 {
 		err :: os_get_last_error2();
-		if err.code == ERROR_BROKEN_PIPE {
-			result = PollEvent.CLOSED;
-		} else {
+		if err.code != ERROR_BROKEN_PIPE {
 			return PollEvent.CLOSED, err;
 		}
 	}
 
 	if available_bytes > 0 {
-		result |=  PollEvent.READ;
-		result &= ~PollEvent.WAIT;
+		result =  PollEvent.READ;
+	} else {
+		// Check if process is still alive.
+		exit_code: DWORD;
+		if GetExitCodeProcess(ctx.win_process_handle, &exit_code) != 0 {
+			if exit_code != STILL_ACTIVE {
+				ctx.exit_code = auto exit_code;
+				result = PollEvent.CLOSED;
+			}
+		}
 	}
 
 	return result, OK;
@@ -170,13 +169,12 @@ read_pipe :: fn (stream: IoStream, dest: *string) Error {
 
 	total_read : u32 = 0;
 	loop total_read < available_bytes {
-		buf:  [32]u8 #noinit;
+		buf: [4096]u8 #noinit;
 
 		n: DWORD;
 		if ReadFile(stream, buf.ptr, auto buf.len, &n, null) == 0 then return os_get_last_error2();
 		str_append(dest, string_view.{ auto n, buf.ptr });
 		total_read += n;
-		break;
 	}
 
 	return OK;
@@ -196,8 +194,9 @@ write_pipe :: fn (stream: IoStream, msg: string_view) Error {
 	return OK;
 }
 
-close_pipe :: fn (handle: IoStream) {
-	CloseHandle(handle);
+close_pipe :: fn (handle: *IoStream) {
+	CloseHandle(@handle);
+	@handle = INVALID_HANDLE_VALUE;
 }
 
 //

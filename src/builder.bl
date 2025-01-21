@@ -52,15 +52,17 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 		kill_build();
 	} else {
 		request_data :: &request.data.build;
-		if request_data.text.len == 0 then return;
-
-		text: string_view #noinit;
+		text: string_view;
 		if build.tmp.len > 0 {
 			str_append(&build.tmp, request_data.text);
 			text = build.tmp;
+			build.tmp.len = 0;
 		} else {
 			text = request_data.text;
 		}
+
+		// append_readonly_buffer(buf, text);
+		// return;
 
 		append :: fn (buf: *Buffer, text: string_view, color: u8) {
 			array_resize(&buf.colors, buf.colors.len + text.len);
@@ -74,21 +76,22 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 		// ANSI color codes...
 		loop i := 0; i < text.len; {
 			if text[i] == 27 { // Escape character
-				escape_seq_start_index :: i;
+				esc_seq_start_index :: i;
 				i += 1;
+
+				MAX_ESCAPE_SEQ_LEN :: 8;
+				is_complete := false;
 
 				if append_len > 0 {
 					append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
 					append_len = 0;
 				}
 
-				is_complete := false;
 				if i < text.len && text[i] == '[' {
 					i += 1;
 					start_colors :: i;
 					len := 0;
-					MAX_SEQ_LEN :: 64;
-					loop ;i < text.len && len < MAX_SEQ_LEN; i += 1 {
+					loop ;i < text.len && len <= MAX_ESCAPE_SEQ_LEN; i += 1 {
 						if text[i] == 'm' {
 							is_complete = true;
 							break;
@@ -96,13 +99,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 						len += 1;
 					}
 
-					if len == 0 && is_complete {
-						// Empty terminator.
-						build.last_ansi_color = 0;
-					} else if len >= MAX_SEQ_LEN {
-						// Unterminated too long color code (missing 'm' at the end).
-					} else if is_complete {
-						assert(len > 0 && len < MAX_SEQ_LEN);
+					if is_complete && len <= MAX_ESCAPE_SEQ_LEN {
 						text_style :: str_split_by(string_view.{ len, &text[start_colors] }, ';', allocator);
 						foreground_color : s32 = -1;
 						loop i := 0; i < text_style.len; i += 1 {
@@ -116,17 +113,18 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 						} else if settings.shell_enable_ansi_colors {
 							build.last_ansi_color = get_ansi_color_index_from_code(foreground_color);
 						}
+					} else {
+						build.last_ansi_color = 0;
 					}
 				}
 
 				if !is_complete {
-					len :: i - escape_seq_start_index;
-					assert(len > 0);
-					escape_seq :: string_view.{ len, &text[escape_seq_start_index] };
-					build.tmp.len = 0;
-					str_append(&build.tmp, escape_seq);
+					len :: i - esc_seq_start_index;
+					assert(len > 0, "We expect at least escape character here!");
+					str_append(&build.tmp, string_view.{ len, &text[esc_seq_start_index] });
 					return;
 				}
+
 			} else {
 				if append_len == 0 then append_start_index = i;
 				append_len += 1;
@@ -134,8 +132,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 			i += 1;
 		}
 
-		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, 0);
-		build.tmp.len = 0;
+		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
 	}
 }
 
@@ -194,7 +191,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	write_pipe(ctx.stdin, request_data.args);
 	write_pipe(ctx.stdin, "\n");
-	close_pipe(ctx.stdin);
+	close_pipe(&ctx.stdin);
 
 	loop !ctx.kill {
 		state, err :: poll_process(ctx);
