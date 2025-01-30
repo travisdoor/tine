@@ -59,14 +59,13 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 		wShowWindow = auto SW_HIDE,
 	};
 
-	// We must duplicate all arguments because they might not be zero terminated...
-	command_line := str_new(executable, allocator);
+	command_line := executable;
 
 	loop i := 0; i < args.len; i += 1 {
 		str_concat(&command_line, " ", args[i]);
 	}
 
-	if CreateProcessA(null, strtoc(command_line), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
+	if CreateProcessA(null, tstrtoc(command_line), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
 		CloseHandle(stdout_read);
 		CloseHandle(stdout_write);
 		CloseHandle(stdin_read);
@@ -116,7 +115,7 @@ execute_system_command :: fn (cmd: string_view) Error {
 	startup_info: STARTUPINFOA;
 	process_info: PROCESS_INFORMATION;
 	startup_info.cb = auto sizeof(STARTUPINFOA);
-	if CreateProcessA(null, strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
+	if CreateProcessA(null, tstrtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 	WaitForSingleObject(process_info.hProcess, INFINITE);
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
@@ -221,10 +220,9 @@ get_fonts_directory :: fn () string {
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	url_dup :: tprint("%", url); // Might not be zero-terminated...
 	buf: [MAX_PATH]u8 #noinit;
 	len: DWORD = auto buf.len;
-	status :: PathCreateFromUrlA(strtoc(url_dup), auto buf.ptr, &len, 0);
+	status :: PathCreateFromUrlA(tstrtoc(url), auto buf.ptr, &len, 0);
 	if status != S_OK {
 		return error("Url '%' cannot be converted to file path.", url), string.{};
 	}
@@ -234,10 +232,9 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 }
 
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
-	filepath_dup :: tprint("%", filepath); // Might not be zero-terminated...
 	buf: [2084]u8 #noinit; // INTERNET_MAX_URL_LENGTH
 	len: DWORD = auto buf.len;
-	status :: UrlCreateFromPathA(strtoc(filepath_dup), auto buf.ptr, &len, 0);
+	status :: UrlCreateFromPathA(tstrtoc(filepath), auto buf.ptr, &len, 0);
 	if status != S_OK {
 		return error("Filepath '%' cannot be converted to URL.", filepath), string.{};
 	}
@@ -354,7 +351,7 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 		return OK;
 	}
 
-	handle :: FindFirstChangeNotificationA(strtoc(directory), TRUE, auto flags);
+	handle :: FindFirstChangeNotificationA(tstrtoc(directory), TRUE, auto flags);
 	if handle == INVALID_HANDLE || handle == null {
 		return os_get_last_error2();
 	}
@@ -405,7 +402,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	attributes: WIN32_FILE_ATTRIBUTE_DATA;
-	if GetFileAttributesExA(strtoc(filepath), GET_FILEEX_INFO_LEVELS.GetFileExInfoStandard, auto &attributes) == TRUE {
+	if GetFileAttributesExA(tstrtoc(filepath), GET_FILEEX_INFO_LEVELS.GetFileExInfoStandard, auto &attributes) == TRUE {
 		tmp: union {
 			wt: FILETIME;
 			t: u64;

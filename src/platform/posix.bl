@@ -49,13 +49,17 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		_, exec_name :: path_split(executable);
 
 		cargs := []*C.char.{ ptr = auto buf.ptr, len = argc };
-		cargs[0] = strtoc(exec_name);
+		cargs[0] = tstrtoc(exec_name);
 		cargs[cargs.len-1] = null;
 		loop i := 1; i < cargs.len-1; i += 1 {
-			cargs[i] = strtoc(str_new(args[i-1]));
+			cargs[i] = tstrtoc(args[i-1]);
 		}
 
-		C.execv(strtoc(executable), cargs.ptr);
+		if settings.shell_enable_ansi_colors {
+			C.setenv(strtoc("CLICOLOR"), strtoc("1"), 1);
+			C.setenv(strtoc("TERM"), strtoc("xterm-256color"), 1);
+		}
+		C.execv(tstrtoc(executable), cargs.ptr);
 		print_err("Execution failed with error: %", os_get_last_error2());
 		C.exit(1);
 	} else {
@@ -199,18 +203,19 @@ clipboard :: #import "extra/clipboard";
 
 lookup_executable :: fn (path: string_view, full_path: *string) Error {
 	full_path.len = 0;
-	if C.access(strtoc(path), C.X_OK) == 0 {
+	if C.access(tstrtoc(path), C.X_OK) == 0 {
 		str_append(full_path, path);
 		return OK;
 	}
 	env_path :: env_get("PATH");
+	defer str_delete(&env_path);
 	if env_path.len == 0 then return error(ERR_NOT_FOUND, "File not found.");
 	allocator :: application_context.temporary_allocator;
 	paths :: str_split_by(env_path, ':', allocator);
 
 	loop i := 0; i < paths.len; i += 1 {
 		str_clear_concat(full_path, paths[i], "/", path);
-		if C.access(strtoc(@full_path), C.X_OK) == 0 then return OK;
+		if C.access(tstrtoc(@full_path), C.X_OK) == 0 then return OK;
 	}
 	full_path.len = 0;
 	return error(ERR_NOT_FOUND, "File not found.");

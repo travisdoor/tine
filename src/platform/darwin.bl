@@ -1,7 +1,7 @@
 #load "posix.bl"
 
 BUILD_COMMAND :: "build.sh";
-DEFAULT_SHELL :: "/bin/zsh -c";
+DEFAULT_SHELL :: "/bin/zsh";
 
 //
 // MISC
@@ -155,7 +155,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	using C;
 	file_stat: stat_t #noinit;
-	if stat(strtoc(filepath), &file_stat) == -1 {
+	if stat(tstrtoc(filepath), &file_stat) == -1 {
 		return 0, os_get_last_error2();
 	}
 
