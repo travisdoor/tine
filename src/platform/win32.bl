@@ -48,8 +48,6 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 	// Create process
 	process_info: PROCESS_INFORMATION;
 
-	allocator :: application_context.temporary_allocator;
-
 	startup_info :: STARTUPINFOA.{
 		cb          = auto sizeof(STARTUPINFOA),
 		hStdError   = stdout_write,
@@ -59,7 +57,7 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 		wShowWindow = auto SW_HIDE,
 	};
 
-	command_line := executable;
+	command_line := str_new(executable);
 
 	loop i := 0; i < args.len; i += 1 {
 		str_concat(&command_line, " ", args[i]);
