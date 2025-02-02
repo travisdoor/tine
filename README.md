@@ -107,8 +107,8 @@ To open projects from the `projects` directory use `Ctrl+Shift+O` or `open-proje
 
 # Buffers
 Each file open in the editor is represented as a single unique buffer. There are some special buffer
-kinds like *Messages* (containing log of all notifications and errors) or *Build* (containing output of
-the last compilation) existing without any actual file on the disk.
+kinds like *Messages* (containing log of all notifications and errors) or *Shell* (containing output of
+the last executed shell command or build) existing without any actual file on the disk.
 
 # Modes
 Various editor features are implemented as "modes".
@@ -181,16 +181,16 @@ Repeat mode can be used to repeat any following command N times. Number of invoc
 right after pressing Ctrl; you can use Ctrl+X to show list of all command which can be repeated or directly
 invoke such command using shortcut.
 
-## Build
-Command: `build`
-Shortcut: `F4`
+## Shell
+Command: `shell`
+Shortcut: `Alt+C`
 
-**Currently Windows only.**
+The `shell` command serves as a simple command line probe executing any shell command in current project
+directory. The shell exectutable might be adjusted in the config file. The output of shell execution is
+shown in a separate buffer which is used also for the `build` command output.
 
-When the `build` command is executed Tine will try to execute `build.bat` file in the project directory,
-result is presented in a read-only buffer. In case the output contains errors or warning in a known format
-(currently CL and Clang compiler outputs are supported), you can jump between reported source locations
-by pressing `Ctrl+.` and `Ctrl+,` shortcuts (`next-error` and `prev-error` commands).
+In addition errors and warnings (in format used by CL or Clang) are parsed; you can jump between reported
+source locations by pressing `Ctrl+.` and `Ctrl+,` shortcuts (`next-error` and `prev-error` commands).
 
 # LSP
 

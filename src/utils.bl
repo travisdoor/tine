@@ -547,8 +547,8 @@ is_point_in_rect :: fn (rx: f32, ry: f32, rw: f32, rh: f32, px: f32, py: f32) bo
 }
 
 get_icon_for_buffer :: fn (buf: *Buffer) string_view {
-	if buf.index == build.buffer_index {
-		return icon(ICON_BUILD);
+	if buf.index == shell.buffer_index {
+		return icon(ICON_SHELL);
 	} else if buf.index == messages_buffer_index {
 		return icon(ICON_MESSAGES);
 	}

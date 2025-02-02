@@ -1,4 +1,4 @@
-build: struct {
+shell: struct {
 	job_index:       s32;
 	buffer_index:    s32;
 	last_ansi_color: u8;
@@ -6,63 +6,60 @@ build: struct {
 	tmp: string;
 };
 
-build_init :: fn () {
-	build.job_index    = -1;
-	build.buffer_index = -1;
+shell_init :: fn () {
+	shell.job_index    = -1;
+	shell.buffer_index = -1;
 }
 
-build_terminate :: fn () {
-	str_delete(&build.tmp);
+shell_terminate :: fn () {
+	str_delete(&shell.tmp);
 }
 
-request_build :: fn (cmd: string_view) Error {
+request_shell_execute :: fn (cmd: string_view) Error {
 	clear_error_list();
 
-	if build.job_index != -1 {
-		return error("Build is already in progress, use 'build-kill' for interruption and try again.");
+	if shell.job_index != -1 {
+		return error("Shell execution is already in progress, use 'shell-kill' for interruption and try again.");
 	}
 
 	_, prev_editor :: get_active_buffer_and_editor();
 
-	find_or_create_editor_with_buffer_in_other_split(&build.buffer_index, "build");
-	buf :: &buffers[build.buffer_index];
+	find_or_create_editor_with_buffer_in_other_split(&shell.buffer_index, "shell");
+	buf :: &buffers[shell.buffer_index];
 
 	active_editor = prev_editor.index;
 
 	clear_buffer(buf);
-	build.last_ansi_color = 0;
+	shell.last_ansi_color = 0;
 
-	job_index :: start_async_job(JobKind.BUILD, "build", &worker);
+	job_index :: start_async_job(JobKind.SHELL, "shell", &worker);
 
-	request := Request.{ job_kind = JobKind.BUILD };
+	request := Request.{ job_kind = JobKind.SHELL };
 	request_data :: &request.data.build;
 	request_data.args = str_new(cmd);
 
 	push_request(get_job_context(job_index), &request);
 
-	build.job_index = job_index;
+	shell.job_index = job_index;
 	return OK;
 }
 
-apply_build :: fn (_: JobContext.state, request: *Request) {
-	if build.buffer_index == -1 then return;
-	assert(build.buffer_index >= 0 && build.buffer_index < buffers.len);
-	buf :: &buffers[build.buffer_index];
+apply_shell :: fn (_: JobContext.state, request: *Request) {
+	if shell.buffer_index == -1 then return;
+	assert(shell.buffer_index >= 0 && shell.buffer_index < buffers.len);
+	buf :: &buffers[shell.buffer_index];
 	if buf.is_removed {
-		kill_build();
+		kill_shell();
 	} else {
 		request_data :: &request.data.build;
 		text: string_view;
-		if build.tmp.len > 0 {
-			str_append(&build.tmp, request_data.text);
-			text = build.tmp;
-			build.tmp.len = 0;
+		if shell.tmp.len > 0 {
+			str_append(&shell.tmp, request_data.text);
+			text = shell.tmp;
+			shell.tmp.len = 0;
 		} else {
 			text = request_data.text;
 		}
-
-		// append_readonly_buffer(buf, text);
-		// return;
 
 		append :: fn (buf: *Buffer, text: string_view, color: u8) {
 			array_resize(&buf.colors, buf.colors.len + text.len);
@@ -83,7 +80,7 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 				is_complete := false;
 
 				if append_len > 0 {
-					append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
+					append(buf, .{ append_len, &text[append_start_index] }, shell.last_ansi_color);
 					append_len = 0;
 				}
 
@@ -109,19 +106,19 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 						}
 
 						if foreground_color == -1 {
-							build.last_ansi_color = 0;
+							shell.last_ansi_color = 0;
 						} else if settings.shell_enable_ansi_colors {
-							build.last_ansi_color = get_ansi_color_index_from_code(foreground_color);
+							shell.last_ansi_color = get_ansi_color_index_from_code(foreground_color);
 						}
 					} else {
-						build.last_ansi_color = 0;
+						shell.last_ansi_color = 0;
 					}
 				}
 
 				if !is_complete {
 					len :: i - esc_seq_start_index;
 					assert(len > 0, "We expect at least escape character here!");
-					str_append(&build.tmp, string_view.{ len, &text[esc_seq_start_index] });
+					str_append(&shell.tmp, string_view.{ len, &text[esc_seq_start_index] });
 					return;
 				}
 
@@ -132,19 +129,19 @@ apply_build :: fn (_: JobContext.state, request: *Request) {
 			i += 1;
 		}
 
-		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, build.last_ansi_color);
+		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, shell.last_ansi_color);
 	}
 }
 
-kill_build :: fn () {
-	if build.job_index == -1 {
+kill_shell :: fn () {
+	if shell.job_index == -1 {
 		print_warn("Build is not running.");
 		return;
 	}
-	assert(build.job_index >= 0 && build.job_index < jobs.len);
-	assert(!jobs[build.job_index].worker_context.is_removed);
-	assert(jobs[build.job_index].worker_context.kind == JobKind.BUILD);
-	remove_async_job(build.job_index);
+	assert(shell.job_index >= 0 && shell.job_index < jobs.len);
+	assert(!jobs[shell.job_index].worker_context.is_removed);
+	assert(jobs[shell.job_index].worker_context.kind == JobKind.SHELL);
+	remove_async_job(shell.job_index);
 }
 
 #scope_private
@@ -174,7 +171,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	executable :: args_with_executable[0];
 	args       :: []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
 
-	result :: Request.{ job_kind = JobKind.BUILD };
+	result :: Request.{ job_kind = JobKind.SHELL };
 	result_data :: &result.data.build;
 
 	result_data.text = sprint("Execute: %\n", request_data.args);

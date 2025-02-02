@@ -17,14 +17,12 @@ C         :: #import "libc";
 #import "extra/glm"
 
 #load "buffer.bl"
-#load "builder.bl"
 #load "clang_format.bl"
 #load "command_run.bl"
 #load "commands.bl"
 #load "completion.bl"
 #load "editor.bl"
 #load "goto.bl"
-#load "repeat.bl"
 #load "key_names.bl"
 #load "list_functions.bl"
 #load "listing.bl"
@@ -34,12 +32,14 @@ C         :: #import "libc";
 #load "peek_error.bl"
 #load "project.bl"
 #load "quick_open.bl"
+#load "repeat.bl"
 #load "replace.bl"
 #load "save_to_drive.bl"
 #load "search.bl"
 #load "search_in_project.bl"
-#load "utils.bl"
+#load "shell.bl"
 #load "shell_run.bl"
+#load "utils.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -118,7 +118,7 @@ ICON_CODE_ENUM      : u32 : 0x0045;
 ICON_CODE_MODULE    : u32 : 0xF1B2;
 ICON_CIRCLE         : u32 : 0x25CF;
 
-ICON_BUILD    : u32 : 0xF6E3;
+ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
@@ -784,8 +784,8 @@ main :: fn () s32 {
 	lsp_init();
 	defer lsp_terminate();
 
-	build_init();
-	defer build_terminate();
+	shell_init();
+	defer shell_terminate();
 
 	// Cleanup error list...
 	defer array_terminate(&error_list);
@@ -852,7 +852,7 @@ main :: fn () s32 {
 
 		update_caret();
 
-		if build.job_index == -1 {
+		if shell.job_index == -1 {
 			// Disable indexing in case there is ongoing compilation (which might produce multiple file-change events).
 			changed_directory: string_view;
 			change_kind: WatchFor;
@@ -1019,7 +1019,7 @@ rebuild_fonts :: fn () Error {
 	ICONS :: [_]u32.{
 		ICON_BELL, ICON_FILE, ICON_CHANGES, ICON_FOLDER,
 		ICON_DRIVE, ICON_COMMAND, ICON_PROJECT, ICON_READONLY,
-		ICON_WARNING, ICON_ERROR, ICON_BUILD, ICON_MESSAGES,
+		ICON_WARNING, ICON_ERROR, ICON_SHELL, ICON_MESSAGES,
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
 		ICON_CODE_MODULE, ICON_CIRCLE,
@@ -1171,8 +1171,8 @@ close_buffer :: fn (buffer_index: s32) {
 		}
 	}
 
-	if buffer_index == build.buffer_index {
-		build.buffer_index = -1;
+	if buffer_index == shell.buffer_index {
+		shell.buffer_index = -1;
 		// reset error list, we refer to the original buffer strings.
 		clear_error_list();
 	} else if buffer_index == help_buffer_index {
@@ -1533,7 +1533,7 @@ Request :: struct {
 JobKind :: enum {
 	UNKNOWN;
 	CLANG_FORMAT;
-	BUILD;
+	SHELL;
 	LSP;
 }
 
@@ -1595,8 +1595,8 @@ remove_async_job :: fn (index: s32) {
 
 	consume_job_results(job, true);
 
-	if ctx.kind == JobKind.BUILD {
-		build.job_index = -1;
+	if ctx.kind == JobKind.SHELL {
+		shell.job_index = -1;
 	} else if ctx.kind == JobKind.LSP {
 		remove_all_buffers_from_lsp();
 		lsp.job_index = -1;
@@ -1658,7 +1658,7 @@ consume_job_results :: fn (job: *Job, required := false) {
 			assert(result.job_kind == ctx.kind);
 			switch ctx.kind {
 				CLANG_FORMAT { apply_format(ctx.state, &result);      }
-				BUILD        { apply_build(ctx.state, &result);       }
+				SHELL        { apply_shell(ctx.state, &result);       }
 				LSP          { apply_lsp_results(ctx.state, &result); }
 				default { panic(); }
 			}
@@ -1733,7 +1733,7 @@ terminate_request :: fn (request: *Request) {
 			str_delete(&rd.src);
 			str_delete(&rd.filepath);
 		}
-		BUILD {
+		SHELL {
 			rd :: &request.data.build;
 			str_delete(&rd.args);
 			str_delete(&rd.text);

@@ -129,7 +129,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	show_line_numbers := settings.show_line_numbers
 	&& buf.index != messages_buffer_index
 	&& buf.index != help_buffer_index
-	&& buf.index != build.buffer_index;
+	&& buf.index != shell.buffer_index;
 
 	line_number_w: f32;
 	if show_line_numbers {

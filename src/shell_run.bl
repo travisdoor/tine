@@ -94,7 +94,7 @@ commit :: fn () {
 		cmd = item.title;
 	}
 
-	err :: request_build(cmd);
+	err :: request_shell_execute(cmd);
 	if err {
 		print_err(err);
 	} else {

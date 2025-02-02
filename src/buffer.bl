@@ -989,7 +989,7 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 	}
 	if buf.index == messages_buffer_index {
 		highlight_messages_syntax(buf);
-	} else if buf.index == build.buffer_index && settings.shell_parse_error_locations {
+	} else if buf.index == shell.buffer_index && settings.shell_parse_error_locations {
 		highlight_build_syntax(buf);
 	} else if buf.index == search_buffer_index {
 		highlight_search_syntax(buf);
