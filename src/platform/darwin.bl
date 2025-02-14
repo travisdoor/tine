@@ -8,11 +8,11 @@ DEFAULT_SHELL :: "/bin/zsh";
 //
 
 get_fonts_directory :: fn () string {
-	return str_new("/System/Library/Fonts");
+	return str_make("/System/Library/Fonts");
 }
 
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: string) {
-	result :: str_new();
+	result: string;
 
 	cf_file_path :: CFStringCreateWithBytes(kCFAllocatorDefault, auto filepath.ptr, filepath.len, CFStringEncoding.UTF8, 0);
 	defer CFRelease(cf_file_path);
@@ -37,7 +37,7 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: strin
 }
 
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	result :: str_new();
+	result: string;
 
 	cf_url_string :: CFStringCreateWithBytes(kCFAllocatorDefault, auto url.ptr, url.len, CFStringEncoding.UTF8, 0);
 	defer CFRelease(cf_url_string);
@@ -107,7 +107,7 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 	};
 
 	w.stream = FSEventStreamCreate(null, auto &change_callback, &ctx, paths, kFSEventStreamEventIdSinceNow, latency, kFSEventStreamCreateFlagNone);
-	w.path   = str_new(directory);
+	w.path   = str_make(directory);
 	w.flags  = flags;
 
 	run_loop :: CFRunLoopGetCurrent();
@@ -128,7 +128,7 @@ unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	FSEventStreamStop(w.stream);
 	FSEventStreamInvalidate(w.stream);
 	FSEventStreamRelease(w.stream);
-	str_delete(&w.path);
+	str_terminate(&w.path);
 
 	tbl_erase(&watched, hash);
 }
@@ -155,7 +155,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	using C;
 	file_stat: stat_t #noinit;
-	if stat(tstrtoc(filepath), &file_stat) == -1 {
+	if stat(strtoc(filepath), &file_stat) == -1 {
 		return 0, os_get_last_error2();
 	}
 

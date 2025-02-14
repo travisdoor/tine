@@ -12,7 +12,7 @@ shell_init :: fn () {
 }
 
 shell_terminate :: fn () {
-	str_delete(&shell.tmp);
+	str_terminate(&shell.tmp);
 }
 
 request_shell_execute :: fn (cmd: string_view) Error {
@@ -36,7 +36,7 @@ request_shell_execute :: fn (cmd: string_view) Error {
 
 	request := Request.{ job_kind = JobKind.SHELL };
 	request_data :: &request.data.build;
-	request_data.args = str_new(cmd);
+	request_data.args = str_make(cmd);
 
 	push_request(get_job_context(job_index), &request);
 
@@ -159,7 +159,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	allocator :: application_context.temporary_allocator;
 
-	shell_command :: str_new(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
+	shell_command :: str_make(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
 
 	if args_with_executable.len == 0 {
@@ -200,7 +200,6 @@ worker :: fn (ctx: *JobContext) s32 {
 
 		using PollEvent;
 		if is_flag(state, READ) {
-			result_data.text = str_new();
 			defer push_result(ctx, &result);
 
 			err_read :: read_pipe(ctx.stdout, &result_data.text);
@@ -224,7 +223,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		return 0;
 	}
 
-	result_data.text = str_new("\nProcess killed.\n");
+	result_data.text = str_make("\nProcess killed.\n");
 	push_result(ctx, &result);
 
 	ctx.state = KILLED;

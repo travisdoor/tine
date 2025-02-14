@@ -10,8 +10,8 @@ request_format :: fn (buf: *Buffer) Error {
 
 	request := Request.{ job_kind = JobKind.CLANG_FORMAT };
 	rd :: &request.data.clang_format;
-	rd.filepath     = str_new(buf.filepath);
-	rd.src          = str_new(buf.bytes);
+	rd.filepath     = str_make(buf.filepath);
+	rd.src          = str_make(buf.bytes);
 	rd.buffer_index = buf.index;
 	rd.buffer_hash  = buf.hash;
 

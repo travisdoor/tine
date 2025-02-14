@@ -55,7 +55,7 @@ lsp_init :: fn () {
 }
 
 lsp_terminate :: fn () {
-	str_delete(&lsp.server_name);
+	str_terminate(&lsp.server_name);
 }
 
 start_lsp_server :: fn () Error {
@@ -65,7 +65,7 @@ start_lsp_server :: fn () Error {
 	request := Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.INITIALIZE;
-	rd.filepath = str_new(get_project_main_directory());
+	rd.filepath = str_make(get_project_main_directory());
 	str_append(&rd.filepath, "/"); // Otherwise it's not a directory...
 
 	push_request(get_job_context(lsp.job_index), &request);
@@ -112,8 +112,8 @@ lsp_open_document :: fn (buf: *Buffer) {
 	request :: Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.DOCUMENT_OPEN;
-	rd.filepath = str_new(buf.filepath);
-	rd.src      = str_new(buf.bytes); // @Performance
+	rd.filepath = str_make(buf.filepath);
+	rd.src      = str_make(buf.bytes); // @Performance
 	rd.version  = buf.lsp.version;
 
 	push_request(get_job_context(lsp.job_index), &request);
@@ -132,8 +132,8 @@ lsp_change_document :: fn (buf: *Buffer) {
 	request :: Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind      = LspRequestKind.DOCUMENT_CHANGE;
-	rd.filepath  = str_new(buf.filepath);
-	rd.src       = str_new(buf.bytes);
+	rd.filepath  = str_make(buf.filepath);
+	rd.src       = str_make(buf.bytes);
 	rd.version   = buf.lsp.version;
 
 	push_request(get_job_context(lsp.job_index), &request);
@@ -149,7 +149,7 @@ lsp_save_document :: fn (buf: *Buffer) {
 	request :: Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.DOCUMENT_SAVE;
-	rd.filepath = str_new(buf.filepath);
+	rd.filepath = str_make(buf.filepath);
 	push_request(get_job_context(lsp.job_index), &request);
 }
 
@@ -163,7 +163,7 @@ lsp_close_document :: fn (buf: *Buffer) {
 	request :: Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.DOCUMENT_CLOSE;
-	rd.filepath = str_new(buf.filepath);
+	rd.filepath = str_make(buf.filepath);
 	push_request(get_job_context(lsp.job_index), &request);
 }
 
@@ -178,7 +178,7 @@ lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer, open_in_other_split :
 	request_data :: &request.data.lsp;
 	request_data.kind         = LspRequestKind.GOTO_DECLARATION;
 	request_data.cursor       = get_cursor(buf, editor.cursor_index);
-	request_data.filepath     = str_new(buf.filepath);
+	request_data.filepath     = str_make(buf.filepath);
 	request_data.buffer_index = buf.index;
 
 	if open_in_other_split {
@@ -201,7 +201,7 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
 	request :: Request.{ job_kind = JobKind.LSP };
 	request_data :: &request.data.lsp;
 	request_data.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
-	request_data.filepath  = str_new(buf.filepath);
+	request_data.filepath  = str_make(buf.filepath);
 	request_data.buffer_index = buf.index;
 	if open_in_other_split {
 		request_data.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
@@ -227,7 +227,7 @@ lsp_completion :: fn (editor: *Editor, buf: *Buffer) {
 	request :: Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind         = LspRequestKind.COMPLETION;
-	rd.filepath     = str_new(buf.filepath);
+	rd.filepath     = str_make(buf.filepath);
 	rd.cursor       = get_cursor(buf, editor.cursor_index);
 	rd.buffer_index = buf.index;
 
@@ -437,7 +437,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		return 1;
 	}
 
-	defer str_delete(&local.temp_string);
+	defer str_terminate(&local.temp_string);
 	pending_response: PendingResponse;
 
 	loop !ctx.kill {
@@ -482,7 +482,7 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 
 	// Filepath is used in call requests so we can convert it every time, feel free to change this as needed.
 	uri_err, uri_filepath :: new_url_from_filepath(rd.filepath);
-	defer str_delete(&uri_filepath);
+	defer str_terminate(&uri_filepath);
 	if uri_err {
 		return uri_err;
 	}
@@ -714,7 +714,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 			initialize_result: RpcResponse(LspInitializeResult);
 			err :: deserialize_object(initialize_result, json);
 			if err { print_err(err); }
-			rd.filepath  = str_new(initialize_result.result.serverInfo.name);
+			rd.filepath  = str_make(initialize_result.result.serverInfo.name);
 			push_result(ctx, &response);
 			print_log("INITIALIZE: %", initialize_result);
 		}

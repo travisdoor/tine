@@ -428,7 +428,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	text(status_x, name_y, buf.name, colors.title_bar_text_color);
 	set_shader_font(&font_ui);
 
-	title := str_new(256, application_context.temporary_allocator);
+	title := str_make(256, application_context.temporary_allocator);
 
 	str_concat(&title, "Ln: ", cursor.row+1, "    Col: ", cursor.col+1);
 

@@ -85,7 +85,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 				if target_buf.index == search_buffer_index {
 					print_warn("Search results buffer is already open.");
 				} else {
-					tmp := str_new(1024, application_context.temporary_allocator);
+					tmp := str_make(1024, application_context.temporary_allocator);
 					loop i := 0; i < search.results.len; i += 1 {
 						hit :: &search.results[i];
 						filepath := target_buf.filepath;

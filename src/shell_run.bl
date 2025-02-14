@@ -100,7 +100,7 @@ commit :: fn () {
 	} else {
 		index :: lookup_history_item(cmd);
 		if index == -1 {
-			array_push(&history, .{ str_new(cmd, &string_cache), current_priority });
+			array_push(&history, .{ str_make(cmd, &string_cache), current_priority });
 		} else {
 			history[index].priority = current_priority;
 		}

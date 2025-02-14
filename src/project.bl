@@ -54,8 +54,8 @@ load_project_file :: fn (directory: string_view, filename: string_view, is_defau
 	if err { return err; }
 
 	name :: path_splitext(filename);
-	project.name       = str_new(name, &project.string_cache);
-	project.filepath   = str_new(filepath, &project.string_cache);
+	project.name       = str_make(name, &project.string_cache);
+	project.filepath   = str_make(filepath, &project.string_cache);
 	project.is_default = is_default;
 
 	return err;
@@ -222,7 +222,7 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 			return OK;
 		}
 
-		filepath :: str_new(info.filepath, &project.string_cache);
+		filepath :: str_make(info.filepath, &project.string_cache);
 		array_push(&project.indexed_files, filepath);
 		return OK;
 	};
@@ -306,15 +306,15 @@ do_the_stuff_after_project_load :: fn () {
 }
 
 add_include_directory :: fn (dir: string_view) {
-	array_push(&project.included_directories, str_new(dir, &project.string_cache));
+	array_push(&project.included_directories, str_make(dir, &project.string_cache));
 }
 
 add_exclude_directory :: fn (dir: string_view) {
-	array_push(&project.excluded_directories, str_new(dir, &project.string_cache));
+	array_push(&project.excluded_directories, str_make(dir, &project.string_cache));
 }
 
 add_include_file_extension :: fn (ext: string_view) {
-	array_push(&project.included_extensions, str_new(ext, &project.string_cache));
+	array_push(&project.included_extensions, str_make(ext, &project.string_cache));
 }
 
 //

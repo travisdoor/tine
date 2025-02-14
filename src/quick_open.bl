@@ -12,7 +12,7 @@ quick_open_mode_init :: fn () {
 
 quick_open_mode_terminate :: fn () {
 	active_editor = command_editor;
-	str_delete(&base_path);
+	str_terminate(&base_path);
 }
 
 draw_quick_open_mode :: fn () {

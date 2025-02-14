@@ -123,9 +123,9 @@ add_buffer :: fn (name := "") s32 {
 	}
 
 	if name.len > 0 {
-		buf.name = str_new(name);
+		buf.name = str_make(name);
 	} else {
-		buf.name = str_new("scratch");
+		buf.name = str_make("scratch");
 	}
 	buf.line_ending = detect_line_ending(buf.bytes);
 	rebuild_lines(buf);
@@ -142,7 +142,7 @@ add_command_buffer :: fn () s32 {
 	buf.line_ending = detect_line_ending(buf.bytes);
 	buf.flags       = BufferFlags.NO_UNDO;
 
-	str_clear(&buf.name);
+	buf.name.len = 0;
 	str_append(&buf.name, "cmd");
 	return index;
 }
@@ -154,7 +154,7 @@ add_messages_buffer :: fn (name: string_view) s32 {
 	buf.line_ending = LineEnding.LF;
 	buf.flags = BufferFlags.READONLY;
 
-	str_clear(&buf.name);
+	buf.name.len = 0;
 	str_append(&buf.name, name);
 	return index;
 }
@@ -163,7 +163,7 @@ add_implicit_file_buffer :: fn (name: string_view, data: []u8, file_type := File
 	index :: add_buffer();
 	buf :: &buffers[index];
 	buf.flags = BufferFlags.READONLY;
-	str_clear(&buf.name);
+	buf.name.len = 0;
 	str_append(&buf.name, name);
 	array_push_all(&buf.bytes, data);
 	buf.line_ending = detect_line_ending(buf.bytes);
@@ -184,9 +184,9 @@ remove_buffer :: fn (index: s32) {
 	array_terminate(&buf.bytes);
 	array_terminate(&buf.colors);
 
-	str_delete(&buf.tmp_string);
-	str_delete(&buf.name);
-	str_delete(&buf.filepath);
+	str_terminate(&buf.tmp_string);
+	str_terminate(&buf.name);
+	str_terminate(&buf.filepath);
 
 	clear_undo(buf);
 
@@ -695,8 +695,8 @@ trim_trailing_whitespace :: fn (buf: *Buffer) {
 	line_end :: get_line_ending(buf.line_ending);
 	assert(line_end.len > 0);
 
-	content :: str_new(buf.bytes.len);
-	defer str_delete(&content);
+	content :: str_make(buf.bytes.len);
+	defer str_terminate(&content);
 
 	row_count :: get_row_count(buf);
 	loop i := 0; i < row_count; i += 1 {
@@ -833,7 +833,7 @@ reset_undo_top_before_inserting :: fn (buf: *Buffer) {
 	loop i := buf.undo.len-1; i > buf.undo_top; i -= 1 {
 		rec :: &buf.undo[i];
 		if rec.kind == INSERT {
-			str_delete(&rec.data.insert.str);
+			str_terminate(&rec.data.insert.str);
 		}
 	}
 	assert(buf.undo_top >= 0);
@@ -866,7 +866,7 @@ add_undo_insert :: fn (buf: *Buffer, position: s64, str: string_view) {
 	rec.kind = INSERT;
 	data :: &rec.data.insert;
 	data.position = position;
-	data.str      = str_new(str);
+	data.str      = str_make(str);
 }
 
 add_undo_insert_char :: fn (buf: *Buffer, position: s64, c: u32) {
@@ -952,7 +952,7 @@ find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
 
 terminate_buffer_diagnostics :: fn (buf: *Buffer) {
 	loop i := 0; i < buf.lsp.dia_strs.len; i += 1 {
-		str_delete(&buf.lsp.dia_strs[i]);
+		str_terminate(&buf.lsp.dia_strs[i]);
 	}
 	array_terminate(&buf.lsp.dia);
 	array_terminate(&buf.lsp.dia_strs);
@@ -1036,7 +1036,7 @@ clear_undo :: fn (buf: *Buffer) {
 	loop i := 0; i < buf.undo.len; i += 1 {
 		r :: &buf.undo[i];
 		if r.kind == Rec.kind.INSERT {
-			str_delete(&r.data.insert.str);
+			str_terminate(&r.data.insert.str);
 		}
 	}
 	buf.undo.len = 0;

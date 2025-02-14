@@ -360,7 +360,7 @@ keymap_entry_to_string :: fn (keymap_index: s32) string_view {
 
 	using glfw;
 
-	tmp :: str_new(application_context.temporary_allocator);
+	tmp :: str_make(application_context.temporary_allocator);
 
 	MODS :: [4]s32.{ MOD_CONTROL, MOD_ALT, MOD_SHIFT, MOD_SUPER };
 	loop i := 0; i < MODS.len; i += 1 {
@@ -533,8 +533,8 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 	assert(new_line[new_line.len-1] == '\n');
 	lines :: str_split_by(str, '\n', application_context.temporary_allocator);
 
-	indented := str_new(math.max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
-	defer str_delete(&indented);
+	indented := str_make(math.max(str.len, 32)); // 0 cause assertion and we can indent empty lines.
+	defer str_terminate(&indented);
 
 	if lines.len == 0 {
 		// This function might be used also for indentation of cursor on the newly created empty line,
@@ -844,7 +844,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 				} else {
 					rec.kind = INSERT;
 					rec.data.insert.position = data.start;
-					rec.data.insert.str      = str_new(text);
+					rec.data.insert.str      = str_make(text);
 				}
 
 				set_cursor_position(buf, editor.cursor_index, data.start);
@@ -869,7 +869,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 				rec.data.delete.start = data.position;
 				rec.data.delete.end   = data.position + data.str.len;
 
-				str_delete(&data.str);
+				str_terminate(&data.str);
 			}
 			COMMIT   {
 				if commit_count > 0 { break; }
@@ -918,7 +918,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 				rec.data.delete.start = data.position;
 				rec.data.delete.end   = data.position + data.str.len;
 
-				str_delete(&data.str);
+				str_terminate(&data.str);
 			}
 			DELETE {
 				data :: rec.data.delete; // copy
@@ -934,7 +934,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 				} else {
 					rec.kind = INSERT;
 					rec.data.insert.position = data.start;
-					rec.data.insert.str      = str_new(text);
+					rec.data.insert.str      = str_make(text);
 				}
 
 				set_cursor_position(buf, editor.cursor_index, data.start);
@@ -1176,7 +1176,7 @@ insert_tab :: fn (editor: *Editor, buf: *Buffer) {
 		return;
 	}
 
-	tmp :: str_new(64, application_context.temporary_allocator);
+	tmp :: str_make(64, application_context.temporary_allocator);
 	append_indentation(&tmp);
 
 	position :: get_cursor_position(buf, editor.cursor_index);
@@ -1616,7 +1616,7 @@ selection_to_upper_or_lower :: fn (editor: *Editor, buf: *Buffer, op: ToUpperOrL
 
 	temp :: application_context.temporary_allocator;
 	// duplicate the selection first
-	dup :: str_new(selection, temp);
+	dup :: str_make(selection, temp);
 	switch op {
 		UPPER {
 			if str_upper(&dup) == 0 { return; }
@@ -1676,8 +1676,8 @@ alpha_sort_lines :: fn (editor: *Editor, buf: *Buffer) {
 
 	commit_undo(buf);
 
-	sorted := str_new();
-	defer str_delete(&sorted);
+	sorted: string;
+	defer str_terminate(&sorted);
 
 	loop i := 0; i < lines.len; i += 1 {
 		line :: trim_right(lines[i], "\r\n");
@@ -1829,8 +1829,8 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 
 	if lines.len == 0 { return; }
 
-	commented := str_new(math.max(str.len, 32));
-	defer str_delete(&commented);
+	commented := str_make(math.max(str.len, 32));
+	defer str_terminate(&commented);
 
 	nesting := 1000;
 	position := start;
@@ -1886,8 +1886,8 @@ toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 }
 
 open_error_location :: fn (loc: *ErrorLocation) {
-	filepath :: str_new(loc.file);
-	defer str_delete(&filepath);
+	filepath :: str_make(loc.file);
+	defer str_terminate(&filepath);
 	str_replace_all(&filepath, '\\', '/'); // we love windows
 
 	err :: open_location(filepath, loc.line-1, loc.col-1);

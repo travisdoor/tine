@@ -254,7 +254,7 @@ list_completion :: fn (strs: []string, ids: []s32) {
 	assert(strs.len == ids.len);
 	loop i := 0; i < strs.len; i += 1 {
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
-				preview = str_new(strs[i], &string_cache[DEFAULT_CACHE_INDEX]),
+				preview = str_make(strs[i], &string_cache[DEFAULT_CACHE_INDEX]),
 				icon = get_icon_for_lsp_completion_kind(ids[i]),
 				index = i,
 			});
@@ -277,8 +277,8 @@ list_commands :: fn (repeatable_only := false) {
 		if repeatable_only && !is_command_valid_for_repeating(auto i) then continue;
 
 		command_name : string_view : COMMAND_NAMES[i];
-		title :: str_new(command_name, &string_cache[DEFAULT_CACHE_INDEX]);
-		hint  :: str_new(&string_cache[DEFAULT_CACHE_INDEX]);
+		title :: str_make(command_name, &string_cache[DEFAULT_CACHE_INDEX]);
+		hint  :: str_make(&string_cache[DEFAULT_CACHE_INDEX]);
 
 		loop keymap_index := 0;; keymap_index += 1 {
 			keymap_index = lookup_command_keymap_index(auto i, keymap_index);
@@ -310,7 +310,7 @@ list_history :: fn (history: []HistoryItem) {
 	reset_listing();
 
 	loop i := 0; i < history.len; i += 1 {
-		title :: str_new(history[i].title, &string_cache[DEFAULT_CACHE_INDEX]);
+		title :: str_make(history[i].title, &string_cache[DEFAULT_CACHE_INDEX]);
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
 				title = title,
 				score = history[i].priority,
@@ -331,7 +331,7 @@ list_directory :: fn (dirpath: string_view, file_extension_filter := []string_vi
 			if ctx.file_extension_filter.len > 0 && str_match_one_of(ext, ctx.file_extension_filter) == false { return OK; }
 		}
 
-		title := str_new(info.filename, &string_cache[DEFAULT_CACHE_INDEX]);
+		title := str_make(info.filename, &string_cache[DEFAULT_CACHE_INDEX]);
 		the_icon: string_view;
 
 		if ctx.as_projects {
@@ -399,7 +399,7 @@ list_logical_drives :: fn () Error {
 	DRIVE_LETTERS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	loop i := 0; i < DRIVE_LETTERS.len; i += 1 {
 		if (drives & (1 << cast(u32) i)) > 0 {
-			title :: str_new(2, &string_cache[DEFAULT_CACHE_INDEX]);
+			title :: str_make(2, &string_cache[DEFAULT_CACHE_INDEX]);
 			str_append(&title, string_view.{ 1, &DRIVE_LETTERS[i] });
 			str_append(&title, ":");
 			array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
@@ -687,7 +687,7 @@ on_worker_done :: fn (ctx: *WorkerContext) {
 		array_reserve(dest, ctx.result.len);
 		loop i := 0; i < ctx.result.len; i += 1 {
 			item :: array_push(dest, ctx.result[i]);
-			item.preview = str_new(item.preview, &string_cache[list_index]);
+			item.preview = str_make(item.preview, &string_cache[list_index]);
 		}
 	}
 

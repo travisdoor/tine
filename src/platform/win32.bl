@@ -373,7 +373,7 @@ unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
 	tbl :: &worker_context.watched;
 	w :: tbl_lookup_ptr(tbl, hash);
 	if !w { return; } // Maybe report this?
-	str_delete(&w.path);
+	str_terminate(&w.path);
 	w.remove= true;
 }
 
@@ -460,7 +460,7 @@ worker :: fn (ctx: *typeof(worker_context)) s32 {
 				w :: &tbl.values[i];
 				if w.remove {
 					FindCloseChangeNotification(w.handle);
-					str_delete(&w.path);
+					str_terminate(&w.path);
 					array_push(&to_remove, tbl.keys[i]);
 					continue;
 				}

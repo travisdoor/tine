@@ -17,7 +17,7 @@ save_to_drive_mode_init :: fn () {
 
 save_to_drive_mode_terminate :: fn () {
 	active_editor = command_editor;
-	str_delete(&base_path);
+	str_terminate(&base_path);
 }
 
 draw_save_to_drive_mode :: fn () {
@@ -113,7 +113,7 @@ dir_up :: fn (path: *string) {
 				path.len = 0;
 				err = list_directory("/");
 			} else {
-				tmp := str_new(lhs, application_context.temporary_allocator);
+				tmp := str_make(lhs, application_context.temporary_allocator);
 				path.len = 0;
 				str_append(path, tmp);
 				err = list_directory(tprint("%/", @path));

@@ -602,11 +602,11 @@ main :: fn () s32 {
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
-	defer str_delete(&FONT_DIRECTORY);
+	defer str_terminate(&FONT_DIRECTORY);
 
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
-	defer str_delete(&message.text);
+	defer str_terminate(&message.text);
 
 	init_clipboard();
 	defer terminate_clipboard();
@@ -631,7 +631,7 @@ main :: fn () s32 {
 
 	// Resolve editor executable path.
 	exec_path :: os_get_exec_path();
-	defer str_delete(&exec_path);
+	defer str_terminate(&exec_path);
 
 	head :: path_split(exec_path);
 	exec_dir = head;
@@ -660,7 +660,7 @@ main :: fn () s32 {
 		}
 	}
 
-	defer str_delete(&data_dir);
+	defer str_terminate(&data_dir);
 
 	print_log("Editor data directory: '%'", data_dir);
 
@@ -793,8 +793,8 @@ main :: fn () s32 {
 	// Search stuff
 	array_init(&search.results, 1024);
 
-	defer str_delete(&search.last_subject);
-	defer str_delete(&search.last_replacement);
+	defer str_terminate(&search.last_subject);
+	defer str_terminate(&search.last_replacement);
 	defer array_terminate(&search.results);
 
 	loop i := 1; i < command_line_arguments.len; i += 1 {
@@ -837,12 +837,14 @@ main :: fn () s32 {
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
 
+		/* @Cleanup 2025-02-08: Do we need this since we redraw only when needed?
 		#if PLATFORM == Platform.DARWIN {
 			// Limit maximum FPS on mac since vsync seems not work.
 			if prev_frame_delta <= 16.f && prev_frame_delta > 0.f {
 				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
 			}
 		}
+		*/
 
 		if draw_next_frame {
 			PollEvents();
@@ -891,7 +893,7 @@ main :: fn () s32 {
 		} else {
 			title = tprint("% - %", project.name, buf.name);
 		}
-		SetWindowTitle(window, auto tstrtoc(title));
+		SetWindowTitle(window, auto strtoc(title));
 
 		clear_mouse_events();
 		prev_frame_delta = frame_delta_time;
@@ -917,7 +919,7 @@ main :: fn () s32 {
 		member :: &info.members[i];
 		if member.base_type == typeinfo(string) {
 			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
-			str_delete(str);
+			str_terminate(str);
 		}
 	}
 
@@ -1243,7 +1245,7 @@ get_buffer_by_filepath :: fn (filepath: string_view) *Buffer {
 }
 
 open :: fn (filepath: string_view, open_in_other_split := false) Error {
-	normalized_path := str_new(filepath, application_context.temporary_allocator);
+	normalized_path := str_make(filepath, application_context.temporary_allocator);
 	norm_err :: path_normalize(&normalized_path);
 	if norm_err {
 		return error("Invalid file path: '%'.", filepath);
@@ -1438,7 +1440,7 @@ activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
 detect_filetype :: fn (filename: string_view) FileType {
 	using FileType;
 	_, ext :: path_splitext(filename);
-	extension :: str_new(ext, application_context.temporary_allocator);
+	extension :: str_make(ext, application_context.temporary_allocator);
 	str_lower(&extension);
 
 	allocator :: application_context.temporary_allocator;
@@ -1730,21 +1732,21 @@ terminate_request :: fn (request: *Request) {
 	switch request.job_kind {
 		CLANG_FORMAT {
 			rd :: &request.data.clang_format;
-			str_delete(&rd.src);
-			str_delete(&rd.filepath);
+			str_terminate(&rd.src);
+			str_terminate(&rd.filepath);
 		}
 		SHELL {
 			rd :: &request.data.build;
-			str_delete(&rd.args);
-			str_delete(&rd.text);
+			str_terminate(&rd.args);
+			str_terminate(&rd.text);
 		}
 		LSP {
 			rd :: &request.data.lsp;
-			str_delete(&rd.src);
-			str_delete(&rd.filepath);
+			str_terminate(&rd.src);
+			str_terminate(&rd.filepath);
 			array_terminate(&rd.dia);
 			loop i := 0; i < rd.strs.len; i += 1 {
-				str_delete(&rd.strs[i]);
+				str_terminate(&rd.strs[i]);
 			}
 			array_terminate(&rd.strs);
 			array_terminate(&rd.ids);

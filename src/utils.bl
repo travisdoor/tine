@@ -172,7 +172,7 @@ get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_undersco
 	tmp: [enum_count(TEnum)]string_view #noinit;
 	info :: cast(*TypeInfoEnum) typeinfo(TEnum);
 	loop i := 0; i < tmp.len; i += 1 {
-		name :: str_new(info.variants[i].name);
+		name :: str_make(info.variants[i].name);
 		str_lower(&name);
 		if replace_underscore {
 			str_replace_all(&name, '_', '-');
@@ -187,7 +187,7 @@ get_struct_members_as_list :: fn (TStruct: type #comptime) [struct_count(TStruct
 	tmp: [struct_count(TStruct)]string_view #noinit;
 	info :: cast(*TypeInfoStruct) typeinfo(TStruct);
 	loop i := 0; i < tmp.len; i += 1 {
-		name :: str_new(info.members[i].name);
+		name :: str_make(info.members[i].name);
 		str_lower(&name);
 		//str_replace_all(&name, '_', '-');
 
@@ -246,7 +246,7 @@ rgba :: fn (c: u32) v4 #comptime {
 
 // Converts the unicode icone ID to utf8 string in the compile time.
 icon :: fn (unicode: u32) string_view #inline #comptime {
-	tmp :: str_new();
+	tmp: string;
 	err :: utf32_to_utf8_single_char(unicode, &tmp);
 	if err { panic(err); }
 	return tmp;
@@ -280,7 +280,7 @@ load_whole_file :: fn (dest: *[..]u8, stream: *io.Stream, size_limit_bytes : s64
 }
 
 string_to_url :: fn (src: string_view) string_view {
-	url := str_new(src.len * 2, application_context.temporary_allocator);
+	url := str_make(src.len * 2, application_context.temporary_allocator);
 	start := 0;
 	len   := 0;
 	loop j := 0; j < src.len; j += 1 {
@@ -432,7 +432,7 @@ get_timestamp :: fn () s64 {
 }
 
 unicode_char_to_utf8_with_fallback :: fn (c: u32, fallback: string_view = "?") string_view #inline {
-	tmp :: str_new(4, application_context.temporary_allocator);
+	tmp :: str_make(4, application_context.temporary_allocator);
 	err :: utf32_to_utf8_single_char(c, &tmp);
 	if err {
 		print_err(err);
@@ -442,7 +442,7 @@ unicode_char_to_utf8_with_fallback :: fn (c: u32, fallback: string_view = "?") s
 }
 
 get_file_hash :: fn (filepath: string_view) u32 {
-	tmp :: str_new(filepath, application_context.temporary_allocator);
+	tmp :: str_make(filepath, application_context.temporary_allocator);
 	#if PLATFORM == Platform.WINDOWS {
 		str_lower(&tmp);
 	}
@@ -620,7 +620,7 @@ is_multiline :: fn (str: string_view, first_line: *string_view = null) bool #inl
 }
 
 get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") string_view #inline {
-	tmp :: str_new(application_context.temporary_allocator);
+	tmp :: str_make(application_context.temporary_allocator);
 	loop keymap_index := 0;; keymap_index += 1 {
 		keymap_index = lookup_command_keymap_index(cmd, keymap_index);
 		if keymap_index == -1 then break;
@@ -639,11 +639,11 @@ unify_line_endings :: fn (data: []u8, line_ending:  LineEnding) string_view {
 	buf: string;
 	if line_ending == LineEnding.LF {
 		print_log("Convert to LF");
-		buf = str_new(data, application_context.temporary_allocator);
+		buf = str_make(data, application_context.temporary_allocator);
 		str_replace_all(&buf, '\r');
 	} else {
 		print_log("Convert to CRLF");
-		buf = str_new(data.len, application_context.temporary_allocator);
+		buf = str_make(data.len, application_context.temporary_allocator);
 		loop i := 0; i < data.len; i += 1 {
 			c :: data[i];
 			if c == '\n' {

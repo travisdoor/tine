@@ -39,7 +39,7 @@ search_in_project_mode_init :: fn () {
 
 search_in_project_mode_terminate :: fn () {
 	cancel_async_search();
-	str_delete(&subject);
+	str_terminate(&subject);
 }
 
 draw_search_in_project_mode :: fn () {
@@ -91,7 +91,7 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 				if target_buf.index == search_buffer_index {
 					print_warn("Search results buffer is already open.");
 				} else {
-					tmp := str_new(1024, application_context.temporary_allocator);
+					tmp := str_make(1024, application_context.temporary_allocator);
 					format_listing_results_to_string(&tmp);
 					if tmp.len == 0 then str_append(&tmp, tprint("No match for subject '%'", subject));
 					set_mode(Mode.TEXT_EDIT);

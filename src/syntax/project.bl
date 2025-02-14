@@ -160,7 +160,7 @@ parse_key :: fn (ctx: *Tokenizer, t: *Token) bool {
 
 	t.len += cast(s32) key.len;
 
-	tmp :: str_new(key, application_context.temporary_allocator);
+	tmp :: str_make(key, application_context.temporary_allocator);
 	str_lower(&tmp);
 
 	if mod_from_name(tmp) != -1 {

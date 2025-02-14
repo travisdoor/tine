@@ -16,7 +16,7 @@ open_from_drive_mode_init :: fn () {
 
 open_from_drive_mode_terminate :: fn () {
 	active_editor = command_editor;
-	str_delete(&base_path);
+	str_terminate(&base_path);
 }
 
 draw_open_from_drive_mode :: fn () {
