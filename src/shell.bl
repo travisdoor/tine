@@ -201,7 +201,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		using PollEvent;
 		if is_flag(state, READ) {
 			defer push_result(ctx, &result);
-
+			
 			err_read :: read_pipe(ctx.stdout, &result_data.text);
 			if err_read {
 				print_err(err_read);

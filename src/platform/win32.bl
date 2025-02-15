@@ -57,13 +57,16 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 		wShowWindow = auto SW_HIDE,
 	};
 
-	command_line := str_new(executable);
-
+	command_line := str_make(executable);
+	defer str_terminate(&command_line);
+	
 	loop i := 0; i < args.len; i += 1 {
 		str_concat(&command_line, " ", args[i]);
 	}
 
-	if CreateProcessA(null, tstrtoc(command_line), null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
+	str_append(&command_line, "\0"); // safe one copy.
+
+	if CreateProcessA(null, auto command_line.ptr, null, null, TRUE, CREATE_SUSPENDED, null, null, &startup_info, &process_info) == 0 {
 		CloseHandle(stdout_read);
 		CloseHandle(stdout_write);
 		CloseHandle(stdin_read);
@@ -113,7 +116,7 @@ execute_system_command :: fn (cmd: string_view) Error {
 	startup_info: STARTUPINFOA;
 	process_info: PROCESS_INFORMATION;
 	startup_info.cb = auto sizeof(STARTUPINFOA);
-	if CreateProcessA(null, tstrtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
+	if CreateProcessA(null, strtoc(cmd), null, null, FALSE, 0, null, null, &startup_info, &process_info) == 0 then return os_get_last_error2();
 	WaitForSingleObject(process_info.hProcess, INFINITE);
 	CloseHandle(process_info.hProcess);
 	CloseHandle(process_info.hThread);
@@ -164,15 +167,11 @@ read_pipe :: fn (stream: IoStream, dest: *string) Error {
 	if PeekNamedPipe(stream, null, 0, null, &available_bytes, null) == 0 then return os_get_last_error2();
 	assert(available_bytes > 0, "Read should be called only in case there is data available in the pipe!");
 
-	total_read : u32 = 0;
-	loop total_read < available_bytes {
-		buf: [4096]u8 #noinit;
+	dest_index :: str_resize(dest, dest.len + auto available_bytes);
 
-		n: DWORD;
-		if ReadFile(stream, buf.ptr, auto buf.len, &n, null) == 0 then return os_get_last_error2();
-		str_append(dest, string_view.{ auto n, buf.ptr });
-		total_read += n;
-	}
+	n: DWORD;
+	if ReadFile(stream, &(@dest)[dest_index], available_bytes, &n, null) == 0 then return os_get_last_error2();
+	assert(n == available_bytes);
 
 	return OK;
 }
@@ -220,11 +219,11 @@ get_fonts_directory :: fn () string {
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	buf: [MAX_PATH]u8 #noinit;
 	len: DWORD = auto buf.len;
-	status :: PathCreateFromUrlA(tstrtoc(url), auto buf.ptr, &len, 0);
+	status :: PathCreateFromUrlA(strtoc(url), auto buf.ptr, &len, 0);
 	if status != S_OK {
 		return error("Url '%' cannot be converted to file path.", url), string.{};
 	}
-	result :: str_new(string_view.{ auto len, buf.ptr });
+	result :: str_make(string_view.{ auto len, buf.ptr });
 	str_replace_all(&result, '\\', '/');
 	return OK, result;
 }
@@ -232,11 +231,11 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 	buf: [2084]u8 #noinit; // INTERNET_MAX_URL_LENGTH
 	len: DWORD = auto buf.len;
-	status :: UrlCreateFromPathA(tstrtoc(filepath), auto buf.ptr, &len, 0);
+	status :: UrlCreateFromPathA(strtoc(filepath), auto buf.ptr, &len, 0);
 	if status != S_OK {
 		return error("Filepath '%' cannot be converted to URL.", filepath), string.{};
 	}
-	result :: str_new(string_view.{ auto len, buf.ptr });
+	result :: str_make(string_view.{ auto len, buf.ptr });
 	return OK, result;
 }
 
@@ -257,7 +256,7 @@ read_clipboard :: fn () string_view {
 	utf16len :: C.wcslen(unicode_ptr);
 	utf8len :: WideCharToMultiByte(CP_UTF8, null, unicode_ptr, auto utf16len, null, 0, null, null);
 	if utf8len == 0 { return ""; }
-	result := str_new(utf8len, application_context.temporary_allocator);
+	result := str_make(utf8len, application_context.temporary_allocator);
 	result.len = utf8len;
 	if WideCharToMultiByte(CP_UTF8, null, unicode_ptr, auto utf16len, auto result.ptr, auto utf8len, null, null) == 0 { return ""; }
 	return result;
@@ -349,13 +348,13 @@ watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
 		return OK;
 	}
 
-	handle :: FindFirstChangeNotificationA(tstrtoc(directory), TRUE, auto flags);
+	handle :: FindFirstChangeNotificationA(strtoc(directory), TRUE, auto flags);
 	if handle == INVALID_HANDLE || handle == null {
 		return os_get_last_error2();
 	}
 
 	w = tbl_insert(tbl, hash);
-	w.path   = str_new(directory);
+	w.path   = str_make(directory);
 	w.handle = handle;
 	w.remove = false;
 	w.flags  = flags;
@@ -400,7 +399,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	attributes: WIN32_FILE_ATTRIBUTE_DATA;
-	if GetFileAttributesExA(tstrtoc(filepath), GET_FILEEX_INFO_LEVELS.GetFileExInfoStandard, auto &attributes) == TRUE {
+	if GetFileAttributesExA(strtoc(filepath), GET_FILEEX_INFO_LEVELS.GetFileExInfoStandard, auto &attributes) == TRUE {
 		tmp: union {
 			wt: FILETIME;
 			t: u64;

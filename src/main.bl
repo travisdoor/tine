@@ -598,7 +598,7 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
-	// debug_allocator_break(&debug_allocator, 152);
+	debug_allocator_break(&debug_allocator, 116);
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
@@ -646,7 +646,7 @@ main :: fn () s32 {
 	}
 
 	#if PLATFORM == Platform.WINDOWS {
-		data_dir = str_new(exec_dir);
+		data_dir = str_make(exec_dir);
 	} else {
 		data_dir = get_home();
 		str_append(&data_dir, "/.tine");
@@ -1710,12 +1710,15 @@ pop_request :: fn (ctx: *JobContext, request: *Request) bool {
 	return false;
 }
 
+// Consume the 'request' data; meaning they are zero initialized in case the request is pushed
+// this way we prevent possible double-free of request data strings.
 push_result :: fn (ctx: *JobContext, request: *Request) {
 	assert(request.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
 	r :: array_push(&ctx.complete);
 	memcpy(auto r, auto request, sizeof(@request));
+	zeroinit(&request.data);
 }
 
 // ctx.mutex should be locked before this is called
@@ -2189,7 +2192,9 @@ set_allocator_allocator :: fn (allocator: *Allocator) *Allocator {
 	if !allocator { return null; }
 	prev_allocator :: application_context.allocator;
 	if prev_allocator == &debug_allocator {
-		dump_memory_leaks(auto prev_allocator);
+		if dump_memory_leaks(auto prev_allocator) > 0 {
+			debugbreak;
+		}
 		debug_allocator_release(auto prev_allocator);
 	}
 	application_context.allocator = allocator;

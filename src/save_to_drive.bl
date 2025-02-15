@@ -92,7 +92,7 @@ dir_up :: fn (path: *string) {
 	#if PLATFORM == Platform.WINDOWS {
 		if str_split_by_last(@path, '/', &lhs) {
 			assert(lhs.len > 0);
-			tmp := str_new(lhs, application_context.temporary_allocator);
+			tmp := str_make(lhs, application_context.temporary_allocator);
 			path.len = 0;
 			str_append(path, tmp);
 			err :: list_directory(tprint("%/", @path));
