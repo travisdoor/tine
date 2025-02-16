@@ -135,7 +135,7 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 
 kill_shell :: fn () {
 	if shell.job_index == -1 {
-		print_warn("Build is not running.");
+		print_warn("Shell is not running.");
 		return;
 	}
 	assert(shell.job_index >= 0 && shell.job_index < jobs.len);
@@ -201,7 +201,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		using PollEvent;
 		if is_flag(state, READ) {
 			defer push_result(ctx, &result);
-			
+
 			err_read :: read_pipe(ctx.stdout, &result_data.text);
 			if err_read {
 				print_err(err_read);
