@@ -598,7 +598,7 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
-	debug_allocator_break(&debug_allocator, 116);
+	// debug_allocator_break(&debug_allocator, 116);
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();

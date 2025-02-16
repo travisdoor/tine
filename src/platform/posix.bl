@@ -130,18 +130,20 @@ poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 
 read_pipe :: fn (stream: IoStream, dest: *string) Error {
 	using C;
-	loop {
-		buf: [4096]u8 #noinit;
-		n :: read(stream, auto buf.ptr, auto buf.len);
-		if n == -1 {
-			err :: os_get_last_error2();
-			if err.code == EAGAIN then return OK;
-			return err;
-		}
-		if n ==  0 then break;
-		str_append(dest, string_view.{ auto n, buf.ptr });
+	available_bytes: int;
+	if ioctl(stream, FIONREAD, auto &available_bytes) == -1 {
+		return os_get_last_error2();
 	}
-	print_log("READ: %", @dest);
+
+	assert(available_bytes > 0, "Read should be called only in case there is data available in the pipe!");
+	dest_index :: str_resize(dest, dest.len + auto available_bytes);
+	n :: read(stream, auto &(@dest)[dest_index], auto available_bytes);
+	if n == -1 {
+		err :: os_get_last_error2();
+		if err.code == EAGAIN then return OK;
+		return err;
+	}
+	assert(n == available_bytes);
 	return OK;
 }
 
