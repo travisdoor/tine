@@ -9,14 +9,14 @@ DEFAULT_SHELL :: "/bin/bash";
 //
 
 get_fonts_directory :: fn () string {
-	return str_new("/usr/share/fonts");
+	return str_make("/usr/share/fonts");
 }
 
 // Note 2025-01-11: We might reuse the same function on mac and windows.
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 	// @Incomplete 2025-01-11: Are there any possible fail cases to handle?
 
-	result :: str_new(filepath.len);
+	result :: str_make(filepath.len);
 	str_append(&result, "file://");
 	loop i := 0; i < filepath.len; i += 1 {
 		c :: filepath[i];
@@ -31,7 +31,7 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 
 // Note 2025-01-11: We might reuse the same function on mac and windows.
 new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
-	result :: str_new();
+	result: string;
 	if !str_match(url, "file://", 7) then return error("Proveded URL does not refer file."), result;
 	if url.len == 7 then return error("No file path specified in URL."), result;
 
@@ -96,7 +96,7 @@ next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFo
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	using C;
 	file_stat: stat_t #noinit;
-	if stat(tstrtoc(filepath), &file_stat) == -1 {
+	if stat(strtoc(filepath), &file_stat) == -1 {
 		return 0, os_get_last_error2();
 	}
 
