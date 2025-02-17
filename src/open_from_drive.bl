@@ -24,6 +24,10 @@ draw_open_from_drive_mode :: fn () {
 		if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
 			return "Open: ";
 		}
+		if base_path.len == 1 && PLATFORM != Platform.WINDOWS {
+			return "Open: /";
+		}
+
 		return tprint("Open: %/", base_path);
 	};
 
@@ -85,7 +89,11 @@ open_from_drive_cmd_changed :: fn () {
 		if is_path_absolute(head) {
 			new_base_path = head;
 		} else {
-			new_base_path = tprint("%/%", base_path, head);
+			if base_path.len == 1 && PLATFORM != Platform.WINDOWS {
+				new_base_path = tprint("/%", head);
+			} else {
+				new_base_path = tprint("%/%", base_path, head);
+			}
 		}
 
 		is_dir, err :: is_directory(new_base_path);
@@ -170,7 +178,12 @@ parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
 	}
 
 	if last_delim_index == -1 then return "", path;
-	head :: string_view.{ last_delim_index, path.ptr };
+	head := string_view.{ last_delim_index, path.ptr };
+
+	if PLATFORM != Platform.WINDOWS && last_delim_index == 0 {
+		head = .{ 1, path.ptr };
+	}
+
 	tail :: string_view.{ path.len - last_delim_index - 1, &path[last_delim_index+1] };
 
 	return head, tail;
@@ -179,7 +192,6 @@ parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
 is_path_absolute :: fn (path: string_view) bool {
 	if path.len < 1 then return false;
 
-	// @Incomplete 2025-02-17: Platform
 	#if PLATFORM == Platform.WINDOWS {
 		if path.len < 2 then return false;
 		return path[1] == ':';
