@@ -1,13 +1,15 @@
 MASTER
 ---------------------------------------------------------------------------------------
-Add ANSI support for shell output.
-Add arbitrary shell execution.
-Add clangd executable path into project settings.
-Add copy-file-path command.
-Add file type customization.
-Add options for error parsing.
-Fix process termination on Windows.
-Change default font.
+- Add ANSI support for shell output.
+- Add arbitrary shell execution.
+- Add clangd executable path into project settings.
+- Add copy-file-path command.
+- Add file type customization.
+- Add options for error parsing.
+- Fix process termination on Windows.
+- Change default font.
+- Command `open-file` now tries to resolve any path inserted, not just file name in
+  the current listed directory.
 
 0.9 2025-01-11
 ---------------------------------------------------------------------------------------

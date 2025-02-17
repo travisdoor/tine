@@ -77,12 +77,41 @@ invoke_command_open_from_drive_mode :: fn (buf: *Buffer, cmd: Command) bool {
 open_from_drive_cmd_changed :: fn () {
 	buf :: get_active_buffer_and_editor();
 	user_path :: peek_row(buf, 0);
-	if user_path.len == 0 {
+	head, tail :: parse_path(user_path);
+
+	if head.len > 0 {
+		new_base_path: string_view;
+
+		if is_path_absolute(head) {
+			new_base_path = head;
+		} else {
+			new_base_path = tprint("%/%", base_path, head);
+		}
+
+		is_dir, err :: is_directory(new_base_path);
+		if err then print_err(err);
+
+		if is_dir {
+			base_path.len = 0;
+			str_append(&base_path, new_base_path);
+			err :: list_directory(base_path);
+			if err then print_err(err);
+
+			// 2025-02-17: Changing the buffer content will invoke change notification
+			//             invoking this function again. So filtering should be properly
+			//             updated.
+			clear_buffer(buf);
+			if tail.len > 0 then insert_string(buf, 0, tail);
+			return;
+		}
+	}
+
+	if tail.len == 0 {
 		clear_list_filters();
 		return;
 	}
 
-	filter_list(user_path);
+	filter_list(tail);
 }
 
 #scope_private
@@ -119,4 +148,42 @@ commit :: fn () {
 		err :: open(path);
 		if err { print_err(err); }
 	}
+}
+
+parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
+	delims: string_view;
+
+	#if PLATFORM == Platform.WINDOWS {
+		delims = "\\/";
+	} else {
+		delims = "/";
+	}
+
+	last_delim_index : s64 = -1;
+	loop i := path.len-1; i >= 0; i -= 1 {
+		loop j := 0; j < delims.len; j += 1 {
+			if path[i] == delims[j] {
+				last_delim_index = i;
+				break;
+			}
+		}
+	}
+
+	if last_delim_index == -1 then return "", path;
+	head :: string_view.{ last_delim_index, path.ptr };
+	tail :: string_view.{ path.len - last_delim_index - 1, &path[last_delim_index+1] };
+
+	return head, tail;
+}
+
+is_path_absolute :: fn (path: string_view) bool {
+	if path.len < 1 then return false;
+
+	// @Incomplete 2025-02-17: Platform
+	#if PLATFORM == Platform.WINDOWS {
+		if path.len < 2 then return false;
+		return path[1] == ':';
+	}
+
+	return path[0] == '/';
 }
