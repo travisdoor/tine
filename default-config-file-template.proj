@@ -282,12 +282,14 @@ shell Alt+C
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block, this
 # way you can easily change editor colors.
 
-# background_color                    0C1924
+#-------------------------------------------
+# dark colors
+#-------------------------------------------
 background_color                    272727
 foreground_color                    CCCCCC
 cursor_background_color             00FF00
 cursor_foreground_color             303030
-current_line_background_color       002621
+current_line_background_color       353535
 search_result_background_color      A349A4
 title_bar_color                     202020
 title_bar_active                    01574C
@@ -309,7 +311,7 @@ macro_record_icon_color             E92204
 background_line_numbers_color       09121A
 foreground_line_numbers_color       606060
 
-code_comment                        00FF80
+code_comment                        808080
 code_keyword                        FFF200
 code_directive                      9B9B9B
 code_string                         4EC9B0
@@ -331,50 +333,50 @@ ansi_white                          D0D0D0
 #-------------------------------------------
 # dark colors zenburn-like
 #-------------------------------------------
-background_color                    3F3F3F
-foreground_color                    DCDCCC
-cursor_background_color             00FF00
-cursor_foreground_color             303030
-current_line_background_color       303030
-search_result_background_color      01574C
-title_bar_color                     383838
-title_bar_active                    3D5A5C
-title_bar_text_color                F0DFAF
-command_background_color            3F3F3F
-command_foreground_color            D4B79C
-command_title_color                 7CB8BB
-command_select_color                3D5A5C
-command_list_background_color       383838
-modification_indicator_color        FFFF00
-selection_background_color          47696B
-selection_background_inactive_color 293C3D
-message_color                       09975A
-warning_color                       DCC80B
-error_color                         E92204
-inline_error_background_color       400809
-inline_warning_background_color     4F4F2D
-macro_record_icon_color             E92204
-background_line_numbers_color       545454
-foreground_line_numbers_color       202020
+# background_color                    3F3F3F
+# foreground_color                    DCDCCC
+# cursor_background_color             00FF00
+# cursor_foreground_color             303030
+# current_line_background_color       303030
+# search_result_background_color      01574C
+# title_bar_color                     383838
+# title_bar_active                    3D5A5C
+# title_bar_text_color                F0DFAF
+# command_background_color            3F3F3F
+# command_foreground_color            D4B79C
+# command_title_color                 7CB8BB
+# command_select_color                3D5A5C
+# command_list_background_color       383838
+# modification_indicator_color        FFFF00
+# selection_background_color          47696B
+# selection_background_inactive_color 293C3D
+# message_color                       09975A
+# warning_color                       DCC80B
+# error_color                         E92204
+# inline_error_background_color       400809
+# inline_warning_background_color     4F4F2D
+# macro_record_icon_color             E92204
+# background_line_numbers_color       545454
+# foreground_line_numbers_color       202020
 
-code_comment                        7F9F7F
-code_keyword                        F0DFAF
-code_directive                      94BFF3
-code_string                         CC9393
-code_number                         DFAF8F
-code_invalid                        FF0000
-code_warning                        DCC80B
-code_error                          E92204
-code_function                       93E0E3
+# code_comment                        7F9F7F
+# code_keyword                        F0DFAF
+# code_directive                      94BFF3
+# code_string                         CC9393
+# code_number                         DFAF8F
+# code_invalid                        FF0000
+# code_warning                        DCC80B
+# code_error                          E92204
+# code_function                       93E0E3
 
-ansi_black                          5E5E5E
-ansi_red                            D75F5F
-ansi_green                          A8B56D
-ansi_yellow                         F0E68C
-ansi_blue                           5F87D7
-ansi_magenta                        D787AF
-ansi_cyan                           5FD7D7
-ansi_white                          D0D0D0
+# ansi_black                          5E5E5E
+# ansi_red                            D75F5F
+# ansi_green                          A8B56D
+# ansi_yellow                         F0E68C
+# ansi_blue                           5F87D7
+# ansi_magenta                        D787AF
+# ansi_cyan                           5FD7D7
+# ansi_white                          D0D0D0
 
 #-------------------------------------------
 # dark colors casey style
@@ -426,12 +428,12 @@ ansi_white                          D0D0D0
 
 #-------------------------------------------
 # light colors
-# -------------------------------------------
+#-------------------------------------------
 # background_color                    FFFFFF
 # foreground_color                    000000
 # cursor_background_color             0000FF
 # cursor_foreground_color             F7F7F7
-# current_line_background_color       FFFFFF
+# current_line_background_color       EEEEEE
 # search_result_background_color      E8E4A7
 # title_bar_color                     EBEBED
 # title_bar_active                    C0D8F4
