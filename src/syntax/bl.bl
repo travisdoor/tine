@@ -109,7 +109,7 @@ KEYWORDS :: [_]string_view.{
 	"loop", "if", "switch", "continue", "else", "defer", "struct",
 	"enum", "union", "fn", "return", "cast", "auto", "default", "using", "break", "unreachable",
 	"panic", "assert", "sizeof", "alignof", "typeinfo", "compiler_error", "compiler_warning",
-	"typeof", "then",
+	"typeof", "then", "catch",
 };
 KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
 
@@ -118,7 +118,7 @@ DIRECTIVES :: [_]string_view.{
 	"inline", "noinline", "file", "line", "base", "entry", "build_entry",
 	"if", "tag", "noinit", "intrinsic", "test", "import", "export",
 	"scope", "thread_local", "flags", "maybe_unused", "comptime", "obsolete",
-	"scope_private", "scope_public", "scope_module"
+	"scope_private", "scope_public", "scope_module", "err",
 };
 
 max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
