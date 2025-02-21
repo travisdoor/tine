@@ -16,7 +16,6 @@ Regex :: struct {
 regex_init :: fn (re: *Regex, pattern: string_view) Error {
     re.pattern = str_make(pattern);
     re.offset = 0;
-    array_init(&re.match);
     errnum: s32;
     erroff: PCRE2_SIZE;
     re.code = pcre2_compile(
@@ -32,6 +31,8 @@ regex_init :: fn (re: *Regex, pattern: string_view) Error {
     } else {
         re.data = pcre2_match_data_create_from_pattern(re.code, null);
     }
+
+	array_reserve(&re.match, 2048);
 	return OK;
 }
 
@@ -61,7 +62,7 @@ regex_match :: fn (re: *Regex, subject: string_view) bool {
     loop i := 0; i < rc; i += 1 {
         start :: vec[2*i];
         end   :: vec[2*i+1];
-		if end > start then array_push(&re.match, .{ auto start, auto end });
+		array_push(&re.match, .{ auto start, auto end });
     }
     re.offset = vec[vec.len-1];
     return re.match.len > 0;

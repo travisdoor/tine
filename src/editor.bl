@@ -175,7 +175,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	editor.visible_lines = visible_lines;
 
 	// Make cursor visible if position changed
-	if editor.prev_frame_cursor_position != cursor.position {
+	cursor_position_changed :: editor.prev_frame_cursor_position != cursor.position;
+	if cursor_position_changed {
 		top := -1;
 		if cursor.row < first_line_index {
 			top = math.max(0, cursor.row);
@@ -290,17 +291,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	}
 
 	// draw file links
-	if is_active {
-		loop i := 0; i < buf.file_links.len; i += 1 {
-			start :: buf.file_links[i].start;
-			end   :: buf.file_links[i].end;
-
-			if end   < first_position { continue; }
-			if start > last_position  { break;    }
-
-			if cursor.position >= start && cursor.position < end {
-				draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, colors.search_result_background_color);
-			}
+	if is_active && !has_selection(buf, editor.cursor_index) && is_flag(buf.flags, BufferFlags.PARSE_FILE_LINKS) {
+		// @Pefrormance 2025-02-21: We should probably not do it every frame but link lookup is fast enought now.
+		link, found :: get_file_link_under_cursor(buf, cursor.position);
+		if found {
+			draw_highlight_range(buf, editor, tx, ty, link.start, link.end, first_position, last_position, colors.search_result_background_color);
 		}
 	}
 
@@ -497,8 +492,19 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 
 			if is_lmb_dbl_press() {
-				select_word(editor, buf);
-				set_cursor_under_mouse = false;
+				handled := false;
+				if !has_selection(buf, editor.cursor_index) && is_flag(buf.flags, BufferFlags.PARSE_FILE_LINKS) {
+					// Cursor position is set on press, release should have correct position already.
+					link, found :: get_file_link_under_cursor(buf, cursor.position);
+					if found {
+						handled = true;
+						open_file_link_in_other_split(buf, &link);
+					}
+				}
+				if !handled {
+					select_word(editor, buf);
+					set_cursor_under_mouse = false;
+				}
 			}
 		} else {
 			// Title bar area...
@@ -690,6 +696,24 @@ center_view :: fn (editor: *Editor) {
 	if top != editor.top {
 		start_vertical_animation(editor, top);
 	}
+}
+
+// Try to resolve file link index in buf.file_links specified buffer under the cursor. Visible buffer
+// range might be specified to speedup the search. Returns -1 in case no link was found.
+get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink, bool) {
+	line, line_start_position :: peek_row_without_new_line(buf, count_rows_to_position(buf, cursor_position));
+	links :: parse_file_links(line);
+
+	loop i := 0; i < links.len; i += 1 {
+		// Make absolute.
+		links[i].start += line_start_position;
+		links[i].end   += line_start_position;
+
+		if cursor_position >= links[i].start && cursor_position < links[i].end {
+			return links[i], true;
+		}
+	}
+	return .{}, false;
 }
 
 #scope_private

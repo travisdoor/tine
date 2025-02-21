@@ -1,6 +1,10 @@
 version: 1
-supported: "arm64-apple-darwin"
+supported: "x86_64-pc-windows-msvc, arm64-apple-darwin"
 src: "pcre.bl"
+
+x86_64-pc-windows-msvc:
+  linker_lib_path: "win32"
+  linker_opt: "pcre2-8.lib"
 
 arm64-apple-darwin:
   linker_lib_path: "macos"

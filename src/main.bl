@@ -268,6 +268,11 @@ project: struct {
 
 	mutex: Mutex;
 	string_cache: PoolAllocator;
+
+	file_link_regex: struct {
+		expr:     Regex;
+		is_valid: bool;
+	};
 }
 
 // Global application settings loaded from the configuraiton file. These might be overriden by local project settings.
@@ -303,7 +308,7 @@ Settings :: struct {
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
-	shell_enable_error_location_colors:     bool;
+	shell_enable_error_location_colors:     bool; // @Cleanup 2025-02-21: Remove
 
 	// Language support related things
 	c_extensions:    string;
@@ -400,12 +405,53 @@ get_current_compilation_error :: fn () *ErrorLocation {
 }
 
 //
-// Shell locations
+// Shell links
 //
 
-FileLocation :: struct {
+FileLink :: struct {
 	start: s64;
 	end:   s64;
+
+	filepath: string_view; // Valid until source buffer contains this string.
+	ln:       s32;
+	cl:       s32;
+}
+
+parse_file_links :: fn (subject: string_view) []FileLink {
+	measure_elapsed_ms_begin();
+	defer measure_elapsed_ms_end();
+
+	if subject.len < 1 then return .{};
+
+	allocator :: application_context.temporary_allocator;
+
+	result: [..]FileLink;
+	array_init(&result, 4, allocator);
+
+	regex :: &project.file_link_regex.expr;
+	defer regex_done(regex);
+
+	loop regex_match(regex, subject) {
+		matching :: regex_get_match(regex);
+		if matching.len < 3 then continue;
+
+		filepath :: string_view.{ matching[1].end - matching[1].start, &subject[matching[1].start] };
+		ln_str   :: string_view.{ matching[2].end - matching[2].start, &subject[matching[2].start] };
+		cl_str   :: if matching.len > 3 then string_view.{ matching[3].end - matching[3].start, &subject[matching[3].start] } else "0";
+
+		ln :: strtos64(ln_str);
+		cl :: strtos64(cl_str);
+
+		array_push(&result, FileLink.{
+				start    = matching[0].start,
+				end      = matching[0].end,
+				filepath = filepath,
+				ln       = auto math.max(ln, 1),
+				cl       = auto math.max(cl, 1)
+			});
+	}
+
+	return result;
 }
 
 //
@@ -628,7 +674,7 @@ main :: fn () s32 {
 	// Create command editor.
 	command_editor = add_editor(add_command_buffer());
 	// Messages buffer
-	messages_buffer_index = add_messages_buffer("messages");
+	messages_buffer_index = add_builtin_buffer("messages");
 
 	default_logger :: set_logger(&logger);
 	defer set_logger(default_logger);
@@ -1423,7 +1469,7 @@ find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buff
 	buf, editor := get_active_buffer_and_editor();
 	if buf.index != @buffer_index {
 		if @buffer_index == -1 {
-			@buffer_index = add_messages_buffer(buffer_name);
+			@buffer_index = add_builtin_buffer(buffer_name, BufferFlags.PARSE_FILE_LINKS);
 		}
 		buf = &buffers[@buffer_index];
 		return find_or_create_editor_in_split(get_other_split(), @buffer_index);

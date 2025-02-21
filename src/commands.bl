@@ -613,6 +613,16 @@ is_command_valid_for_repeating :: fn (cmd: Command) bool {
 	return false;
 }
 
+open_file_link_in_other_split :: fn (buf: *Buffer, link: *FileLink) {
+	filepath :: str_make(link.filepath, application_context.temporary_allocator);
+	path_normalize(&filepath) catch {
+		print_err("Cannot open file link '%'.", link.filepath);
+		return;
+	};
+	other_split(buf);
+	open_location(filepath, link.ln-1, link.cl-1);
+}
+
 #scope_private
 
 SmartSelectionLevel :: enum {
@@ -989,7 +999,7 @@ delete_right :: fn (editor: *Editor, buf: *Buffer) {
 	delete_range(buf, position, position + char.len);
 }
 
-insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
+insert_new_line :: fn (editor: *Editor, buf: *Buffer) {
 	if buf.index == search_buffer_index {
 		cur :: get_cursor(buf, editor.cursor_index);
 		line :: peek_row_without_new_line(buf, cur.row);
@@ -997,11 +1007,20 @@ insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
 		if filepath.len != 0 {
 			other_split(buf);
 			open_location(filepath, row-1, col-1);
-			return true;
+			return;
+		}
+	} 
+	
+	if is_flag(buf.flags, BufferFlags.PARSE_FILE_LINKS) {
+		position := get_cursor_position(buf, editor.cursor_index);
+		link, found :: get_file_link_under_cursor(buf, position);
+		if found {
+			open_file_link_in_other_split(buf, &link);
+			return;
 		}
 	}
 
-	if maybe_report_readonly(buf) { return false; }
+	if maybe_report_readonly(buf) { return; }
 	commit_undo(buf);
 
 	if has_selection(buf, editor.cursor_index) {
@@ -1020,7 +1039,7 @@ insert_new_line :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	commit_undo(buf);
-	return true;
+	return;
 }
 
 indent :: fn (editor: *Editor, buf: *Buffer) {

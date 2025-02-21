@@ -1,38 +1,10 @@
 highlight_build_syntax :: fn (buf: *Buffer) {
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
-
-	clear_error_list();
-	buf.file_links.len = 0;
-
-	if settings.shell_enable_error_location_colors {
-		array_resize(&buf.colors, buf.bytes.len);
-	}
-
-	ctx :: Tokenizer.{
-		base = TokenizerBase.{
-			bytes = buf.bytes,
-		},
-	};
-	
-	regex_init(&regex, "^((?:[a-zA-Z]:[/\\\\]|\\.?[/\\\\]?|/)[^:\\n]+):(\\d+):(\\d+)") catch print_err($);
-	defer regex_terminate(&regex);
-
-	loop {
-		using Token.kind;
-
-		token :: next_token(buf, &ctx);
-		if token.kind == EOF { break; }
-
-		if token.len > 0 && settings.shell_enable_error_location_colors {
-			memset(&buf.colors[token.index], auto token.kind, auto token.len);
-		}
-	}
 }
 
 #scope_private
 
-regex: Regex;
-
+/*
 Tokenizer :: struct #base TokenizerBase {
 }
 
@@ -73,30 +45,31 @@ parse_line :: fn (buf: *Buffer, ctx: *Tokenizer, t: *Token) bool {
 	if regex_match(&regex, line) {
 		defer regex_done(&regex);
 		matching :: regex_get_match(&regex);
-		if matching.len != 4 then return false;
+		if matching.len < 3 then return false;
 
 		t.kind = ERROR;
 		t.len  = auto matching[0].end - matching[0].start;
-		
+
 		filepath :: string_view.{ matching[1].end - matching[1].start, &line[matching[1].start] };
-		ln       :: string_view.{ matching[2].end - matching[2].start, &line[matching[2].start] };
-		col      :: string_view.{ matching[3].end - matching[3].start, &line[matching[3].start] };
-		
-		// print_log("file: %", filepath);
-		// print_log("    line: %", ln);
-		// print_log("    col:  %", col);
-		
-		array_push(&buf.file_links, FileLocation.{
-				start = start_index + matching[0].start,
-				end   = start_index + matching[0].end
+		ln_str   :: string_view.{ matching[2].end - matching[2].start, &line[matching[2].start] };
+		cl_str   :: if matching.len > 3 then string_view.{ matching[3].end - matching[3].start, &line[matching[3].start] } else "0";
+
+		ln :: strtos64(ln_str);
+		cl :: strtos64(cl_str);
+
+		array_push(&buf.file_links, FileLink.{
+				start    = start_index + matching[0].start,
+				end      = start_index + matching[0].end,
+				filepath = filepath,
+				ln       = auto math.max(ln, 1),
+				cl       = auto math.max(cl, 1)
 			});
-		
+
 		return true;
 	}
 
 	return false;
 
-	/*
 	orig_len :: line.len;
 
 	loc: ErrorLocation;
@@ -131,7 +104,6 @@ parse_line :: fn (buf: *Buffer, ctx: *Tokenizer, t: *Token) bool {
 		return true;
 	}
 	return false;
-	*/
 }
 
 try_location_clang_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_line: *string_view) bool #inline {
@@ -197,3 +169,4 @@ try_location_cl_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_
 
 	return true;
 }
+*/

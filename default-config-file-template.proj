@@ -290,7 +290,7 @@ foreground_color                    CCCCCC
 cursor_background_color             00FF00
 cursor_foreground_color             303030
 current_line_background_color       353535
-search_result_background_color      A349A4
+search_result_background_color      753475
 title_bar_color                     202020
 title_bar_active                    01574C
 title_bar_text_color                CCCCCC
@@ -468,7 +468,7 @@ ansi_white                          D0D0D0
 # ansi_black                          4C4C4C
 # ansi_red                            D00000
 # ansi_green                          008000
-# ansi_yellow                         DAA520
+# ansi_yellow                         E65100
 # ansi_blue                           005FFF
 # ansi_magenta                        FF00FF
 # ansi_cyan                           00AFAF

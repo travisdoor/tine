@@ -39,8 +39,6 @@ Buffer :: struct {
 	// Might not be available for all file types.
 	functions: [..]SearchLocation;
 
-	file_links: [..]FileLocation;
-
 	undo:          [..]Rec;
 	undo_top:      s64;
 	saved_top:     s64;
@@ -75,6 +73,7 @@ BufferFlags :: enum #flags {
 	NONE     = 0;
 	NO_UNDO  = 1;
 	READONLY = NO_UNDO  | 2;
+	PARSE_FILE_LINKS;
 }
 
 Cursor :: struct {
@@ -149,12 +148,12 @@ add_command_buffer :: fn () s32 {
 	return index;
 }
 
-add_messages_buffer :: fn (name: string_view) s32 {
+add_builtin_buffer :: fn (name: string_view, additional_flags: BufferFlags = .{}) s32 {
 	index :: add_buffer();
 	buf :: &buffers[index];
 
 	buf.line_ending = LineEnding.LF;
-	buf.flags = BufferFlags.READONLY;
+	buf.flags = BufferFlags.READONLY | additional_flags;
 
 	buf.name.len = 0;
 	str_append(&buf.name, name);
@@ -197,7 +196,6 @@ remove_buffer :: fn (index: s32) {
 	array_terminate(&buf.cursors);
 	array_terminate(&buf.indent);
 	array_terminate(&buf.functions);
-	array_terminate(&buf.file_links);
 	mutex_terminate(&buf.mutex);
 
 	terminate_buffer_diagnostics(buf);
@@ -613,14 +611,16 @@ change_content :: fn (buf: *Buffer, content: string_view) {
 	}
 }
 
+// @Cleanup 2025-02-21: remove this?
 append_readonly_buffer :: fn (buf: *Buffer, str: string_view) {
 	if str.len == 0 { return; }
-	position : s64 = 0;
-	if buf.lines.len > 0 {
-		position = buf.lines[buf.lines.len - 1];
-	}
-	insert_string_impl(buf, position, str);
+	// position : s64 = 0;
+	// if buf.lines.len > 0 {
+	// 	position = buf.lines[buf.lines.len - 1];
+	// }
+	insert_string_impl(buf, buf.bytes.len, str);
 
+	/*
 	position = get_last_position_in_buffer(buf);
 	// Move all existing cursors to the end of a new content.
 	loop i := 0; i < buf.cursors.len; i += 1 {
@@ -629,6 +629,7 @@ append_readonly_buffer :: fn (buf: *Buffer, str: string_view) {
 		c.position        = position;
 		c.selection_start = -1;
 	}
+	*/
 }
 
 get_line_ending :: fn (line_ending: LineEnding) string_view {

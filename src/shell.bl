@@ -3,7 +3,7 @@ shell: struct {
 	buffer_index:    s32;
 	last_ansi_color: u8;
 
-	tmp: string;
+	in_tmp:  string;
 };
 
 shell_init :: fn () {
@@ -12,7 +12,7 @@ shell_init :: fn () {
 }
 
 shell_terminate :: fn () {
-	str_terminate(&shell.tmp);
+	str_terminate(&shell.in_tmp);
 }
 
 request_shell_execute :: fn (cmd: string_view) Error {
@@ -48,22 +48,29 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 	if shell.buffer_index == -1 then return;
 	assert(shell.buffer_index >= 0 && shell.buffer_index < buffers.len);
 	buf :: &buffers[shell.buffer_index];
+
+	measure_elapsed_ms_begin();
+	defer measure_elapsed_ms_end();
+
 	if buf.is_removed {
 		kill_shell();
 	} else {
 		request_data :: &request.data.build;
 		text: string_view;
-		if shell.tmp.len > 0 {
-			str_append(&shell.tmp, request_data.text);
-			text = shell.tmp;
-			shell.tmp.len = 0;
+		if shell.in_tmp.len > 0 {
+			str_append(&shell.in_tmp, request_data.text);
+			text = shell.in_tmp;
+			shell.in_tmp.len = 0;
 		} else {
 			text = request_data.text;
 		}
 
-		append :: fn (buf: *Buffer, text: string_view, color: u8) {
-			array_resize(&buf.colors, buf.colors.len + text.len);
-			memset(&buf.colors[buf.bytes.len], color, auto text.len);
+		batch_begin(buf);
+		defer batch_end(buf);
+
+		append :: fn (buf: *Buffer, text: string_view, color: u8) #inline {
+			start_index :: array_resize(&buf.colors, buf.colors.len + text.len);
+			memset(&buf.colors[start_index], color, auto text.len);
 			append_readonly_buffer(buf, text);
 		};
 
@@ -118,7 +125,7 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 				if !is_complete {
 					len :: i - esc_seq_start_index;
 					assert(len > 0, "We expect at least escape character here!");
-					str_append(&shell.tmp, string_view.{ len, &text[esc_seq_start_index] });
+					str_append(&shell.in_tmp, string_view.{ len, &text[esc_seq_start_index] });
 					return;
 				}
 

@@ -2,13 +2,24 @@ ProjectSection   :: enum { NONE; INCLUDE; EXCLUDE; SETTINGS; COLORS; INCLUDE_FIL
 PROJECT_SECTIONS :: get_enum_variants_as_redable_list(ProjectSection, false);
 
 init_project :: fn () {
-	project = typeof(project).{};
+	project = .{};
 	project.string_cache = pool_make(null, 2048);
 	mutex_init(&project.mutex);
+
+	// @Incomplete 2025-02-21: Customizable?
+	EXPR :: "((?:[a-zA-Z]:[/\\\\]|\\.{1,2}[/\\\\]?|/)[^:\\n]*[^:\\n\\s]):(\\d+)(?::(\\d+))?";
+
+	project.file_link_regex.is_valid = true;
+	regex_init(&project.file_link_regex.expr, EXPR) catch {
+		print_err($);
+		project.file_link_regex.is_valid = false;
+	};
 }
 
 terminate_project :: fn () {
 	clear_project();
+
+	regex_terminate(&project.file_link_regex.expr);
 
 	mutex_terminate(&project.mutex);
 	release_allocator(&project.string_cache);
@@ -283,7 +294,7 @@ do_the_stuff_after_project_load :: fn () {
 	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
 	code_color_table[auto CODE_COLOR_WARNING_INDEX  ] = colors.code_warning;
 	code_color_table[auto CODE_COLOR_FUNCTION_INDEX ] = colors.code_function;
-	
+
 	code_color_table[auto ANSI_COLOR_BLACK_INDEX]   = colors.ansi_black;
 	code_color_table[auto ANSI_COLOR_RED_INDEX]     = colors.ansi_red;
 	code_color_table[auto ANSI_COLOR_GREEN_INDEX]   = colors.ansi_green;
