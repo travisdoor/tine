@@ -1,0 +1,8 @@
+version: 1
+supported: "arm64-apple-darwin"
+src: "pcre.bl"
+
+arm64-apple-darwin:
+  linker_lib_path: "macos"
+  linker_opt: "-lpcre2-8"
+

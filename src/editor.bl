@@ -289,6 +289,21 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		}
 	}
 
+	// draw file links
+	if is_active {
+		loop i := 0; i < buf.file_links.len; i += 1 {
+			start :: buf.file_links[i].start;
+			end   :: buf.file_links[i].end;
+
+			if end   < first_position { continue; }
+			if start > last_position  { break;    }
+
+			if cursor.position >= start && cursor.position < end {
+				draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, colors.search_result_background_color);
+			}
+		}
+	}
+
 	// cursor
 	if is_active && caret.visible {
 		color := colors.cursor_background_color;

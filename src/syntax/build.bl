@@ -2,6 +2,7 @@ highlight_build_syntax :: fn (buf: *Buffer) {
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
 
 	clear_error_list();
+	buf.file_links.len = 0;
 
 	if settings.shell_enable_error_location_colors {
 		array_resize(&buf.colors, buf.bytes.len);
@@ -12,11 +13,14 @@ highlight_build_syntax :: fn (buf: *Buffer) {
 			bytes = buf.bytes,
 		},
 	};
+	
+	regex_init(&regex, "^((?:[a-zA-Z]:[/\\\\]|\\.?[/\\\\]?|/)[^:\\n]+):(\\d+):(\\d+)") catch print_err($);
+	defer regex_terminate(&regex);
 
 	loop {
 		using Token.kind;
 
-		token :: next_token(&ctx);
+		token :: next_token(buf, &ctx);
 		if token.kind == EOF { break; }
 
 		if token.len > 0 && settings.shell_enable_error_location_colors {
@@ -26,6 +30,8 @@ highlight_build_syntax :: fn (buf: *Buffer) {
 }
 
 #scope_private
+
+regex: Regex;
 
 Tokenizer :: struct #base TokenizerBase {
 }
@@ -42,7 +48,7 @@ Token :: struct {
 	len:   s32;
 }
 
-next_token :: fn (ctx: *Tokenizer) Token {
+next_token :: fn (buf: *Buffer, ctx: *Tokenizer) Token {
 	using Token.kind;
 
 	loop ctx.index < ctx.bytes.len {
@@ -52,16 +58,45 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			index = ctx.index,
 		};
 
-		if parse_line(ctx, &t) { return t; }
+		if parse_line(buf, ctx, &t) { return t; }
 	}
 
 	return Token.{ kind = EOF };
 }
 
-parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
+parse_line :: fn (buf: *Buffer, ctx: *Tokenizer, t: *Token) bool {
 	using Token.kind;
 
+	start_index :: ctx.index;
 	line := eat_line_and_trim_eol(ctx);
+
+	if regex_match(&regex, line) {
+		defer regex_done(&regex);
+		matching :: regex_get_match(&regex);
+		if matching.len != 4 then return false;
+
+		t.kind = ERROR;
+		t.len  = auto matching[0].end - matching[0].start;
+		
+		filepath :: string_view.{ matching[1].end - matching[1].start, &line[matching[1].start] };
+		ln       :: string_view.{ matching[2].end - matching[2].start, &line[matching[2].start] };
+		col      :: string_view.{ matching[3].end - matching[3].start, &line[matching[3].start] };
+		
+		// print_log("file: %", filepath);
+		// print_log("    line: %", ln);
+		// print_log("    col:  %", col);
+		
+		array_push(&buf.file_links, FileLocation.{
+				start = start_index + matching[0].start,
+				end   = start_index + matching[0].end
+			});
+		
+		return true;
+	}
+
+	return false;
+
+	/*
 	orig_len :: line.len;
 
 	loc: ErrorLocation;
@@ -96,6 +131,7 @@ parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
 		return true;
 	}
 	return false;
+	*/
 }
 
 try_location_clang_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_line: *string_view) bool #inline {

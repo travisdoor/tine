@@ -39,6 +39,8 @@ Buffer :: struct {
 	// Might not be available for all file types.
 	functions: [..]SearchLocation;
 
+	file_links: [..]FileLocation;
+
 	undo:          [..]Rec;
 	undo_top:      s64;
 	saved_top:     s64;
@@ -195,6 +197,7 @@ remove_buffer :: fn (index: s32) {
 	array_terminate(&buf.cursors);
 	array_terminate(&buf.indent);
 	array_terminate(&buf.functions);
+	array_terminate(&buf.file_links);
 	mutex_terminate(&buf.mutex);
 
 	terminate_buffer_diagnostics(buf);
@@ -989,7 +992,7 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 	}
 	if buf.index == messages_buffer_index {
 		highlight_messages_syntax(buf);
-	} else if buf.index == shell.buffer_index && settings.shell_parse_error_locations {
+	} else if buf.index == shell.buffer_index/* && settings.shell_parse_error_locations */{
 		highlight_build_syntax(buf);
 	} else if buf.index == search_buffer_index {
 		highlight_search_syntax(buf);

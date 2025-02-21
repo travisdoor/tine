@@ -15,6 +15,7 @@ C         :: #import "libc";
 #import "std/thread"
 #import "std/sync"
 #import "extra/glm"
+#import "pcre"
 
 #load "buffer.bl"
 #load "clang_format.bl"
@@ -396,6 +397,15 @@ get_current_compilation_error :: fn () *ErrorLocation {
 	if !error_marker_visible then return null;
 	if error_list.len == 0 || error_list_index == -1 then return null;
 	return &error_list[error_list_index];
+}
+
+//
+// Shell locations
+//
+
+FileLocation :: struct {
+	start: s64;
+	end:   s64;
 }
 
 //

@@ -1,0 +1,142 @@
+NO_CATCH_REGEX :: "$a";
+
+RegexMatch :: struct {
+    start: s64;
+    end: s64;
+}
+
+Regex :: struct {
+    pattern: string;
+    code: *pcre2_code;
+    data: *pcre2_match_data;
+    match: [..]RegexMatch;
+    offset: PCRE2_SIZE;
+}
+
+regex_init :: fn (re: *Regex, pattern: string_view) Error {
+    re.pattern = str_make(pattern);
+    re.offset = 0;
+    array_init(&re.match);
+    errnum: s32;
+    erroff: PCRE2_SIZE;
+    re.code = pcre2_compile(
+        pattern.ptr,
+        auto pattern.len,
+        PCRE2_UTF,
+        &errnum,
+        &erroff,
+        null);
+
+    if !re.code {
+        return error("Invalid regex '%'", pattern);
+    } else {
+        re.data = pcre2_match_data_create_from_pattern(re.code, null);
+    }
+	return OK;
+}
+
+regex_terminate :: fn (re: *Regex) {
+    if !re { return; }
+    if re.code {
+        pcre2_code_free(re.code);
+        pcre2_match_data_free(re.data);
+    }
+    str_terminate(&re.pattern);
+    array_terminate(&re.match);
+	zeroinit(re);
+}
+
+regex_match :: fn (re: *Regex, subject: string_view) bool {
+    if !re.code { return false; }
+    if subject.len == 0 { return false; }
+    if re.pattern.len == 0 { return false; }
+    re.match.len = 0;
+    rc :: pcre2_match(re.code, subject.ptr, auto subject.len, re.offset, 0, re.data, null);
+    if rc < 1 {
+        return false;
+    }
+    vec: []PCRE2_SIZE #noinit;
+    vec.ptr = pcre2_get_ovector_pointer(re.data);
+    vec.len = auto (rc * 2);
+    loop i := 0; i < rc; i += 1 {
+        start :: vec[2*i];
+        end   :: vec[2*i+1];
+		if end > start then array_push(&re.match, .{ auto start, auto end });
+    }
+    re.offset = vec[vec.len-1];
+    return re.match.len > 0;
+}
+
+regex_done :: fn (re: *Regex) #inline {
+    re.offset = 0;
+}
+
+regex_get_match :: fn (re: *Regex) []RegexMatch #inline {
+    return re.match;
+}
+
+#scope_module
+
+#import "std/string"
+#import "std/array"
+
+//PCRE2_ALLOW_EMPTY_CLASS  : u32 : 0x00000001;
+//PCRE2_ALT_BSUX           : u32 : 0x00000002;
+//PCRE2_AUTO_CALLOUT       : u32 : 0x00000004;
+//PCRE2_CASELESS           : u32 : 0x00000008;
+//PCRE2_DOLLAR_ENDONLY     : u32 : 0x00000010;
+//PCRE2_DOTALL             : u32 : 0x00000020;
+//PCRE2_DUPNAMES           : u32 : 0x00000040;
+//PCRE2_EXTENDED           : u32 : 0x00000080;
+//PCRE2_FIRSTLINE          : u32 : 0x00000100;
+//PCRE2_MATCH_UNSET_BACKREF: u32 : 0x00000200;
+//PCRE2_MULTILINE          : u32 : 0x00000400;
+//PCRE2_NEVER_UCP          : u32 : 0x00000800;
+//PCRE2_NEVER_UTF          : u32 : 0x00001000;
+//PCRE2_NO_AUTO_CAPTURE    : u32 : 0x00002000;
+//PCRE2_NO_AUTO_POSSESS    : u32 : 0x00004000;
+//PCRE2_NO_DOTSTAR_ANCHOR  : u32 : 0x00008000;
+//PCRE2_NO_START_OPTIMIZE  : u32 : 0x00010000;
+//PCRE2_UCP                : u32 : 0x00020000;
+//PCRE2_UNGREEDY           : u32 : 0x00040000;
+PCRE2_UTF                : u32 : 0x00080000;
+//PCRE2_NEVER_BACKSLASH_C  : u32 : 0x00100000;
+//PCRE2_ALT_CIRCUMFLEX     : u32 : 0x00200000;
+//PCRE2_ALT_VERBNAMES      : u32 : 0x00400000;
+//PCRE2_USE_OFFSET_LIMIT   : u32 : 0x00800000;
+//PCRE2_EXTENDED_MORE      : u32 : 0x01000000;
+//PCRE2_LITERAL            : u32 : 0x02000000;
+//PCRE2_MATCH_INVALID_UTF  : u32 : 0x04000000;
+
+
+pcre2_code :: u8;
+pcre2_compile_context :: u8;
+pcre2_general_context :: u8;
+pcre2_match_context :: u8;
+pcre2_match_data :: u8;
+PCRE2_SPTR :: *u8;
+PCRE2_SIZE :: usize;
+
+pcre2_compile :: fn (
+    pattern: PCRE2_SPTR,
+    len: PCRE2_SIZE,
+    opt: u32,
+    errnum: *s32,
+    erroffset: *PCRE2_SIZE,
+    ctx: *pcre2_compile_context) *pcre2_code #extern "pcre2_compile_8";
+pcre2_match_data_create_from_pattern :: fn (
+    re: *pcre2_code,
+    ctx: *pcre2_general_context) *pcre2_match_data #extern "pcre2_match_data_create_from_pattern_8";
+pcre2_code_free :: fn (code: *pcre2_code) #extern "pcre2_code_free_8";
+pcre2_match_data_free :: fn (match_data: *pcre2_match_data) #extern "pcre2_match_data_free_8";
+pcre2_match :: fn (
+    code: *pcre2_code,
+    subject: PCRE2_SPTR,
+    len: PCRE2_SIZE,
+    startoffset: PCRE2_SIZE,
+    options: u32,
+    match_data: *pcre2_match_data,
+    ctx: *pcre2_match_context) s32 #extern "pcre2_match_8";
+pcre2_get_ovector_pointer :: fn (data: *pcre2_match_data) *PCRE2_SIZE #extern "pcre2_get_ovector_pointer_8";
+//pcre2_get_ovector_count :: fn (match_data: *pcre2_match_data) u32 #extern "pcre2_get_ovector_count_8";
+

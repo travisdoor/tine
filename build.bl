@@ -43,6 +43,7 @@ build :: fn () #build_entry {
 	} else {
 		exe = add_executable("Tine-Debug");
 	}
+	set_module_dir(exe, "modules");
 	add_unit(exe, "src/main.bl");
 
 	#if PLATFORM == Platform.WINDOWS {
