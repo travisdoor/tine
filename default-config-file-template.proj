@@ -285,50 +285,50 @@ shell Alt+C
 #-------------------------------------------
 # dark colors
 #-------------------------------------------
-background_color                    272727
-foreground_color                    CCCCCC
-cursor_background_color             00FF00
-cursor_foreground_color             303030
-current_line_background_color       353535
-search_result_background_color      753475
-title_bar_color                     202020
-title_bar_active                    01574C
-title_bar_text_color                CCCCCC
-command_background_color            000000
-command_foreground_color            CCCCCC
-command_title_color                 3CC7CF
-command_select_color                01574C
-command_list_background_color       202020
+background_color                    1B2A2F
+foreground_color                    D1D8D9
+cursor_background_color             FFFF00
+cursor_foreground_color             1B2A2F
+current_line_background_color       172429
+search_result_background_color      735E00
+title_bar_color                     1A2527
+title_bar_active                    356D6B
+title_bar_text_color                D1D8D9
+command_background_color            101010
+command_foreground_color            D1D8D9
+command_title_color                 1A9A7B
+command_select_color                264F4E
+command_list_background_color       1A2527
 modification_indicator_color        FFFF00
-selection_background_color          01574C
-selection_background_inactive_color 404040
-message_color                       09975A
-warning_color                       DCC80B
-error_color                         E92204
-inline_error_background_color       400809
-inline_warning_background_color     4F4F2D
-macro_record_icon_color             E92204
-background_line_numbers_color       09121A
-foreground_line_numbers_color       606060
+selection_background_color          264F4E
+selection_background_inactive_color 2A3F3C
+message_color                       3B8D6E
+warning_color                       E5C700
+error_color                         FF4B4B
+inline_error_background_color       5A2B2B
+inline_warning_background_color     5C5C0B
+macro_record_icon_color             FF4B4B
+background_line_numbers_color       253738
+foreground_line_numbers_color       5F7371
 
-code_comment                        808080
-code_keyword                        FFF200
-code_directive                      9B9B9B
-code_string                         4EC9B0
-code_number                         FFAC9C
-code_invalid                        FF0000
-code_warning                        DCC80B
-code_error                          E92204
+code_comment                        8E9A94
+code_keyword                        D1C25B
+code_directive                      D69C58
+code_string                         9EE3C1
+code_number                         E4B77D
+code_invalid                        FF4B4B
+code_warning                        E5C700
+code_error                          FF4B4B
 code_function                       FFFFFF
 
-ansi_black                          5E5E5E
-ansi_red                            D75F5F
-ansi_green                          A8B56D
-ansi_yellow                         F0E68C
-ansi_blue                           5F87D7
-ansi_magenta                        D787AF
-ansi_cyan                           5FD7D7
-ansi_white                          D0D0D0
+ansi_black                          2E3C3A
+ansi_red                            FF4B4B
+ansi_green                          9EE3C1
+ansi_yellow                         E5C700
+ansi_blue                           188275
+ansi_magenta                        D172A4
+ansi_cyan                           66C7A5
+ansi_white                          D1D8D9
 
 #-------------------------------------------
 # dark colors zenburn-like

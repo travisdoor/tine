@@ -128,7 +128,6 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 					str_append(&shell.in_tmp, string_view.{ len, &text[esc_seq_start_index] });
 					return;
 				}
-
 			} else {
 				if append_len == 0 then append_start_index = i;
 				append_len += 1;
@@ -225,7 +224,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	if ctx.state == DONE {
-		result_data.text = sprint("\nProcess exited with status %.\n", ctx.exit_code);
+		result_data.text = sprint("\n\nProcess exited with status %.\n", ctx.exit_code);
 		push_result(ctx, &result);
 		return 0;
 	}

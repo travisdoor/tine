@@ -417,7 +417,7 @@ FileLink :: struct {
 	cl:       s32;
 }
 
-parse_file_links :: fn (subject: string_view) []FileLink {
+parse_file_links_regex :: fn (subject: string_view) []FileLink {
 	measure_elapsed_ms_begin();
 	defer measure_elapsed_ms_end();
 

@@ -295,7 +295,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		// @Pefrormance 2025-02-21: We should probably not do it every frame but link lookup is fast enought now.
 		link, found :: get_file_link_under_cursor(buf, cursor.position);
 		if found {
-			draw_highlight_range(buf, editor, tx, ty, link.start, link.end, first_position, last_position, colors.search_result_background_color);
+			draw_highlight_range(buf, editor, tx, ty, link.start, link.end, first_position, last_position, colors.selection_background_color);
 		}
 	}
 
@@ -702,7 +702,7 @@ center_view :: fn (editor: *Editor) {
 // range might be specified to speedup the search. Returns -1 in case no link was found.
 get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink, bool) {
 	line, line_start_position :: peek_row_without_new_line(buf, count_rows_to_position(buf, cursor_position));
-	links :: parse_file_links(line);
+	links :: parse_file_links_regex(line);
 
 	loop i := 0; i < links.len; i += 1 {
 		// Make absolute.

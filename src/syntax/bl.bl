@@ -141,13 +141,14 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		};
 
 		c :: ctx.bytes[ctx.index];
+		if c == '\"'        && parse_string      (ctx, &t) then return t;
+		if c == '\''        && parse_string      (ctx, &t) then return t;
 		if c == '{'         && parse_left_brace  (ctx, &t) then return t;
 		if c == '}'         && parse_right_brace (ctx, &t) then return t;
 		if c == '('         && parse_left_brace  (ctx, &t) then return t;
 		if c == ')'         && parse_right_brace (ctx, &t) then return t;
 		if c == '/'         && parse_comment     (ctx, &t) then return t;
 		if c == '#'         && parse_directive   (ctx, &t) then return t;
-		if c == '\"'        && parse_string      (ctx, &t) then return t;
 		if parse_identifier_or_keyword           (ctx, &t) then return t;
 		if parse_number                          (ctx, &t) then return t;
 
@@ -238,7 +239,7 @@ parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
 			sc = 0;
 		}
 		escape :: sc > 0 && (sc % 2 > 0);
-		if c == '\"' && escape == false {
+		if (c == '\"' || c == '\'') && escape == false {
 			in_string = false;
 		}
 		t.len     += 1;

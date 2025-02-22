@@ -574,25 +574,6 @@ expand_position_to_whole_line :: fn (buf: string_view, index: s64, max_distance 
 	return string_view.{ end - begin, &buf[begin] };
 }
 
-get_location_from_search_result_string :: fn (str: string_view) (filepath: string_view, row: s32, col: s32) {
-	if str.len == 0 { return "", 0, 0; }
-	loc, path, row, col: string_view;
-	if !str_split_by_first(str, '\t', &loc) {
-		return "", 0, 0;
-	}
-	if !str_split_by_last(loc, ':', &row, &col) {
-		return "", 0, 0;
-	}
-	if !str_split_by_last(row, ':', &path, &row) {
-		return "", 0, 0;
-	}
-
-	r :: strtos64(row);
-	c :: strtos64(col);
-
-	return path, auto r, auto c;
-}
-
 get_character_len :: fn (c: u8) s32 #inline {
 	if c < 0x80           { return 1; }
 	if (c & 0xE0) == 0xC0 { return 2; }

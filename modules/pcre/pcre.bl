@@ -21,7 +21,7 @@ regex_init :: fn (re: *Regex, pattern: string_view) Error {
     re.code = pcre2_compile(
         pattern.ptr,
         auto pattern.len,
-        PCRE2_UTF,
+        PCRE2_UTF | PCRE2_MULTILINE,
         &errnum,
         &erroff,
         null);
@@ -91,7 +91,7 @@ regex_get_match :: fn (re: *Regex) []RegexMatch #inline {
 //PCRE2_EXTENDED           : u32 : 0x00000080;
 //PCRE2_FIRSTLINE          : u32 : 0x00000100;
 //PCRE2_MATCH_UNSET_BACKREF: u32 : 0x00000200;
-//PCRE2_MULTILINE          : u32 : 0x00000400;
+PCRE2_MULTILINE          : u32 : 0x00000400;
 //PCRE2_NEVER_UCP          : u32 : 0x00000800;
 //PCRE2_NEVER_UTF          : u32 : 0x00001000;
 //PCRE2_NO_AUTO_CAPTURE    : u32 : 0x00002000;
@@ -140,4 +140,5 @@ pcre2_match :: fn (
     ctx: *pcre2_match_context) s32 #extern "pcre2_match_8";
 pcre2_get_ovector_pointer :: fn (data: *pcre2_match_data) *PCRE2_SIZE #extern "pcre2_get_ovector_pointer_8";
 //pcre2_get_ovector_count :: fn (match_data: *pcre2_match_data) u32 #extern "pcre2_get_ovector_count_8";
-
+pcre2_pattern_info :: fn (code: *pcre2_code, n: u32, p: *u8) s32 #extern "pcre2_pattern_info";
+pcre2_substring_get_byname :: fn (data: *pcre2_match_data, name: PCRE2_SPTR, strp: **u8, strs: *PCRE2_SIZE) s32 #extern "pcre2_substring_get_byname";

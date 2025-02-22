@@ -1,10 +1,32 @@
 highlight_build_syntax :: fn (buf: *Buffer) {
 	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	clear_error_list();
+
+	if settings.shell_enable_error_location_colors {
+		array_resize(&buf.colors, buf.bytes.len);
+	}
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		if token.kind == EOF { break; }
+
+		if token.len > 0 && settings.shell_enable_error_location_colors {
+			memset(&buf.colors[token.index], auto token.kind, auto token.len);
+		}
+	}
 }
 
 #scope_private
 
-/*
 Tokenizer :: struct #base TokenizerBase {
 }
 
@@ -20,7 +42,7 @@ Token :: struct {
 	len:   s32;
 }
 
-next_token :: fn (buf: *Buffer, ctx: *Tokenizer) Token {
+next_token :: fn (ctx: *Tokenizer) Token {
 	using Token.kind;
 
 	loop ctx.index < ctx.bytes.len {
@@ -30,46 +52,16 @@ next_token :: fn (buf: *Buffer, ctx: *Tokenizer) Token {
 			index = ctx.index,
 		};
 
-		if parse_line(buf, ctx, &t) { return t; }
+		if parse_line(ctx, &t) { return t; }
 	}
 
 	return Token.{ kind = EOF };
 }
 
-parse_line :: fn (buf: *Buffer, ctx: *Tokenizer, t: *Token) bool {
+parse_line :: fn (ctx: *Tokenizer, t: *Token) bool {
 	using Token.kind;
 
-	start_index :: ctx.index;
 	line := eat_line_and_trim_eol(ctx);
-
-	if regex_match(&regex, line) {
-		defer regex_done(&regex);
-		matching :: regex_get_match(&regex);
-		if matching.len < 3 then return false;
-
-		t.kind = ERROR;
-		t.len  = auto matching[0].end - matching[0].start;
-
-		filepath :: string_view.{ matching[1].end - matching[1].start, &line[matching[1].start] };
-		ln_str   :: string_view.{ matching[2].end - matching[2].start, &line[matching[2].start] };
-		cl_str   :: if matching.len > 3 then string_view.{ matching[3].end - matching[3].start, &line[matching[3].start] } else "0";
-
-		ln :: strtos64(ln_str);
-		cl :: strtos64(cl_str);
-
-		array_push(&buf.file_links, FileLink.{
-				start    = start_index + matching[0].start,
-				end      = start_index + matching[0].end,
-				filepath = filepath,
-				ln       = auto math.max(ln, 1),
-				cl       = auto math.max(cl, 1)
-			});
-
-		return true;
-	}
-
-	return false;
-
 	orig_len :: line.len;
 
 	loc: ErrorLocation;
@@ -169,4 +161,3 @@ try_location_cl_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_
 
 	return true;
 }
-*/

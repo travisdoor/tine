@@ -7,10 +7,10 @@ init_project :: fn () {
 	mutex_init(&project.mutex);
 
 	// @Incomplete 2025-02-21: Customizable?
-	EXPR :: "((?:[a-zA-Z]:[/\\\\]|\\.{1,2}[/\\\\]?|/)[^:\\n]*[^:\\n\\s]):(\\d+)(?::(\\d+))?";
+	SEARCH_EXPR :: "((?:[a-zA-Z]:[/\\\\]|\\.{1,2}[/\\\\]?|/)[^:\\n]*[^:\\n\\s]):(\\d+)(?::(\\d+))?";
 
 	project.file_link_regex.is_valid = true;
-	regex_init(&project.file_link_regex.expr, EXPR) catch {
+	regex_init(&project.file_link_regex.expr, SEARCH_EXPR) catch {
 		print_err($);
 		project.file_link_regex.is_valid = false;
 	};
