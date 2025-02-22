@@ -421,6 +421,15 @@ parse_file_links_regex :: fn (subject: string_view) []FileLink {
 	measure_elapsed_ms_begin();
 	defer measure_elapsed_ms_end();
 
+	link: FileLink #noinit;
+	rest: string_view #noinit;
+	if parse_clang_like_location(subject, &link, &rest) {
+		print_log("%", link);
+	}
+
+	return .{};
+
+	/*
 	if subject.len < 1 then return .{};
 
 	allocator :: application_context.temporary_allocator;
@@ -452,6 +461,7 @@ parse_file_links_regex :: fn (subject: string_view) []FileLink {
 	}
 
 	return result;
+	*/
 }
 
 //

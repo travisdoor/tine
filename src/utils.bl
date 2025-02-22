@@ -691,3 +691,52 @@ contains_any_of :: fn (str: string_view, chars: string_view) bool #inline {
 	}
 	return false;
 }
+
+parse_clang_like_location :: fn (line: string_view, link: *FileLink, rest: *string_view) bool {
+	text :: trim_left(line, " \t");
+
+	zeroinit(link);
+
+	// filepath
+	link.filepath = string_view.{ 0, text.ptr };
+	i := 0;
+	loop ; i < text.len; i += 1 {
+		c :: text[i];
+		if is_alpha(c) || is_digit(c) || is_one_of(c, ".-_\\/") || (link.filepath.len > 0 && c == ' ') || (link.filepath.len == 1 && c == ':') {
+			link.filepath.len += 1;
+		} else {
+			break;
+		}
+	}
+
+	// line
+	if i >= text.len || link.filepath.len < 1 then return false;
+
+	num: string_view;
+
+	loop ; i < text.len; i += 1 {
+		if text[i] != ':' then return true;
+		i += 1;
+		if i >= text.len then return true;
+		num.ptr = &text[i];
+		loop ;i < text.len; i += 1 {
+			if !is_digit(text[i]) then break;
+			num.len += 1;
+		}
+		if num.len == 0 then return true;
+		n :: strtos64(num);
+		link.ln = auto math.max(n, 1);
+	}
+
+	if text[i] == ':' {
+		// Clang-like
+
+	} else if text[i] == '(' {
+		// CL-like
+		i += 1;
+	} else {
+		return false;
+	}
+
+	return true;
+}
