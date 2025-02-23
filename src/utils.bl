@@ -332,7 +332,7 @@ trim_right :: fn (str: string_view, chars: []u8) string_view #inline {
 	return result;
 }
 
-trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_view #inline {
+trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX, trimmed: *s32 = null) string_view #inline {
 	start  := 0;
 	len    := str.len;
 	loop i := 0; i < str.len && i < max_num; i += 1 {
@@ -349,6 +349,7 @@ trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_
 		if stop { break; }
 	}
 	assert(len >= 0 && len <= str.len);
+	if trimmed then @trimmed = start;
 	return string_view.{ len, &str[start] };
 }
 
@@ -713,8 +714,8 @@ parse_clang_like_location :: fn (line: string_view, link: *FileLink, rest: *stri
 	if i >= text.len || link.filepath.len < 1 then return false;
 
 	num: string_view;
-
-	loop ; i < text.len; i += 1 {
+	
+	loop j := 0; j < 2; j += 1 {
 		if text[i] != ':' then return true;
 		i += 1;
 		if i >= text.len then return true;
@@ -725,17 +726,13 @@ parse_clang_like_location :: fn (line: string_view, link: *FileLink, rest: *stri
 		}
 		if num.len == 0 then return true;
 		n :: strtos64(num);
-		link.ln = auto math.max(n, 1);
-	}
-
-	if text[i] == ':' {
-		// Clang-like
-
-	} else if text[i] == '(' {
-		// CL-like
-		i += 1;
-	} else {
-		return false;
+		if j == 0 {
+			link.ln = auto math.max(n, 1);
+		} else {
+			link.cl = auto math.max(n, 1);
+		}
+		
+		num.len = 0;
 	}
 
 	return true;
