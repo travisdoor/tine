@@ -231,22 +231,24 @@ eat_valid_clang_like_file_link :: fn (ctx: *TokenizerBase, link: *FileLink) bool
 		return false;
 	}
 
+	path_parsed := false;
+
 	c: u8 #noinit;
 	loop tok_peek(ctx, &c) {
-		if is_alpha(c) || is_digit(c) || is_one_of(c, ".-_\\/") || c == ' ' {
-			filepath_len += 1;
+		if c == ':' {
+			path_parsed = true;
+			break;
 		} else if is_one_of(c, "\n\r") {
 			ctx.index = start_index;
 			return false;
-		} else {
-			break;
 		}
 		ctx.index += 1;
+		filepath_len += 1;
 	}
 
 	filepath :: string_view.{ filepath_len, &ctx.bytes[start_index] };
 
-	if filepath.len < 1 then return false;
+	if !path_parsed || filepath.len < 1 then return false;
 	if filepath.len == 1 && filepath[0] == '/' { // Ignore path pointing to the root directory.
 		ctx.index = start_index;
 		return false;
@@ -256,10 +258,18 @@ eat_valid_clang_like_file_link :: fn (ctx: *TokenizerBase, link: *FileLink) bool
 	fullpath := str_make(allocator);
 	str_append(&fullpath, filepath);
 
+	print_log(fullpath);
+
 	path_normalize(&fullpath) catch {
 		ctx.index = start_index;
 		return false;
 	};
+
+	is_dir, is_dir_err :: is_directory(fullpath);
+	if is_dir || is_dir_err {
+		ctx.index = start_index;
+		return false;
+	}
 
 	link.start    = start_index;
 	link.end      = ctx.index;
