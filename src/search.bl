@@ -109,8 +109,10 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 					results_editor :: &editors[results_editor_index];
 
 					clear_buffer(results_buf);
-					append_readonly_buffer(results_buf, tmp);
-					set_cursor_position(results_buf, results_editor.cursor_index, 0);
+					if tmp.len > 0 {
+						append_readonly_buffer(results_buf, tmp);
+						set_cursor_position(results_buf, results_editor.cursor_index, 0);
+					}
 				}
 			} else {
 				set_mode(Mode.TEXT_EDIT);

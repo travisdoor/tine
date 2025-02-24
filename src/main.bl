@@ -15,7 +15,7 @@ C         :: #import "libc";
 #import "std/thread"
 #import "std/sync"
 #import "extra/glm"
-#import "pcre"
+// #import "pcre"
 
 #load "buffer.bl"
 #load "clang_format.bl"
@@ -268,11 +268,6 @@ project: struct {
 
 	mutex: Mutex;
 	string_cache: PoolAllocator;
-
-	file_link_regex: struct {
-		expr:     Regex;
-		is_valid: bool;
-	};
 }
 
 // Global application settings loaded from the configuraiton file. These might be overriden by local project settings.
@@ -417,51 +412,20 @@ FileLink :: struct {
 	cl:       s32;
 }
 
-parse_file_links_regex :: fn (subject: string_view) []FileLink {
+get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink, bool) {
 	measure_elapsed_ms_begin();
 	defer measure_elapsed_ms_end();
 
+	tokenizer := TokenizerBase.{ bytes = subject };
+
 	link: FileLink #noinit;
-	rest: string_view #noinit;
-	if parse_clang_like_location(subject, &link, &rest) {
-		print_log("%", link);
+	loop tokenizer.index < tokenizer.bytes.len && tokenizer.index <= position {
+		if eat_valid_clang_like_file_link(&tokenizer, &link) {
+			return link, tokenizer.index > position;
+		}
+		tokenizer.index += 1;
 	}
-
-	return .{};
-
-	/*
-	if subject.len < 1 then return .{};
-
-	allocator :: application_context.temporary_allocator;
-
-	result: [..]FileLink;
-	array_init(&result, 4, allocator);
-
-	regex :: &project.file_link_regex.expr;
-	defer regex_done(regex);
-
-	loop regex_match(regex, subject) {
-		matching :: regex_get_match(regex);
-		if matching.len < 3 then continue;
-
-		filepath :: string_view.{ matching[1].end - matching[1].start, &subject[matching[1].start] };
-		ln_str   :: string_view.{ matching[2].end - matching[2].start, &subject[matching[2].start] };
-		cl_str   :: if matching.len > 3 then string_view.{ matching[3].end - matching[3].start, &subject[matching[3].start] } else "0";
-
-		ln :: strtos64(ln_str);
-		cl :: strtos64(cl_str);
-
-		array_push(&result, FileLink.{
-				start    = matching[0].start,
-				end      = matching[0].end,
-				filepath = filepath,
-				ln       = auto math.max(ln, 1),
-				cl       = auto math.max(cl, 1)
-			});
-	}
-
-	return result;
-	*/
+	return .{}, false;
 }
 
 //
@@ -2312,6 +2276,8 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 		default;
 	}
 
+	if message.text.len == 0 then return;
+
 	switch kind {
 		INFO, WARNING, ERROR, MESSAGE {
 			index :: messages_buffer_index;
@@ -2322,6 +2288,7 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 					lock_buffer(buf);
 					defer unlock_buffer(buf);
 					append_readonly_buffer(buf, tprint("%%\n", get_message_prefix(kind), msg));
+					set_all_cursors_position_to_buffer_end(buf);
 				}
 			}
 		}

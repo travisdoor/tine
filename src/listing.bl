@@ -625,9 +625,16 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 format_listing_results_to_string :: fn (str: *string) {
 	cancel_async_search();
 
+	cwd :: get_cwd();
+	defer str_terminate(&cwd);
+
 	loop i := 0; i < list[visible_list_index].len; i += 1 {
 		item :: &list[visible_list_index][i];
-		str_append(str, tprint("%/%:%:%:\t%\n", item.hint, item.title, item.row+1, item.col+1, item.preview));
+		dirpath := item.hint;
+		if str_match(dirpath, cwd, auto cwd.len) {
+			dirpath = tprint(".%", string_view.{ dirpath.len - cwd.len, &dirpath[cwd.len] });
+		}
+		str_append(str, tprint("%/%:%:%:\t%\n", dirpath, item.title, item.row+1, item.col+1, item.preview));
 	}
 }
 

@@ -59,7 +59,7 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 
 	command_line := str_make(executable);
 	defer str_terminate(&command_line);
-	
+
 	loop i := 0; i < args.len; i += 1 {
 		str_concat(&command_line, " ", args[i]);
 	}

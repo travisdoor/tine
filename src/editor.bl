@@ -698,22 +698,13 @@ center_view :: fn (editor: *Editor) {
 	}
 }
 
-// Try to resolve file link index in buf.file_links specified buffer under the cursor. Visible buffer
-// range might be specified to speedup the search. Returns -1 in case no link was found.
 get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink, bool) {
 	line, line_start_position :: peek_row_without_new_line(buf, count_rows_to_position(buf, cursor_position));
-	links :: parse_file_links_regex(line);
-
-	loop i := 0; i < links.len; i += 1 {
-		// Make absolute.
-		links[i].start += line_start_position;
-		links[i].end   += line_start_position;
-
-		if cursor_position >= links[i].start && cursor_position < links[i].end {
-			return links[i], true;
-		}
-	}
-	return .{}, false;
+	link, found := get_file_link_at_position(line, cursor_position - line_start_position);
+	if !found then return link, false;
+	link.start += line_start_position;
+	link.end   += line_start_position;
+	return link, true;
 }
 
 #scope_private

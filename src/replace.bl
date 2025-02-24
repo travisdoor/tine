@@ -104,7 +104,7 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 					r :: &search.results[i];
 					r.start += diff;
 					r.end   += diff;
-					// @Incomplete: Adjust col and row??? .\src\replace.bl:107:9:
+					// @Incomplete: Adjust col and row???
 
 				}
 

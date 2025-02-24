@@ -614,13 +614,9 @@ is_command_valid_for_repeating :: fn (cmd: Command) bool {
 }
 
 open_file_link_in_other_split :: fn (buf: *Buffer, link: *FileLink) {
-	filepath :: str_make(link.filepath, application_context.temporary_allocator);
-	path_normalize(&filepath) catch {
-		print_err("Cannot open file link '%'.", link.filepath);
-		return;
-	};
+	assert(file_exist(link.filepath));
 	other_split(buf);
-	open_location(filepath, link.ln-1, link.cl-1);
+	open_location(link.filepath, link.ln-1, link.cl-1);
 }
 
 #scope_private

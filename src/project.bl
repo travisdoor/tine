@@ -5,21 +5,10 @@ init_project :: fn () {
 	project = .{};
 	project.string_cache = pool_make(null, 2048);
 	mutex_init(&project.mutex);
-
-	// @Incomplete 2025-02-21: Customizable?
-	SEARCH_EXPR :: "((?:[a-zA-Z]:[/\\\\]|\\.{1,2}[/\\\\]?|/)[^:\\n]*[^:\\n\\s]):(\\d+)(?::(\\d+))?";
-
-	project.file_link_regex.is_valid = true;
-	regex_init(&project.file_link_regex.expr, SEARCH_EXPR) catch {
-		print_err($);
-		project.file_link_regex.is_valid = false;
-	};
 }
 
 terminate_project :: fn () {
 	clear_project();
-
-	regex_terminate(&project.file_link_regex.expr);
 
 	mutex_terminate(&project.mutex);
 	release_allocator(&project.string_cache);

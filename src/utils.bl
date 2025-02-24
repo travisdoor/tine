@@ -42,6 +42,12 @@ TokenizerBase :: struct {
 	index: s32;
 }
 
+tok_peek :: fn (ctx: *TokenizerBase, char: *u8) bool #inline {
+	if ctx.index >= ctx.bytes.len then return false;
+	@char = ctx.bytes[ctx.index];
+	return true;
+}
+
 eat_whitespace :: fn (ctx: *TokenizerBase) s32 #inline {
 	n := 0;
 	loop ctx.index < ctx.bytes.len {
@@ -166,6 +172,124 @@ eat_till :: fn (ctx: *TokenizerBase, delimiters: []u8) string_view {
 		ctx.index += 1;
 	}
 	return string_view.{ len, &ctx.bytes[start_index] };
+}
+
+eat_if_one_of :: fn (ctx: *TokenizerBase, chars: []u8) bool #inline {
+	c: u8 #noinit;
+	if tok_peek(ctx, &c) && is_one_of(c, chars) {
+		ctx.index += 1;
+		return true;
+	}
+	return false;
+}
+
+eat_if_alpha :: fn (ctx: *TokenizerBase) bool #inline {
+	c: u8 #noinit;
+	if tok_peek(ctx, &c) && is_alpha(c) {
+		ctx.index += 1;
+		return true;
+	}
+	return false;
+}
+
+eat_number :: fn (ctx: *TokenizerBase, n: *s64) bool #inline {
+	str := string_view.{ 0, &ctx.bytes[ctx.index] };
+	c: u8 #noinit;
+	loop tok_peek(ctx, &c) {
+		if !is_digit(c) then break;
+		str.len   += 1;
+		ctx.index += 1;
+	}
+	if str.len == 0 {
+		return false;
+	}
+	tmp :: strtos64(str);
+	@n = tmp;
+	return true;
+}
+
+eat_valid_clang_like_file_link :: fn (ctx: *TokenizerBase, link: *FileLink) bool {
+	start_index :: ctx.index;
+	filepath_len := 0;
+
+	// filepath
+	if eat_if_one_of(ctx, ".") {
+		if !eat_if_one_of(ctx, "/\\.") {
+			ctx.index = start_index;
+			return false;
+		}
+		filepath_len += 2;
+	} else if eat_if_alpha(ctx) {
+		if !eat_if_one_of(ctx, ":") || !eat_if_one_of(ctx, "/\\") {
+			ctx.index = start_index;
+			return false;
+		}
+		filepath_len += 3;
+	} else if eat_if_one_of(ctx, "/\\") {
+		filepath_len += 1;
+	} else {
+		return false;
+	}
+
+	c: u8 #noinit;
+	loop tok_peek(ctx, &c) {
+		if is_alpha(c) || is_digit(c) || is_one_of(c, ".-_\\/") || c == ' ' {
+			filepath_len += 1;
+		} else if is_one_of(c, "\n\r") {
+			ctx.index = start_index;
+			return false;
+		} else {
+			break;
+		}
+		ctx.index += 1;
+	}
+
+	filepath :: string_view.{ filepath_len, &ctx.bytes[start_index] };
+
+	if filepath.len < 1 then return false;
+	if filepath.len == 1 && filepath[0] == '/' { // Ignore path pointing to the root directory.
+		ctx.index = start_index;
+		return false;
+	}
+
+	allocator :: application_context.temporary_allocator;
+	fullpath := str_make(allocator);
+	str_append(&fullpath, filepath);
+
+	path_normalize(&fullpath) catch {
+		ctx.index = start_index;
+		return false;
+	};
+
+	link.start    = start_index;
+	link.end      = ctx.index;
+	link.ln       = 1;
+	link.cl       = 1;
+	link.filepath = fullpath;
+
+	loop j := 0; j < 2; j += 1 {
+		if !eat_if_one_of(ctx, ":") {
+			link.end = ctx.index;
+			return true;
+		}
+
+		n: s64 #noinit;
+		if eat_number(ctx, &n) {
+			if j == 0 {
+				link.ln = auto math.max(n, 1);
+			} else {
+				link.cl = auto math.max(n, 1);
+			}
+		} else {
+			if j == 0 then ctx.index -= 1;
+			link.end = ctx.index;
+			return true;
+		}
+
+		link.end = ctx.index;
+	}
+
+	return true;
 }
 
 get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_underscore := true) [enum_count(TEnum)]string_view #comptime {
@@ -332,7 +456,7 @@ trim_right :: fn (str: string_view, chars: []u8) string_view #inline {
 	return result;
 }
 
-trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX, trimmed: *s32 = null) string_view #inline {
+trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_view #inline {
 	start  := 0;
 	len    := str.len;
 	loop i := 0; i < str.len && i < max_num; i += 1 {
@@ -349,7 +473,6 @@ trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX, trimmed
 		if stop { break; }
 	}
 	assert(len >= 0 && len <= str.len);
-	if trimmed then @trimmed = start;
 	return string_view.{ len, &str[start] };
 }
 
@@ -693,47 +816,3 @@ contains_any_of :: fn (str: string_view, chars: string_view) bool #inline {
 	return false;
 }
 
-parse_clang_like_location :: fn (line: string_view, link: *FileLink, rest: *string_view) bool {
-	text :: trim_left(line, " \t");
-
-	zeroinit(link);
-
-	// filepath
-	link.filepath = string_view.{ 0, text.ptr };
-	i := 0;
-	loop ; i < text.len; i += 1 {
-		c :: text[i];
-		if is_alpha(c) || is_digit(c) || is_one_of(c, ".-_\\/") || (link.filepath.len > 0 && c == ' ') || (link.filepath.len == 1 && c == ':') {
-			link.filepath.len += 1;
-		} else {
-			break;
-		}
-	}
-
-	// line
-	if i >= text.len || link.filepath.len < 1 then return false;
-
-	num: string_view;
-	
-	loop j := 0; j < 2; j += 1 {
-		if text[i] != ':' then return true;
-		i += 1;
-		if i >= text.len then return true;
-		num.ptr = &text[i];
-		loop ;i < text.len; i += 1 {
-			if !is_digit(text[i]) then break;
-			num.len += 1;
-		}
-		if num.len == 0 then return true;
-		n :: strtos64(num);
-		if j == 0 {
-			link.ln = auto math.max(n, 1);
-		} else {
-			link.cl = auto math.max(n, 1);
-		}
-		
-		num.len = 0;
-	}
-
-	return true;
-}
