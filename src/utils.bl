@@ -212,6 +212,70 @@ eat_valid_clang_like_file_link :: fn (ctx: *TokenizerBase, link: *FileLink) bool
 	start_index :: ctx.index;
 	filepath_len := 0;
 
+	path_start := ctx.index;
+	path_end   := ctx.index;
+
+	dot_found := false;
+
+	INVALID_HEAD :: "<>:\"|?*\t\n\r";
+	INVALID_TAIL :: "<>:\"/\\|?*\t\n\r ";
+
+	c: u8 #noinit;
+	loop tok_peek(ctx, &c) {
+		if !dot_found && c == '.' {
+			ctx.index += 1;
+			if eat_if_one_of(ctx, "/\\") {
+				continue;
+			}
+			dot_found = true;
+			continue;
+		}
+
+		do_reset := false;
+		if dot_found {
+			do_reset = is_one_of(c, INVALID_TAIL);
+		} else {
+			path_len :: path_end - path_start;
+			do_reset = is_one_of(c, INVALID_HEAD) || (path_len < 1 && c == ' ');
+		}
+
+		if do_reset then break;
+		ctx.index += 1; // UTF?
+
+		path_end = ctx.index;
+	}
+
+	path :: string_view.{ path_end - path_start, &ctx.bytes[path_start] };
+	if path.len < 1 then return false;
+
+	if path.len == 1 && path[0] == '/' { // Ignore path pointing to the root directory.
+		return false;
+	}
+
+	allocator :: application_context.temporary_allocator;
+	fullpath := str_make(allocator);
+	str_append(&fullpath, path);
+
+	print_log(fullpath);
+
+	path_normalize(&fullpath) catch {
+		return false;
+	};
+
+	is_dir, is_dir_err :: is_directory(fullpath);
+	if is_dir || is_dir_err {
+		return false;
+	}
+	
+	link.start    = path_start;
+	link.end      = path_end;
+	link.ln       = 1;
+	link.cl       = 1;
+	link.filepath = fullpath;
+
+	return true;
+
+	/*
 	// filepath
 	if eat_if_one_of(ctx, ".") {
 		if !eat_if_one_of(ctx, "/\\.") {
@@ -300,6 +364,7 @@ eat_valid_clang_like_file_link :: fn (ctx: *TokenizerBase, link: *FileLink) bool
 	}
 
 	return true;
+	*/
 }
 
 get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_underscore := true) [enum_count(TEnum)]string_view #comptime {

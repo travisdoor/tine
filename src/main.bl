@@ -4,7 +4,7 @@ math      :: #import "std/math";
 io        :: #import "std/io";
 C         :: #import "libc";
 
-#import "std/async"
+k#import "std/async"
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
@@ -2275,8 +2275,6 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 		}
 		default;
 	}
-
-	if message.text.len == 0 then return;
 
 	switch kind {
 		INFO, WARNING, ERROR, MESSAGE {
