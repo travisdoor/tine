@@ -4,7 +4,7 @@ math      :: #import "std/math";
 io        :: #import "std/io";
 C         :: #import "libc";
 
-k#import "std/async"
+#import "std/async"
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
@@ -15,7 +15,7 @@ k#import "std/async"
 #import "std/thread"
 #import "std/sync"
 #import "extra/glm"
-// #import "pcre"
+#import "pcre"
 
 #load "buffer.bl"
 #load "clang_format.bl"
@@ -268,6 +268,16 @@ project: struct {
 
 	mutex: Mutex;
 	string_cache: PoolAllocator;
+
+	file_link_regex: struct {
+		expr:     Regex;
+		is_valid: bool;
+	};
+
+	file_loc_regex: struct {
+		expr:     Regex;
+		is_valid: bool;
+	};
 }
 
 // Global application settings loaded from the configuraiton file. These might be overriden by local project settings.
@@ -310,6 +320,10 @@ Settings :: struct {
 	bl_extensions:   string;
 	glsl_extensions: string;
 	asm_extensions:  string;
+
+	// file location
+	file_link_regex:     string;
+	file_location_regex: string;
 };
 
 settings: Settings;
@@ -416,15 +430,14 @@ get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink,
 	measure_elapsed_ms_begin();
 	defer measure_elapsed_ms_end();
 
-	tokenizer := TokenizerBase.{ bytes = subject };
-
-	link: FileLink #noinit;
-	loop tokenizer.index < tokenizer.bytes.len && tokenizer.index <= position {
-		if eat_valid_clang_like_file_link(&tokenizer, &link) {
-			return link, tokenizer.index > position;
+	links :: parse_valid_clang_like_file_link(subject);
+	loop i := 0; i < links.len; i += 1 {
+		link :: &links[i];
+		if link.start <= position && link.end > position {
+			return links[i], true;
 		}
-		tokenizer.index += 1;
 	}
+
 	return .{}, false;
 }
 

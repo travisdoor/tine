@@ -21,7 +21,7 @@ regex_init :: fn (re: *Regex, pattern: string_view) Error {
     re.code = pcre2_compile(
         pattern.ptr,
         auto pattern.len,
-        PCRE2_UTF | PCRE2_MULTILINE,
+        PCRE2_UTF | PCRE2_MULTILINE | PCRE2_NEVER_BACKSLASH_C,
         &errnum,
         &erroff,
         null);
@@ -101,7 +101,7 @@ PCRE2_MULTILINE          : u32 : 0x00000400;
 //PCRE2_UCP                : u32 : 0x00020000;
 //PCRE2_UNGREEDY           : u32 : 0x00040000;
 PCRE2_UTF                : u32 : 0x00080000;
-//PCRE2_NEVER_BACKSLASH_C  : u32 : 0x00100000;
+PCRE2_NEVER_BACKSLASH_C  : u32 : 0x00100000;
 //PCRE2_ALT_CIRCUMFLEX     : u32 : 0x00200000;
 //PCRE2_ALT_VERBNAMES      : u32 : 0x00400000;
 //PCRE2_USE_OFFSET_LIMIT   : u32 : 0x00800000;

@@ -138,6 +138,17 @@ bl_extensions                          .bl
 glsl_extensions                        .glsl
 asm_extensions                         .asm
 
+# Folowing regular expressions are used in various buffers to parse out file links which can
+# be directly openned in the editor.
+#
+# Expected format is 'filepath[:line[:column]]'.
+#
+# In case file_link_regex has match, the file_location_regex is applied on the rest. The
+# file_location_regex should contain two capture groups; first for the line number and optionally
+# second for the column number.
+file_link_regex     (([a-zA-Z]:[\\\/]|\/|\.\/|\.\\|\.\.\/|[\w_]+\/)(?:[^\\\n]+\\)*[^\\\n^:]+(?:\.[a-zA-Z0-9]+))
+file_location_regex :([0-9]*)(?::([0-9]*))?
+
 ;keys
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:

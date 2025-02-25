@@ -208,163 +208,72 @@ eat_number :: fn (ctx: *TokenizerBase, n: *s64) bool #inline {
 	return true;
 }
 
-eat_valid_clang_like_file_link :: fn (ctx: *TokenizerBase, link: *FileLink) bool {
-	start_index :: ctx.index;
-	filepath_len := 0;
+parse_valid_clang_like_file_link :: fn (subject: string_view) []FileLink {
 
-	path_start := ctx.index;
-	path_end   := ctx.index;
+	allocator :: application_context.temporary_allocator;
 
-	dot_found := false;
+	result: [..]FileLink;
+	array_init(&result, 8, allocator);
 
-	INVALID_HEAD :: "<>:\"|?*\t\n\r";
-	INVALID_TAIL :: "<>:\"/\\|?*\t\n\r ";
+	{
+		re :: &project.file_link_regex;
+		if !re.is_valid then return .{};
 
-	c: u8 #noinit;
-	loop tok_peek(ctx, &c) {
-		if !dot_found && c == '.' {
-			ctx.index += 1;
-			if eat_if_one_of(ctx, "/\\") {
+		defer regex_done(&re.expr);
+
+		loop regex_match(&re.expr, subject) {
+			matches :: regex_get_match(&re.expr);
+			if matches.len == 0 then continue;
+
+			path :: string_view.{ matches[0].end - matches[0].start, &subject[matches[0].start] };
+
+			fullpath := str_make(path, allocator);
+
+			path_normalize(&fullpath) catch {
+				continue;
+			};
+
+			is_dir, is_dir_err :: is_directory(fullpath);
+			if is_dir || is_dir_err {
 				continue;
 			}
-			dot_found = true;
-			continue;
+
+			link: FileLink;
+
+			link.start    = matches[0].start;
+			link.end      = matches[0].end;
+			link.filepath = fullpath;
+			link.ln       = 1;
+			link.cl       = 1;
+
+			array_push(&result, link);
 		}
-
-		do_reset := false;
-		if dot_found {
-			do_reset = is_one_of(c, INVALID_TAIL);
-		} else {
-			path_len :: path_end - path_start;
-			do_reset = is_one_of(c, INVALID_HEAD) || (path_len < 1 && c == ' ');
-		}
-
-		if do_reset then break;
-		ctx.index += 1; // UTF?
-
-		path_end = ctx.index;
-	}
-
-	path :: string_view.{ path_end - path_start, &ctx.bytes[path_start] };
-	if path.len < 1 then return false;
-
-	if path.len == 1 && path[0] == '/' { // Ignore path pointing to the root directory.
-		return false;
-	}
-
-	allocator :: application_context.temporary_allocator;
-	fullpath := str_make(allocator);
-	str_append(&fullpath, path);
-
-	print_log(fullpath);
-
-	path_normalize(&fullpath) catch {
-		return false;
-	};
-
-	is_dir, is_dir_err :: is_directory(fullpath);
-	if is_dir || is_dir_err {
-		return false;
 	}
 	
-	link.start    = path_start;
-	link.end      = path_end;
-	link.ln       = 1;
-	link.cl       = 1;
-	link.filepath = fullpath;
+	{ // locations
+		re :: &project.file_loc_regex;
+		if !re.is_valid then return .{};
 
-	return true;
+		defer regex_done(&re.expr);
 
-	/*
-	// filepath
-	if eat_if_one_of(ctx, ".") {
-		if !eat_if_one_of(ctx, "/\\.") {
-			ctx.index = start_index;
-			return false;
-		}
-		filepath_len += 2;
-	} else if eat_if_alpha(ctx) {
-		if !eat_if_one_of(ctx, ":") || !eat_if_one_of(ctx, "/\\") {
-			ctx.index = start_index;
-			return false;
-		}
-		filepath_len += 3;
-	} else if eat_if_one_of(ctx, "/\\") {
-		filepath_len += 1;
-	} else {
-		return false;
-	}
-
-	path_parsed := false;
-
-	c: u8 #noinit;
-	loop tok_peek(ctx, &c) {
-		if c == ':' {
-			path_parsed = true;
-			break;
-		} else if is_one_of(c, "\n\r") {
-			ctx.index = start_index;
-			return false;
-		}
-		ctx.index += 1;
-		filepath_len += 1;
-	}
-
-	filepath :: string_view.{ filepath_len, &ctx.bytes[start_index] };
-
-	if !path_parsed || filepath.len < 1 then return false;
-	if filepath.len == 1 && filepath[0] == '/' { // Ignore path pointing to the root directory.
-		ctx.index = start_index;
-		return false;
-	}
-
-	allocator :: application_context.temporary_allocator;
-	fullpath := str_make(allocator);
-	str_append(&fullpath, filepath);
-
-	print_log(fullpath);
-
-	path_normalize(&fullpath) catch {
-		ctx.index = start_index;
-		return false;
-	};
-
-	is_dir, is_dir_err :: is_directory(fullpath);
-	if is_dir || is_dir_err {
-		ctx.index = start_index;
-		return false;
-	}
-
-	link.start    = start_index;
-	link.end      = ctx.index;
-	link.ln       = 1;
-	link.cl       = 1;
-	link.filepath = fullpath;
-
-	loop j := 0; j < 2; j += 1 {
-		if !eat_if_one_of(ctx, ":") {
-			link.end = ctx.index;
-			return true;
-		}
-
-		n: s64 #noinit;
-		if eat_number(ctx, &n) {
-			if j == 0 {
-				link.ln = auto math.max(n, 1);
-			} else {
-				link.cl = auto math.max(n, 1);
+		loop i := 0; i < result.len; i += 1 {
+			link :: &result[i];
+			after_link :: string_view.{ subject.len - link.end, &subject[link.end] };
+			
+			if regex_match(&re.expr, after_link) {
+				matches :: regex_get_match(&re.expr);
+				if matches.len < 2 then continue;
+				ln :: strtos64(.{ matches[1].end - matches[1].start, &after_link[matches[1].start] });
+				link.ln = math.max(1, auto ln);
+				if matches.len == 3 {
+					cl :: strtos64(.{ matches[2].end - matches[2].start, &after_link[matches[2].start] });
+					link.cl = math.max(1, auto cl);
+				}
 			}
-		} else {
-			if j == 0 then ctx.index -= 1;
-			link.end = ctx.index;
-			return true;
 		}
-
-		link.end = ctx.index;
 	}
 
-	return true;
-	*/
+	return result;
 }
 
 get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_underscore := true) [enum_count(TEnum)]string_view #comptime {

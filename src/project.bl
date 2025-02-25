@@ -10,6 +10,9 @@ init_project :: fn () {
 terminate_project :: fn () {
 	clear_project();
 
+	if project.file_link_regex.is_valid then regex_terminate(&project.file_link_regex.expr);
+	if project.file_loc_regex.is_valid  then regex_terminate(&project.file_loc_regex.expr);
+
 	mutex_terminate(&project.mutex);
 	release_allocator(&project.string_cache);
 
@@ -269,6 +272,21 @@ clear_project :: fn () {
 do_the_stuff_after_project_load :: fn () {
 	// Apply loaded changes, new ones or restored ones.
 	rebuild_fonts();
+
+	if project.file_link_regex.is_valid then regex_terminate(&project.file_link_regex.expr);
+	if project.file_loc_regex.is_valid  then regex_terminate(&project.file_loc_regex.expr);
+
+	project.file_link_regex.is_valid = true;
+	regex_init(&project.file_link_regex.expr, settings.file_link_regex) catch {
+		print_err($);
+		project.file_link_regex.is_valid = false;
+	};
+
+	project.file_loc_regex.is_valid = true;
+	regex_init(&project.file_loc_regex.expr, settings.file_location_regex) catch {
+		print_err($);
+		project.file_loc_regex.is_valid = false;
+	};
 
 	// map color codes for source code syntax
 	code_color_table[auto CODE_COLOR_DEFAULT_INDEX  ] = colors.foreground_color;
