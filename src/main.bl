@@ -431,7 +431,7 @@ get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink,
 	measure_elapsed_ms_begin();
 	defer measure_elapsed_ms_end();
 
-	if !settings.parse_file_links return .{}, false;
+	if !settings.parse_file_links then return .{}, false;
 
 	links :: parse_valid_clang_like_file_link(subject);
 	loop i := 0; i < links.len; i += 1 {
