@@ -135,9 +135,7 @@ read_pipe :: fn (stream: IoStream, dest: *string) Error {
 		return os_get_last_error2();
 	}
 
-	// assert(available_bytes > 0, "Read should be called only in case there is data available in the pipe!");
-	if available_bytes < 1 then return OK;
-
+	assert(available_bytes > 0, "Read should be called only in case there is data available in the pipe!");
 	dest_index :: str_resize(dest, dest.len + auto available_bytes);
 	n :: read(stream, auto &(@dest)[dest_index], auto available_bytes);
 	if n == -1 {

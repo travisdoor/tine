@@ -313,7 +313,7 @@ Settings :: struct {
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
-	shell_enable_error_location_colors:     bool; // @Cleanup 2025-02-21: Remove
+	shell_enable_error_location_colors:     bool;
 
 	// Language support related things
 	c_extensions:    string;
@@ -322,6 +322,7 @@ Settings :: struct {
 	asm_extensions:  string;
 
 	// file location
+	parse_file_links:    bool;
 	file_link_regex:     string;
 	file_location_regex: string;
 };
@@ -429,6 +430,8 @@ FileLink :: struct {
 get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink, bool) {
 	measure_elapsed_ms_begin();
 	defer measure_elapsed_ms_end();
+
+	if !settings.parse_file_links return .{}, false;
 
 	links :: parse_valid_clang_like_file_link(subject);
 	loop i := 0; i < links.len; i += 1 {

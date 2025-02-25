@@ -146,6 +146,7 @@ asm_extensions                         .asm
 # In case file_link_regex has match, the file_location_regex is applied on the rest. The
 # file_location_regex should contain two capture groups; first for the line number and optionally
 # second for the column number.
+parse_file_links    true
 file_link_regex     (([a-zA-Z]:[\\\/]|\/|\.\/|\.\\|\.\.\/|[\w_]+\/)(?:[^\\\n]+\\)*[^\\\n^:]+(?:\.[a-zA-Z0-9]+))
 file_location_regex :([0-9]*)(?::([0-9]*))?
 

@@ -105,7 +105,6 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 					r.start += diff;
 					r.end   += diff;
 					// @Incomplete: Adjust col and row???
-
 				}
 
 				array_erase_keep_order(&search.results, search.result_index);

@@ -10,6 +10,11 @@ MASTER
 - Change default font.
 - Command `open-file` now tries to resolve any path inserted, not just file name in
   the current listed directory.
+- Search result to buffer now tries to trim full path of each match to be relative to
+  current working directory.
+- Add option to parse file links with clang-like location in some buffers. This might be
+  useful with grep and similar command where you can directly jump to the matching
+  location in file.
 
 0.9 2025-01-11
 ---------------------------------------------------------------------------------------

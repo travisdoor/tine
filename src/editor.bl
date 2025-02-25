@@ -175,8 +175,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	editor.visible_lines = visible_lines;
 
 	// Make cursor visible if position changed
-	cursor_position_changed :: editor.prev_frame_cursor_position != cursor.position;
-	if cursor_position_changed {
+	if editor.prev_frame_cursor_position != cursor.position {
 		top := -1;
 		if cursor.row < first_line_index {
 			top = math.max(0, cursor.row);
