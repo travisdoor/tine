@@ -1,6 +1,6 @@
 #load "posix.bl"
 
-BUILD_COMMAND :: "build.sh";
+BUILD_COMMAND :: "./build.sh";
 DEFAULT_SHELL :: "/bin/bash";
 
 

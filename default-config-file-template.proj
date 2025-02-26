@@ -33,6 +33,9 @@
 ;settings
 font_size                              12
 
+# Line spacing as a percentage of the current font size. Supported range is <80, 200>.
+line_spacing                           130
+
 # Customize editor font, default system font location is used for lookup of the ttf font
 # files. Full path can be used too.
 #font                                   font-name.ttf

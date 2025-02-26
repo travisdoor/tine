@@ -82,7 +82,6 @@ ANSI_COLOR_WHITE_INDEX     : u8 : 19;
 DEFAULT_FONT_SIZE              :: 20;
 MAX_FONT_SIZE                  :: 64;
 MIN_FONT_SIZE                  :: 4;
-LINE_SPACING                   :: 1.3f;
 BOTTOM_SCROLL_TRIGGER          :: 5;
 
 DEFAULT_CONFIG_FILE :: "default.proj";
@@ -123,8 +122,8 @@ ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
-// FONT                          :: "JetBrainsMono-Regular.ttf";
-FONT                          :: "GeistMono-Regular.ttf";
+FONT                          :: "JetBrainsMono-Regular.ttf";
+// FONT                          :: "GeistMono-Regular.ttf";
 FONT_UI                       :: "SourceSans3-Regular.ttf";
 FONT_UI_B                     :: "SourceSans3-Bold.ttf";
 
@@ -282,8 +281,9 @@ project: struct {
 
 // Global application settings loaded from the configuraiton file. These might be overriden by local project settings.
 Settings :: struct {
-	font_size: s32;
-	tab_size:  s32;
+	font_size:    s32;
+	tab_size:     s32;
+	line_spacing: s32;
 
 	font: string;
 
@@ -883,6 +883,8 @@ main :: fn () s32 {
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
 
+		recalculate_metrics();
+
 		/* @Cleanup 2025-02-08: Do we need this since we redraw only when needed?
 		#if PLATFORM == Platform.DARWIN {
 			// Limit maximum FPS on mac since vsync seems not work.
@@ -1024,7 +1026,7 @@ rebuild_fonts :: fn () Error {
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
 	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü", &char_set);
+	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼", &char_set);
 	array_push(&char_set, 0x00A9);
 	array_push(&char_set, 0x00AE);
 	array_push(&char_set, 0x00A7);
@@ -1045,8 +1047,8 @@ rebuild_fonts :: fn () Error {
 	}
 
 	if !use_custom_font {
-		err = draw.font_init_at_size_from_memory(&font, FONT_DATA, scaled_size, char_set);
-		if err { panic(err); }
+		// Load defautl bundled font.
+		draw.font_init_at_size_from_memory(&font, FONT_DATA, scaled_size, char_set) catch panic($);
 		current_font_hash = 0;
 	}
 
@@ -1078,7 +1080,6 @@ rebuild_fonts :: fn () Error {
 	err = draw.font_init_at_size_from_memory(&icons, ICON_DATA, scaled_size, icon_set);
 	if err { panic(err); }
 
-	recalculate_metrics();
 	return OK;
 }
 
@@ -2203,8 +2204,11 @@ cursor_position_callback :: fn (_: *glfw.Window, _: f64, _: f64) {
 
 recalculate_metrics :: fn () {
 	using Metric;
+
+	line_spacing :: math.min(math.max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
+
 	metrics[auto TITLE_BAR_HEIGHT] = font_ui.height  * 1.6f;
-	metrics[auto LINE_HEIGHT     ] = font.height  * LINE_SPACING;
+	metrics[auto LINE_HEIGHT     ] = font.height  * line_spacing;
 	metrics[auto ITEM_SPACING    ] = icons.height * 1.2f;
 	metrics[auto TEXT_PADDING    ] = font.height  * 0.2f;
 	metrics[auto TITLE_MAX_SIZE  ] = font.height  * 25.f;

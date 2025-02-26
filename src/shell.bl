@@ -56,6 +56,10 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 		kill_shell();
 	} else {
 		request_data :: &request.data.build;
+
+		// append_readonly_buffer(buf, request_data.text);
+		// return;
+
 		text: string_view;
 		if shell.in_tmp.len > 0 {
 			str_append(&shell.in_tmp, request_data.text);
@@ -84,7 +88,7 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 				i += 1;
 
 				MAX_ESCAPE_SEQ_LEN :: 8;
-				is_complete := false;
+				is_complete, is_unsupported := false;
 
 				if append_len > 0 {
 					append(buf, .{ append_len, &text[append_start_index] }, shell.last_ansi_color);
@@ -96,11 +100,24 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 					start_colors :: i;
 					len := 0;
 					loop ;i < text.len && len <= MAX_ESCAPE_SEQ_LEN; i += 1 {
-						if text[i] == 'm' {
+						c :: text[i];
+						if is_digit(c) || c == ';' {
+							len += 1;
+							continue;
+						} else if c == 'm' {
 							is_complete = true;
 							break;
+						} else {
+							is_unsupported = true;
+							break;
 						}
+
 						len += 1;
+					}
+
+					if is_unsupported {
+						i += 1;
+						continue;
 					}
 
 					if is_complete && len <= MAX_ESCAPE_SEQ_LEN {
@@ -224,7 +241,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	if ctx.state == DONE {
-		result_data.text = sprint("\n\nProcess exited with status %.\n", ctx.exit_code);
+		result_data.text = sprint("\nProcess exited with status %.\n", ctx.exit_code);
 		push_result(ctx, &result);
 		return 0;
 	}
