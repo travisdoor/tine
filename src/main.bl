@@ -878,6 +878,9 @@ main :: fn () s32 {
 	prev_active_editor := -1;
 	last_focus_index := 0;
 
+	current_window_title: string;
+	defer str_terminate(&current_window_title);
+
 	loop WindowShouldClose(window) == 0 {
 		current_time :: glfw.GetTime();
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
@@ -935,13 +938,17 @@ main :: fn () s32 {
 		scaling_changed = false;
 
 		title: string_view;
-
 		if project.is_default {
 			title = buf.name;
 		} else {
 			title = tprint("% - %", project.name, buf.name);
 		}
-		SetWindowTitle(window, auto strtoc(title));
+
+		if !str_match(current_window_title, title) {
+			current_window_title.len = 0;
+			str_append(&current_window_title, title);
+			SetWindowTitle(window, auto strtoc(current_window_title));
+		}
 
 		clear_mouse_events();
 		prev_frame_delta = frame_delta_time;
