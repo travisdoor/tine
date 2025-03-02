@@ -35,7 +35,7 @@ jobs:
       run: |
         chmod +x build-appimage.sh
         ./build-appimage.sh
-        mv Tine-x86_64.AppImage Tine-nightly-x86_64-linux.AppImage
-  artifacts:
-    paths:
-      - Tine-nightly-x86_64-linux.AppImage
+    - uses: actions/upload-artifact@v4
+      with:
+        name: tine-nightly-x86_64-linux
+        path: Tine-x86_64.AppImage
