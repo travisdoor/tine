@@ -9,7 +9,10 @@ projects
 default.proj
 build.bat
 .DS_Store
+.idea
+*.AppImage
 Tine
 Tine-Debug
 tine-macos-arm64
 tine-macos-arm64.dmg
+Tine.AppDir

@@ -1,0 +1,38 @@
+name: Nightly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 23 * * *
+
+jobs:
+  linux-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download LLVM
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 18
+    - name: Build BL
+      run: |
+        git clone https://github.com/biscuitlang/bl.git
+        cd bl
+        chmod +x build.sh
+        ./build.sh
+        echo "$GITHUB_WORKSPACE/bl/bin/blc" >> $GITHUB_ENV
+    - name: Download AppImage
+      run: |
+        wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage
+        chmod +x appimagetool-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+    - name: Build
+      run: |
+        chmod +x build-appimage.sh
+        ./build-appimage.sh
+    - uses: actions/upload-artifact@v4
+      with:
+        name: tine-nightly-x86_64-linux
+        path: Tine-x86_64.AppImage
