@@ -41,10 +41,10 @@ jobs:
         path: Tine-x86_64.AppImage
   windows-release:
     runs-on: windows-latest
-    shell: cmd
     steps:
     - uses: actions/checkout@v2
     - name: Build BL
+      shell: cmd
       run: |
         call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
         git clone --depth 1 https://github.com/biscuitlang/bl.git
