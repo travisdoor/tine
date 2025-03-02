@@ -50,10 +50,10 @@ jobs:
         git clone --depth 1 https://github.com/biscuitlang/bl.git
         cd bl
         build.bat
-        echo PATH=%GITHUB_WORKSPACE%\bl\bin;%PATH%>>%GITHUB_ENV%
     - name: Build
+      shell: cmd
       run: |
-        blc -build --release
+        %GITHUB_WORKSPACE%\bl\bin\blc -build --release
     - uses: actions/upload-artifact@v4
       with:
         name: tine-nightly-x86_64-windows
