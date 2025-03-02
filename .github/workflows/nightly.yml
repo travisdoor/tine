@@ -39,3 +39,21 @@ jobs:
       with:
         name: tine-nightly-x86_64-linux
         path: Tine-x86_64.AppImage
+  windows-release:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build BL
+      run: |
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        git clone --depth 1 https://github.com/biscuitlang/bl.git
+        cd bl
+        build.bat
+        echo PATH=%GITHUB_WORKSPACE%\bl\bin;%PATH%>>%GITHUB_ENV%
+    - name: Build
+      run: |
+        blc -build --release
+    - uses: actions/upload-artifact@v4
+      with:
+        name: tine-nightly-x86_64-windows
+        path: Tine.exe
