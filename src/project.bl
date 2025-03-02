@@ -136,20 +136,9 @@ setup_after_first_run :: fn () Error {
 	return OK;
 }
 
-check_project_changes :: fn (changed_directory: string_view, change_kind: WatchFor) {
+reindex_project :: fn () {
 	check_main_thread();
-	if (change_kind & WATCH_FLAGS_FOR_REINDEX) == WATCH_FLAGS_FOR_REINDEX {
-		loop i := 0; i < project.included_directories.len; i += 1 {
-			project_directory :: project.included_directories[i];
-			if str_match(changed_directory, project_directory) {
-				indexed_files_ditry = true;
-			}
-		}
-	}
-
-	if (change_kind & WATCH_FLAGS_FOR_RELOAD) == WATCH_FLAGS_FOR_RELOAD {
-		reload_changed_open_buffer_in_tree(changed_directory);
-	}
+	indexed_files_ditry = true;
 }
 
 maybe_reindex_current_project :: fn () {
@@ -170,9 +159,6 @@ get_project_main_directory :: fn () string_view #inline {
 }
 
 #scope_private
-
-WATCH_FLAGS_FOR_REINDEX :: WatchFor.FILE_CHANGES | WatchFor.DIRECTORY_CHANGES;
-WATCH_FLAGS_FOR_RELOAD  :: WatchFor.MODIFICATIONS;
 
 //
 // Indexing
@@ -254,8 +240,9 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 
 clear_project :: fn () {
 	loop i := 0; i < project.included_directories.len; i += 1 {
-		unwatch_changes(project.included_directories[i], WATCH_FLAGS_FOR_REINDEX);
-		unwatch_changes(project.included_directories[i], WATCH_FLAGS_FOR_RELOAD);
+		path :: project.included_directories[i];
+		if !is_watched(file_watch, path) then continue;
+		unwatch_changes(file_watch, path) catch print_err($);
 	}
 
 	cancel_indexing();
@@ -314,12 +301,9 @@ do_the_stuff_after_project_load :: fn () {
 	indexed_files_ditry = true;
 
 	loop i := 0; i < project.included_directories.len; i += 1 {
-		using WatchFor;
-		err := watch_changes(project.included_directories[i], WATCH_FLAGS_FOR_REINDEX);
-		if err { print_err(err); }
-
-		err = watch_changes(project.included_directories[i], WATCH_FLAGS_FOR_RELOAD);
-		if err { print_err(err); }
+		path :: project.included_directories[i];
+		if is_watched(file_watch, path) then continue;
+		watch_changes(file_watch, path) catch print_err($);
 	}
 }
 
@@ -333,33 +317,6 @@ add_exclude_directory :: fn (dir: string_view) {
 
 add_include_file_extension :: fn (ext: string_view) {
 	array_push(&project.included_extensions, str_make(ext, &project.string_cache));
-}
-
-//
-// Hotload operations
-//
-
-reload_changed_open_buffer_in_tree :: fn (changed_directory: string_view) {
-	check_main_thread();
-	loop i := 0; i < buffers.len; i += 1 {
-		b :: &buffers[i];
-		if b.is_removed           { continue; }
-		if b.filepath.len == 0    { continue; }
-		if b.last_write_time == 0 { continue; }
-		if !is_under_directory(changed_directory, b.filepath) { continue; }
-
-		time, err :: get_file_last_write_time(b.filepath);
-		if err {
-			print_err(err);
-			continue;
-		}
-		if b.last_write_time != time {
-			print_log("Reload '%' due to content changed on disk.", b.filepath);
-			err :: load_buffer_from_file(b, b.filepath);
-			if err { print_err(err); }
-			print_info("Buffer '%' reloaded from disk.", b.name);
-		}
-	}
 }
 
 //

@@ -9,6 +9,8 @@ Buffer :: struct {
 	file_type:       FileType;
 	flags:           BufferFlags;
 
+	missing_on_disk: bool;
+
 	line_ending:  LineEnding;
 
 	cursors: [..]struct {
@@ -181,6 +183,10 @@ remove_buffer :: fn (index: s32) {
 
 	buf :: &buffers[index];
 	if buf.is_removed { return; }
+
+	if is_watched(file_watch, buf.filepath) {
+		unwatch_changes(file_watch, buf.filepath);
+	}
 
 	array_terminate(&buf.bytes);
 	array_terminate(&buf.colors);
@@ -435,6 +441,12 @@ load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
 	set_buffer_file_info(buf, filepath);
 	buf.lsp.dia.len = 0;
 	buf.lsp.dia_strs.len = 0;
+
+	// Watch for file changes.
+	if !is_watched(file_watch, buf.filepath) {
+		watch_changes(file_watch, filepath) catch print_err($);
+	}
+
 	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 	return OK;
 }
@@ -454,8 +466,12 @@ save_buffer_to_file :: fn (buf: *Buffer, filepath: string_view) Error {
 	}
 
 	// Messages can be saved but we don't want to associate with the file.
-	if buf.index != messages_buffer_index {
+	if buf.index != messages_buffer_index && buf.index != shell.buffer_index && buf.index != search_buffer_index {
 		set_buffer_file_info(buf, filepath);
+		// Watch for file changes.
+		if !is_watched(file_watch, buf.filepath) {
+			watch_changes(file_watch, filepath) catch print_err($);
+		}
 	}
 
 	if buf.lsp.version > 0 {
@@ -1133,7 +1149,8 @@ set_buffer_file_info :: fn (buf: *Buffer, filepath: string_view) {
 		buf.last_write_time = time;
 	}
 
-	buf.file_type = detect_filetype(name);
+	buf.file_type       = detect_filetype(name);
+	buf.missing_on_disk = false;
 }
 
 rebuild_lines :: fn (buf: *Buffer) {

@@ -57,42 +57,6 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 	return OK, result;
 }
 
-//
-// File change notifications
-//
-
-Watcher :: struct { _: u8; }
-
-watch_init :: fn () {
-	// Use inotify here.
-}
-
-watch_terminate :: fn () {
-}
-
-WatchFor :: enum u32 #flags {
-	FILE_CHANGES;
-	DIRECTORY_CHANGES;
-	MODIFICATIONS;
-}
-
-watch_changes :: fn (directory: string_view, flags: WatchFor) Error {
-	directory;
-	flags;
-	return OK;
-}
-
-unwatch_changes :: fn (directory: string_view, flags: WatchFor) {
-	directory;
-	flags;
-}
-
-next_watcher_event :: fn (changed_directory: *string_view, change_kind: *WatchFor) bool {
-	changed_directory;
-	change_kind;
-	return false;
-}
-
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	using C;
 	file_stat: stat_t #noinit;
@@ -104,6 +68,7 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	ns :: cast(u64) file_stat.st_mtim.tv_nsec;
 
 	t :: s * 1000 + ns / 1000000;
-	print_log("time = %", t);
 	return t, OK;
 }
+
+#private

@@ -423,6 +423,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		status_x += item_spacing;
 		redraw();
 	}
+	if buf.missing_on_disk {
+		text(status_x, icon_y, icon(ICON_WARNING), colors.warning_color);
+		status_x += item_spacing;
+
+	}
 	if has_changes {
 		text(status_x, icon_y, icon(ICON_CHANGES), colors.modification_indicator_color);
 		status_x += item_spacing;
@@ -453,11 +458,12 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		str_concat(&title, "    LSP: ", lsp.server_name);
 	}
 
-	title_size :: text_size(buf.name, &font_ui_b);
-	text(status_x + title_size + item_spacing, text_y, title, colors.title_bar_text_color);
+	name_size :: text_size(buf.name, &font_ui_b);
+	status_x += name_size + item_spacing;
+	text(status_x, text_y, title, colors.title_bar_text_color);
 
 	if is_active {
-		draw_last_status_message(status_x + title_size + item_spacing, h - title_bar_height, w, ShadowMode.NONE);
+		draw_last_status_message(status_x, h - title_bar_height, w, ShadowMode.NONE);
 	}
 
 	// Mouse input
