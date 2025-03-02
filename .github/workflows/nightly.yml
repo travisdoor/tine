@@ -41,6 +41,7 @@ jobs:
         path: Tine-x86_64.AppImage
   windows-release:
     runs-on: windows-latest
+    shell: cmd
     steps:
     - uses: actions/checkout@v2
     - name: Build BL
