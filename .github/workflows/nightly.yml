@@ -17,11 +17,11 @@ jobs:
         sudo ./llvm.sh 18
     - name: Build BL
       run: |
-        git clone https://github.com/biscuitlang/bl.git
+        git clone --depth 1 https://github.com/biscuitlang/bl.git
         cd bl
         chmod +x build.sh
         ./build.sh
-        echo "$GITHUB_WORKSPACE/bl/bin/blc" >> $GITHUB_ENV
+        echo "$GITHUB_WORKSPACE/bl/bin" >> $GITHUB_ENV
     - name: Download AppImage
       run: |
         wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
