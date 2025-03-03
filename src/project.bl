@@ -194,7 +194,7 @@ cancel_indexing :: fn () {
 }
 
 index_worker :: fn (ctx: *IndexWorkerContext) s32 {
-	print_log("Indexing started.");
+	print_info("Indexing started.");
 
 	// List all project files first.
 	file_visitor :: fn (info: *FileVisitInfo) Error {
@@ -234,7 +234,7 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 	}
 
 	project.is_indexing = false;
-	print_log("Indexing DONE (indexed % files).", project.indexed_files.len);
+	print_info("Indexing DONE (indexed % files).", project.indexed_files.len);
 	return 0;
 };
 

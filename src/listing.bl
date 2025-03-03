@@ -562,12 +562,16 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 		}
 	}
 
+	// Also waits for all threads to finish.
+	cancel_async_search();
+
 	is_locked, err_lock :: mutex_try_lock(&project.mutex);
 	if err_lock { panic(err_lock); }
 	if !is_locked {
 		print_warn(PROJECT_IS_INDEXING_MESSAGE);
 		return OK;
 	}
+
 	// We have to keep the mutex locked through the whole search process, and unlock it when search is done to prevent
 	// the indexer override data we're working with. Anyway the indexing might be started again (e.g. in case of directory
 	// content changes) but it will not block the main thread even if we're in middle of search here, because the wait for
@@ -578,8 +582,6 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 		return OK;
 	}
 
-	// Also waits for all threads to finish.
-	cancel_async_search();
 
 	// Fire up searching in multiple threads...
 	job_count := MAX_JOB_COUNT;
@@ -592,9 +594,11 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 	files_per_job :: project.indexed_files.len / job_count;
 	print_log("Found % files will be processed in % threads.", project.indexed_files.len, job_count);
 
-	async_search.jobs_started = job_count;
-	async_search.jobs_running = job_count;
-	async_search.start_time   = os_ftick_ms();
+	async_search.jobs_started    = job_count;
+	async_search.jobs_running    = job_count;
+	async_search.total_files     = auto project.indexed_files.len;
+	async_search.processed_files = 0;
+	async_search.start_time      = os_ftick_ms();
 
 	// cleanup
 	list_index :: (visible_list_index + 1) % 2;
@@ -656,7 +660,7 @@ get_async_search_progress :: fn () (is_running: bool, progress: f32) #inline {
 	if async_search.jobs_started == 0 {
 		return false, 0.f;
 	}
-	return true, 1.f - (cast(f32) async_search.jobs_running / cast(f32) async_search.jobs_started);
+	return true, cast(f32) async_search.processed_files / cast(f32) async_search.total_files;
 }
 
 #scope_private
@@ -679,6 +683,9 @@ async_search: struct {
 
 	start_time:      f64;
 	dest_list_index: s32;
+
+	total_files:     s32;
+	processed_files: s32;
 
 	mutex: Mutex;
 };
@@ -780,6 +787,8 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 			start_index = hit_position + ctx.subject.len;
 			col += subject_cols;
 		}
+
+		async_search.processed_files += 1;
 	}
 	on_worker_done(ctx);
 	return 0;

@@ -249,7 +249,7 @@ parse_valid_clang_like_file_link :: fn (subject: string_view) []FileLink {
 			array_push(&result, link);
 		}
 	}
-	
+
 	{ // locations
 		re :: &project.file_loc_regex;
 		if !re.is_valid then return .{};
@@ -259,7 +259,7 @@ parse_valid_clang_like_file_link :: fn (subject: string_view) []FileLink {
 		loop i := 0; i < result.len; i += 1 {
 			link :: &result[i];
 			after_link :: string_view.{ subject.len - link.end, &subject[link.end] };
-			
+
 			if regex_match(&re.expr, after_link) {
 				matches :: regex_get_match(&re.expr);
 				if matches.len < 2 then continue;
@@ -460,7 +460,7 @@ trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_
 	return string_view.{ len, &str[start] };
 }
 
-find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 {
+find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 #inline {
 	assert(subject.len > 0);
 	match_start : s64 = -1;
 	match_col: s32;
@@ -472,8 +472,8 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 		b :: subject[subject_index];
 
 		al :: get_character_len(a);
-		bl :: get_character_len(b);
 		if al == 0 { return -1; }
+		bl :: get_character_len(b);
 
 		if al == bl && (a == b || (bl == 1 && a == cast(u8) C.toupper(cast(s32) b))) {
 			if subject_index == 0 {
