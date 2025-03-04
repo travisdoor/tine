@@ -18,6 +18,8 @@ MASTER
 - Use again jetbrains font since it supports more glyphs.
 - Add line_spacing option to adjust space between text lines.
 - Fix parsing of unsupported ANSI escape codes.
+- Implement file watch for linux and macos.
+- Fix search lags on linux and macos.
 
 0.9 2025-01-11
 ---------------------------------------------------------------------------------------
