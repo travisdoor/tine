@@ -1186,29 +1186,6 @@ rebuild_lines :: fn (buf: *Buffer) {
 	array_push(&buf.lines, buf.bytes.len);
 
 /*
-	// Following solution seems to be almost 2x faster on my machine, we basically exclude
-	// all 8 bytes in case there is no new line. Note that there is also simplification since
-	// we assume \r\n and \n both ends with \n.
-	loop i : s64 = 0; i < buf.bytes.len; {
-		ptr: *u64 = auto &buf.bytes[i];
-		data :: (@ptr ^ 0x0a0a0a0a0a0a0a0a);
-		if ((data - 0x0101010101010101) & (~data) & 0x8080808080808080) > 0 {
-			loop c := 0; c < 8 && i < buf.bytes.len; c += 1 {
-				if buf.bytes[i] == '\n' {
-					i += 1;
-					array_push(&buf.lines, i);
-				} else {
-					i += 1;
-				}
-			}
-		} else {
-			i += 8;
-		}
-	}
-	array_push(&buf.lines, buf.bytes.len);
-*/
-
-/*
 	buf.lines.len = 0;
 	array_push(&buf.lines, 0);
 

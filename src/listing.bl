@@ -767,7 +767,7 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 		start_index : s64 = 0;
 		row, col: s32;
 		loop ctx.cancel == false {
-			hit_position :: find_matching_subject_in_data2(file_buffer, ctx.subject, start_index, &row, &col);
+			hit_position :: find_matching_subject_in_data(file_buffer, ctx.subject, start_index, &row, &col);
 			if hit_position == -1 { break; }
 
 			// File name is valid until the list of all files is valid!

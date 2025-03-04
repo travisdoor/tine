@@ -460,7 +460,7 @@ trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_
 	return string_view.{ len, &str[start] };
 }
 
-find_matching_subject_in_data2 :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 #inline {
+find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 #inline {
 	assert(subject.len > 0);
 	if subject.len > data.len then return -1;
 	if start_position >= data.len then return -1;
@@ -555,6 +555,7 @@ find_matching_subject_in_data2 :: fn (data: []u8, subject: string_view, start_po
 	return -1;
 }
 
+/*
 find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 #inline {
 	assert(subject.len > 0);
 	match_start : s64 = -1;
@@ -604,6 +605,7 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 	// Note that match_start here might not be -1, but result match is supposed to be incomplete here.
 	return -1;
 }
+*/
 
 // Does not support new lines (might be OK in some cases).
 count_unicode_characters :: fn (str: string_view) s32 {

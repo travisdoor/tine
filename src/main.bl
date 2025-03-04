@@ -651,64 +651,6 @@ main :: fn () s32 {
 
 	// debug_allocator_break(&debug_allocator, 116);
 
-	/*
-	{ // @Clenup!
-		str := "hello thir is cool string!";
-
-		index := find_matching_subject_in_data2(str, "is");
-		print("%\n", str);
-		if index == -1 {
-			print("not found!\n");
-		} else {
-			loop i := 0; i < index; i += 1 {
-				print(" ");
-			}
-			print("^\n");
-		}
-
-		index = find_matching_subject_in_data2(str, "ing");
-		print("%\n", str);
-		if index == -1 {
-			print("not found!\n");
-		} else {
-			loop i := 0; i < index; i += 1 {
-				print(" ");
-			}
-			print("^\n");
-		}
-
-
-		index = find_matching_subject_in_data2(str, "!");
-		print("%\n", str);
-		if index == -1 {
-			print("not found!\n");
-		} else {
-			loop i := 0; i < index; i += 1 {
-				print(" ");
-			}
-			print("^\n");
-		}
-
-
-		str2 :: "Příliš žluťoučký kůň úpěl ďábelské ódy";
-		index = find_matching_subject_in_data2(str2, "úpěl");
-		print("%\n", str2);
-		if index == -1 {
-			print("not found!\n");
-		} else {
-			n :: count_unicode_characters(.{ index, str2.ptr });
-			loop i := 0; i < n; i += 1 {
-				print(" ");
-			}
-			print("^\n");
-		}
-
-
-
-		return 0;
-	}
-	*/
-
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
 	defer str_terminate(&FONT_DIRECTORY);
