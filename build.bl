@@ -38,8 +38,8 @@ build :: fn () #build_entry {
 
 	if args.is_release {
 		exe = add_executable("Tine");
-		// exe.build_mode = BuildMode.RELEASE_FAST;
-		exe.build_mode = BuildMode.RELEASE_WITH_DEBUG_INFO;
+		exe.build_mode = BuildMode.RELEASE_FAST;
+		// exe.build_mode = BuildMode.RELEASE_WITH_DEBUG_INFO;
 	} else {
 		exe = add_executable("Tine-Debug");
 	}

@@ -734,7 +734,7 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 	assert(ctx.subject.len > 0);
 
 	file_buffer: [..]u8;
-	array_reserve(&file_buffer, 1024);
+	array_reserve(&file_buffer, 1024 * 64);
 	defer array_terminate(&file_buffer);
 
 	array_reserve(&ctx.result, 1024);

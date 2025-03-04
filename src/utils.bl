@@ -474,26 +474,20 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 	loop ;i + 8 < data.len; i += 8 {
 		chunk :: @(cast(*u64)&data[i]);
 
+		found_new_line := false;
 		if row {
 			cmp :: (chunk ^ 0x0a0a0a0a0a0a0a0a);
-			if ((cmp - 0x0101010101010101) & (~cmp) & 0x8080808080808080) > 0 {
-				if col then @col = 0;
-				loop c := 0; c < 8; c += 1 {
-					if !is_utf8_start(data[i + c]) then continue;
-					if data[i + c] == '\n' then @row += 1;
-				}
-			}
+			found_new_line = ((cmp - 0x0101010101010101) & (~cmp) & 0x8080808080808080) > 0;
 		}
 
 		cmp   :: chunk ^ first_byte_mask;
 		found :: ((cmp - 0x0101010101010101) & (~cmp) & 0x8080808080808080) > 0;
-		if !found then continue;
+
+		if !(found || found_new_line) then continue;
+
 		loop j := 0; j < 8; j += 1 {
 			match_start := i+j;
-			if data[match_start] == subject[0] {
-
-				// Check if we're not in the middle of utf8 character.
-				if !is_utf8_start(data[match_start]) then continue;
+			if data[match_start] == subject[0] && is_utf8_start(data[match_start]) {
 
 				match_found := true;
 				loop k := 1; k < subject.len; k += 1 {
@@ -514,17 +508,17 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 					}
 					return match_start;
 				}
+
+			} else if row && data[match_start] == '\n' && is_utf8_start(data[match_start]) {
+				if col then @col = 0;
+				@row += 1;
 			}
+
 		}
 	}
 
 	// tail
 	loop ; i <= data.len - subject.len; i += 1 {
-
-		if row && data[i] == '\n' {
-			if col then @col = 0;
-			@row += 1;
-		}
 
 		if data[i] == subject[0] {
 
@@ -549,7 +543,12 @@ find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_pos
 				}
 				return i;
 			}
+
+		} else if row && data[i] == '\n' {
+			if col then @col = 0;
+			@row += 1;
 		}
+
 	}
 
 	return -1;
