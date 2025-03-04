@@ -665,7 +665,7 @@ get_async_search_progress :: fn () (is_running: bool, progress: f32) #inline {
 
 #scope_private
 
-MAX_JOB_COUNT :: 16;
+MAX_JOB_COUNT :: 32;
 
 WorkerContext :: struct {
 	subject: string_view;
@@ -751,11 +751,11 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 		}
 
 		file_buffer.len = 0;
-		err_read :: load_whole_file(&file_buffer, &stream, 1048576); // LIMIT TO 1MB !!!
+		err_read :: load_whole_file(&file_buffer, &stream, settings.search_size_limit_bytes);
 		close_file(&stream);
 		if err_read {
 			if err_read.code == -1 {
-				print_log("File '%' excluded from indexed list due to error: %", filepath, err_read.msg);
+				print_warn("File '%' excluded from search: %", filepath, err_read.msg);
 				//print_warn("File '%' skipped with error: %", filepath, err_read.msg);
 			} else {
 				print_err(err_read);
@@ -767,7 +767,7 @@ search_worker :: fn (ctx: *WorkerContext) s32 {
 		start_index : s64 = 0;
 		row, col: s32;
 		loop ctx.cancel == false {
-			hit_position :: find_matching_subject_in_data(file_buffer, ctx.subject, start_index, &row, &col);
+			hit_position :: find_matching_subject_in_data2(file_buffer, ctx.subject, start_index, &row, &col);
 			if hit_position == -1 { break; }
 
 			// File name is valid until the list of all files is valid!

@@ -328,6 +328,8 @@ Settings :: struct {
 	parse_file_links:    bool;
 	file_link_regex:     string;
 	file_location_regex: string;
+
+	search_size_limit_bytes: s32;
 };
 
 settings: Settings;
@@ -431,8 +433,8 @@ FileLink :: struct {
 }
 
 get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink, bool) {
-	measure_elapsed_ms_begin();
-	defer measure_elapsed_ms_end();
+	// measure_elapsed_ms_begin();
+	// defer measure_elapsed_ms_end();
 
 	if !settings.parse_file_links then return .{}, false;
 
@@ -648,6 +650,64 @@ main :: fn () s32 {
 	defer temporary_release();
 
 	// debug_allocator_break(&debug_allocator, 116);
+
+	/*
+	{ // @Clenup!
+		str := "hello thir is cool string!";
+
+		index := find_matching_subject_in_data2(str, "is");
+		print("%\n", str);
+		if index == -1 {
+			print("not found!\n");
+		} else {
+			loop i := 0; i < index; i += 1 {
+				print(" ");
+			}
+			print("^\n");
+		}
+
+		index = find_matching_subject_in_data2(str, "ing");
+		print("%\n", str);
+		if index == -1 {
+			print("not found!\n");
+		} else {
+			loop i := 0; i < index; i += 1 {
+				print(" ");
+			}
+			print("^\n");
+		}
+
+
+		index = find_matching_subject_in_data2(str, "!");
+		print("%\n", str);
+		if index == -1 {
+			print("not found!\n");
+		} else {
+			loop i := 0; i < index; i += 1 {
+				print(" ");
+			}
+			print("^\n");
+		}
+
+
+		str2 :: "Příliš žluťoučký kůň úpěl ďábelské ódy";
+		index = find_matching_subject_in_data2(str2, "úpěl");
+		print("%\n", str2);
+		if index == -1 {
+			print("not found!\n");
+		} else {
+			n :: count_unicode_characters(.{ index, str2.ptr });
+			loop i := 0; i < n; i += 1 {
+				print(" ");
+			}
+			print("^\n");
+		}
+
+
+
+		return 0;
+	}
+	*/
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();

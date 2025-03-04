@@ -460,6 +460,101 @@ trim_left :: fn (str: string_view, chars: []u8, max_num := math.S32_MAX) string_
 	return string_view.{ len, &str[start] };
 }
 
+find_matching_subject_in_data2 :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 #inline {
+	assert(subject.len > 0);
+	if subject.len > data.len then return -1;
+	if start_position >= data.len then return -1;
+
+	is_utf8_start :: fn (byte: u8) bool #inline {
+		return (byte & 0xC0) != 0x80;
+	};
+
+	first_byte_mask :: cast(u64)subject[0] * 0x0101010101010101;
+	i: s64 = start_position;
+	loop ;i + 8 < data.len; i += 8 {
+		chunk :: @(cast(*u64)&data[i]);
+
+		if row {
+			cmp :: (chunk ^ 0x0a0a0a0a0a0a0a0a);
+			if ((cmp - 0x0101010101010101) & (~cmp) & 0x8080808080808080) > 0 {
+				if col then @col = 0;
+				loop c := 0; c < 8; c += 1 {
+					if !is_utf8_start(data[i + c]) then continue;
+					if data[i + c] == '\n' then @row += 1;
+				}
+			}
+		}
+
+		cmp   :: chunk ^ first_byte_mask;
+		found :: ((cmp - 0x0101010101010101) & (~cmp) & 0x8080808080808080) > 0;
+		if !found then continue;
+		loop j := 0; j < 8; j += 1 {
+			match_start := i+j;
+			if data[match_start] == subject[0] {
+
+				// Check if we're not in the middle of utf8 character.
+				if !is_utf8_start(data[match_start]) then continue;
+
+				match_found := true;
+				loop k := 1; k < subject.len; k += 1 {
+					if match_start + k >= data.len then return -1;
+					if data[match_start+k] != subject[k] {
+						match_found = false;
+						break;
+					}
+				}
+
+				if match_found {
+					if col {
+						loop k := match_start-1; k >= start_position; k -= 1 {
+							if !is_utf8_start(data[k]) then continue;
+							if data[k] == '\n' then break;
+							@col += 1;
+						}
+					}
+					return match_start;
+				}
+			}
+		}
+	}
+
+	// tail
+	loop ; i <= data.len - subject.len; i += 1 {
+
+		if row && data[i] == '\n' {
+			if col then @col = 0;
+			@row += 1;
+		}
+
+		if data[i] == subject[0] {
+
+			// Check if we're not in the middle of utf8 character.
+			if !is_utf8_start(data[i]) then continue;
+
+			match_found := true;
+			loop k := 1; k < subject.len; k += 1 {
+				if data[i+k] != subject[k] {
+					match_found = false;
+					break;
+				}
+			}
+
+			if match_found {
+				if col {
+					loop k := i-1; k >= start_position; k -= 1 {
+						if !is_utf8_start(data[k]) then continue;
+						if data[k] == '\n' then break;
+						@col += 1;
+					}
+				}
+				return i;
+			}
+		}
+	}
+
+	return -1;
+}
+
 find_matching_subject_in_data :: fn (data: []u8, subject: string_view, start_position : s64 = 0, row: *s32 = null, col: *s32 = null) s64 #inline {
 	assert(subject.len > 0);
 	match_start : s64 = -1;
@@ -589,7 +684,7 @@ draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 }
 
 is_ident :: fn (buf: *Buffer, char: string_view) bool #inline {
-	NON_IDENT_CHARS :: " ()[]{}.-+:;\"',!@#$%^&*~`<>/?\t\r\n";
+	NON_IDENT_CHARS :: " ()[]{}.-+:;\"\',!@#$%^&*~`<>/?\t\r\n";
 
 	if char.len == 0              { return false; }
 	if is_line_end(buf, char) > 0 { return false; }

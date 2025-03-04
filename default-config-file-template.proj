@@ -153,6 +153,10 @@ parse_file_links    true
 file_link_regex     (([a-zA-Z]:[\\\/]|\/|\.\/|\.\\|\.\.\/|[\w_]+\/)(?:[^\\\n]+\\)*[^\\\n^:]+(?:\.[a-zA-Z0-9]+))
 file_location_regex :([0-9]*)(?::([0-9]*))?
 
+# Files bigger than this limit will be excluded from the 'search-in-project'. Zero means no limit.
+#search_size_limit_bytes 1048576
+search_size_limit_bytes 0
+
 ;keys
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:

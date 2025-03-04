@@ -175,9 +175,13 @@ search_cmd_changed :: fn () {
 
 	subject_cols :: count_unicode_characters(subject);
 
+	measure_elapsed_ms_begin();
+	defer measure_elapsed_ms_end();
+
 	loop {
-		hit_position :: find_matching_subject_in_data(target_buf.bytes, subject, start_index, &row, &col);
+		hit_position :: find_matching_subject_in_data2(target_buf.bytes, subject, start_index, &row, &col);
 		if hit_position == -1 then break;
+
 		hit :: SearchLocation.{
 			start = auto hit_position,
 			end   = auto hit_position + subject.len,

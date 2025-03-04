@@ -482,16 +482,6 @@ save_buffer_to_file :: fn (buf: *Buffer, filepath: string_view) Error {
 	return OK;
 }
 
-// @Cleanup: Similar to count_rows_to_position...
-find_row_for_position :: fn (buf: *Buffer, position: s64, start_row_index: s32 = 0) s32 #inline {
-	assert(!buf.batch_active);
-	i := start_row_index;
-	loop ; i < buf.lines.len-1; i += 1 {
-		if buf.lines[i+1] > position { break; }
-	}
-	return i;
-}
-
 peek_row :: fn (buf: *Buffer, row_index: s32) (text: string_view, start_index: s64) {
 	assert(!buf.batch_active);
 	start_index, end_index: s64;
@@ -655,6 +645,16 @@ get_line_ending :: fn (line_ending: LineEnding) string_view {
 is_line_end :: fn {
 	is_line_end_ptr;
 	is_line_end_str;
+}
+
+// @Cleanup: Similar to count_rows_to_position...
+find_row_for_position :: fn (buf: *Buffer, position: s64, start_row_index: s32 = 0) s32 #inline {
+	assert(!buf.batch_active);
+	i := start_row_index;
+	loop ; i < buf.lines.len-1; i += 1 {
+		if buf.lines[i+1] > position { break; }
+	}
+	return i;
 }
 
 count_rows_to_position :: fn (buf: *Buffer, position: s64) s32 {
@@ -1160,6 +1160,35 @@ rebuild_lines :: fn (buf: *Buffer) {
 	// Following solution seems to be almost 2x faster on my machine, we basically exclude
 	// all 8 bytes in case there is no new line. Note that there is also simplification since
 	// we assume \r\n and \n both ends with \n.
+	//
+	// Note we're recording line first index (after new line).
+
+	i: s64;
+	loop ; i + 8 <= buf.bytes.len; i += 8 {
+		ptr: *u64 = auto &buf.bytes[i];
+		data :: (@ptr ^ 0x0a0a0a0a0a0a0a0a);
+		if ((data - 0x0101010101010101) & (~data) & 0x8080808080808080) > 0 {
+			loop c := 0; c < 8; c += 1 {
+				if buf.bytes[i + c] == '\n' {
+					array_push(&buf.lines, i+c+1);
+				}
+			}
+		}
+	}
+
+	// tail
+	loop ; i < buf.bytes.len; i += 1 {
+		if buf.bytes[i] == '\n' {
+			array_push(&buf.lines, i+1);
+		}
+	}
+
+	array_push(&buf.lines, buf.bytes.len);
+
+/*
+	// Following solution seems to be almost 2x faster on my machine, we basically exclude
+	// all 8 bytes in case there is no new line. Note that there is also simplification since
+	// we assume \r\n and \n both ends with \n.
 	loop i : s64 = 0; i < buf.bytes.len; {
 		ptr: *u64 = auto &buf.bytes[i];
 		data :: (@ptr ^ 0x0a0a0a0a0a0a0a0a);
@@ -1177,6 +1206,7 @@ rebuild_lines :: fn (buf: *Buffer) {
 		}
 	}
 	array_push(&buf.lines, buf.bytes.len);
+*/
 
 /*
 	buf.lines.len = 0;
