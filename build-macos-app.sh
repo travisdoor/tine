@@ -13,4 +13,5 @@ cp icon/tine.icns tine-macos-arm64/Tine.app/Contents/Resources/tine.icns
 dylibbundler -b -d tine-macos-arm64/Tine.app/Contents/MacOS -p @executable_path/ -x tine-macos-arm64/Tine.app/Contents/MacOS/Tine
 chmod +x tine-macos-arm64/Tine.app/Contents/MacOS/Tine
 ln -s /Applications tine-macos-arm64/Applications
+hdiutil create -volname "Tine" -srcfolder tine-macos-arm64 -format UDZO -o Tine.dmg
 echo Done

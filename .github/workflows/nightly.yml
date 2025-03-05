@@ -39,6 +39,7 @@ jobs:
       with:
         name: tine-nightly-x86_64-linux
         path: Tine-x86_64.AppImage
+
   windows-release:
     runs-on: windows-latest
     steps:
@@ -58,3 +59,32 @@ jobs:
       with:
         name: tine-nightly-x86_64-windows
         path: Tine.exe
+
+  macos-release:
+    runs-on: macOS-14
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download LLVM
+      run: |
+        brew install llvm@18 zlib ncurses
+        TMP_PATH=$(xcrun --show-sdk-path)/user/include
+        echo "CPATH=$TMP_PATH" >> $GITHUB_ENV
+    - name: Build BL
+      run: |
+        git clone --depth 1 https://github.com/biscuitlang/bl.git
+        cd bl
+        chmod +x build.sh
+        ./build.sh
+        echo "PATH=$PATH:$GITHUB_WORKSPACE/bl/bin" >> $GITHUB_ENV
+    - name: Install Dependencies
+      run: |
+        brew install glfw freetype libpng dylibbundler
+    - name: Build
+      run: |
+        chmod +x build-macos-app.sh
+        ./build-macos-app.sh
+    - uses: actions/upload-artifact@v4
+      with:
+        name: tine-nightly-arm64-macos
+        path: Tine.dmg
+
