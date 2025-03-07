@@ -1,5 +1,8 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+0.10 2025-03-07
+---------------------------------------------------------------------------------------
 - Add ANSI support for shell output.
 - Add arbitrary shell execution.
 - Add clangd executable path into project settings.
