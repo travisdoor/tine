@@ -12,7 +12,12 @@ search_mode_init :: fn () {
 	start_top      = target_editor.top;
 
 	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
-	// clear_selection(target_buf, target_editor.cursor_index);
+	if initial_subject.len > 0 {
+		// In case we have curently some selection, we use it as the search subject later and
+		// clear selected range.
+		// Otherwise we assume we might search for the end of what should be selected.
+		clear_selection(target_buf, target_editor.cursor_index);
+	}
 
 	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
 		search.last_subject.len = 0;
