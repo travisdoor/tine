@@ -296,6 +296,9 @@ repeat Ctrl
 
 shell Alt+C
 
+# Quit the editor.
+quit
+
 ;colors
 # Color code is expected to be RRGGBB hex number.
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block, this

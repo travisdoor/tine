@@ -123,6 +123,7 @@ Command :: enum {
 	COPY_FILE_PATH;
 
 	SUPPORT_ME;
+	QUIT;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
@@ -246,6 +247,8 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 
 	help[auto INCREASE_NUMBER]         = "Increase number under cursor by one.";
 	help[auto DECREASE_NUMBER]         = "Decrease number under cursor by one.";
+
+	help[auto QUIT]                    = "Quit Tine.";
 
 	return help;
 }
@@ -719,6 +722,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
 		SUPPORT_ME               { support_me();                  }
+		QUIT                     { quit();                        }
 
 		TOGGLE_MACRO_RECORDING {
 			if macros.is_recording {
@@ -1929,6 +1933,10 @@ clear_messages :: fn () {
 
 support_me :: fn () {
 	open_path("https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6");
+}
+
+quit :: fn () {
+	glfw.SetWindowShouldClose(window, 1);
 }
 
 open_file_location :: fn (buf: *Buffer) {
