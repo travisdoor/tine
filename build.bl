@@ -56,7 +56,7 @@ build :: fn () #build_entry {
 		append_linker_options(exe, "-framework CoreFoundation -framework CoreServices");
 	} else if PLATFORM == Platform.LINUX {
 		add_unit(exe, "src/platform/linux.bl");
-		//append_linker_options(exe, "-framework CoreFoundation -framework CoreServices");
+		//append_linker_options(exe, "-static");
 	}
 
 	compile(exe);

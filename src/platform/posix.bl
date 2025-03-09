@@ -171,21 +171,19 @@ close_pipe :: fn (handle: *IoStream) {
 // Clipboard
 //
 
-// @Incomplete: We'll need platform specific implementation here so we can drop libclipboard.
 init_clipboard :: fn () {
-	clipboard.init();
 }
 
 terminate_clipboard :: fn () {
-	clipboard.terminate();
 }
 
 read_clipboard :: fn () string_view {
-	return clipboard.get();
+	tmp :: cast(*C.char)glfw.GetClipboardString(window);
+	return str_make(tmp, application_context.temporary_allocator);
 }
 
 write_clipboard :: fn (text: string_view) {
-	clipboard.set(text);
+	glfw.SetClipboardString(window, auto strtoc(text));
 }
 
 //
@@ -201,7 +199,6 @@ get_current_date_as_YYYY_MM_DD :: fn () string_view {
 }
 
 #scope_private
-clipboard :: #import "extra/clipboard";
 
 lookup_executable :: fn (path: string_view, full_path: *string) Error {
 	full_path.len = 0;
