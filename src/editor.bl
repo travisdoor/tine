@@ -24,7 +24,6 @@ DEFAULT_ANIMATION_SPEED :: 0.008f;
 
 add_editor :: fn (buffer_index: s32, track_recent_locations := false, split := Split.FLOATING) s32 {
 	editor: *Editor;
-	check_main_thread();
 
 	// Try to find already existing editor holding same buffer. Note that we must do it before
 	// this editor is pushed into the editors array.

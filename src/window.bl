@@ -1,0 +1,179 @@
+window: *glfw.Window;
+
+WindowEventKind :: enum {
+	NONE;
+	FB_RESIZE;
+}
+
+WindowEvent :: struct {
+	kind: WindowEventKind;
+	data: union {
+		fb_resize: struct {
+			w: s32;
+			h: s32;
+		};
+	};
+}
+
+init_window :: fn (w: s32, h: s32, title: string_view) {
+	if glfw.Init() == 0 {
+		print_glfw_error();
+		panic("Cannot initialize glfw.\n");
+	}
+
+	major, minor, revision: s32;
+	glfw.GetVersion(&major, &minor, &revision);
+	print_log("Running against GLFW %.%.%", major, minor, revision);
+
+	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3);
+	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 3);
+	glfw.WindowHint(glfw.OPENGL_FORWARD_COMPAT, 1);
+	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
+
+	glfw.WindowHint(glfw.DOUBLEBUFFER, glfw.TRUE);
+	glfw.WindowHint(glfw.RESIZABLE, glfw.TRUE);
+	glfw.WindowHint(glfw.SAMPLES, 2);
+
+	window = glfw.CreateWindow(w, h, strtoc(title), null, null);
+	if !window {
+		print_glfw_error();
+		panic("Cannot create GLFW window.\n");
+	}
+
+	glfw.SetWindowSizeLimits(window, 640, 480, glfw.DONT_CARE, glfw.DONT_CARE);
+	glfw.GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
+	glfw.GetWindowContentScale(window, &WINDOW_SCALE, null);
+
+	glfw.SwapInterval(1);
+
+	// callbacks
+	glfw.SetFramebufferSizeCallback(window, &framebuffer_size_callback);
+	// glfw.SetWindowSizeCallback(window, &window_size_callback);
+
+	set_icon();
+
+	mutex_init(&lock);
+}
+
+terminate_window :: fn () {
+	array_terminate(&event_queue[0]);
+	array_terminate(&event_queue[1]);
+	mutex_terminate(&lock);
+
+	glfw.DestroyWindow(window);
+	glfw.Terminate();
+}
+
+set_current_context :: fn () {
+	glfw.MakeContextCurrent(window);
+}
+
+is_running :: fn () bool #inline {
+	return glfw.WindowShouldClose(window) == 0;
+}
+
+run_window_event_loop :: fn () {
+	loop is_running() {
+		glfw.WaitEvents();
+	}
+}
+
+collect_events :: fn () []WindowEvent {
+	mutex_lock(&lock);
+	defer mutex_unlock(&lock);
+
+	swap(&event_queue[READ_INDEX], &event_queue[WRITE_INDEX]);
+
+	last_resize_index = -1;
+	event_queue[WRITE_INDEX].len = 0;
+
+	return event_queue[READ_INDEX];
+}
+
+#scope_private
+glfw :: #import "extra/glfw3";
+
+WRITE_INDEX :: 0;
+READ_INDEX  :: 1;
+
+event_queue: [2][..]WindowEvent;
+lock:               Mutex;
+last_resize_index:  s32 = -1;
+
+print_glfw_error :: fn () {
+	cstr: *u8;
+	glfw.GetError(&cstr);
+
+	if cstr == null { return; }
+	tmp := string_view.{ auto C.strlen(auto cstr), auto cstr };
+	print_err("GLFW Error: %", tmp);
+}
+
+//
+// Callback
+//
+
+framebuffer_size_callback :: fn (_: *glfw.Window, w: s32, h: s32) {
+	/*
+	glfw.GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
+	draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+	// Hide any possible completion popup.
+	if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
+
+	// draw_frame();
+	*/
+
+	mutex_lock(&lock);
+	defer mutex_unlock(&lock);
+
+	event: *WindowEvent;
+	if last_resize_index == -1 {
+		// last_resize_index = auto event_queue[WRITE_INDEX].len;
+		event = array_push(&event_queue[WRITE_INDEX]);
+	} else {
+		event = &event_queue[WRITE_INDEX][last_resize_index];
+	}
+
+	event.kind = WindowEventKind.FB_RESIZE;
+	event.data.fb_resize = .{ w, h };
+}
+
+window_size_callback :: fn (_: *glfw.Window, _: s32, _: s32) {
+	/*
+	glfw.GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
+	draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+	// Hide any possible completion popup.
+	if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
+
+	// draw_frame();
+	*/
+
+	mutex_lock(&lock);
+	defer mutex_unlock(&lock);
+
+	event: *WindowEvent;
+	if last_resize_index == -1 {
+		last_resize_index = auto event_queue[WRITE_INDEX].len;
+		event = array_push(&event_queue[WRITE_INDEX]);
+	} else {
+		event = &event_queue[WRITE_INDEX][last_resize_index];
+	}
+
+	event.kind = WindowEventKind.FB_RESIZE;
+	glfw.GetFramebufferSize(window, &event.data.fb_resize.w, &event.data.fb_resize.h);
+}
+
+set_icon :: fn () {
+	using glfw;
+	using draw;
+	image: Image;
+	bit_depth: u8;
+	format: TextureFormat;
+	err :: png_load_from_memory(APPLICATION_ICON_DATA, &image.pixels, auto &image.width, auto &image.height, &bit_depth, &format);
+	defer free(image.pixels);
+	if err { panic(err); }
+	images :: [1]Image.{ image };
+	SetWindowIcon(window, 1, images.ptr);
+}

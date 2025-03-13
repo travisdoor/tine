@@ -447,7 +447,8 @@ load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
 		watch_changes(file_watch, filepath) catch print_err($);
 	}
 
-	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+	
+if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 	return OK;
 }
 

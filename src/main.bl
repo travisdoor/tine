@@ -42,6 +42,7 @@ C         :: #import "libc";
 #load "shell.bl"
 #load "shell_run.bl"
 #load "utils.bl"
+#load "window.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
@@ -144,8 +145,6 @@ HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
 PROJECT_IS_INDEXING_MESSAGE :: "Project indexing in progress, please wait.";
-
-window: *glfw.Window;
 
 font:      draw.Font;
 font_ui:   draw.Font;
@@ -638,8 +637,6 @@ mouse: struct {
 };
 
 main :: fn () s32 {
-	using glfw;
-
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -651,380 +648,40 @@ main :: fn () s32 {
 
 	// debug_allocator_break(&debug_allocator, 116);
 
-	MAIN_THREAD_ID = get_thread_id();
-	FONT_DIRECTORY = get_fonts_directory();
-	defer str_terminate(&FONT_DIRECTORY);
+	editor_start_time = get_timestamp();
+	print_log("Editor start time is %.", editor_start_time);
 
+	// Messages & logger
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
 	defer str_terminate(&message.text);
 
-	init_clipboard();
-	defer terminate_clipboard();
-
-	// Recent location
-	recent_locations.index = -1;
-	defer array_terminate(&recent_locations.stack);
-
-	// Create command editor.
-	command_editor = add_editor(add_command_buffer());
-	// Messages buffer
-	messages_buffer_index = add_builtin_buffer("messages");
-
 	default_logger :: set_logger(&logger);
 	defer set_logger(default_logger);
 
-	print_log("Font directory: '%'", FONT_DIRECTORY);
+	// Main window init
+	init_window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+	defer terminate_window();
 
-	editor_start_time = get_timestamp();
-	print_log("Editor start time is %.", editor_start_time);
-
-
-	// Resolve editor executable path.
-	exec_path :: os_get_exec_path();
-	defer str_terminate(&exec_path);
-
-	head :: path_split(exec_path);
-	exec_dir = head;
-	if exec_dir.len > 0 && exec_dir[exec_dir.len-1] == '/' {
-		exec_dir.len -= 1;
-	}
-
-	if exec_dir.len == 0 {
-		print_warn("Unable to resolve the root directory of the editor executable.");
-	} else {
-		print_log("Editor executable directory: '%'", exec_dir);
-	}
-
-	#if PLATFORM == Platform.WINDOWS {
-		data_dir = str_make(exec_dir);
-	} else {
-		data_dir = get_home();
-		str_append(&data_dir, "/.tine");
-		if !file_exist(data_dir) {
-			err :: create_dir(data_dir);
-			if err {
-				panic(err);
-			} else {
-				print_log("Tine directory created at '%'.", data_dir);
-			}
-		}
-	}
-
-	defer str_terminate(&data_dir);
-
-	print_log("Editor data directory: '%'", data_dir);
-
-	fw :: new_filewatch() catch panic($);
-	file_watch = fw; // @Cleanup 2025-03-02
-	defer delete_filewatch(file_watch);
-
-	init_project();
-	defer terminate_project();
-
-	init_macros();
-	defer terminate_macros();
-
-	defer array_terminate(&key_binding);
-
-	shell_run_mode_on_start();
-	defer shell_run_mode_on_exit();
-
-	// Initialize GLFW.
-	if glfw.Init() == 0 {
-		print_glfw_error();
-		panic("Cannot initialize glfw.\n");
-	}
-	defer glfw.Terminate();
-
-	{
-		major, minor, revision: s32;
-		glfw.GetVersion(&major, &minor, &revision);
-		print_log("Running against GLFW %.%.%", major, minor, revision);
-	}
+	// glfw.SetKeyCallback(window, &key_callback);
+	// glfw.SetCharCallback(window, &character_callback);
+	// glfw.SetWindowContentScaleCallback(window, &window_scale_callback);
+	// glfw.SetWindowIconifyCallback(window, &window_iconify_callback);
+	// glfw.SetWindowFocusCallback(window, &window_focus_callback);
+	// glfw.SetMouseButtonCallback(window, &mouse_button_callback);
+	// glfw.SetScrollCallback(window, &scroll_callback);
+	// glfw.SetDropCallback(window, &drop_callback);
+	// glfw.SetCursorPosCallback(window, &cursor_position_callback);
 
 
-	// Create GLFW window.
-	WindowHint(CONTEXT_VERSION_MAJOR, 3);
-	WindowHint(CONTEXT_VERSION_MINOR, 3);
-	WindowHint(OPENGL_FORWARD_COMPAT, 1);
-	WindowHint(OPENGL_PROFILE, OPENGL_CORE_PROFILE);
-
-	WindowHint(DOUBLEBUFFER, TRUE);
-	WindowHint(RESIZABLE, TRUE);
-	WindowHint(SAMPLES, 2);
-
-	window = CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, strtoc(WINDOW_TITLE), null, null);
-	defer DestroyWindow(window);
-
-	if !window {
-		print_glfw_error();
-		panic("Cannot create GLFW window.\n");
-	}
-
-	set_icon();
-
-	SetWindowSizeLimits(window, 640, 480, DONT_CARE, DONT_CARE);
-	GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
-	GetWindowContentScale(window, &WINDOW_SCALE, null);
-
-	MakeContextCurrent(window);
-
-	SetKeyCallback(window, &key_callback);
-	SetCharCallback(window, &character_callback);
-	SetWindowSizeCallback(window, &window_size_callback);
-	SetWindowContentScaleCallback(window, &window_scale_callback);
-	SetWindowIconifyCallback(window, &window_iconify_callback);
-	SetWindowFocusCallback(window, &window_focus_callback);
-	SetMouseButtonCallback(window, &mouse_button_callback);
-	SetScrollCallback(window, &scroll_callback);
-	SetDropCallback(window, &drop_callback);
-	SetCursorPosCallback(window, &cursor_position_callback);
-
-	draw.init(WINDOW_WIDTH, WINDOW_HEIGHT);
-	defer draw.terminate();
-
-	project_dir_path :: tprint("%/%", data_dir, PROJECTS_DIRECTORY);
-	if !file_exist(project_dir_path) {
-		err :: create_dir(project_dir_path);
-		if err {
-			print_err(err);
-		} else {
-			print_log("Projects directory created at '%'.", project_dir_path);
-		}
-	}
-
-	// Initial readme file on the first start.
-	show_help := false;
-
-	// Check whether the default project file exists.
-	if !is_default_project_present() {
-		show_help = true;
-		err :: setup_after_first_run();
-		if err {
-			print_err(err);
-		} else {
-			print_log("Default project file created.");
-		}
-	} else {
-		// Try to load it, note that in case of fail, we use default setting implicitly (even if the file
-		// content is invalid).
-		err :: load_default_project_file();
-		if err {
-			print_err(err);
-		} else {
-			print_log("Default project file loaded from disk.");
-		}
-	}
-
-	print_log("Settings: %", settings);
-
-
-	rebuild_fonts();
-	defer draw.font_terminate(&font);
-	defer draw.font_terminate(&font_ui);
-	defer draw.font_terminate(&font_ui_b);
-	defer draw.font_terminate(&icons);
-
-	listing_init();
-	defer listing_terminate();
-
-	// Initialize async job system.
-	jobs_init();
-
-	lsp_init();
-	defer lsp_terminate();
-
-	shell_init();
-	defer shell_terminate();
-
-	// Cleanup error list...
-	defer array_terminate(&error_list);
-
-	// Search stuff
-	array_init(&search.results, 1024);
-
-	defer str_terminate(&search.last_subject);
-	defer str_terminate(&search.last_replacement);
-	defer array_terminate(&search.results);
-
-	loop i := 1; i < command_line_arguments.len; i += 1 {
-		filepath :: command_line_arguments[i];
-		buf_error :: open(filepath);
-		if buf_error {
-			print_err(buf_error);
-		}
-	}
-
-	if active_editor == -1 {
-		active_editor = add_editor(add_buffer(), true, Split.LEFT);
-		left          = active_editor;
-	}
-
-	assert(left != -1);
-	assert(active_editor != -1);
 
 	// cursors
-	mouse.beam_cursor = CreateStandardCursor(IBEAM_CURSOR);
-	defer DestroyCursor(mouse.beam_cursor);
+	mouse.beam_cursor = glfw.CreateStandardCursor(glfw.IBEAM_CURSOR);
+	defer glfw.DestroyCursor(mouse.beam_cursor);
 
-	SwapInterval(1);
-	prev_time := GetTime();
-	prev_frame_delta := -1.f #maybe_unused;
-
-	if show_help {
-		help();
-	}
-
-	if settings.maximize_on_start {
-		MaximizeWindow(window);
-	}
-
-	prev_active_editor := -1;
-	last_focus_index := 0;
-
-	current_window_title: string;
-	defer str_terminate(&current_window_title);
-
-	loop WindowShouldClose(window) == 0 {
-		current_time :: glfw.GetTime();
-		frame_delta_time = auto (current_time - prev_time) * 1000.;
-		prev_time = current_time;
-
-		recalculate_metrics();
-
-		/* @Cleanup 2025-02-08: Do we need this since we redraw only when needed?
-		#if PLATFORM == Platform.DARWIN {
-			// Limit maximum FPS on mac since vsync seems not work.
-			if prev_frame_delta <= 16.f && prev_frame_delta > 0.f {
-				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
-			}
-		}
-		*/
-
-		if draw_next_frame {
-			PollEvents();
-		} else {
-			WaitEventsTimeout(0.016);
-		}
-
-		update_caret();
-
-		if shell.job_index == -1 {
-			removed_num  := 0;
-			reloaded_num := 0;
-
-			event: WatchEvent;
-			loop poll_file_changes(file_watch, &event) {
-				print_log("Event: %", event);
-
-				using WatchEvent.kind;
-				switch event.kind {
-					FILE_CHANGED {
-						buf :: get_buffer_by_filepath(event.path);
-						assert(buf);
-						if !buf then continue;
-						buf.missing_on_disk = false;
-
-						if event.timestamp == buf.last_write_time then continue;
-
-						print_log("Reload '%' due to content changed on disk.", buf.filepath);
-						load_buffer_from_file(buf, buf.filepath) catch {
-							print_err($);
-							continue;
-						};
-
-						reloaded_num += 1;
-						print_info("Buffer '%' reloaded from disk.", buf.name);
-					}
-
-					FILE_REMOVED {
-						buf :: get_buffer_by_filepath(event.path);
-						assert(buf);
-						if !buf then continue;
-						buf.missing_on_disk = true;
-						removed_num += 1;
-						print_warn("File '%' not found on disk.", event.path);
-					}
-
-					DIR_CHANGED, DIR_REMOVED {
-						reindex_project();
-					}
-
-					default;
-				}
-			}
-
-			if removed_num > 1 {
-				print_warn("Multiple opened files no longer exist on disk. Open messages for more info.");
-			} else if reloaded_num > 1 {
-				print_info("Multiple opened files reloaded from disk. Open messages for more info.");
-			}
-		}
-
-		maybe_reindex_current_project();
-
-		update_jobs(); // Also process all responses...
-
-		buf, editor :: get_active_buffer_and_editor();
-		if prev_active_editor != active_editor {
-			prev_active_editor = active_editor;
-			buf.last_focus_index = last_focus_index;
-			last_focus_index += 1;
-
-			if editor.track_recent_locations {
-				add_recent_location(editor);
-			}
-		}
-
-		if draw_next_frame {
-			draw_next_frame = false;
-			update_mouse();
-			draw_frame();
-		}
-
-		scaling_changed = false;
-
-		title: string_view;
-		if project.is_default {
-			title = buf.name;
-		} else {
-			title = tprint("% - %", project.name, buf.name);
-		}
-
-		if !str_match(current_window_title, title) {
-			current_window_title.len = 0;
-			str_append(&current_window_title, title);
-			SetWindowTitle(window, auto strtoc(current_window_title));
-		}
-
-		clear_mouse_events();
-		prev_frame_delta = frame_delta_time;
-	}
-
-	// Terminate any possible active mode.
-	set_mode(Mode.TEXT_EDIT);
-
-	// Terminate all pending jobs. After that it's save to remove all buffers and editors.
-	jobs_terminate();
-
-	// To speed things up a bit.
-	recent_locations.stack.len = 0;
-
-	loop i := 0; i < editors.len; i += 1 { remove_editor(i); }
-	loop i := 0; i < buffers.len; i += 1 { remove_buffer(i); }
-
-	array_terminate(&editors);
-	array_terminate(&buffers);
-
-	info :: cast(*TypeInfoStruct) typeinfo(Settings);
-	loop i := 0; i < info.members.len; i += 1 {
-		member :: &info.members[i];
-		if member.base_type == typeinfo(string) {
-			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
-			str_terminate(str);
-		}
-	}
+	thread :: thread_create(&main_worker) catch panic($);
+	run_window_event_loop();
+	thread_join(thread);
 
 	print_log("DONE.");
 	return 0;
@@ -1997,6 +1654,315 @@ draw_next_frame := true;
 minimized: bool;
 focused := true;
 
+main_worker :: fn (_: *u8) s32 {
+	MAIN_THREAD_ID = get_thread_id();
+
+	set_current_context();
+
+	// Init drawing.
+	draw.init(WINDOW_WIDTH, WINDOW_HEIGHT);
+	defer draw.terminate();
+
+	FONT_DIRECTORY = get_fonts_directory();
+	defer str_terminate(&FONT_DIRECTORY);
+	print_log("Font directory: '%'", FONT_DIRECTORY);
+
+	init_clipboard();
+	defer terminate_clipboard();
+
+	// Recent location
+	recent_locations.index = -1;
+	defer array_terminate(&recent_locations.stack);
+
+	// Create command editor.
+	command_editor = add_editor(add_command_buffer());
+	// Messages buffer
+	messages_buffer_index = add_builtin_buffer("messages");
+
+
+	// Resolve editor executable path.
+	exec_path :: os_get_exec_path();
+	defer str_terminate(&exec_path);
+
+	head :: path_split(exec_path);
+	exec_dir = head;
+	if exec_dir.len > 0 && exec_dir[exec_dir.len-1] == '/' {
+		exec_dir.len -= 1;
+	}
+
+	if exec_dir.len == 0 {
+		print_warn("Unable to resolve the root directory of the editor executable.");
+	} else {
+		print_log("Editor executable directory: '%'", exec_dir);
+	}
+
+	#if PLATFORM == Platform.WINDOWS {
+		data_dir = str_make(exec_dir);
+	} else {
+		data_dir = get_home();
+		str_append(&data_dir, "/.tine");
+		if !file_exist(data_dir) {
+			err :: create_dir(data_dir);
+			if err {
+				panic(err);
+			} else {
+				print_log("Tine directory created at '%'.", data_dir);
+			}
+		}
+	}
+
+	defer str_terminate(&data_dir);
+
+	print_log("Editor data directory: '%'", data_dir);
+
+	fw :: new_filewatch() catch panic($);
+	file_watch = fw; // @Cleanup 2025-03-02
+	defer delete_filewatch(file_watch);
+
+	init_project();
+	defer terminate_project();
+
+	init_macros();
+	defer terminate_macros();
+
+	defer array_terminate(&key_binding);
+
+	shell_run_mode_on_start();
+	defer shell_run_mode_on_exit();
+
+	project_dir_path :: tprint("%/%", data_dir, PROJECTS_DIRECTORY);
+	if !file_exist(project_dir_path) {
+		err :: create_dir(project_dir_path);
+		if err {
+			print_err(err);
+		} else {
+			print_log("Projects directory created at '%'.", project_dir_path);
+		}
+	}
+
+	// Initial readme file on the first start.
+	show_help := false;
+
+	// Check whether the default project file exists.
+	if !is_default_project_present() {
+		show_help = true;
+		err :: setup_after_first_run();
+		if err {
+			print_err(err);
+		} else {
+			print_log("Default project file created.");
+		}
+	} else {
+		// Try to load it, note that in case of fail, we use default setting implicitly (even if the file
+		// content is invalid).
+		err :: load_default_project_file();
+		if err {
+			print_err(err);
+		} else {
+			print_log("Default project file loaded from disk.");
+		}
+	}
+
+	print_log("Settings: %", settings);
+
+
+	rebuild_fonts();
+	defer draw.font_terminate(&font);
+	defer draw.font_terminate(&font_ui);
+	defer draw.font_terminate(&font_ui_b);
+	defer draw.font_terminate(&icons);
+
+	listing_init();
+	defer listing_terminate();
+
+	// Initialize async job system.
+	jobs_init();
+
+	lsp_init();
+	defer lsp_terminate();
+
+	shell_init();
+	defer shell_terminate();
+
+	// Cleanup error list...
+	defer array_terminate(&error_list);
+
+	// Search stuff
+	array_init(&search.results, 1024);
+
+	defer str_terminate(&search.last_subject);
+	defer str_terminate(&search.last_replacement);
+	defer array_terminate(&search.results);
+
+	loop i := 1; i < command_line_arguments.len; i += 1 {
+		filepath :: command_line_arguments[i];
+		buf_error :: open(filepath);
+		if buf_error {
+			print_err(buf_error);
+		}
+	}
+
+	if active_editor == -1 {
+		active_editor = add_editor(add_buffer(), true, Split.LEFT);
+		left          = active_editor;
+	}
+
+	assert(left != -1);
+	assert(active_editor != -1);
+
+	if show_help then help();
+	if settings.maximize_on_start then glfw.MaximizeWindow(window);
+
+	prev_time          := glfw.GetTime();
+	prev_active_editor := -1;
+	last_focus_index   := 0;
+
+	current_window_title: string;
+	defer str_terminate(&current_window_title);
+
+	loop is_running() {
+		current_time :: glfw.GetTime();
+		frame_delta_time = auto (current_time - prev_time) * 1000.;
+		prev_time = current_time;
+
+		frame_events :: collect_events();
+		loop i := 0; i < frame_events.len; i += 1 {
+			event :: &frame_events[i];
+
+			using WindowEventKind;
+			switch event.kind {
+				FB_RESIZE {
+					WINDOW_WIDTH  = event.data.fb_resize.w;
+					WINDOW_HEIGHT = event.data.fb_resize.h;
+					draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+					// Hide any possible completion popup.
+					if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
+				}
+				default;
+			}
+		}
+
+		recalculate_metrics();
+		update_caret();
+
+		if shell.job_index == -1 {
+			removed_num  := 0;
+			reloaded_num := 0;
+
+			event: WatchEvent;
+			loop poll_file_changes(file_watch, &event) {
+				print_log("Event: %", event);
+
+				using WatchEvent.kind;
+				switch event.kind {
+					FILE_CHANGED {
+						buf :: get_buffer_by_filepath(event.path);
+						assert(buf);
+						if !buf then continue;
+						buf.missing_on_disk = false;
+
+						if event.timestamp == buf.last_write_time then continue;
+
+						print_log("Reload '%' due to content changed on disk.", buf.filepath);
+						load_buffer_from_file(buf, buf.filepath) catch {
+							print_err($);
+							continue;
+						};
+
+						reloaded_num += 1;
+						print_info("Buffer '%' reloaded from disk.", buf.name);
+					}
+
+					FILE_REMOVED {
+						buf :: get_buffer_by_filepath(event.path);
+						assert(buf);
+						if !buf then continue;
+						buf.missing_on_disk = true;
+						removed_num += 1;
+						print_warn("File '%' not found on disk.", event.path);
+					}
+
+					DIR_CHANGED, DIR_REMOVED {
+						reindex_project();
+					}
+
+					default;
+				}
+			}
+
+			if removed_num > 1 {
+				print_warn("Multiple opened files no longer exist on disk. Open messages for more info.");
+			} else if reloaded_num > 1 {
+				print_info("Multiple opened files reloaded from disk. Open messages for more info.");
+			}
+		}
+
+		maybe_reindex_current_project();
+
+		update_jobs(); // Also process all responses...
+
+		buf, editor :: get_active_buffer_and_editor();
+		if prev_active_editor != active_editor {
+			prev_active_editor = active_editor;
+			buf.last_focus_index = last_focus_index;
+			last_focus_index += 1;
+
+			if editor.track_recent_locations {
+				add_recent_location(editor);
+			}
+		}
+
+		update_mouse();
+		draw_frame();
+
+		scaling_changed = false;
+
+		title: string_view;
+		if project.is_default {
+			title = buf.name;
+		} else {
+			title = tprint("% - %", project.name, buf.name);
+		}
+
+		if !str_match(current_window_title, title) {
+			current_window_title.len = 0;
+			str_append(&current_window_title, title);
+			glfw.SetWindowTitle(window, auto strtoc(current_window_title));
+		}
+
+		clear_mouse_events();
+		temporary_reset();
+	}
+
+	// Terminate any possible active mode.
+	set_mode(Mode.TEXT_EDIT);
+
+	// Terminate all pending jobs. After that it's save to remove all buffers and editors.
+	jobs_terminate();
+
+	// To speed things up a bit.
+	recent_locations.stack.len = 0;
+
+	loop i := 0; i < editors.len; i += 1 { remove_editor(i); }
+	loop i := 0; i < buffers.len; i += 1 { remove_buffer(i); }
+
+	array_terminate(&editors);
+	array_terminate(&buffers);
+
+	info :: cast(*TypeInfoStruct) typeinfo(Settings);
+	loop i := 0; i < info.members.len; i += 1 {
+		member :: &info.members[i];
+		if member.base_type == typeinfo(string) {
+			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
+			str_terminate(str);
+		}
+	}
+
+	temporary_release();
+	return 0;
+}
+
 draw_frame :: fn () {
 	using draw;
 
@@ -2066,16 +2032,6 @@ draw_frame :: fn () {
 
 	flush();
 	glfw.SwapBuffers(window);
-	temporary_reset();
-}
-
-print_glfw_error :: fn () {
-	cstr: *u8;
-	glfw.GetError(&cstr);
-
-	if cstr == null { return; }
-	tmp := string_view.{ auto C.strlen(auto cstr), auto cstr };
-	print_err("GLFW Error: %", tmp);
 }
 
 key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
@@ -2210,16 +2166,6 @@ scroll_callback :: fn (_: *glfw.Window, _: f64, yoff: f64) {
 
 window_iconify_callback :: fn (_: *glfw.Window, iconified: s32) {
 	minimized = iconified != 0;
-}
-
-window_size_callback :: fn (_: *glfw.Window, _: s32, _: s32) {
-	glfw.GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
-	draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
-
-	// Hide any possible completion popup.
-	if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
-
-	draw_frame();
 }
 
 window_scale_callback :: fn (_: *glfw.Window, xscale: f32, _: f32) {
@@ -2378,19 +2324,6 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 	}
 }
 
-set_icon :: fn () {
-	using glfw;
-	using draw;
-	image: Image;
-	bit_depth: u8;
-	format: TextureFormat;
-	err :: png_load_from_memory(APPLICATION_ICON_DATA, &image.pixels, auto &image.width, auto &image.height, &bit_depth, &format);
-	defer free(image.pixels);
-	if err { panic(err); }
-	images :: [1]Image.{ image };
-	SetWindowIcon(window, 1, images.ptr);
-}
-
 clear_mouse_events :: fn () {
 	mouse.scroll = 0.f;
 	using MouseState;
@@ -2401,15 +2334,14 @@ clear_mouse_events :: fn () {
 }
 
 update_mouse :: fn () {
-	using glfw;
 	using MouseState;
 
 	mpx, mpy: f64;
-	GetCursorPos(window, &mpx, &mpy);
+	glfw.GetCursorPos(window, &mpx, &mpy);
 
 	scale: f32;
 	#if PLATFORM == Platform.DARWIN {
-		GetWindowContentScale(window, &scale, null);
+		glfw.GetWindowContentScale(window, &scale, null);
 	} else {
 		scale = 1.f;
 	}
