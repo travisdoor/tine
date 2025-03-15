@@ -1984,7 +1984,7 @@ draw_frame :: fn () {
 
 	flush();
 	swap_buffers();
-	temporary_reset();
+	temporary_reset(); // @Incomplete 2025-03-15: Should be called in main loop!!!
 }
 
 /*
