@@ -126,7 +126,7 @@ handle_window_event_loop :: fn () {
 
 				text :: ctostr(event.text.text);
 				if text.len < 1 then continue; // just in case
-				if input_mode == InputMode.NUMBERS && (text[0] < '0' || text[0] > '9') then continue;
+				if (input_mode == InputMode.NUMBERS) && (text[0] < '0' || text[0] > '9') then continue;
 
 				// redraw(); @Incomplete
 				reset_caret_blinking();
@@ -276,10 +276,15 @@ mod_from_name :: fn (mod: string_view) u32 {
 	return KMOD_NONE;
 }
 
+get_mods :: fn () []u32 #inline {
+	return MODS;
+}
+
 #scope_private
 
 sdl :: #import "sdl3";
 
+MODS :: [_]u32.{ sdl.KMOD_CTRL, sdl.KMOD_SHIFT, sdl.KMOD_ALT, sdl.KMOD_GUI };
 running := true;
 
 sdl_last_error :: fn () Error #inline {

@@ -357,30 +357,23 @@ lookup_command_keymap_index :: fn (cmd: Command, start_index := 0) s32 {
 }
 
 keymap_entry_to_string :: fn (keymap_index: s32) string_view {
-	/*
-	if keymap_index < 0 { return ""; }
+	if keymap_index < 0 then return "";
 	e :: &key_binding[keymap_index];
-	if e.key < 0 { return ""; }
-
-	using glfw;
+	if e.key < 0 then return "";
 
 	tmp :: str_make(application_context.temporary_allocator);
 
-	MODS :: [4]s32.{ MOD_CONTROL, MOD_ALT, MOD_SHIFT, MOD_SUPER };
+	MODS :: get_mods();
 	loop i := 0; i < MODS.len; i += 1 {
 		name :: mod_name(e.mods & MODS[i]);
-		if name.len == 0 { continue; }
-		if tmp.len > 0 { str_append(&tmp, "+"); }
+		if name.len == 0 then continue;
+		if tmp.len > 0 then str_append(&tmp, "+");
 		str_append(&tmp, name);
 	}
 
-	if tmp.len > 0 { str_append(&tmp, "+"); }
+	if tmp.len > 0 then str_append(&tmp, "+");
 	str_append(&tmp, key_name(e.key));
 	return tmp;
-	*/
-	
-	keymap_index;
-	return "";
 }
 
 // Just to make it deferable;
