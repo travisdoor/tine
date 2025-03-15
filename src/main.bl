@@ -1,8 +1,8 @@
-draw      :: #import "extra/draw";
-glfw      :: #import "extra/glfw3";
-math      :: #import "std/math";
-io        :: #import "std/io";
-C         :: #import "libc";
+draw :: #import "extra/draw";
+// glfw :: #import "extra/glfw3";
+math :: #import "std/math";
+io   :: #import "std/io";
+C    :: #import "libc";
 
 #import "std/async"
 #import "std/debug_allocator"
@@ -25,7 +25,6 @@ C         :: #import "libc";
 #load "completion.bl"
 #load "editor.bl"
 #load "goto.bl"
-#load "key_names.bl"
 #load "list_functions.bl"
 #load "listing.bl"
 #load "lsp.bl"
@@ -42,20 +41,13 @@ C         :: #import "libc";
 #load "shell.bl"
 #load "shell_run.bl"
 #load "utils.bl"
+#load "window.bl"
 
 LineEnding :: enum {
 	UNKNOWN;
 	CRLF;
 	LF;
 }
-
-// @Incomplete: Set from settings?
-WINDOW_WIDTH  := 800;
-WINDOW_HEIGHT := 600;
-WINDOW_TITLE  :: "Tine"; // This is not Emacs
-
-WINDOW_SCALE: f32;
-scaling_changed := false;
 
 MOUSE_DRAG_OFFSET :: 4.f;
 MOUSE_DBL_CLICK_S :: 0.5;
@@ -144,8 +136,6 @@ HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
 PROJECT_IS_INDEXING_MESSAGE :: "Project indexing in progress, please wait.";
-
-window: *glfw.Window;
 
 font:      draw.Font;
 font_ui:   draw.Font;
@@ -569,16 +559,16 @@ replay_macro :: fn () {
 	char_index := 0;
 	macros.is_replaying = true;
 
-	start_time := glfw.GetTime();
+	start_time := get_ticks();
 	loop i := 0; i < macros.queue.len; i += 1 {
-		if glfw.GetTime() - start_time > 5. {
+		if get_ticks() - start_time > 5. {
 			print_warn("Execution took too long, stopping now.");
 			break;
 		}
 
 		cmd :: macros.queue[i];
 		if cmd == Command.UNKNOWN {
-			character_callback(null, macros.text[char_index]);
+			// character_callback(null, macros.text[char_index]); @Incomplete 2025-03-14
 			char_index += 1;
 		} else {
 			target_buf, target_editor :: get_active_buffer_and_editor();
@@ -630,7 +620,7 @@ mouse: struct {
 	state: MouseState;
 
 	current_cursor: MouseCursor;
-	beam_cursor:   *glfw.Cursor;
+	beam_cursor:    SystemCursor;
 
 	prev_mouse_pos: v2;
 	prev_lmb_pos:   v2;
@@ -638,8 +628,6 @@ mouse: struct {
 };
 
 main :: fn () s32 {
-	using glfw;
-
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -658,9 +646,6 @@ main :: fn () s32 {
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
 	defer str_terminate(&message.text);
-
-	init_clipboard();
-	defer terminate_clipboard();
 
 	// Recent location
 	recent_locations.index = -1;
@@ -730,56 +715,8 @@ main :: fn () s32 {
 	shell_run_mode_on_start();
 	defer shell_run_mode_on_exit();
 
-	// Initialize GLFW.
-	if glfw.Init() == 0 {
-		print_glfw_error();
-		panic("Cannot initialize glfw.\n");
-	}
-	defer glfw.Terminate();
-
-	{
-		major, minor, revision: s32;
-		glfw.GetVersion(&major, &minor, &revision);
-		print_log("Running against GLFW %.%.%", major, minor, revision);
-	}
-
-
-	// Create GLFW window.
-	WindowHint(CONTEXT_VERSION_MAJOR, 3);
-	WindowHint(CONTEXT_VERSION_MINOR, 3);
-	WindowHint(OPENGL_FORWARD_COMPAT, 1);
-	WindowHint(OPENGL_PROFILE, OPENGL_CORE_PROFILE);
-
-	WindowHint(DOUBLEBUFFER, TRUE);
-	WindowHint(RESIZABLE, TRUE);
-	WindowHint(SAMPLES, 2);
-
-	window = CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, strtoc(WINDOW_TITLE), null, null);
-	defer DestroyWindow(window);
-
-	if !window {
-		print_glfw_error();
-		panic("Cannot create GLFW window.\n");
-	}
-
-	set_icon();
-
-	SetWindowSizeLimits(window, 640, 480, DONT_CARE, DONT_CARE);
-	GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
-	GetWindowContentScale(window, &WINDOW_SCALE, null);
-
-	MakeContextCurrent(window);
-
-	SetKeyCallback(window, &key_callback);
-	SetCharCallback(window, &character_callback);
-	SetWindowSizeCallback(window, &window_size_callback);
-	SetWindowContentScaleCallback(window, &window_scale_callback);
-	SetWindowIconifyCallback(window, &window_iconify_callback);
-	SetWindowFocusCallback(window, &window_focus_callback);
-	SetMouseButtonCallback(window, &mouse_button_callback);
-	SetScrollCallback(window, &scroll_callback);
-	SetDropCallback(window, &drop_callback);
-	SetCursorPosCallback(window, &cursor_position_callback);
+	init_window();
+	defer terminate_window();
 
 	draw.init(WINDOW_WIDTH, WINDOW_HEIGHT);
 	defer draw.terminate();
@@ -865,20 +802,16 @@ main :: fn () s32 {
 	assert(active_editor != -1);
 
 	// cursors
-	mouse.beam_cursor = CreateStandardCursor(IBEAM_CURSOR);
-	defer DestroyCursor(mouse.beam_cursor);
+	/* @Incomplete 2025-03-14
+	mouse.beam_cursor = glfw.CreateStandardCursor(glfw.IBEAM_CURSOR);
+	defer glfw.DestroyCursor(mouse.beam_cursor);
+	*/
 
-	SwapInterval(1);
-	prev_time := GetTime();
+	prev_time := get_ticks();
 	prev_frame_delta := -1.f #maybe_unused;
 
-	if show_help {
-		help();
-	}
-
-	if settings.maximize_on_start {
-		MaximizeWindow(window);
-	}
+	if show_help then help();
+	if settings.maximize_on_start then maximize_window();
 
 	prev_active_editor := -1;
 	last_focus_index := 0;
@@ -886,28 +819,16 @@ main :: fn () s32 {
 	current_window_title: string;
 	defer str_terminate(&current_window_title);
 
-	loop WindowShouldClose(window) == 0 {
-		current_time :: glfw.GetTime();
+	loop is_running() {
+		current_time :: get_ticks();
 		frame_delta_time = auto (current_time - prev_time) * 1000.;
 		prev_time = current_time;
 
 		recalculate_metrics();
 
-		/* @Cleanup 2025-02-08: Do we need this since we redraw only when needed?
-		#if PLATFORM == Platform.DARWIN {
-			// Limit maximum FPS on mac since vsync seems not work.
-			if prev_frame_delta <= 16.f && prev_frame_delta > 0.f {
-				os_sleep_ms(cast(u32) (16.f - prev_frame_delta));
-			}
-		}
-		*/
+		// draw_next_frame @Incomplete 2025-03-14: unused
 
-		if draw_next_frame {
-			PollEvents();
-		} else {
-			WaitEventsTimeout(0.016);
-		}
-
+		handle_window_event_loop();
 		update_caret();
 
 		if shell.job_index == -1 {
@@ -977,13 +898,8 @@ main :: fn () s32 {
 			}
 		}
 
-		if draw_next_frame {
-			draw_next_frame = false;
-			update_mouse();
-			draw_frame();
-		}
-
-		scaling_changed = false;
+		// update_mouse(); @Incomplete 2025-03-14
+		draw_frame();
 
 		title: string_view;
 		if project.is_default {
@@ -995,10 +911,10 @@ main :: fn () s32 {
 		if !str_match(current_window_title, title) {
 			current_window_title.len = 0;
 			str_append(&current_window_title, title);
-			SetWindowTitle(window, auto strtoc(current_window_title));
+			set_window_title(current_window_title);
 		}
 
-		clear_mouse_events();
+		// clear_mouse_events(); @Incomplete 2025-03-14
 		prev_frame_delta = frame_delta_time;
 	}
 
@@ -1047,7 +963,7 @@ lookup_font :: fn (font_name: string_view) string_view {
 	return "";
 }
 
-rebuild_fonts :: fn () Error {
+rebuild_fonts :: fn (force := false) Error {
 	size := settings.font_size;
 	custom_font_path := "";
 	font_hash: u32 = 0;
@@ -1066,11 +982,10 @@ rebuild_fonts :: fn () Error {
 	}
 
 	assert(size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE);
-	if (size == auto font.size) && (scaling_changed == false) && (current_font_hash == font_hash) {
+	if !force && (size == auto font.size) && (current_font_hash == font_hash) {
 		return OK;
 	}
 
-	print_log("Scale = %", WINDOW_SCALE);
 	scaled_size :: cast(s32) math.round(WINDOW_SCALE * auto size);
 
 	draw.font_terminate(&font);
@@ -1897,6 +1812,9 @@ is_lmb_dragging :: fn {
 }
 
 set_mouse_cursor :: fn (cursor := MouseCursor.DEFAULT) #inline {
+	cursor;
+
+	/* @Incomplete 2025-03-14
 	if mouse.current_cursor == cursor { return; }
 	mouse.current_cursor = cursor;
 
@@ -1906,6 +1824,7 @@ set_mouse_cursor :: fn (cursor := MouseCursor.DEFAULT) #inline {
 		DEFAULT { SetCursor(window, null);              }
 		IBEAM   { SetCursor(window, mouse.beam_cursor); }
 	}
+	*/
 }
 
 caret: struct {
@@ -1990,7 +1909,6 @@ MAIN_THREAD_ID: u64;
 
 message: Message;
 debug_allocator: DebugAllocator;
-ignore_char_input: bool;
 draw_next_frame := true;
 
 // Might be changed when window is not focused.
@@ -2065,19 +1983,11 @@ draw_frame :: fn () {
 	}
 
 	flush();
-	glfw.SwapBuffers(window);
+	swap_buffers();
 	temporary_reset();
 }
 
-print_glfw_error :: fn () {
-	cstr: *u8;
-	glfw.GetError(&cstr);
-
-	if cstr == null { return; }
-	tmp := string_view.{ auto C.strlen(auto cstr), auto cstr };
-	print_err("GLFW Error: %", tmp);
-}
-
+/*
 key_callback :: fn (window: *glfw.Window, k: s32, _: s32, action: s32, mods: s32) {
 	using glfw;
 
@@ -2256,6 +2166,7 @@ drop_callback :: fn (_: *glfw.Window, count: s32, paths: **u8) {
 cursor_position_callback :: fn (_: *glfw.Window, _: f64, _: f64) {
 	redraw();
 }
+*/
 
 recalculate_metrics :: fn () {
 	using Metric;
@@ -2378,19 +2289,7 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 	}
 }
 
-set_icon :: fn () {
-	using glfw;
-	using draw;
-	image: Image;
-	bit_depth: u8;
-	format: TextureFormat;
-	err :: png_load_from_memory(APPLICATION_ICON_DATA, &image.pixels, auto &image.width, auto &image.height, &bit_depth, &format);
-	defer free(image.pixels);
-	if err { panic(err); }
-	images :: [1]Image.{ image };
-	SetWindowIcon(window, 1, images.ptr);
-}
-
+/*
 clear_mouse_events :: fn () {
 	mouse.scroll = 0.f;
 	using MouseState;
@@ -2401,11 +2300,10 @@ clear_mouse_events :: fn () {
 }
 
 update_mouse :: fn () {
-	using glfw;
 	using MouseState;
 
 	mpx, mpy: f64;
-	GetCursorPos(window, &mpx, &mpy);
+	glfw.GetCursorPos(window, &mpx, &mpy);
 
 	scale: f32;
 	#if PLATFORM == Platform.DARWIN {
@@ -2432,6 +2330,7 @@ update_mouse :: fn () {
 		mouse.drag_target_elem_id = 0;
 	}
 }
+*/
 
 update_caret :: fn () {
 	if !focused {

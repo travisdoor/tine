@@ -418,7 +418,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	if macros.is_recording && is_active {
 		color := colors.macro_record_icon_color;
-		color.w = (math.sin(cast(f32) glfw.GetTime() * 6.f) + 1.f) * 0.5f;
+		color.w = (math.sin(cast(f32) get_ticks() * 6.f) + 1.f) * 0.5f;
 		text(status_x, icon_y, icon(ICON_CIRCLE), color);
 		status_x += item_spacing;
 		redraw();

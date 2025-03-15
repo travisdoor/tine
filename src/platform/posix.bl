@@ -168,25 +168,6 @@ close_pipe :: fn (handle: *IoStream) {
 }
 
 //
-// Clipboard
-//
-
-init_clipboard :: fn () {
-}
-
-terminate_clipboard :: fn () {
-}
-
-read_clipboard :: fn () string_view {
-	tmp :: cast(*C.char)glfw.GetClipboardString(window);
-	return str_make(tmp, application_context.temporary_allocator);
-}
-
-write_clipboard :: fn (text: string_view) {
-	glfw.SetClipboardString(window, auto strtoc(text));
-}
-
-//
 // MISC
 //
 

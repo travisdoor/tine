@@ -255,8 +255,8 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 
 KeyMapEntry :: struct {
 	cmd:  Command;
-	mods: s32;
-	key:  s32;
+	mods: u32;
+	key:  u32;
 };
 
 key_binding: [..]KeyMapEntry;
@@ -357,6 +357,7 @@ lookup_command_keymap_index :: fn (cmd: Command, start_index := 0) s32 {
 }
 
 keymap_entry_to_string :: fn (keymap_index: s32) string_view {
+	/*
 	if keymap_index < 0 { return ""; }
 	e :: &key_binding[keymap_index];
 	if e.key < 0 { return ""; }
@@ -376,6 +377,10 @@ keymap_entry_to_string :: fn (keymap_index: s32) string_view {
 	if tmp.len > 0 { str_append(&tmp, "+"); }
 	str_append(&tmp, key_name(e.key));
 	return tmp;
+	*/
+	
+	keymap_index;
+	return "";
 }
 
 // Just to make it deferable;
@@ -722,7 +727,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
 		SUPPORT_ME               { support_me();                  }
-		QUIT                     { quit();                        }
+		QUIT                     { schedule_exit();               }
 
 		TOGGLE_MACRO_RECORDING {
 			if macros.is_recording {
@@ -1933,10 +1938,6 @@ clear_messages :: fn () {
 
 support_me :: fn () {
 	open_path("https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6");
-}
-
-quit :: fn () {
-	glfw.SetWindowShouldClose(window, 1);
 }
 
 open_file_location :: fn (buf: *Buffer) {

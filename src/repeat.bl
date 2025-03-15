@@ -8,11 +8,11 @@ repeat_mode_init :: fn () {
 
 	input_mode               = InputMode.NUMBERS;
 	notify_changes_to_buffer = buf.index;
-	
+
 	if settings.show_hints {
 		run_command_binding :: get_keybinding_for_command(Command.RUN_COMMAND);
 		cancel_binding :: get_keybinding_for_command(Command.CANCEL_MODE);
-		
+
 		hint :: tprint("[%] list commands\t[%] cancel\tOr execute any command using shortcut.", run_command_binding, cancel_binding);
 		print_info(hint);
 	}
@@ -54,9 +54,9 @@ invoke_command_repeat_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
 			set_mode(Mode.TEXT_EDIT);
 			if is_command_valid_for_repeating(cmd) {
 				target_buf, target_editor :: get_active_buffer_and_editor();
-				start_time := glfw.GetTime();
+				start_time := get_ticks();
 				loop i := 0; i < num; i += 1 {
-					if glfw.GetTime() - start_time > 5. {
+					if get_ticks() - start_time > 5. {
 						print_warn("Execution took too long, stopping now.");
 						break;
 					}

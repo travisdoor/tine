@@ -1,0 +1,340 @@
+WINDOW_WIDTH  := 800;
+WINDOW_HEIGHT := 600;
+WINDOW_SCALE  := 1.f;
+WINDOW_TITLE  :: "Tine"; // This is not Emacs
+
+window: *sdl.Window;
+
+SystemCursor :: *sdl.Cursor;
+
+init_window :: fn () {
+	using sdl;
+
+	if !SetHint(strtoc(HINT_VIDEO_DRIVER), strtoc("wayland, x11")) then print_warn("Cannot set % hint.", strtoc(HINT_VIDEO_DRIVER));
+	if !SetHint(strtoc(HINT_VIDEO_WAYLAND_PREFER_LIBDECOR), strtoc("1")) then print_warn("Cannot set % hint.", strtoc(HINT_VIDEO_WAYLAND_PREFER_LIBDECOR));
+
+	if !Init(INIT_VIDEO) then panic(sdl_last_error());
+
+	print_log("SDL Video: %", ctostr(sdl.GetCurrentVideoDriver()));
+
+	using GLAttr;
+	if !GL_SetAttribute(GL_CONTEXT_MAJOR_VERSION, 3) then panic(sdl_last_error());
+	if !GL_SetAttribute(GL_CONTEXT_MINOR_VERSION, 3) then panic(sdl_last_error());
+	if !GL_SetAttribute(GL_CONTEXT_PROFILE_MASK, GL_CONTEXT_PROFILE_CORE) then panic(sdl_last_error());
+	if !GL_SetAttribute(GL_DOUBLEBUFFER, 1) then panic(sdl_last_error());
+
+	// @Incomplete 2025-03-14
+	// size limit
+	// samples 2x
+
+	window = CreateWindow(strtoc(WINDOW_TITLE), WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_RESIZABLE | WINDOW_OPENGL | WINDOW_HIGH_PIXEL_DENSITY);
+	if (!window) then panic(sdl_last_error());
+
+	set_icon();
+
+	if !sdl.EnableScreenSaver() then print_err(sdl_last_error());
+
+	if !GetWindowSizeInPixels(window, &WINDOW_WIDTH, &WINDOW_HEIGHT) then print_err(sdl_last_error());
+	print_log("Window size: %x%", WINDOW_WIDTH, WINDOW_HEIGHT);
+
+	WINDOW_SCALE = GetWindowDisplayScale(window);
+	print_log("Window scale: %", WINDOW_SCALE);
+
+	gctx :: GL_CreateContext(window);
+	if !gctx then panic(sdl_last_error());
+	if !GL_MakeCurrent(window, gctx) then panic(sdl_last_error());
+
+	if !GL_SetSwapInterval(1) then print_err(sdl_last_error());
+	if !StartTextInput(window) then panic(sdl_last_error());
+}
+
+terminate_window :: fn () {
+	using sdl;
+
+	GL_DestroyContext(GL_GetCurrentContext());
+	DestroyWindow(window);
+	Quit();
+}
+
+handle_window_event_loop :: fn () {
+	using sdl;
+
+	event: Event;
+	loop PollEvent(&event) {
+		using EventType;
+		switch event.type {
+			EVENT_QUIT { schedule_exit(); }
+
+			EVENT_WINDOW_RESIZED, EVENT_WINDOW_PIXEL_SIZE_CHANGED {
+				GetWindowSizeInPixels(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
+				draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+				if event.type == EVENT_WINDOW_PIXEL_SIZE_CHANGED {
+					WINDOW_SCALE = GetWindowDisplayScale(window);
+					rebuild_fonts(true);
+				}
+			}
+
+			EVENT_KEY_DOWN {
+
+				VALID_MOD_KEY_MASK :: KMOD_CTRL | KMOD_SHIFT | KMOD_ALT | KMOD_GUI;
+
+				key  :: event.key.key;
+				mod  := event.key.mod & VALID_MOD_KEY_MASK;
+
+				if (mod & KMOD_CTRL)  != 0 then mod |= KMOD_CTRL;
+				if (mod & KMOD_SHIFT) != 0 then mod |= KMOD_SHIFT;
+				if (mod & KMOD_ALT)   != 0 then mod |= KMOD_ALT;
+				if (mod & KMOD_GUI)   != 0 then mod |= KMOD_GUI;
+
+				reset_caret_blinking();
+				if is_lmb_dragging() then return;
+				redirect_to_character_input := false;
+				loop i := 0; i < key_binding.len; i += 1 {
+					m :: &key_binding[i];
+					if m.mods != mod then continue;
+					// @Incomplete 2025-03-15: Move this directly to text handling event.
+					// Special case for repeat command which is invoked directly when modifier key + number is pressed.
+					// This way we can repeat commands more ergonomically without too much keystrokes.
+					if key >= K_0 && key <= K_9 && m.cmd == Command.REPEAT {
+						redirect_to_character_input = true;
+						if mode == Mode.REPEAT then break;
+					} else if m.key != key {
+						continue;
+					}
+
+					buf, editor :: get_active_buffer_and_editor();
+					clear_message();
+					if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+					// error_marker_visible = false;
+					invoke_command(editor, buf, m.cmd);
+
+					break;
+				}
+				if redirect_to_character_input {
+					keep_last_message = true;
+					// character_callback(window, auto k); // @Incomplete
+					keep_last_message = false;
+				}
+			}
+
+			EVENT_TEXT_INPUT {
+				if is_lmb_dragging() then continue;
+
+				IGNORE_MOD_KEY_MASK :: KMOD_CTRL | KMOD_ALT | KMOD_GUI;
+				if (GetModState() & IGNORE_MOD_KEY_MASK) != 0 then continue;
+
+				text :: ctostr(event.text.text);
+				if text.len < 1 then continue; // just in case
+				if input_mode == InputMode.NUMBERS && (text[0] < '0' || text[0] > '9') then continue;
+
+				// redraw(); @Incomplete
+				reset_caret_blinking();
+
+				clear_message();
+				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+
+				buf, editor :: get_active_buffer_and_editor();
+				if maybe_report_readonly(buf) then return;
+
+				cut_selection(editor, buf, editor.index != command_editor);
+
+				position := get_cursor_position(buf, editor.cursor_index);
+				if has_indentation_info(buf) && is_row_empty(buf, position) {
+					indent_range(buf, position, position);
+				}
+
+				position = get_cursor_position(buf, editor.cursor_index);
+				insert_string(buf, position, text);
+
+				if has_indentation_info(buf) && str_match(FILE_TYPE_REINDENT_ON[auto buf.file_type], text) {
+					indent_range(buf, position, position);
+				}
+
+				set_prev_executed_command(Command.UNKNOWN);
+
+				if macros.is_recording {
+					// @Note 2025-03-15: We might have to adjust macro recording to store utf8 chars, but this was
+					//                   faster to implement during migration to SDL...
+					char :: utf8_to_utf32_single_char(text) catch print_err($);
+					add_macro_record(char);
+				}
+			}
+
+			default;
+		}
+	}
+
+}
+
+schedule_exit :: fn () {
+	running = false;
+}
+
+get_ticks :: fn () f64 #inline {
+	ms :: sdl.GetTicks();
+	return cast(f64)ms / 1000.;
+}
+
+swap_buffers :: fn () #inline {
+	sdl.GL_SwapWindow(window);
+}
+
+maximize_window :: fn () #inline {
+	if !sdl.MaximizeWindow(window) then print_err(sdl_last_error());
+}
+
+is_running :: fn () bool #inline {
+	return running;
+}
+
+set_window_title :: fn (title: string_view) #inline {
+	if !sdl.SetWindowTitle(window, strtoc(title)) then print_err(sdl_last_error());
+}
+
+//
+// Clipboard
+//
+
+read_clipboard :: fn () string_view {
+	using sdl;
+
+	if !HasClipboardText() then return "";
+	cstr :: GetClipboardText();
+	defer sdl.free(auto cstr);
+	return str_make(cstr, application_context.temporary_allocator);
+}
+
+write_clipboard :: fn (text: string_view) {
+	using sdl;
+
+	if text.len < 1 then return;
+	SetClipboardText(strtoc(text));
+}
+
+
+//
+// Key names
+//
+
+key_name :: fn (code: u32) string_view {
+	if code >= cast(u32) '!' && code <= cast(u32) '~' && code != cast(u32) ';' {
+		c :: auto C.toupper(auto code);
+		return tprint("%", string_view.{ 1, auto &c });
+	}
+	loop i := 0; i < KEYCODE_TO_NAME.len; i += 1 {
+		if KEYCODE_TO_NAME[i].code == code {
+			return KEYCODE_TO_NAME[i].name;
+		}
+	}
+	return "";
+}
+
+key_from_name :: fn (name: string_view) u32 {
+	using sdl;
+
+	if name.len == 1 {
+		code := cast(s32) name[0];
+		if code >= cast(s32) '!' && code <= cast(s32) '~' && code != cast(s32) ';' {
+			return auto C.tolower(code);
+		}
+	}
+	loop i := 0; i < KEYCODE_TO_NAME.len; i += 1 {
+		if str_match_ignore_case(KEYCODE_TO_NAME[i].name, name) {
+			return KEYCODE_TO_NAME[i].code;
+		}
+	}
+
+	return K_UNKNOWN;
+}
+
+mod_name :: fn (mod: u32) string_view {
+	using sdl;
+
+	switch mod {
+		KMOD_SHIFT      { return "Shift";    }
+		KMOD_CTRL       { return "Ctrl";     }
+		KMOD_ALT        { return "Alt";      }
+		KMOD_GUI        { return "Super";    }
+		KMOD_CAPS       { return "CapsLock"; }
+		KMOD_NUM        { return "NumLock";  }
+		default;
+	}
+	return "";
+}
+
+mod_from_name :: fn (mod: string_view) u32 {
+	using sdl;
+
+	if str_match_ignore_case(mod, "alt")      { return KMOD_ALT;      }
+	if str_match_ignore_case(mod, "ctrl")     { return KMOD_CTRL;     }
+	if str_match_ignore_case(mod, "shift")    { return KMOD_SHIFT;    }
+	if str_match_ignore_case(mod, "super")    { return KMOD_GUI;      }
+	if str_match_ignore_case(mod, "numlock")  { return KMOD_NUM;      }
+	if str_match_ignore_case(mod, "capslock") { return KMOD_CAPS;     }
+
+	return KMOD_NONE;
+}
+
+#scope_private
+
+sdl :: #import "sdl3";
+
+running := true;
+
+sdl_last_error :: fn () Error #inline {
+	return error(ctostr(sdl.GetError()));
+}
+
+set_icon :: fn () {
+	/*
+	using glfw;
+	using draw;
+	image: Image;
+	bit_depth: u8;
+	format: TextureFormat;
+	err :: png_load_from_memory(APPLICATION_ICON_DATA, &image.pixels, auto &image.width, auto &image.height, &bit_depth, &format);
+	defer free(image.pixels);
+	if err { panic(err); }
+	images :: [1]Image.{ image };
+	SetWindowIcon(window, 1, images.ptr);
+	*/
+}
+
+KeyName :: struct { code: sdl.Keycode; name: string_view };
+
+KEYCODE_TO_NAME :: [_]KeyName.{
+	.{ sdl.K_SEMICOLON    ,"Semicolon"   },
+	.{ sdl.K_SPACE        ,"Space"       },
+	.{ sdl.K_ESCAPE       ,"Escape"      },
+	.{ sdl.K_RETURN       ,"Enter"       },
+	.{ sdl.K_TAB          ,"Tab"         },
+	.{ sdl.K_BACKSPACE    ,"Backspace"   },
+	.{ sdl.K_INSERT       ,"Insert"      },
+	.{ sdl.K_DELETE       ,"Delete"      },
+	.{ sdl.K_RIGHT        ,"ArrowRight"  },
+	.{ sdl.K_LEFT         ,"ArrowLeft"   },
+	.{ sdl.K_DOWN         ,"ArrowDown"   },
+	.{ sdl.K_UP           ,"ArrowUp"     },
+	.{ sdl.K_PAGEUP       ,"PageUp"      },
+	.{ sdl.K_PAGEDOWN     ,"PageDown"    },
+	.{ sdl.K_HOME         ,"Home"        },
+	.{ sdl.K_END          ,"End"         },
+	.{ sdl.K_CAPSLOCK     ,"CapsLock"    },
+	.{ sdl.K_SCROLLLOCK   ,"ScrollLock"  },
+	.{ sdl.K_NUMLOCKCLEAR ,"NumLock"     },
+	.{ sdl.K_PRINTSCREEN  ,"PrintScreen" },
+	.{ sdl.K_PAUSE        ,"Pause"       },
+	.{ sdl.K_F1           ,"F1"          },
+	.{ sdl.K_F2           ,"F2"          },
+	.{ sdl.K_F3           ,"F3"          },
+	.{ sdl.K_F4           ,"F4"          },
+	.{ sdl.K_F5           ,"F5"          },
+	.{ sdl.K_F6           ,"F6"          },
+	.{ sdl.K_F7           ,"F7"          },
+	.{ sdl.K_F8           ,"F8"          },
+	.{ sdl.K_F9           ,"F9"          },
+	.{ sdl.K_F10          ,"F10"         },
+	.{ sdl.K_F11          ,"F11"         },
+	.{ sdl.K_F12          ,"F12"         },
+};
