@@ -475,7 +475,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	if mouse.last_hover_elem_id == loc.hash {
 		if is_point_in_rect(x, y, w, h-title_bar_height, mouse.position.x, mouse.position.y) {
-			set_mouse_cursor(MouseCursor.IBEAM);
+			set_cursor(CursorShape.IBEAM);
 
 			if is_lmb_press() {
 				set_mode(Mode.TEXT_EDIT);
@@ -513,7 +513,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 		} else {
 			// Title bar area...
-			set_mouse_cursor();
+			set_cursor();
 		}
 	}
 
@@ -646,7 +646,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	}
 	if mouse.last_hover_elem_id == loc.hash {
 		if is_point_in_rect(text_x, y, w, h, mouse.position.x, mouse.position.y) {
-			set_mouse_cursor(MouseCursor.IBEAM);
+			set_cursor(CursorShape.IBEAM);
 			if is_lmb_press() {
 				// Calculate the position of cursor in the text based on the click position.
 				line :: peek_row(buf, 0);
@@ -656,7 +656,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 			}
 		} else {
 			// Title bar area...
-			set_mouse_cursor();
+			set_cursor();
 		}
 	}
 }

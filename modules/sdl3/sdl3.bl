@@ -3,6 +3,8 @@ GLContext :: *u8;
 WindowID :: u32;
 Cursor :: u8;
 KeyboardID :: u32;
+MouseID :: u32;
+Surface :: u8;
 
 HINT_VIDEO_DRIVER :: "SDL_VIDEO_DRIVER";
 HINT_VIDEO_WAYLAND_PREFER_LIBDECOR :: "SDL_VIDEO_WAYLAND_PREFER_LIBDECOR";
@@ -786,6 +788,9 @@ Event :: union {
 	key: KeyboardEvent;
 	edit: TextEditingEvent;
 	text: TextInputEvent;
+	button: MouseButtonEvent;
+	wheel: MouseWheelEvent;
+	drop: DropEvent;
 	_: [128]u8;
 }
 
@@ -828,6 +833,49 @@ TextInputEvent :: struct {
 	timestamp: u64;      /**< In nanoseconds, populated using SDL_GetTicksNS() */
 	windowID: WindowID;  /**< The window with keyboard focus, if any */
 	text: *C.char;       /**< The input text, UTF-8 encoded */
+}
+
+MouseButtonEvent :: struct {
+	type: EventType;
+	reserved: u32;
+	timestamp: u64;      /**< In nanoseconds, populated using SDL_GetTicksNS() */
+	windowID: WindowID;  /**< The window with keyboard focus, if any */
+	which: MouseID;  /**< The mouse instance id in relative mode, SDL_TOUCH_MOUSEID for touch events, or 0 */
+	button: u8;       /**< The mouse button index */
+	down: bool;          /**< true if the button is pressed */
+	clicks: u8;       /**< 1 for single-click, 2 for double-click, etc. */
+	_: u8;
+	x: f32;            /**< X coordinate, relative to window */
+	y: f32;            /**< Y coordinate, relative to window */
+}
+
+MouseWheelDirection :: enum {
+	MOUSEWHEEL_NORMAL;    /**< The scroll direction is normal */
+	MOUSEWHEEL_FLIPPED    /**< The scroll direction is flipped / natural */
+}
+
+MouseWheelEvent :: struct {
+	type: EventType;
+	reserved: u32;
+	timestamp: u64;      /**< In nanoseconds, populated using SDL_GetTicksNS() */
+	windowID: WindowID;  /**< The window with keyboard focus, if any */
+	which: MouseID;  /**< The mouse instance id in relative mode, SDL_TOUCH_MOUSEID for touch events, or 0 */
+	x: f32;            /**< The amount scrolled horizontally, positive to the right and negative to the left */
+	y: f32;            /**< The amount scrolled vertically, positive away from the user and negative toward the user */
+	direction: MouseWheelDirection; /**< Set to one of the SDL_MOUSEWHEEL_* defines. When FLIPPED the values in X and Y will be opposite. Multiply by -1 to change them back */
+	mouse_x: f32;      /**< X coordinate, relative to window */
+	mouse_y: f32;      /**< Y coordinate, relative to window */
+}
+
+DropEvent :: struct {
+	type: EventType;
+	reserved: u32;
+	timestamp: u64;      /**< In nanoseconds, populated using SDL_GetTicksNS() */
+	windowID: WindowID;  /**< The window with keyboard focus, if any */
+	x: f32;            /**< X coordinate, relative to window (not on begin) */
+	y: f32;            /**< Y coordinate, relative to window (not on begin) */
+	source: *C.char; /**< The source app that sent this drop event, or NULL if that isn't available */
+	data: *C.char;   /**< The text for SDL_EVENT_DROP_TEXT and the file name for SDL_EVENT_DROP_FILE, NULL for other events */
 }
 
 EventType :: enum u32 {
@@ -1049,11 +1097,163 @@ SystemCursor :: enum {
 	SYSTEM_CURSOR_W_RESIZE;     /**< Window resize left. May be EW_RESIZE. */
 }
 
+MouseButtonFlags :: u32;
+
+BUTTON_LEFT : u8 :     1;
+BUTTON_MIDDLE : u8 :   2;
+BUTTON_RIGHT : u8 :    3;
+BUTTON_X1 : u8 :       4;
+BUTTON_X2 : u8 :       5;
+
+PixelFormat :: enum {
+	PIXELFORMAT_UNKNOWN = 0;
+	PIXELFORMAT_INDEX1LSB = 0x11100100;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX1, BITMAPORDER_4321, 0, 1, 0), */
+	PIXELFORMAT_INDEX1MSB = 0x11200100;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX1, BITMAPORDER_1234, 0, 1, 0), */
+	PIXELFORMAT_INDEX2LSB = 0x1c100200;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX2, BITMAPORDER_4321, 0, 2, 0), */
+	PIXELFORMAT_INDEX2MSB = 0x1c200200;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX2, BITMAPORDER_1234, 0, 2, 0), */
+	PIXELFORMAT_INDEX4LSB = 0x12100400;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX4, BITMAPORDER_4321, 0, 4, 0), */
+	PIXELFORMAT_INDEX4MSB = 0x12200400;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX4, BITMAPORDER_1234, 0, 4, 0), */
+	PIXELFORMAT_INDEX8 = 0x13000801;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_INDEX8, 0, 0, 8, 1), */
+	PIXELFORMAT_RGB332 = 0x14110801;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED8, PACKEDORDER_XRGB, PACKEDLAYOUT_332, 8, 1), */
+	PIXELFORMAT_XRGB4444 = 0x15120c02;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_XRGB, PACKEDLAYOUT_4444, 12, 2), */
+	PIXELFORMAT_XBGR4444 = 0x15520c02;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_XBGR, PACKEDLAYOUT_4444, 12, 2), */
+	PIXELFORMAT_XRGB1555 = 0x15130f02;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_XRGB, PACKEDLAYOUT_1555, 15, 2), */
+	PIXELFORMAT_XBGR1555 = 0x15530f02;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_XBGR, PACKEDLAYOUT_1555, 15, 2), */
+	PIXELFORMAT_ARGB4444 = 0x15321002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_ARGB, PACKEDLAYOUT_4444, 16, 2), */
+	PIXELFORMAT_RGBA4444 = 0x15421002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_RGBA, PACKEDLAYOUT_4444, 16, 2), */
+	PIXELFORMAT_ABGR4444 = 0x15721002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_ABGR, PACKEDLAYOUT_4444, 16, 2), */
+	PIXELFORMAT_BGRA4444 = 0x15821002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_BGRA, PACKEDLAYOUT_4444, 16, 2), */
+	PIXELFORMAT_ARGB1555 = 0x15331002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_ARGB, PACKEDLAYOUT_1555, 16, 2), */
+	PIXELFORMAT_RGBA5551 = 0x15441002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_RGBA, PACKEDLAYOUT_5551, 16, 2), */
+	PIXELFORMAT_ABGR1555 = 0x15731002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_ABGR, PACKEDLAYOUT_1555, 16, 2), */
+	PIXELFORMAT_BGRA5551 = 0x15841002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_BGRA, PACKEDLAYOUT_5551, 16, 2), */
+	PIXELFORMAT_RGB565 = 0x15151002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_XRGB, PACKEDLAYOUT_565, 16, 2), */
+	PIXELFORMAT_BGR565 = 0x15551002;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED16, PACKEDORDER_XBGR, PACKEDLAYOUT_565, 16, 2), */
+	PIXELFORMAT_RGB24 = 0x17101803;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU8, ARRAYORDER_RGB, 0, 24, 3), */
+	PIXELFORMAT_BGR24 = 0x17401803;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU8, ARRAYORDER_BGR, 0, 24, 3), */
+	PIXELFORMAT_XRGB8888 = 0x16161804;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_XRGB, PACKEDLAYOUT_8888, 24, 4), */
+	PIXELFORMAT_RGBX8888 = 0x16261804;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_RGBX, PACKEDLAYOUT_8888, 24, 4), */
+	PIXELFORMAT_XBGR8888 = 0x16561804;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_XBGR, PACKEDLAYOUT_8888, 24, 4), */
+	PIXELFORMAT_BGRX8888 = 0x16661804;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_BGRX, PACKEDLAYOUT_8888, 24, 4), */
+	PIXELFORMAT_ARGB8888 = 0x16362004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_ARGB, PACKEDLAYOUT_8888, 32, 4), */
+	PIXELFORMAT_RGBA8888 = 0x16462004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_RGBA, PACKEDLAYOUT_8888, 32, 4), */
+	PIXELFORMAT_ABGR8888 = 0x16762004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_ABGR, PACKEDLAYOUT_8888, 32, 4), */
+	PIXELFORMAT_BGRA8888 = 0x16862004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_BGRA, PACKEDLAYOUT_8888, 32, 4), */
+	PIXELFORMAT_XRGB2101010 = 0x16172004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_XRGB, PACKEDLAYOUT_2101010, 32, 4), */
+	PIXELFORMAT_XBGR2101010 = 0x16572004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_XBGR, PACKEDLAYOUT_2101010, 32, 4), */
+	PIXELFORMAT_ARGB2101010 = 0x16372004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_ARGB, PACKEDLAYOUT_2101010, 32, 4), */
+	PIXELFORMAT_ABGR2101010 = 0x16772004;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_PACKED32, PACKEDORDER_ABGR, PACKEDLAYOUT_2101010, 32, 4), */
+	PIXELFORMAT_RGB48 = 0x18103006;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU16, ARRAYORDER_RGB, 0, 48, 6), */
+	PIXELFORMAT_BGR48 = 0x18403006;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU16, ARRAYORDER_BGR, 0, 48, 6), */
+	PIXELFORMAT_RGBA64 = 0x18204008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU16, ARRAYORDER_RGBA, 0, 64, 8), */
+	PIXELFORMAT_ARGB64 = 0x18304008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU16, ARRAYORDER_ARGB, 0, 64, 8), */
+	PIXELFORMAT_BGRA64 = 0x18504008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU16, ARRAYORDER_BGRA, 0, 64, 8), */
+	PIXELFORMAT_ABGR64 = 0x18604008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYU16, ARRAYORDER_ABGR, 0, 64, 8), */
+	PIXELFORMAT_RGB48_FLOAT = 0x1a103006;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF16, ARRAYORDER_RGB, 0, 48, 6), */
+	PIXELFORMAT_BGR48_FLOAT = 0x1a403006;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF16, ARRAYORDER_BGR, 0, 48, 6), */
+	PIXELFORMAT_RGBA64_FLOAT = 0x1a204008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF16, ARRAYORDER_RGBA, 0, 64, 8), */
+	PIXELFORMAT_ARGB64_FLOAT = 0x1a304008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF16, ARRAYORDER_ARGB, 0, 64, 8), */
+	PIXELFORMAT_BGRA64_FLOAT = 0x1a504008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF16, ARRAYORDER_BGRA, 0, 64, 8), */
+	PIXELFORMAT_ABGR64_FLOAT = 0x1a604008;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF16, ARRAYORDER_ABGR, 0, 64, 8), */
+	PIXELFORMAT_RGB96_FLOAT = 0x1b10600c;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF32, ARRAYORDER_RGB, 0, 96, 12), */
+	PIXELFORMAT_BGR96_FLOAT = 0x1b40600c;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF32, ARRAYORDER_BGR, 0, 96, 12), */
+	PIXELFORMAT_RGBA128_FLOAT = 0x1b208010;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF32, ARRAYORDER_RGBA, 0, 128, 16), */
+	PIXELFORMAT_ARGB128_FLOAT = 0x1b308010;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF32, ARRAYORDER_ARGB, 0, 128, 16), */
+	PIXELFORMAT_BGRA128_FLOAT = 0x1b508010;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF32, ARRAYORDER_BGRA, 0, 128, 16), */
+	PIXELFORMAT_ABGR128_FLOAT = 0x1b608010;
+	/* DEFINE_PIXELFORMAT(PIXELTYPE_ARRAYF32, ARRAYORDER_ABGR, 0, 128, 16), */
+
+	PIXELFORMAT_YV12 = 0x32315659;      /**< Planar mode: Y + V + U  (3 planes) */
+	/* DEFINE_PIXELFOURCC('Y', 'V', '1', '2'), */
+	PIXELFORMAT_IYUV = 0x56555949;      /**< Planar mode: Y + U + V  (3 planes) */
+	/* DEFINE_PIXELFOURCC('I', 'Y', 'U', 'V'), */
+	PIXELFORMAT_YUY2 = 0x32595559;      /**< Packed mode: Y0+U0+Y1+V0 (1 plane) */
+	/* DEFINE_PIXELFOURCC('Y', 'U', 'Y', '2'), */
+	PIXELFORMAT_UYVY = 0x59565955;      /**< Packed mode: U0+Y0+V0+Y1 (1 plane) */
+	/* DEFINE_PIXELFOURCC('U', 'Y', 'V', 'Y'), */
+	PIXELFORMAT_YVYU = 0x55595659;      /**< Packed mode: Y0+V0+Y1+U0 (1 plane) */
+	/* DEFINE_PIXELFOURCC('Y', 'V', 'Y', 'U'), */
+	PIXELFORMAT_NV12 = 0x3231564e;      /**< Planar mode: Y + U/V interleaved  (2 planes) */
+	/* DEFINE_PIXELFOURCC('N', 'V', '1', '2'), */
+	PIXELFORMAT_NV21 = 0x3132564e;      /**< Planar mode: Y + V/U interleaved  (2 planes) */
+	/* DEFINE_PIXELFOURCC('N', 'V', '2', '1'), */
+	PIXELFORMAT_P010 = 0x30313050;      /**< Planar mode: Y + U/V interleaved  (2 planes) */
+	/* DEFINE_PIXELFOURCC('P', '0', '1', '0'), */
+	PIXELFORMAT_EXTERNAL_OES = 0x2053454f;     /**< Android video texture format */
+	/* DEFINE_PIXELFOURCC('O', 'E', 'S', ' ') */
+
+	PIXELFORMAT_MJPG = 0x47504a4d;     /**< Motion JPEG */
+	/* DEFINE_PIXELFOURCC('M', 'J', 'P', 'G') */
+
+	PIXELFORMAT_RGBA32 = PIXELFORMAT_ABGR8888;
+	PIXELFORMAT_ARGB32 = PIXELFORMAT_BGRA8888;
+	PIXELFORMAT_BGRA32 = PIXELFORMAT_ARGB8888;
+	PIXELFORMAT_ABGR32 = PIXELFORMAT_RGBA8888;
+	PIXELFORMAT_RGBX32 = PIXELFORMAT_XBGR8888;
+	PIXELFORMAT_XRGB32 = PIXELFORMAT_BGRX8888;
+	PIXELFORMAT_BGRX32 = PIXELFORMAT_XRGB8888;
+	PIXELFORMAT_XBGR32 = PIXELFORMAT_RGBX8888;
+}
+
 Init :: fn (flags: InitFlags) bool #extern "SDL_Init";
 Quit :: fn () #extern "SDL_Quit";
 CreateWindow :: fn (title: *C.char, w: s32, h: s32, flags: WindowFlags) *Window #extern "SDL_CreateWindow";
 DestroyWindow :: fn (window: *Window) #extern "SDL_DestroyWindow";
 PollEvent :: fn (event: *Event) bool #extern "SDL_PollEvent";
+WaitEventTimeout :: fn (event: *Event, timeoutMS: s32) bool #extern "SDL_WaitEventTimeout";
 SetHint :: fn (name: *C.char, value: *C.char) bool #extern "SDL_SetHint";
 GL_SetAttribute :: fn (attr: GLAttr, value: s32) bool #extern "SDL_GL_SetAttribute";
 GL_GetAttribute :: fn (attr: GLAttr, value: *s32) bool #extern "SDL_GL_GetAttribute";
@@ -1081,6 +1281,14 @@ GL_SetSwapInterval :: fn (interval: s32) bool #extern "SDL_GL_SetSwapInterval";
 MaximizeWindow :: fn (window: *Window) bool #extern "SDL_MaximizeWindow";
 StartTextInput :: fn (window: *Window) bool #extern "SDL_StartTextInput";
 GetModState :: fn () Keymod #extern "SDL_GetModState";
+GetMouseState :: fn (x: *f32, y: *f32) MouseButtonFlags #extern "SDL_GetMouseState";
+
+EventFilter :: *fn (userdata: *u8, event: *Event) bool;
+AddEventWatch :: fn (filter: EventFilter, userdata: *u8 = null) bool #extern "SDL_AddEventWatch";
+
+CreateSurfaceFrom :: fn (width: s32, height: s32, format: PixelFormat, pixels: *u8, pitch: s32) *Surface #extern "SDL_CreateSurfaceFrom";
+DestroySurface :: fn (surface: *Surface) #extern "SDL_DestroySurface";
+SetWindowIcon :: fn (window: *Window, icon: *Surface) bool #extern "SDL_SetWindowIcon";
 
 #scope_module
 C :: #import "libc";

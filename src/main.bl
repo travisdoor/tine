@@ -591,42 +591,6 @@ exec_dir: string_view;
 // Path where to store projects folder and default config, same as exec_dir on Windows.
 data_dir: string;
 
-//
-// Mouse
-//
-
-MouseState :: enum #flags {
-	LB_PRESS;
-	LB_DOWN;
-	LB_RELEASE;
-	LB_DBL_PRESS;
-	LB_DRAGGING_START;
-	LB_DRAGGING;
-}
-
-MouseCursor :: enum {
-	DEFAULT;
-	IBEAM;
-}
-
-mouse: struct {
-	position: v2;
-	scroll:   f32;
-
-	last_hover_elem_id:  u32;
-	hover_elem_id:       u32;
-	drag_target_elem_id: u32;
-
-	state: MouseState;
-
-	current_cursor: MouseCursor;
-	beam_cursor:    SystemCursor;
-
-	prev_mouse_pos: v2;
-	prev_lmb_pos:   v2;
-	prev_click_time_s: f64;
-};
-
 main :: fn () s32 {
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
@@ -801,12 +765,6 @@ main :: fn () s32 {
 	assert(left != -1);
 	assert(active_editor != -1);
 
-	// cursors
-	/* @Incomplete 2025-03-14
-	mouse.beam_cursor = glfw.CreateStandardCursor(glfw.IBEAM_CURSOR);
-	defer glfw.DestroyCursor(mouse.beam_cursor);
-	*/
-
 	prev_time := get_ticks();
 	prev_frame_delta := -1.f #maybe_unused;
 
@@ -916,6 +874,7 @@ main :: fn () s32 {
 
 		// clear_mouse_events(); @Incomplete 2025-03-14
 		prev_frame_delta = frame_delta_time;
+		temporary_reset();
 	}
 
 	// Terminate any possible active mode.
@@ -1811,22 +1770,6 @@ is_lmb_dragging :: fn {
 	};
 }
 
-set_mouse_cursor :: fn (cursor := MouseCursor.DEFAULT) #inline {
-	cursor;
-
-	/* @Incomplete 2025-03-14
-	if mouse.current_cursor == cursor { return; }
-	mouse.current_cursor = cursor;
-
-	using MouseCursor;
-	using glfw;
-	switch cursor {
-		DEFAULT { SetCursor(window, null);              }
-		IBEAM   { SetCursor(window, mouse.beam_cursor); }
-	}
-	*/
-}
-
 caret: struct {
 	visible:    bool;
 	blink_t:    f32;
@@ -1899,8 +1842,12 @@ calculate_line_offsets :: fn (text: string_view, fit_to_width: f32, font: *draw.
 }
 
 redraw :: fn () {
-	if minimized then return;
+	if is_minimized() then return;
 	draw_next_frame = true;
+}
+
+redraw_immediatelly :: fn () #maybe_unused {
+	draw_frame();
 }
 
 #scope_private
@@ -1910,10 +1857,6 @@ MAIN_THREAD_ID: u64;
 message: Message;
 debug_allocator: DebugAllocator;
 draw_next_frame := true;
-
-// Might be changed when window is not focused.
-minimized: bool;
-focused := true;
 
 draw_frame :: fn () {
 	using draw;
@@ -1984,7 +1927,6 @@ draw_frame :: fn () {
 
 	flush();
 	swap_buffers();
-	temporary_reset(); // @Incomplete 2025-03-15: Should be called in main loop!!!
 }
 
 /*
@@ -2110,62 +2052,6 @@ mouse_button_callback :: fn (_: *glfw.Window, button: s32, action: s32, _: s32) 
 	}
 }
 
-scroll_callback :: fn (_: *glfw.Window, _: f64, yoff: f64) {
-	reset_caret_blinking();
-	mouse.scroll += auto yoff;
-	clear_message();
-	redraw();
-	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
-}
-
-window_iconify_callback :: fn (_: *glfw.Window, iconified: s32) {
-	minimized = iconified != 0;
-}
-
-window_size_callback :: fn (_: *glfw.Window, _: s32, _: s32) {
-	glfw.GetFramebufferSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
-	draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
-
-	// Hide any possible completion popup.
-	if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
-
-	draw_frame();
-}
-
-window_scale_callback :: fn (_: *glfw.Window, xscale: f32, _: f32) {
-	WINDOW_SCALE = xscale;
-	scaling_changed = true;
-	rebuild_fonts();
-	draw_frame();
-}
-
-window_focus_callback :: fn (_: *glfw.Window, f: s32) {
-	redraw();
-	if f > 0 {
-		focused = true;
-		reset_caret_blinking();
-	} else {
-		focused = false;
-		stop_macro_recording();
-		print_log("Focus out!");
-	}
-}
-
-drop_callback :: fn (_: *glfw.Window, count: s32, paths: **u8) {
-	p :: []*u8.{ count, paths };
-	loop i := 0; i < p.len; i += 1 {
-		filepath :: ctostr(auto p[i]);
-		buf_error :: open(filepath);
-		if buf_error {
-			print_err(buf_error);
-		}
-	}
-	redraw();
-}
-
-cursor_position_callback :: fn (_: *glfw.Window, _: f64, _: f64) {
-	redraw();
-}
 */
 
 recalculate_metrics :: fn () {
@@ -2290,50 +2176,11 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 }
 
 /*
-clear_mouse_events :: fn () {
-	mouse.scroll = 0.f;
-	using MouseState;
-	clr_flag(&mouse.state, LB_PRESS);
-	clr_flag(&mouse.state, LB_RELEASE);
-	clr_flag(&mouse.state, LB_DRAGGING_START);
-	clr_flag(&mouse.state, LB_DBL_PRESS);
-}
 
-update_mouse :: fn () {
-	using MouseState;
-
-	mpx, mpy: f64;
-	glfw.GetCursorPos(window, &mpx, &mpy);
-
-	scale: f32;
-	#if PLATFORM == Platform.DARWIN {
-		GetWindowContentScale(window, &scale, null);
-	} else {
-		scale = 1.f;
-	}
-
-	mouse.position.x = (cast(f32) mpx) * scale;
-	mouse.position.y = (cast(f32) mpy) * scale;
-	mouse.last_hover_elem_id = mouse.hover_elem_id;
-	mouse.hover_elem_id = 0;
-
-	if is_lmb_press() {
-		mouse.prev_mouse_pos = mouse.position;
-	}
-
-	if is_lmb_down() && is_lmb_dragging() == false && distance(mouse.position, mouse.prev_mouse_pos) > MOUSE_DRAG_OFFSET {
-		mouse.state |= LB_DRAGGING | LB_DRAGGING_START;
-		mouse.drag_target_elem_id = mouse.last_hover_elem_id;
-	}
-	if is_lmb_release() {
-		clr_flag(&mouse.state, LB_DRAGGING);
-		mouse.drag_target_elem_id = 0;
-	}
-}
 */
 
 update_caret :: fn () {
-	if !focused {
+	if !is_focused() {
 		caret.visible = true;
 		return;
 	}

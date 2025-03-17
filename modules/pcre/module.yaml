@@ -8,7 +8,7 @@ x86_64-pc-windows-msvc:
 
 arm64-apple-darwin:
   linker_lib_path: "macos"
-  linker_opt: "-lpcre2-8"
+  link: "pcre2-8"
   
 x86_64-pc-linux-gnu:
   linker_lib_path: "linux"

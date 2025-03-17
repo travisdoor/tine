@@ -229,7 +229,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 
 	clicked := false;
 	if mouse.last_hover_elem_id == loc.hash {
-		set_mouse_cursor();
+		set_cursor();
 		if is_lmb_press() && hover_index != -1 {
 			clicked        = true;
 			selected_index = hover_index;

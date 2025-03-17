@@ -1,0 +1,36 @@
+#import "std/fs";
+
+main :: fn () s32 {
+	os_execute("unzip pcre2-10.35.zip");
+
+	rootdir :: get_cwd();
+
+	create_dir("pcre2-10.35/build");
+	set_cwd("pcre2-10.35/build");
+
+	using Platform;
+	switch PLATFORM {
+		WINDOWS {
+			panic("Incomplete");
+		}
+		LINUX {
+			panic("Incomplete");
+		}
+		DARWIN {
+			os_execute("cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DBUILD_SHARED_LIBS=ON -DCMAKE_MACOSX_RPATH=ON");
+			os_execute("cmake --build . --config Release");
+			os_execute("cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF");
+			os_execute("cmake --build . --config Release");
+			set_cwd(rootdir);
+			create_dir("macos");
+			os_execute("cp -f pcre2-10.35/build/*.dylib macos/");
+			os_execute("cp -f pcre2-10.35/build/*.a macos/");
+			os_execute("rm -rf __MACOSX");
+		}
+	}
+
+	set_cwd(rootdir);
+	os_execute("rm -rf pcre2-10.35");
+
+	return 0;
+}

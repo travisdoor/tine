@@ -1,0 +1,34 @@
+#import "std/fs";
+
+main :: fn () s32 {
+	os_execute("unzip SDL3-3.2.8.zip");
+
+	rootdir :: get_cwd();
+
+	create_dir("SDL3-3.2.8/build");
+	set_cwd("SDL3-3.2.8/build");
+
+	using Platform;
+	switch PLATFORM {
+		WINDOWS {
+			panic("Incomplete");
+		}
+		LINUX {
+			panic("Incomplete");
+		}
+		DARWIN {
+			os_execute("cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DSDL3-3.2.8_TESTS=OFF -DSDL_SHARED=ON -DSDL_STATIC=ON");
+			os_execute("cmake --build . --config Release");
+			set_cwd(rootdir);
+			create_dir("macos");
+			os_execute("cp -f SDL3-3.2.8/build/*.dylib macos/");
+			os_execute("cp -f SDL3-3.2.8/build/*.a macos/");
+			os_execute("rm -rf __MACOSX");
+		}
+	}
+
+	set_cwd(rootdir);
+	os_execute("rm -rf SDL3-3.2.8");
+
+	return 0;
+}
