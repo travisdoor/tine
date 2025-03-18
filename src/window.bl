@@ -73,7 +73,7 @@ init_window :: fn () {
 	if !GL_SetSwapInterval(1) then print_err(sdl_last_error());
 	if !StartTextInput(window) then panic(sdl_last_error());
 
-	#if PLATFORM == Platform.DARWIN {
+	#if PLATFORM != Platform.LINUX {
 		AddEventWatch(&fn (_: *u8, event: *Event) bool {
 				using sdl;
 				check_main_thread();
@@ -140,7 +140,7 @@ handle_window_event_loop :: fn () {
 				if (mod & KMOD_GUI)   != 0 then mod |= KMOD_GUI;
 
 				reset_caret_blinking();
-				if is_lmb_dragging() then return;
+				if is_lmb_dragging() then continue;
 				redirect_to_character_input := false;
 				loop i := 0; i < key_binding.len; i += 1 {
 					m :: &key_binding[i];
@@ -187,7 +187,7 @@ handle_window_event_loop :: fn () {
 				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 
 				buf, editor :: get_active_buffer_and_editor();
-				if maybe_report_readonly(buf) then return;
+				if maybe_report_readonly(buf) then continue;
 
 				cut_selection(editor, buf, editor.index != command_editor);
 
@@ -248,8 +248,10 @@ handle_window_event_loop :: fn () {
 
 			EVENT_MOUSE_MOTION {
 				GetMouseState(&mouse.position.x, &mouse.position.y);
-				mouse.position.x *= WINDOW_SCALE;
-				mouse.position.y *= WINDOW_SCALE;
+				#if PLATFORM == Platform.DARWIN {
+					mouse.position.x *= WINDOW_SCALE;
+					mouse.position.y *= WINDOW_SCALE;
+				}
 
 				if is_flag(mouse.state, MouseState.LB_DOWN) && !is_flag(mouse.state, MouseState.LB_DRAGGING) {
 					mouse.state |= MouseState.LB_DRAGGING | MouseState.LB_DRAGGING_START;
@@ -465,18 +467,16 @@ sdl_last_error :: fn () Error #inline {
 }
 
 set_icon :: fn () {
-	using sdl;
-	
 	w, h, pitch: u32;
 	bit_depth: u8;
 	pixels: *u8;
 	format: draw.TextureFormat;
 	draw.png_load_from_memory(APPLICATION_ICON_DATA, &pixels, &w, &h, &bit_depth, &format, &pitch) catch panic($);
 	defer free(pixels);
-	
-	surface :: CreateSurfaceFrom(auto w, auto h, PixelFormat.PIXELFORMAT_RGBA32, pixels, auto pitch);
-	defer DestroySurface(surface);
-	if !SetWindowIcon(window, surface) then print_err(sdl_last_error());
+
+	surface :: sdl.CreateSurfaceFrom(auto w, auto h, sdl.PixelFormat.PIXELFORMAT_RGBA32, pixels, auto pitch);
+	defer sdl.DestroySurface(surface);
+	if !sdl.SetWindowIcon(window, surface) then print_err(sdl_last_error());
 }
 
 KeyName :: struct { code: sdl.Keycode; name: string_view };
