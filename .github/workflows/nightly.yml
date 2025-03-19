@@ -30,7 +30,7 @@ jobs:
         chmod +x linuxdeploy-x86_64.AppImage
     - name: Install Dependencies
       run: |
-        sudo apt install libglfw3-dev libgl-dev libpng-dev libxcb1-dev libxcb-util0-dev libfreetype-dev
+        sudo apt install libgl-dev libxcb1-dev libxcb-util0-dev
     - name: Build
       run: |
         chmod +x build-appimage.sh
@@ -78,7 +78,7 @@ jobs:
         echo "PATH=$PATH:$GITHUB_WORKSPACE/bl/bin" >> $GITHUB_ENV
     - name: Install Dependencies
       run: |
-        brew install glfw freetype libpng dylibbundler
+        brew install dylibbundler
     - name: Build
       run: |
         chmod +x build-macos-app.sh
