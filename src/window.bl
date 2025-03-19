@@ -60,10 +60,7 @@ init_window :: fn () {
 	if !GL_SetAttribute(GL_CONTEXT_MINOR_VERSION, 3) then panic(sdl_last_error());
 	if !GL_SetAttribute(GL_CONTEXT_PROFILE_MASK, GL_CONTEXT_PROFILE_CORE) then panic(sdl_last_error());
 	if !GL_SetAttribute(GL_DOUBLEBUFFER, 1) then panic(sdl_last_error());
-
-	// @Incomplete 2025-03-14
-	// size limit
-	// samples 2x
+	if !GL_SetAttribute(GL_MULTISAMPLESAMPLES, 2) then panic(sdl_last_error());
 
 	window = CreateWindow(strtoc(WINDOW_TITLE), WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_RESIZABLE | WINDOW_OPENGL | WINDOW_HIGH_PIXEL_DENSITY);
 	if (!window) then panic(sdl_last_error());
@@ -154,26 +151,35 @@ handle_window_event_loop :: fn () {
 
 				VALID_MOD_KEY_MASK :: KMOD_CTRL | KMOD_SHIFT | KMOD_ALT | KMOD_GUI;
 
-				key  :: event.key.key;
+				key  := event.key.key;
 				mod  := event.key.mod & VALID_MOD_KEY_MASK;
+
+				if key == K_KP_ENTER then key = K_RETURN;
 
 				if (mod & KMOD_CTRL)  != 0 then mod |= KMOD_CTRL;
 				if (mod & KMOD_SHIFT) != 0 then mod |= KMOD_SHIFT;
 				if (mod & KMOD_ALT)   != 0 then mod |= KMOD_ALT;
 				if (mod & KMOD_GUI)   != 0 then mod |= KMOD_GUI;
 
+				redirect_as_text_input := false;
+
 				reset_caret_blinking();
 				if is_lmb_dragging() then continue;
-				redirect_to_character_input := false;
 				loop i := 0; i < key_binding.len; i += 1 {
 					m :: &key_binding[i];
 					if m.mods != mod then continue;
-					// @Incomplete 2025-03-15: Move this directly to text handling event.
 					// Special case for repeat command which is invoked directly when modifier key + number is pressed.
 					// This way we can repeat commands more ergonomically without too much keystrokes.
 					if key >= K_0 && key <= K_9 && m.cmd == Command.REPEAT {
-						redirect_to_character_input = true;
-						if mode == Mode.REPEAT then break;
+						if mode == Mode.REPEAT then {
+							// When repeat mode is active, just redirect keys as text input.
+							tmp :: string_view.{ 1, auto &key };
+							handle_text_input(tmp);
+							break;
+						} else {
+							// We need to activate repeat mode first.
+							redirect_as_text_input = true;
+						}
 					} else if m.key != key {
 						continue;
 					}
@@ -181,57 +187,23 @@ handle_window_event_loop :: fn () {
 					buf, editor :: get_active_buffer_and_editor();
 					clear_message();
 					if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
-					// error_marker_visible = false;
 					invoke_command(editor, buf, m.cmd);
 
+					if redirect_as_text_input {
+						tmp :: string_view.{ 1, auto &key };
+						handle_text_input(tmp);
+					}
+
 					break;
-				}
-				if redirect_to_character_input {
-					keep_last_message = true;
-					// character_callback(window, auto k); // @Incomplete
-					keep_last_message = false;
 				}
 			}
 
 			EVENT_TEXT_INPUT {
 				if is_lmb_dragging() then continue;
 				if (GetModState() & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)) != 0 then continue;
-
-				text :: ctostr(event.text.text);
-				if text.len < 1 then continue; // just in case
-				if (input_mode == InputMode.NUMBERS) && (text[0] < '0' || text[0] > '9') then continue;
-
-				redraw();
-				reset_caret_blinking();
-
 				clear_message();
-				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 
-				buf, editor :: get_active_buffer_and_editor();
-				if maybe_report_readonly(buf) then continue;
-
-				cut_selection(editor, buf, editor.index != command_editor);
-
-				position := get_cursor_position(buf, editor.cursor_index);
-				if has_indentation_info(buf) && is_row_empty(buf, position) {
-					indent_range(buf, position, position);
-				}
-
-				position = get_cursor_position(buf, editor.cursor_index);
-				insert_string(buf, position, text);
-
-				if has_indentation_info(buf) && str_match(FILE_TYPE_REINDENT_ON[auto buf.file_type], text) {
-					indent_range(buf, position, position);
-				}
-
-				set_prev_executed_command(Command.UNKNOWN);
-
-				if macros.is_recording {
-					// @Note 2025-03-15: We might have to adjust macro recording to store utf8 chars, but this was
-					//                   faster to implement during migration to SDL...
-					char :: utf8_to_utf32_single_char(text) catch print_err($);
-					add_macro_record(char);
-				}
+				handle_text_input(ctostr(event.text.text));
 			}
 
 			EVENT_MOUSE_BUTTON_DOWN {
@@ -298,6 +270,7 @@ handle_window_event_loop :: fn () {
 			EVENT_DROP_FILE {
 				filepath :: ctostr(auto event.drop.data);
 				if filepath.len < 1 then continue;
+				set_mode(Mode.TEXT_EDIT);
 				open(filepath) catch print_err($);
 				redraw();
 			}
@@ -325,6 +298,37 @@ handle_window_event_loop :: fn () {
 			default;
 		}
 	}
+}
+
+handle_text_input :: fn (text: string_view) {
+	if text.len < 1 then return; // just in case
+	if (input_mode == InputMode.NUMBERS) && (text[0] < '0' || text[0] > '9') then return;
+
+	redraw();
+	reset_caret_blinking();
+
+	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+
+	buf, editor :: get_active_buffer_and_editor();
+	if maybe_report_readonly(buf) then return;
+
+	cut_selection(editor, buf, editor.index != command_editor);
+
+	position := get_cursor_position(buf, editor.cursor_index);
+	if has_indentation_info(buf) && is_row_empty(buf, position) {
+		indent_range(buf, position, position);
+	}
+
+	position = get_cursor_position(buf, editor.cursor_index);
+	insert_string(buf, position, text);
+
+	if has_indentation_info(buf) && str_match(FILE_TYPE_REINDENT_ON[auto buf.file_type], text) {
+		indent_range(buf, position, position);
+	}
+
+	set_prev_executed_command(Command.UNKNOWN);
+
+	if macros.is_recording then add_macro_record(text);
 }
 
 schedule_exit :: fn () {

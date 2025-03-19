@@ -213,7 +213,7 @@ set breakpoints. The `remedybg` executable must be available in your system `PAT
 
 Tine provides simple way to record and repeat command sequence, use Alt+R (toggle-macro-recording) to start
 or stop recording mode. Recorded command sequence can be replayed by pressing F11 (replay-macro). In
-combination with repeat mode, this reature provides powerful way to do more complex repetitive text
+combination with repeat mode, this feature provides powerful way to do more complex repetitive text
 modifications.
 
 # Developer
@@ -233,47 +233,9 @@ To compile release version use:
 blc -build --release
 ```
 
-## Linux
-
-Linux version currently does not support file hot-reload, other editor features should work. You might
-have to install some dependencies, here is the full list of libraries linked by the executable on my system:
-
-```
-libc.so.6
-libm.so.6
-libglfw.so.3
-libxcb-util.so.1
-libxcb.so.1
-libGL.so.1
-libpng16.so.16
-libz.so.1
-libbz2.so.1.0
-libfreetype.so.6
-libwayland-client.so.0
-libXau.so.6
-libXdmcp.so.6
-libGLdispatch.so.0
-libGLX.so.0
-libbrotlidec.so.1
-libffi.so.8
-libbsd.so.0
-libX11.so.6
-libbrotlicommon.so.1
-libmd.so.0
-```
-
-For Wayland support you'll need `libglfw3-wayland` to be installed on your system.
-
 ## Macos
 
-MacOS version (on Apple Silicon) should be feature complete, however, not tested so much. Dependencies
-might be installed using `brew` package manager, you'll need development packages for:
-
-```
-glfw3
-freetype2
-png16
-```
+MacOS version (on Apple Silicon) should be feature complete, however, not tested so much.
 
 To creates self-contained application bundle use `build-macos-app.sh`. This script creates release
 version of the editor, and use `dylibbundler` (installed via `brew`) to resolve all dependencies
