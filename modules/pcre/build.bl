@@ -42,7 +42,28 @@ build :: fn () #build_entry {
 		}
 
 		LINUX {
-			panic("Incomplete");
+			set_cwd("pcre2-10.35/build");
+			cmake(
+				"..",
+				"--fresh",
+				"-DBUILD_SHARED_LIBS=OFF",
+				"-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+				tprint("-DCMAKE_INSTALL_PREFIX=%", tmpdir),
+			);
+			make("install");
+
+			set_cwd("pcre2-10.35/build");
+			cmake(
+				"..",
+				"-DBUILD_SHARED_LIBS=ON",
+				"-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+				tprint("-DCMAKE_INSTALL_PREFIX=%", tmpdir),
+			);
+			make("install");
+
+			set_cwd(rootdir);
+			create_dir("linux");
+			os_execute(tprint("cp -d %/lib/libpcre* linux/", tmpdir));
 		}
 		DARWIN {
 			panic("Incomplete");

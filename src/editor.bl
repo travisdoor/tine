@@ -733,6 +733,7 @@ start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIM
 	interp :: LINEAR;
 
 	start_animation(&sliding.vertical, start, end, speed, interp);
+	redraw();
 }
 
 update_editor_x_offset :: fn (editor: *Editor, line_w: f32, cursor_x: f32) {

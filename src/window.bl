@@ -41,6 +41,18 @@ init_window :: fn () {
 
 	if !Init(INIT_VIDEO) then panic(sdl_last_error());
 
+	video_driver :: ctostr(sdl.GetCurrentVideoDriver());
+	using WindowSystem;
+	if str_match(video_driver, "x11") {
+		WINDOW_SYSTEM = X11;
+	} else if str_match(video_driver, "wayland") {
+		WINDOW_SYSTEM = WAYLAND;
+	} else if str_match(video_driver, "win32") {
+		WINDOW_SYSTEM = WIN32;
+	} else if str_match(video_driver, "cocoa") {
+		WINDOW_SYSTEM = COCOA;
+	}
+
 	print_log("SDL Video: %", ctostr(sdl.GetCurrentVideoDriver()));
 
 	using GLAttr;
@@ -73,7 +85,7 @@ init_window :: fn () {
 	if !GL_SetSwapInterval(1) then print_err(sdl_last_error());
 	if !StartTextInput(window) then panic(sdl_last_error());
 
-	#if PLATFORM != Platform.LINUX {
+	if WINDOW_SYSTEM == WindowSystem.COCOA || WINDOW_SYSTEM == WindowSystem.WIN32 {
 		AddEventWatch(&fn (_: *u8, event: *Event) bool {
 				using sdl;
 				check_main_thread();
@@ -102,13 +114,23 @@ terminate_window :: fn () {
 	Quit();
 }
 
+begin_frame :: fn () {
+	mouse.last_hover_elem_id = mouse.hover_elem_id;
+	mouse.hover_elem_id = 0;
+}
+
+end_frame :: fn () {
+	sdl.GL_SwapWindow(window);
+}
+
 handle_window_event_loop :: fn () {
 	using sdl;
 
 	clear_mouse_events();
+	if mouse.last_hover_elem_id != mouse.hover_elem_id then redraw();
 
 	event: Event;
-	loop PollEvent(&event) {
+	loop WaitEventTimeout(&event, if draw_next_frame then 0 else 16) {
 
 		using EventType;
 		switch event.type {
@@ -125,6 +147,7 @@ handle_window_event_loop :: fn () {
 
 				// Hide any possible completion popup.
 				if mode == Mode.COMPLETION then set_mode(Mode.TEXT_EDIT);
+				redraw();
 			}
 
 			EVENT_KEY_DOWN {
@@ -172,15 +195,13 @@ handle_window_event_loop :: fn () {
 
 			EVENT_TEXT_INPUT {
 				if is_lmb_dragging() then continue;
-
-				IGNORE_MOD_KEY_MASK :: KMOD_CTRL | KMOD_ALT | KMOD_GUI;
-				if (GetModState() & IGNORE_MOD_KEY_MASK) != 0 then continue;
+				if (GetModState() & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)) != 0 then continue;
 
 				text :: ctostr(event.text.text);
 				if text.len < 1 then continue; // just in case
 				if (input_mode == InputMode.NUMBERS) && (text[0] < '0' || text[0] > '9') then continue;
 
-				// redraw(); @Incomplete
+				redraw();
 				reset_caret_blinking();
 
 				clear_message();
@@ -230,6 +251,8 @@ handle_window_event_loop :: fn () {
 				set_prev_executed_command(Command.UNKNOWN);
 				clear_message();
 				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+
+				redraw();
 			}
 
 			EVENT_MOUSE_BUTTON_UP {
@@ -244,11 +267,14 @@ handle_window_event_loop :: fn () {
 						clr_flag(&mouse.state, MouseState.LB_DOWN);
 					}
 				}
+
+				redraw();
 			}
 
 			EVENT_MOUSE_MOTION {
 				GetMouseState(&mouse.position.x, &mouse.position.y);
-				#if PLATFORM == Platform.DARWIN {
+				using WindowSystem;
+				if WINDOW_SYSTEM == WAYLAND || WINDOW_SYSTEM == COCOA {
 					mouse.position.x *= WINDOW_SCALE;
 					mouse.position.y *= WINDOW_SCALE;
 				}
@@ -257,14 +283,16 @@ handle_window_event_loop :: fn () {
 					mouse.state |= MouseState.LB_DRAGGING | MouseState.LB_DRAGGING_START;
 					mouse.drag_target_elem_id = mouse.last_hover_elem_id;
 				}
+
+				redraw();
 			}
 
 			EVENT_MOUSE_WHEEL {
 				reset_caret_blinking();
 				mouse.scroll += auto event.wheel.y;
 				clear_message();
-				redraw(); // @Incomplete
 				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+				redraw();
 			}
 
 			EVENT_DROP_FILE {
@@ -297,9 +325,6 @@ handle_window_event_loop :: fn () {
 			default;
 		}
 	}
-
-	mouse.last_hover_elem_id = mouse.hover_elem_id;
-	mouse.hover_elem_id = 0;
 }
 
 schedule_exit :: fn () {
@@ -309,10 +334,6 @@ schedule_exit :: fn () {
 get_ticks :: fn () f64 #inline {
 	ms :: sdl.GetTicks();
 	return cast(f64)ms / 1000.;
-}
-
-swap_buffers :: fn () #inline {
-	sdl.GL_SwapWindow(window);
 }
 
 maximize_window :: fn () #inline {
@@ -444,6 +465,16 @@ is_minimized :: fn () bool #inline {
 #scope_private
 
 sdl :: #import "sdl3";
+
+WindowSystem :: enum {
+	WIN32;
+	COCOA;
+	X11;
+	WAYLAND;
+	OTHER;
+}
+
+WINDOW_SYSTEM: WindowSystem;
 
 MODS :: [_]u32.{ sdl.KMOD_CTRL, sdl.KMOD_SHIFT, sdl.KMOD_ALT, sdl.KMOD_GUI };
 running := true;

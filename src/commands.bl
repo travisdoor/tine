@@ -345,6 +345,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	}
 
 	if cmd != TOGGLE_MACRO_RECORDING && macros.is_recording then add_macro_record(cmd);
+	redraw();
 }
 
 lookup_command_keymap_index :: fn (cmd: Command, start_index := 0) s32 {

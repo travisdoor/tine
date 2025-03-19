@@ -13,8 +13,8 @@ arm64-apple-darwin:
   
 x86_64-pc-linux-gnu:
   linker_lib_path: "linux"
-  linker_opt: "-lpcre2-8"
+  link: "pcre2-8"
 
 x86_64-unknown-linux-gnu:
   linker_lib_path: "linux"
-  linker_opt: "-lpcre2-8"
+  link: "pcre2-8"

@@ -85,6 +85,8 @@ FONT_RESIZE_STEP :: 1;
 
 CARET_BLINK_MS :: 500.f;
 
+draw_next_frame := true;
+
 // Limits
 MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 8388608; // 8MB
 MAX_INDENTATION_RANGE_BYTES     :: 1048576; // 1MB
@@ -784,8 +786,6 @@ main :: fn () s32 {
 
 		recalculate_metrics();
 
-		// draw_next_frame @Incomplete 2025-03-14: unused
-
 		handle_window_event_loop();
 		update_caret();
 
@@ -856,8 +856,10 @@ main :: fn () s32 {
 			}
 		}
 
-		// update_mouse(); @Incomplete 2025-03-14
-		draw_frame();
+		if draw_next_frame {
+			draw_next_frame = false;
+			draw_frame();
+		}
 
 		title: string_view;
 		if project.is_default {
@@ -1856,10 +1858,12 @@ MAIN_THREAD_ID: u64;
 
 message: Message;
 debug_allocator: DebugAllocator;
-draw_next_frame := true;
 
 draw_frame :: fn () {
 	using draw;
+
+	begin_frame();
+	defer end_frame();
 
 	clear_color(colors.foreground_color);
 
@@ -1926,7 +1930,6 @@ draw_frame :: fn () {
 	}
 
 	flush();
-	swap_buffers();
 }
 
 /*

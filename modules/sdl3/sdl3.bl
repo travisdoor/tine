@@ -1280,6 +1280,7 @@ HasClipboardText :: fn () bool #extern "SDL_HasClipboardText";
 GL_SetSwapInterval :: fn (interval: s32) bool #extern "SDL_GL_SetSwapInterval";
 MaximizeWindow :: fn (window: *Window) bool #extern "SDL_MaximizeWindow";
 StartTextInput :: fn (window: *Window) bool #extern "SDL_StartTextInput";
+StopTextInput :: fn (window: *Window) bool #extern "SDL_StopTextInput";
 GetModState :: fn () Keymod #extern "SDL_GetModState";
 GetMouseState :: fn (x: *f32, y: *f32) MouseButtonFlags #extern "SDL_GetMouseState";
 
