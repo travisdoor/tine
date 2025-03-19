@@ -1,5 +1,5 @@
 #!/bin/bash
-blc --verbose -build --release
+blc -build --release
 echo Creating application bundle
 rm -r -f Tine.AppDir
 mkdir -p Tine.AppDir/usr/bin
