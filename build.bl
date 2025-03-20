@@ -1,5 +1,7 @@
 #import "extra/argparse"
 #import "std/print"
+#import "std/fs"
+#import "std/string"
 
 Args :: struct {
 	is_release: bool;
@@ -53,18 +55,69 @@ build :: fn () #build_entry {
 		}
 	} else if PLATFORM == Platform.DARWIN {
 		add_unit(exe, "src/platform/darwin.bl");
-		append_linker_options(exe, "-framework CoreFoundation -framework CoreServices");
+		// append_linker_options(exe, "-framework CoreFoundation -framework CoreServices");
 	} else if PLATFORM == Platform.LINUX {
 		add_unit(exe, "src/platform/linux.bl");
-		//append_linker_options(exe, "-static");
 	}
 
-	compile(exe);
+	compile(exe) catch panic($);
 
-	#if PLATFORM == Platform.WINDOWS {
-		if args.is_release {
-			cmd :: tprint("icon\\rcedit.exe \"Tine.exe\" --set-icon \"icon\\icon.ico\"");
-			os_execute(cmd);
+	if args.is_release {
+		if PLATFORM == Platform.WINDOWS {
+			shell("icon\\rcedit.exe", "\"Tine.exe\"", "--set-icon \"icon\\icon.ico\"");
+		} else if PLATFORM == Platform.DARWIN {
+			create_macos_bundle();
 		}
 	}
 }
+
+create_macos_bundle :: fn () {
+	app_dir :: "tine-macos-arm64";
+	shell("rm", "-rf", app_dir);
+	create_all_dir(tprint("%/Tine.app/Contents/MacOS", app_dir));
+	create_all_dir(tprint("%/Tine.app/Contents/Resources", app_dir));
+	copy_file("Tine", tprint("%/Tine.app/Contents/MacOS/Tine", app_dir));
+	copy_file("Info.plist", tprint("%/Tine.app/Contents/Info.plist", app_dir));
+	copy_file("icon/tine.icns", tprint("%/Tine.app/Contents/Resources/tine.icns", app_dir));
+
+	modules_dir :: get_default_module_dir();
+
+	shell(
+		"dylibbundler",
+		"-b",
+		tprint("-d %/Tine.app/Contents/MacOS", app_dir),
+		"-p @executable_path/",
+		tprint("-x %/Tine.app/Contents/MacOS/Tine", app_dir),
+		"-s ./modules/pcre/macos",
+		"-s ./modules/sdl3/macos",
+		tprint("-s %/extra/freetype2/macos", modules_dir),
+		tprint("-s %/extra/png/macos", modules_dir),
+		tprint("-s %/extra/zlib/macos", modules_dir),
+	);
+
+	shell("chmod", "+x", tprint("%/Tine.app/Contents/MacOS/Tine", app_dir));
+	shell("ln", "-s", "/Applications", tprint("%/Applications", app_dir));
+
+	remove_file("Tine.dmg");
+	shell(
+		"hdiutil",
+		"create",
+		"-volname \"Tine\"",
+		tprint("-srcfolder %", app_dir),
+		"-format UDZO",
+		"-o Tine.dmg",
+	);
+}
+
+shell :: fn (exec: string_view, args: ...string_view) {
+	tmp: string;
+	str_append(&tmp, exec);
+	loop i := 0; i < args.len; i += 1 {
+		str_append(&tmp, " ");
+		str_append(&tmp, args[i]);
+	}
+
+	print_info(tmp);
+	os_execute(tmp);
+}
+

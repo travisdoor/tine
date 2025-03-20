@@ -81,8 +81,7 @@ jobs:
         brew install dylibbundler
     - name: Build
       run: |
-        chmod +x build-macos-app.sh
-        ./build-macos-app.sh
+        blc -build --release
     - uses: actions/upload-artifact@v4
       with:
         name: tine-nightly-arm64-macos
