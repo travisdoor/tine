@@ -71,4 +71,40 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	return t, OK;
 }
 
+make_desktop_entry_if_needed :: fn () {
+	filename :: "tine.desktop";
+	filepath :: get_home();
+	defer str_terminate(&filepath);
+	if filepath.len < 1 then return;
+
+	str_concat(&filepath, "/.local/share/applications/", filename);
+	if file_exist(filepath) then return;
+
+
+	appimagepath :: env_get("APPIMAGE");
+	defer str_terminate(&appimagepath);
+
+	execpath :: os_get_exec_path();
+	defer str_terminate(&execpath);
+
+	exec : string_view : if appimagepath.len > 0 then appimagepath else execpath;
+
+	iconpath :: tprint("%/icon.png", data_dir);
+	write_entire_file(iconpath, APP_ICON_DATA) catch print_err($);
+
+	content ::
+	"[Desktop Entry]\n"
+	"Type=Application\n"
+	"Name=Tine\n"
+	"Exec=%\n"
+	"Icon=%\n"
+	"Categories=Application;Development;\n"
+	;
+
+	filled_content :: tprint(content, exec, iconpath);
+	write_entire_file(filepath, filled_content) catch print_err($);
+
+	print_info("Desktop entry file created at '%'.", filepath);
+}
+
 #private

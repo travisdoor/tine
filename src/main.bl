@@ -117,13 +117,15 @@ ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
-FONT                          :: "JetBrainsMono-Regular.ttf";
+FONT                          :: "FiraCode-Regular.ttf";
+// FONT                          :: "JetBrainsMono-Regular.ttf";
 // FONT                          :: "GeistMono-Regular.ttf";
 FONT_UI                       :: "SourceSans3-Regular.ttf";
 FONT_UI_B                     :: "SourceSans3-Bold.ttf";
 
 ICONS                         :: "fa-solid-900.ttf";
-APPLICATION_ICON              :: "icon/icon-flip.png";
+APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
+APP_ICON                      :: "icon/icon_256x256.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
 HELP_FILE                     :: "README.md";
 
@@ -132,7 +134,8 @@ FONT_UI_DATA                       :: file_to_stack(FONT_UI);
 FONT_UI_B_DATA                     :: file_to_stack(FONT_UI_B);
 ICON_DATA                          :: file_to_stack(ICONS);
 DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: file_to_stack(DEFAULT_PROJECT_FILE_TEMPLATE);
-APPLICATION_ICON_DATA              :: file_to_stack(APPLICATION_ICON);
+APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
+APP_ICON_DATA                      :: file_to_stack(APP_ICON);
 HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
 
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
@@ -674,6 +677,10 @@ main :: fn () s32 {
 	defer str_terminate(&data_dir);
 
 	print_log("Editor data directory: '%'", data_dir);
+
+	#if PLATFORM == Platform.LINUX {
+		make_desktop_entry_if_needed();
+	}
 
 	fw :: new_filewatch() catch panic($);
 	file_watch = fw; // @Cleanup 2025-03-02

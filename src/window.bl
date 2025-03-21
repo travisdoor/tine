@@ -506,7 +506,7 @@ set_icon :: fn () {
 	bit_depth: u8;
 	pixels: *u8;
 	format: draw.TextureFormat;
-	draw.png_load_from_memory(APPLICATION_ICON_DATA, &pixels, &w, &h, &bit_depth, &format, &pitch) catch panic($);
+	draw.png_load_from_memory(APP_FLIP_ICON_DATA, &pixels, &w, &h, &bit_depth, &format, &pitch) catch panic($);
 	defer free(pixels);
 
 	surface :: sdl.CreateSurfaceFrom(auto w, auto h, sdl.PixelFormat.PIXELFORMAT_RGBA32, pixels, auto pitch);
