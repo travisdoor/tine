@@ -468,7 +468,7 @@ is_minimized :: fn () bool #inline {
 
 #scope_private
 
-sdl :: #import "sdl3";
+sdl :: #import "extra/sdl3";
 
 WindowSystem :: enum {
 	WIN32;
