@@ -89,7 +89,7 @@ create_macos_bundle :: fn () {
 		"-p @executable_path/",
 		tprint("-x %/Tine.app/Contents/MacOS/Tine", app_dir),
 		"-s ./modules/pcre/macos",
-		"-s ./modules/sdl3/macos",
+		tprint("-s %/extra/sdl3/macos", modules_dir),
 		tprint("-s %/extra/freetype2/macos", modules_dir),
 		tprint("-s %/extra/png/macos", modules_dir),
 		tprint("-s %/extra/zlib/macos", modules_dir),
