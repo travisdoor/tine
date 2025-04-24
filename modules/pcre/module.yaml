@@ -4,7 +4,7 @@ src: "pcre.bl"
 
 x86_64-pc-windows-msvc:
   linker_lib_path: "win32"
-  linker_opt: "pcre2-8.lib"
+  linker_opt: "pcre2-8_static.lib"
   link_comptime: "pcre2-8"
 
 arm64-apple-darwin:
