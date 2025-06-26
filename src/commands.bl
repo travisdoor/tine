@@ -57,6 +57,7 @@ Command :: enum {
 	SORT;
 	INCREASE_NUMBER;
 	DECREASE_NUMBER;
+	ALIGN_ASSIGNMENTS;
 
 	// Splits
 	OTHER_SPLIT;
@@ -247,6 +248,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 
 	help[auto INCREASE_NUMBER]         = "Increase number under cursor by one.";
 	help[auto DECREASE_NUMBER]         = "Decrease number under cursor by one.";
+	help[auto ALIGN_ASSIGNMENTS]       = "Align selected lines my assignment symbols set for current file type.";
 
 	help[auto QUIT]                    = "Quit Tine.";
 
@@ -665,6 +667,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		SORT                { alpha_sort_lines    (editor, buf);                           }
 		INCREASE_NUMBER     { add_number_under_cursor(editor, buf,  1);                    }
 		DECREASE_NUMBER     { add_number_under_cursor(editor, buf, -1);                    }
+		ALIGN_ASSIGNMENTS   { align_assignments   (editor, buf);                           }
 		OTHER_SPLIT         { other_split         (buf);                                   }
 		CLOSE_SPLIT         { close_split         ();                                      }
 		CLOSE_OTHER_SPLIT   { close_other_split   ();                                      }
@@ -1807,11 +1810,116 @@ add_number_under_cursor :: fn (editor: *Editor, buf: *Buffer, v : s64) {
 	commit_undo(buf);
 }
 
+align_assignments :: fn (editor: *Editor, buf: *Buffer) {
+	if maybe_report_readonly(buf) then return;
+
+	align_on :: FILE_TYPE_ALIGN_ON[auto buf.file_type];
+	if align_on.len == 0 {
+		print_warn("No assignment symbols are set for current file type.");
+		return;
+	}
+
+	if !has_selection(buf, editor.cursor_index) {
+		print_warn("No selection.");
+		return;
+	}
+
+	start, end: s64;
+	{
+		s, e :: get_selection_range(buf, editor.cursor_index);
+		clear_selection(buf, editor.cursor_index);
+		sx, ex :: expand_range_to_whole_rows(buf, s, e);
+		start = sx;
+		end   = ex;
+	}
+
+	assert(end - start > 0);
+
+	str      :: peek_range(buf, start, end);
+	new_line :: get_line_ending(buf.line_ending);
+
+	allocator :: application_context.temporary_allocator;
+
+	// we assume new line everytime ending with '\n'.
+	assert(new_line[new_line.len-1] == '\n');
+	lines :: str_split_by(str, '\n', allocator);
+
+	if lines.len < 2 {
+		print_warn("At least two lines must be selected.");
+		return;
+	}
+
+	offsets: []s32;
+	alloc_slice(&offsets, lines.len, false, allocator) catch panic($);
+
+	aligned := str_make(math.max(str.len, 32));
+	defer str_terminate(&aligned);
+
+	max_offset : s32 = -1;
+	loop line_index := 0; line_index < lines.len; line_index += 1 {
+		line :: lines[line_index];
+		offsets[line_index] = -1;
+
+		found := false;
+		loop ci := 0; ci < line.len && !found; ci += 1 {
+			loop ai := 0; ai < align_on.len && !found; ai += 1 {
+				if line[ci] == align_on[ai] {
+					offsets[line_index] = ci;
+					max_offset = math.max(max_offset, ci);
+					found = true;
+					break;
+				}
+			}
+		}
+	}
+
+	loop line_index := 0; line_index < lines.len; line_index += 1 {
+		line :: lines[line_index];
+
+		if offsets[line_index] > 0 {
+
+			assert(offsets[line_index] <= max_offset);
+
+			lhs, rhs: string_view;
+			str_split_at_index(line, offsets[line_index], &lhs, &rhs);
+			str_append(&aligned, lhs);
+
+			correction :: max_offset - offsets[line_index];
+			loop i := 0; i < correction; i += 1 {
+				str_append(&aligned, " ");
+			}
+
+			str_append(&aligned, rhs);
+
+		} else {
+			str_append(&aligned, line);
+		}
+
+		if line_index + 1 < lines.len {
+			str_append(&aligned, new_line);
+		}
+	}
+
+	set_cursor_position(buf, editor.cursor_index, start);
+
+	commit_undo(buf);
+
+	batch_begin(buf);
+	delete_range(buf, start, start + str.len);
+	insert_string(buf, start, aligned);
+	batch_end(buf);
+
+	commit_undo(buf);
+}
+
 toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 	if maybe_report_readonly(buf) { return; }
 
 	comment_with :: FILE_TYPE_COMMENT_WITH[auto buf.file_type];
-	if comment_with.len == 0 { return; }
+	if comment_with.len == 0 {
+		print_warn("No comment symbols are set for current file type.");
+		return;
+	}
 
 	start, end: s64;
 	if has_selection(buf, editor.cursor_index) {

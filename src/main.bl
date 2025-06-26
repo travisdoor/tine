@@ -247,9 +247,12 @@ FileType :: enum {
 	ASM;
 }
 
-FILE_TYPE_NAME ::         [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL", "ASM" };
+FILE_TYPE_NAME         :: [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL", "ASM" };
 FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//",   ";"   };
-FILE_TYPE_REINDENT_ON ::  [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
+FILE_TYPE_REINDENT_ON  :: [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
+
+// Related to align_assignments command. Each character is treated separately.
+FILE_TYPE_ALIGN_ON     :: [enum_count(FileType)]string_view.{ "",     ":=", "=",     "",              ""        , "=",    ""    };
 
 project: struct {
 	name:       string_view;

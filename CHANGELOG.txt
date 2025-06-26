@@ -3,6 +3,9 @@ MASTER
 - Migration to SDL3.
 - Fix file-drop crash in case the file is dropped when command buffer is active.
 - Automatically create linux desktop entry on the first run.
+- Add experimental align-assignments command to align all assignments in selection,
+  taking into account current file type assignment symbols. Currently only first appearance
+  of assignment symbol on each line is aligned.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------
