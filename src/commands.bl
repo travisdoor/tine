@@ -1874,7 +1874,7 @@ align_assignments :: fn (editor: *Editor, buf: *Buffer) {
 	}
 
 	loop line_index := 0; line_index < lines.len; line_index += 1 {
-		line :: lines[line_index];
+		line :: trim_right(lines[line_index], " \t\r");
 
 		if offsets[line_index] > 0 {
 
