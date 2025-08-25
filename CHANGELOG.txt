@@ -6,6 +6,7 @@ MASTER
 - Add experimental align-assignments command to align all assignments in selection,
   taking into account current file type assignment symbols. Currently only first appearance
   of assignment symbol on each line is aligned.
+- Add center view support into replace mode.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

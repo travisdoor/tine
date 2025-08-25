@@ -159,7 +159,7 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 			set_mode(Mode.TEXT_EDIT);
 			print_info("All replaced.");
 		}
-		
+
 		CENTER_VIEW { center_view(target_editor); }
 
 		default { return false; }
