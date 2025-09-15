@@ -47,6 +47,8 @@ line_spacing                           130
 # Customize path to clangd LSP server executable, otherwise editor tries to search the executable in
 # system PATH.
 #clangd_executable                      C:/Program Files/LLVM/bin/clangd.exe
+# Customize arguments passed into 'clangd_executable'.
+clangd_args                            -j=8 -background-index --log=error --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders=true
 
 # Customize shell command. Command line arguments including the shell executable used when 'shell' or
 # 'build' editor commands are invoked.

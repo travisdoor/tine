@@ -7,6 +7,7 @@ MASTER
   taking into account current file type assignment symbols. Currently only first appearance
   of assignment symbol on each line is aligned.
 - Add center view support into replace mode.
+- Add support for clangd argument customization.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

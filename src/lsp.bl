@@ -413,23 +413,19 @@ check_running :: fn () bool #inline {
 worker :: fn (ctx: *JobContext) s32 {
 	using JobContext.state;
 
-	// Maybe customizable?
-	args :: [_]string_view.{
-		"--log=error",
-		"-j=8",
-		"-background-index",
-		"--enable-config",
-		"--offset-encoding=utf-32",
-		"--header-insertion=never",
-		"--function-arg-placeholders"
-	};
+	allocator :: application_context.temporary_allocator;
+
 	executable :: get_clangd_executable();
+	args       :: split_command_line_arguments(&settings.clangd_args, allocator);
+
+	print_info("Execute '%' with arguments: %", executable, args);
+
 	err :: start_process(ctx, executable, args);
 	defer stop_process(ctx);
 
 	if err {
 		if err.code == ERR_NOT_FOUND {
-			print_err("Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
+			print_err("Cannot find '%' executable. Please use valid path or set the executable in your PATH environment variable.", executable);
 		} else {
 			print_err("Cannot execute '%' with error: %", executable, err);
 		}
