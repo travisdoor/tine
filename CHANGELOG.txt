@@ -8,6 +8,7 @@ MASTER
   of assignment symbol on each line is aligned.
 - Add center view support into replace mode.
 - Add support for clangd argument customization.
+- Fix parsing of CL error locations.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

@@ -133,31 +133,37 @@ try_location_cl_like :: fn (line: string_view, loc: *ErrorLocation, rest_of_the_
 	l := line;
 
 	lhs: string_view;
-	if !str_split_by_first(l, ':', &lhs, &l) { return false; }
+	if !str_split_by_first(l, ':', &lhs, &l) then return false;
 	// Special case on Windows if we have the full file path...
 	if lhs.len == 1 && is_alpha(lhs[0]) && str_split_by_first(l, ':', &lhs, &l) {
 		lhs.len += 2; // C:
 		lhs.ptr  = line.ptr;
 	}
 
-	if lhs.len == 0          { return false; }
-	if lhs[lhs.len-1] != ')' { return false; }
+	if lhs.len == 0          then return false;
+	if lhs[lhs.len-1] != ')' then return false;
 	@rest_of_the_line = l;
 
-	if !str_split_by_last(lhs, '(', &lhs, &l) { return false; }
+	if !str_split_by_last(lhs, '(', &lhs, &l) then return false;
 
 	// lsh filename
-	file :: lhs;
-	if !str_split_by_last(l, ')', &lhs, &l) { return false; }
+	loc.file = lhs;
+	if !str_split_by_last(l, ')', &lhs, &l) then return false;
 
-	ln, err_line :: strtos64(lhs);
-	if err_line { return false; }
+	line_str, col_str: string_view;
+	str_split_by_first(lhs, ',', &line_str, &col_str);
 
-	col :: 0; // No such information in the string.
+	if line_str.len > 0 {
+		ln :: strtos64(line_str) catch return false;
+		loc.line = auto ln;
+	}
 
-	loc.file = file;
-	loc.line = auto ln;
-	loc.col  = auto col;
+	if col_str.len > 0 {
+		col, err :: strtos64(col_str);
+		loc.col = if err then 0 else auto col;
+	} else {
+		loc.col = 0;
+	}
 
 	return true;
 }
