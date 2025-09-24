@@ -9,6 +9,8 @@ LspRequestKind :: enum {
 	SWITCH_HEADER_SOURCE;
 	PUBLISH_DIAGNOSTICS;
 	COMPLETION;
+	HOVER;
+	FIND_REFERENCES;
 }
 
 LspRequestFlags :: enum #flags {
@@ -48,6 +50,7 @@ LSP_COMPLETION_ITEM_KIND_TYPEPARAMETER :: 25;
 lsp: struct {
 	job_index:   s32;
 	server_name: string;
+	last_hover_symbol_name: string;
 }
 
 lsp_init :: fn () {
@@ -56,6 +59,7 @@ lsp_init :: fn () {
 
 lsp_terminate :: fn () {
 	str_terminate(&lsp.server_name);
+	str_terminate(&lsp.last_hover_symbol_name);
 }
 
 start_lsp_server :: fn () Error {
@@ -200,8 +204,8 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
 
 	request :: Request.{ job_kind = JobKind.LSP };
 	request_data :: &request.data.lsp;
-	request_data.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
-	request_data.filepath  = str_make(buf.filepath);
+	request_data.kind         = LspRequestKind.SWITCH_HEADER_SOURCE;
+	request_data.filepath     = str_make(buf.filepath);
 	request_data.buffer_index = buf.index;
 	if open_in_other_split {
 		request_data.flags |= LspRequestFlags.OPEN_IN_OTHER_SPLIT;
@@ -232,6 +236,34 @@ lsp_completion :: fn (editor: *Editor, buf: *Buffer) {
 	rd.buffer_index = buf.index;
 
 	push_request(get_job_context(lsp.job_index), &request);
+}
+
+lsp_find_references :: fn (editor: *Editor, buf: *Buffer) {
+	if !lsp_is_supported_document_type(buf) {
+		print_warn("LSP: Buffer type not supported.");
+		return;
+	}
+
+	if !check_running() then return;
+
+	{
+		request :: Request.{ job_kind = JobKind.LSP };
+		rd :: &request.data.lsp;
+		rd.kind         = LspRequestKind.HOVER;
+		rd.filepath     = str_make(buf.filepath);
+		rd.cursor       = get_cursor(buf, editor.cursor_index);
+		push_request(get_job_context(lsp.job_index), &request);
+	}
+
+	{
+		request :: Request.{ job_kind = JobKind.LSP };
+		rd :: &request.data.lsp;
+		rd.kind         = LspRequestKind.FIND_REFERENCES;
+		rd.filepath     = str_make(buf.filepath);
+		rd.cursor       = get_cursor(buf, editor.cursor_index);
+		rd.buffer_index = buf.index;
+		push_request(get_job_context(lsp.job_index), &request);
+	}
 }
 
 apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
@@ -293,6 +325,25 @@ apply_lsp_results :: fn (_: JobContext.state, request: *Request) {
 				show_completion_popup_for_active_editor(items, kinds);
 			}
 		}
+
+		HOVER;
+
+		FIND_REFERENCES {
+			buf :: get_active_buffer_and_editor();
+			if request_data.buffer_index != buf.index then return;
+			assert(request_data.strs.len == 1);
+
+			refs :: request_data.strs[0];
+
+			results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&search_buffer_index, "search");
+			results_buf    :: &buffers[search_buffer_index];
+			results_editor :: &editors[results_editor_index];
+
+			clear_buffer(results_buf);
+			append_readonly_buffer(results_buf, refs);
+			set_cursor_position(results_buf, results_editor.cursor_index, 0);
+		}
+
 		default;
 	}
 }
@@ -486,7 +537,9 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 	err: Error;
 	switch rd.kind {
 		INITIALIZE {
-			err = write_request(ctx, "initialize", LspInitialize.{ rootUri = uri_filepath });
+			err = write_request(ctx, "initialize", LspInitialize.{
+					rootUri      = uri_filepath,
+				});
 		}
 
 		DOCUMENT_OPEN {
@@ -567,6 +620,35 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 				triggerKind   = LSP_COMPLETION_KIND_INVOKED,
 			};
 			err = write_request(ctx, "textDocument/completion", params);
+		}
+
+		HOVER {
+			params :: LspHoverParams.{
+				textDocument = .{
+					uri = uri_filepath,
+				},
+				position = .{
+					line      = rd.cursor.row,
+					character = rd.cursor.col,
+				},
+			};
+			err = write_request(ctx, "textDocument/hover", params);
+		}
+
+		FIND_REFERENCES {
+			params :: LpsReferencesParams.{
+				textDocument = .{
+					uri = uri_filepath,
+				},
+				position = .{
+					line      = rd.cursor.row,
+					character = rd.cursor.col,
+				},
+				context = .{
+					includeDeclaration = true
+				}
+			};
+			err = write_request(ctx, "textDocument/references", params);
 		}
 
 		default { print_warn("Unknown request."); }
@@ -724,7 +806,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 				print_warn("LSP: Declaration not found.");
 			} else {
 				loc :: goto_declaration_result.result[0];
-				err_uri, filepath :: new_filepath_from_url(loc.uri);
+				filepath, err_uri :: new_filepath_from_url(loc.uri);
 				if err_uri {
 					print_err(err_uri);
 				} else {
@@ -744,11 +826,11 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 			if switch_result.result.len == 0 {
 				print_warn("LSP: Other file not found.");
 			} else {
-				err_uri, filepath :: new_filepath_from_url(switch_result.result);
+				filepath, err_uri :: new_filepath_from_url(switch_result.result);
 				if err_uri {
 					print_err(err_uri);
 				} else {
-					rd.filepath  = filepath;
+					rd.filepath = filepath;
 					push_result(ctx, &response);
 				}
 			}
@@ -756,8 +838,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 
 		COMPLETION {
 			completion_result: RpcResponse(LspCompletionList);
-			err :: deserialize_object(completion_result, json);
-			if err { print_err(err); }
+			deserialize_object(completion_result, json) catch print_err($);
 
 			items :: completion_result.result.items;
 			loop i := 0; i < items.len; i += 1 {
@@ -802,7 +883,7 @@ maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
 	// This might be disabled, but we still have to consume the json data...
 	if !settings.show_lsp_inline_diagnostics { return true; }
 
-	err_uri, filepath :: new_filepath_from_url(dia_result.params.uri);
+	filepath, err_uri :: new_filepath_from_url(dia_result.params.uri);
 	if err_uri {
 		print_err(err_uri);
 	} else {
@@ -932,7 +1013,7 @@ serialize_object :: fn (obj: Any, json: *string) {
 				serialize_object(tmp, json);
 			}
 		} else {
-			panic("Unsupported type for JSON serialization");
+			panic("Unsupported type for JSON serialization: %.", @m.base_type);
 		}
 		if i + 1 < info.members.len { str_append(json, ","); }
 	}
@@ -954,6 +1035,8 @@ Token :: struct {
 		ARRAY_END;
 		OBJECT_BEGIN;
 		OBJECT_END;
+
+		NULL;
 	};
 
 	data: union {
@@ -1114,6 +1197,8 @@ deserialize_value :: fn (ident: string_view, val: Any, json: *JsonTokenizer, is_
 			return OK, true;
 		}
 
+		NULL {}
+
 		default {
 			return error("Expected value of the entry '%' got '%'!", ident, tok_value.kind), false;
 		}
@@ -1172,6 +1257,15 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 			t.kind     = Token.kind.BOOL;
 			t.data.b   = false;
 			ctx.index += 5;
+			return true;
+		}
+		return false;
+	};
+
+	parse_null :: fn (ctx: *JsonTokenizer, t: *Token) bool {
+		if str_match(string_view.{ 4, &ctx.bytes[ctx.index] }, "null") {
+			t.kind     = Token.kind.NULL;
+			ctx.index += 4;
 			return true;
 		}
 		return false;
@@ -1247,6 +1341,7 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		}
 		if parse_bool(ctx, &t)   { return t; }
 		if parse_number(ctx, &t) { return t; }
+		if parse_null(ctx, &t)   { return t; }
 
 		return t;
 	}
@@ -1366,6 +1461,12 @@ LpsCompletionParams :: struct {
 	//triggerCharacter: string_view;
 }
 
+LpsReferencesParams :: struct {
+	textDocument: LspTextDocumentIdentifier;
+	position:     LspPosition;
+	context:      LspReferenceContext;
+}
+
 RpcResponse :: fn (TResponse: type #comptime) type #comptime {
 	return struct {
 		id:      s32;
@@ -1394,6 +1495,7 @@ LspServerCapabilities :: struct {
 	completionProvider:  LspCompletionOptions;
 	declarationProvider: bool;
 	definitionProvider:  bool;
+	referencesProvider:  bool;
 }
 
 LspCompletionOptions :: struct {
@@ -1443,4 +1545,22 @@ LspCompletionItem :: struct {
 LspCompletionList :: struct {
 	isComplete: bool;
 	items:    []LspCompletionItem;
+}
+
+LspReferenceContext :: struct {
+	includeDeclaration: bool;
+}
+
+LspHoverParams :: struct {
+	textDocument: LspTextDocumentIdentifier;
+	position:     LspPosition;
+}
+
+LspHover :: struct {
+	contents: LspMarkupContent;
+}
+
+LspMarkupContent :: struct {
+	kind:  string_view;
+	value: string_view;
 }

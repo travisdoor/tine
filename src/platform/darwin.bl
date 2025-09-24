@@ -36,28 +36,28 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, filepath: strin
     return OK, result;
 }
 
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+new_filepath_from_url :: fn (url: string_view) (filepath: string, err: Error) {
 	result: string;
 
 	cf_url_string :: CFStringCreateWithBytes(kCFAllocatorDefault, auto url.ptr, url.len, CFStringEncoding.UTF8, 0);
 	defer CFRelease(cf_url_string);
-	if !cf_url_string then return error("Failed to create file path from URL."), result;
+	if !cf_url_string then return result, error("Failed to create file path from URL.");
 
 	cf_url :: CFURLCreateWithString(kCFAllocatorDefault, cf_url_string, null);
 	defer CFRelease(cf_url);
-	if !cf_url then return error("Failed to create file path from URL."), result;
+	if !cf_url then return result, error("Failed to create file path from URL.");
 
 	cf_filepath :: CFURLCopyFileSystemPath(cf_url, 0);
 	defer CFRelease(cf_filepath);
-	if !cf_filepath then return error("Failed to create file path from URL."), result;
+	if !cf_filepath then return result, error("Failed to create file path from URL.");
 
 	buf: [2048]C.char #noinit;
 	if CFStringGetCString(cf_filepath, buf.ptr, buf.len, CFStringEncoding.UTF8) == 0 {
-		return error("Failed to create file path from URL."), result;
+		return result, error("Failed to create file path from URL.");
 	}
 
 	str_append(&result, ctostr(buf.ptr));
-    return OK, result;
+    return result, OK;
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {

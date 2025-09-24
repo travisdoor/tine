@@ -216,16 +216,16 @@ get_fonts_directory :: fn () string {
 	return path;
 }
 
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+new_filepath_from_url :: fn (url: string_view) (filepath: string, err: Error) {
 	buf: [MAX_PATH]u8 #noinit;
 	len: DWORD = auto buf.len;
 	status :: PathCreateFromUrlA(strtoc(url), auto buf.ptr, &len, 0);
 	if status != S_OK {
-		return error("Url '%' cannot be converted to file path.", url), string.{};
+		return .{}, error("Url '%' cannot be converted to file path.", url);
 	}
 	result :: str_make(string_view.{ auto len, buf.ptr });
 	str_replace_all(&result, '\\', '/');
-	return OK, result;
+	return result, OK;
 }
 
 new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {

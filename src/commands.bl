@@ -97,6 +97,7 @@ Command :: enum {
 	INCREASE_FONT_SIZE;
 	KILL_ASYNC_JOBS;
 	LSP_COMPLETION;
+	LSP_REFERENCES;
 	LSP_KILL_SERVER;
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
@@ -224,6 +225,7 @@ make_command_help :: fn () [enum_count(Command)]string_view #comptime {
 	help[auto INCREASE_FONT_SIZE]      = "";
 	help[auto KILL_ASYNC_JOBS]         = "Kill all running async jobs.";
 	help[auto LSP_COMPLETION]          = "Activate LSP completion mode on current subject under cursor.";
+	help[auto LSP_REFERENCES]          = "Find all references of symbol under cursor using LSP.";
 	help[auto LSP_KILL_SERVER]         = "";
 	help[auto LSP_RESTART_SERVER]      = "";
 	help[auto OPEN_DEFAULT_CONFIG]     = "";
@@ -709,6 +711,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
 		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
 		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
+		LSP_REFERENCES      { lsp_find_references (editor, buf);                           }
 		HELP                { help                ();                                      }
 		CLEAR_MESSAGES      { clear_messages      ();                                      }
 		OPEN_FILE_LOCATION  { open_file_location  (buf);                                   }

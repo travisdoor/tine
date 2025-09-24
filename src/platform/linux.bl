@@ -30,10 +30,10 @@ new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
 }
 
 // Note 2025-01-11: We might reuse the same function on mac and windows.
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+new_filepath_from_url :: fn (url: string_view) (filepath: string, err: Error) {
 	result: string;
-	if !str_match(url, "file://", 7) then return error("Proveded URL does not refer file."), result;
-	if url.len == 7 then return error("No file path specified in URL."), result;
+	if !str_match(url, "file://", 7) then return result, error("Proveded URL does not refer file.");
+	if url.len == 7 then return result, error("No file path specified in URL.");
 
 	filepath :: slice_range(url, 7);
 	loop i := 0; i < filepath.len; {
@@ -43,18 +43,18 @@ new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
 		} else if c == '%' && i + 2 < filepath.len {
 			digits :: string_view.{ 2, &filepath[i+1] };
 			n, err :: strtos64(digits, FmtIntBase.HEX);
-			if err then return err, result;
+			if err then return result, err;
 			c = auto n;
 			str_append(&result, string_view.{ 1, &c });
 			i += 3;
 			continue;
 		} else {
-			return error("Invalid URL."), result;
+			return result, error("Invalid URL.");
 		}
 		i += 1;
 	}
 
-	return OK, result;
+	return result, OK;
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
