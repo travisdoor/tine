@@ -1,8 +1,9 @@
-draw :: #import "extra/draw";
-// glfw :: #import "extra/glfw3";
-math :: #import "std/math";
-io   :: #import "std/io";
-C    :: #import "libc";
+draw       :: #import "extra/draw";
+glfw       :: #import "extra/glfw3";
+math       :: #import "std/math";
+io         :: #import "std/io";
+C          :: #import "libc";
+type_utils :: #import "std/type_utils";
 
 #import "std/async"
 #import "std/debug_allocator"
@@ -201,7 +202,7 @@ Metric :: enum s64 {
 	CORNER_ROUNDING;
 }
 
-metrics: [enum_count(Metric)]f32;
+metrics: [type_utils.enum_variant_count(Metric)]f32;
 
 InputMode :: enum {
 	TEXT;
@@ -247,12 +248,12 @@ FileType :: enum {
 	ASM;
 }
 
-FILE_TYPE_NAME         :: [enum_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL", "ASM" };
-FILE_TYPE_COMMENT_WITH :: [enum_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//",   ";"   };
-FILE_TYPE_REINDENT_ON  :: [enum_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
+FILE_TYPE_NAME         :: [type_utils.enum_variant_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL", "ASM" };
+FILE_TYPE_COMMENT_WITH :: [type_utils.enum_variant_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//",   ";"   };
+FILE_TYPE_REINDENT_ON  :: [type_utils.enum_variant_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
 
 // Related to align_assignments command. Each character is treated separately.
-FILE_TYPE_ALIGN_ON     :: [enum_count(FileType)]string_view.{ "",     ":=", "=",     "",              ""        , "=",    ""    };
+FILE_TYPE_ALIGN_ON     :: [type_utils.enum_variant_count(FileType)]string_view.{ "",     ":=", "=",     "",              ""        , "=",    ""    };
 
 project: struct {
 	name:       string_view;

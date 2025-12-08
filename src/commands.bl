@@ -130,9 +130,9 @@ Command :: enum {
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
 COMMAND_HELP  :: make_command_help();
 
-make_command_help :: fn () [enum_count(Command)]string_view #comptime {
+make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #comptime {
 	using Command;
-	help: [enum_count(Command)]string_view;
+	help: [type_utils.enum_variant_count(Command)]string_view;
 
 	help[auto MOVE_RIGHT]          = "Move cursor one character right.";
 	help[auto MOVE_LEFT]           = "Move cursor one character left.";

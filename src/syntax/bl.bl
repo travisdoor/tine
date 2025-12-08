@@ -263,9 +263,8 @@ parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
 	}
 
 	if t.len == 1 {
-		ctx.index -= 1;
-		t.len     -= 1;
-		return false;
+		t.kind = DIRECTIVE;
+		return true;
 	}
 
 	maybe_directive :: string_view.{ t.len-1, &ctx.bytes[t.index+1] }; // strip #

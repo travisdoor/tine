@@ -276,8 +276,8 @@ parse_valid_clang_like_file_link :: fn (subject: string_view) []FileLink {
 	return result;
 }
 
-get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_underscore := true) [enum_count(TEnum)]string_view #comptime {
-	tmp: [enum_count(TEnum)]string_view #noinit;
+get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_underscore := true) [type_utils.enum_variant_count(TEnum)]string_view #comptime {
+	tmp: [type_utils.enum_variant_count(TEnum)]string_view #noinit;
 	info :: cast(*TypeInfoEnum) typeinfo(TEnum);
 	loop i := 0; i < tmp.len; i += 1 {
 		name :: str_make(info.variants[i].name);
@@ -291,8 +291,8 @@ get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_undersco
 	return tmp;
 }
 
-get_struct_members_as_list :: fn (TStruct: type #comptime) [struct_count(TStruct)]string_view #comptime {
-	tmp: [struct_count(TStruct)]string_view #noinit;
+get_struct_members_as_list :: fn (TStruct: type #comptime) [type_utils.struct_member_count(TStruct)]string_view #comptime {
+	tmp: [type_utils.struct_member_count(TStruct)]string_view #noinit;
 	info :: cast(*TypeInfoStruct) typeinfo(TStruct);
 	loop i := 0; i < tmp.len; i += 1 {
 		name :: str_make(info.members[i].name);
