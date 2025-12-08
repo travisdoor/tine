@@ -194,7 +194,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	executable :: args_with_executable[0];
 	args       :: []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
 
-	result :: Request.{ job_kind = JobKind.SHELL };
+	result := Request.{ job_kind = JobKind.SHELL };
 	result_data :: &result.data.build;
 
 	result_data.text = sprint("Execute: %\n", request_data.args);
