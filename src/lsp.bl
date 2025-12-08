@@ -109,7 +109,7 @@ lsp_open_document :: fn (buf: *Buffer) {
 	print_log("LSP: Add file '%'.", buf.name);
 	buf.lsp.version += 1;
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.DOCUMENT_OPEN;
 	rd.filepath = str_make(buf.filepath);
@@ -129,7 +129,7 @@ lsp_change_document :: fn (buf: *Buffer) {
 	buf.lsp.version       += 1;
 	buf.lsp.published_top  = buf.undo_top;
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind      = LspRequestKind.DOCUMENT_CHANGE;
 	rd.filepath  = str_make(buf.filepath);
@@ -146,7 +146,7 @@ lsp_save_document :: fn (buf: *Buffer) {
 	assert(lsp_is_supported_document_type(buf));
 	print_log("LSP: Save file '%'.", buf.name);
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.DOCUMENT_SAVE;
 	rd.filepath = str_make(buf.filepath);
@@ -160,7 +160,7 @@ lsp_close_document :: fn (buf: *Buffer) {
 	assert(lsp_is_supported_document_type(buf));
 	print_log("LSP: Close file '%'.", buf.name);
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind     = LspRequestKind.DOCUMENT_CLOSE;
 	rd.filepath = str_make(buf.filepath);
@@ -174,7 +174,7 @@ lsp_goto_declaration :: fn (editor: *Editor, buf: *Buffer, open_in_other_split :
 		return;
 	}
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	request_data :: &request.data.lsp;
 	request_data.kind         = LspRequestKind.GOTO_DECLARATION;
 	request_data.cursor       = get_cursor(buf, editor.cursor_index);
@@ -198,7 +198,7 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) {
 		return;
 	}
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	request_data :: &request.data.lsp;
 	request_data.kind      = LspRequestKind.SWITCH_HEADER_SOURCE;
 	request_data.filepath  = str_make(buf.filepath);
@@ -224,7 +224,7 @@ lsp_completion :: fn (editor: *Editor, buf: *Buffer) {
 		lsp_change_document(buf);
 	}
 
-	request :: Request.{ job_kind = JobKind.LSP };
+	request := Request.{ job_kind = JobKind.LSP };
 	rd :: &request.data.lsp;
 	rd.kind         = LspRequestKind.COMPLETION;
 	rd.filepath     = str_make(buf.filepath);
@@ -698,7 +698,7 @@ maybe_process_response :: fn (ctx: *JobContext, json: *JsonTokenizer, pending_re
 	assert(!is_notification(pending_response.kind));
 	pending_response.is_waiting = false;
 
-	response :: Request.{ job_kind = JobKind.LSP };
+	response := Request.{ job_kind = JobKind.LSP };
 	rd :: &response.data.lsp;
 	rd.kind         = pending_response.kind;
 	rd.flags        = pending_response.flags;
@@ -806,7 +806,7 @@ maybe_process_diagnostics :: fn (ctx: *JobContext, json: *JsonTokenizer) bool {
 	if err_uri {
 		print_err(err_uri);
 	} else {
-		result :: Request.{ job_kind = JobKind.LSP };
+		result := Request.{ job_kind = JobKind.LSP };
 		rd :: &result.data.lsp;
 		rd.kind      = LspRequestKind.PUBLISH_DIAGNOSTICS;
 		rd.filepath  = filepath;
