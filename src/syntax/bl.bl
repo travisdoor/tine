@@ -263,7 +263,7 @@ parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
 	}
 
 	if t.len == 1 {
-		t.kind = DIRECTIVE;
+		t.kind = KEYWORD; // better looking for comptime call...
 		return true;
 	}
 

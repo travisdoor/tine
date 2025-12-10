@@ -11,10 +11,10 @@ IoStream :: HANDLE;
 Pid      :: DWORD;
 
 start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_view) Error {
-	static_assert(has_member2(TContext, "pid"));
-	static_assert(has_member2(TContext, "stdin"));
-	static_assert(has_member2(TContext, "stdout"));
-	static_assert(has_member2(TContext, "win_job_handle"));
+	static_assert(type_utils.has_member#(TContext, "pid"));
+	static_assert(type_utils.has_member#(TContext, "stdin"));
+	static_assert(type_utils.has_member#(TContext, "stdout"));
+	static_assert(type_utils.has_member#(TContext, "win_job_handle"));
 
 	job_handle :: CreateJobObjectA(null, null);
 	if job_handle == INVALID_HANDLE_VALUE {
