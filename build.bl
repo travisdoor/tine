@@ -9,7 +9,7 @@ Args :: struct {
 
 args: Args;
 
-build :: fn () #build_entry {
+main :: fn () s32 {
 	defer temporary_release();
 
 	opt := get_builder_options();
@@ -29,11 +29,11 @@ build :: fn () #build_entry {
 	if parse_error {
 		print_err(parse_error);
 		print_help(&parser);
-		return;
+		return 1;
 	}
 
 	if parser.help {
-		return;
+		return 0;
 	}
 
 	exe: *Target;
@@ -60,7 +60,7 @@ build :: fn () #build_entry {
 		add_unit(exe, "src/platform/linux.bl");
 	}
 
-	compile(exe) catch panic($);
+	compile(exe) catch return $.code;
 
 	if args.is_release {
 		if PLATFORM == Platform.WINDOWS {
@@ -69,6 +69,8 @@ build :: fn () #build_entry {
 			create_macos_bundle();
 		}
 	}
+	
+	return 0;
 }
 
 create_macos_bundle :: fn () {
