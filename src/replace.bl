@@ -15,10 +15,10 @@ replace_mode_init :: fn () {
 	}
 
 	// @Incomplete: use search.last_replacement
-
+	target_buf, target_editor :: get_last_active_buffer_and_editor();
 	assert(search.last_subject.len > 0);
 	if !focus_current_search_result() {
-		next_match(buf, editor);
+		closest_match(target_buf, target_editor);
 	}
 
 	if settings.show_hints {

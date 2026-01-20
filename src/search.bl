@@ -13,8 +13,7 @@ search_mode_init :: fn () {
 
 	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
 	if initial_subject.len > 0 {
-		// In case we have curently some selection, we use it as the search subject later and
-		// clear selected range.
+		// In case we have curently some selection, we use it as the search subject later and clear selected range.
 		// Otherwise we assume we might search for the end of what should be selected.
 		clear_selection(target_buf, target_editor.cursor_index);
 	}
@@ -261,6 +260,29 @@ prev_match :: fn (buf: *Buffer, editor: *Editor) {
 	focus_current_search_result();
 }
 
+// Finds closest match and focus it.
+closest_match :: fn (buf: *Buffer, editor: *Editor) {
+	if search.results.len == 0 {
+		print_warn("No match!");
+		return;
+	}
+
+	cursor :: get_cursor_position(buf, editor.cursor_index);
+	search.result_index = 0;
+	closest_d := math.S64_MAX;
+	loop i := 0; i < search.results.len; i += 1 {
+		hit_position :: search.results[i].start;
+		d :: math.abs(cursor - hit_position);
+		if d < closest_d {
+			closest_d = d;
+			search.result_index = i;
+		} else {
+			break;
+		}
+	}
+	focus_current_search_result();
+}
+
 focus_current_search_result :: fn () bool {
 	if search.result_index < 0 || search.result_index >= search.results.len {
 		return false;
@@ -270,6 +292,7 @@ focus_current_search_result :: fn () bool {
 	// center_view(target_editor);
 	return true;
 }
+
 
 #scope_private
 
