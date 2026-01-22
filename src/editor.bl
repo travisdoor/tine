@@ -452,7 +452,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	} else {
 		str_concat(&title, "    ");
 	}
-	str_concat(&title, FILE_TYPE_NAME[auto buf.file_type], "    ", line_ending_name);
+	str_concat(&title, FILE_TYPE[auto buf.file_type].name, "    ", line_ending_name);
 
 	if buf.lsp.version > 0 {
 		str_concat(&title, "    LSP: ", lsp.server_name);

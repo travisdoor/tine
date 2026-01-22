@@ -322,7 +322,7 @@ handle_text_input :: fn (text: string_view) {
 	position = get_cursor_position(buf, editor.cursor_index);
 	insert_string(buf, position, text);
 
-	if has_indentation_info(buf) && str_match(FILE_TYPE_REINDENT_ON[auto buf.file_type], text) {
+	if has_indentation_info(buf) && str_match(FILE_TYPE[auto buf.file_type].reindent_on, text) {
 		indent_range(buf, position, position);
 	}
 

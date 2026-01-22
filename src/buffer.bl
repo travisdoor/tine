@@ -999,6 +999,7 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 		PROJ    { highlight_syntax_proj(buf);   }
 		MD      { highlight_syntax_md(buf);     }
 		ASM     { highlight_syntax_asm(buf);    }
+		CSHARP  { highlight_syntax_csharp(buf); }
 		default;
 	}
 	if buf.index == messages_buffer_index {
@@ -1043,6 +1044,7 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 #load "syntax/messages.bl"
 #load "syntax/project.bl"
 #load "syntax/search.bl"
+#load "syntax/csharp.bl"
 
 SMALL_STRING_EDIT :: 16;
 

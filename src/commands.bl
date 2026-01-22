@@ -1813,7 +1813,7 @@ add_number_under_cursor :: fn (editor: *Editor, buf: *Buffer, v : s64) {
 align_assignments :: fn (editor: *Editor, buf: *Buffer) {
 	if maybe_report_readonly(buf) then return;
 
-	align_on :: FILE_TYPE_ALIGN_ON[auto buf.file_type];
+	align_on :: FILE_TYPE[auto buf.file_type].align_on;
 	if align_on.len == 0 {
 		print_warn("No assignment symbols are set for current file type.");
 		return;
@@ -1915,7 +1915,7 @@ align_assignments :: fn (editor: *Editor, buf: *Buffer) {
 toggle_comment :: fn (editor: *Editor, buf: *Buffer) {
 	if maybe_report_readonly(buf) { return; }
 
-	comment_with :: FILE_TYPE_COMMENT_WITH[auto buf.file_type];
+	comment_with :: FILE_TYPE[auto buf.file_type].comment_with;
 	if comment_with.len == 0 {
 		print_warn("No comment symbols are set for current file type.");
 		return;

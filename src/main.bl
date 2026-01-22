@@ -246,14 +246,76 @@ FileType :: enum {
 	MD;
 	GLSL;
 	ASM;
+	CSHARP
 }
 
-FILE_TYPE_NAME         :: [type_utils.enum_variant_count(FileType)]string_view.{ "Text", "BL", "C/C++", "Configuration", "Markdown", "GLSL", "ASM" };
-FILE_TYPE_COMMENT_WITH :: [type_utils.enum_variant_count(FileType)]string_view.{ "",     "//", "//",    "#",             ""        , "//",   ";"   };
-FILE_TYPE_REINDENT_ON  :: [type_utils.enum_variant_count(FileType)]string_view.{ "",     "}",  "}",     "",              ""        , "}",    ":"   };
+FileTypeInfo :: struct {
+	name:         string_view;
+	comment_with: string_view;
+	reindent_on:  string_view;
 
-// Related to align_assignments command. Each character is treated separately.
-FILE_TYPE_ALIGN_ON     :: [type_utils.enum_variant_count(FileType)]string_view.{ "",     ":=", "=",     "",              ""        , "=",    ""    };
+	// Related to align_assignments command. Each character is treated separately.
+	align_on:     string_view;
+}
+
+FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
+	// Text
+	.{
+		name = "Text",
+	},
+
+	// BL
+	.{
+		name = "BL",
+		comment_with = "//",
+		reindent_on = "}",
+		align_on = ":=",
+	},
+
+	// C/C++
+	.{
+		name = "C/C++",
+		comment_with = "//",
+		reindent_on = "}",
+		align_on = "=",
+	},
+
+	// PROJ
+	.{
+		name = "Configuration",
+		comment_with = "#",
+	},
+
+	// Markdown
+	.{
+		name = "Markdown",
+	},
+
+	// C/C++
+	.{
+		name = "GLSL",
+		comment_with = "//",
+		reindent_on = "}",
+		align_on = "=",
+	},
+
+	// ASM
+	.{
+		name = "ASM",
+		comment_with = ";",
+		reindent_on = ":",
+	},
+
+	// C#
+	.{
+		name = "C#",
+		comment_with = "//",
+		reindent_on = "}",
+		align_on = "=",
+	},
+
+	// Add your setup here...
+};
 
 project: struct {
 	name:       string_view;
@@ -319,10 +381,11 @@ Settings :: struct {
 	shell_enable_error_location_colors:     bool;
 
 	// Language support related things
-	c_extensions:    string;
-	bl_extensions:   string;
-	glsl_extensions: string;
-	asm_extensions:  string;
+	c_extensions:      string;
+	bl_extensions:     string;
+	glsl_extensions:   string;
+	asm_extensions:    string;
+	csharp_extensions: string;
 
 	// file location
 	parse_file_links:    bool;
@@ -1457,6 +1520,9 @@ detect_filetype :: fn (filename: string_view) FileType {
 	}
 	if str_match_one_of(extension, str_split_by(settings.asm_extensions, ' ', allocator)) {
 		return ASM;
+	}
+	if str_match_one_of(extension, str_split_by(settings.csharp_extensions, ' ', allocator)) {
+		return CSHARP;
 	}
 	return FileType.UNKNOWN;
 }
