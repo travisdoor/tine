@@ -1,0 +1,194 @@
+highlight_syntax_blm :: fn (buf: *Buffer) {
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	buf.indent.len = 0;
+	buf.functions.len = 0;
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	insert_all(&ctx.keyword_table,   KEYWORDS);
+	defer tbl_terminate(&ctx.keyword_table);
+
+	previous_token: Token;
+	previous_token_set := false;
+
+	loop {
+		using Token.kind;
+
+		token :: next_token(&ctx);
+		switch token.kind {
+			EOF { break; }
+			KEYWORD_FN {
+				if previous_token_set && previous_token.kind == IDENT {
+					if previous_token.len > 0 {
+						memset(&buf.colors[previous_token.index], CODE_COLOR_FUNCTION_INDEX, auto previous_token.len);
+						array_push(&buf.functions, SearchLocation.{
+								start = previous_token.index,
+								end   = previous_token.index + previous_token.len,
+							});
+					}
+				}
+			}
+
+			default;
+		}
+
+		if token.len > 0 then memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+
+		previous_token = token;
+		previous_token_set = true;
+	}
+}
+
+#scope_private
+
+kind_to_color :: fn (kind: Token.kind) u8 #inline {
+	using Token.kind;
+	switch kind {
+		INVALID    { return CODE_COLOR_INVALID_INDEX;   }
+		IDENT      { return CODE_COLOR_DEFAULT_INDEX;   }
+		KEYWORD    { return CODE_COLOR_KEYWORD_INDEX;   }
+		KEYWORD_FN { return CODE_COLOR_KEYWORD_INDEX;   }
+		COMMENT    { return CODE_COLOR_COMMENT_INDEX;   }
+		STRING     { return CODE_COLOR_STRING_INDEX;    }
+
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+Tokenizer :: struct #base TokenizerBase {
+	keyword_table:   Table(string_view, s8);
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		INVALID;
+		IDENT;
+		KEYWORD;
+		KEYWORD_FN;
+		COMMENT;
+		STRING;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+KEYWORDS :: [_]string_view.{
+	"fn", "setinit", "phi", "toany", "const", "nocast", "bitcast", "sext", "zext", "trunc", "fptosi", "fptoui", "fptrunc", "fpext", "sitofp",
+	"uitofp", "ptrtoint", "inttoptr", "ptrtobool", "compound", "vargs", "sizeof", "typeinfo", "typeof", "alignof", "elemptr", "memberptr",
+	"br", "switch", "unreachable", "debugbreak", "arg", "unop", "decl", "declvariant", "declmember", "declarg", "ret", "store",
+	"binop", "call", "declref", "testcases", "call_location", "unroll", "using", "designator", "msg", "addrof", "load", "insert", "defer"
+};
+KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
+
+max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
+	tmp :: []string_view.{ count, ptrs };
+	l := 0;
+	loop i := 0; i < tmp.len; i += 1 {
+		l = math.max(l, auto tmp[i].len);
+	}
+	return l;
+}
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = EOF,
+			index = ctx.index,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == '\"'        && parse_string      (ctx, &t) then return t;
+		if c == '\''        && parse_string      (ctx, &t) then return t;
+		if c == ';'         && parse_comment     (ctx, &t) then return t;
+		if parse_identifier_or_keyword           (ctx, &t) then return t;
+
+		ctx.index += 1;
+	}
+
+	return Token.{ kind = EOF };
+}
+
+parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	comment :: eat_line(ctx);
+	t.len  = auto comment.len;
+	t.kind = COMMENT;
+	return true;
+}
+
+parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	// @Cleanup: use eat_string_in_quotes
+	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
+	t.kind     = STRING;
+	t.len     += 1; // "
+	ctx.index += 1;
+
+	pc: u8;
+	sc := 0;
+
+	in_string := true;
+	loop in_string && ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if pc == '\\' {
+			sc += 1;
+		} else {
+			sc = 0;
+		}
+		escape :: sc > 0 && (sc % 2 > 0);
+		if (c == '\"' || c == '\'') && escape == false {
+			in_string = false;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+		pc = c;
+	}
+
+	return true;
+}
+
+parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '_' || is_alpha(c) || (t.len > 0 && is_digit(c)) {
+			t.len     += 1;
+			ctx.index += 1;
+		} else {
+			break;
+		}
+	}
+
+	if t.len == 0 { return false; }
+
+	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
+	keyword_index := -1;
+	if maybe_keyword.len <= KEYWORDS_MAX_LEN {
+		keyword_index = tbl_lookup_index(&ctx.keyword_table, maybe_keyword);
+	}
+	if keyword_index != -1 {
+		is_fn :: str_match(ctx.keyword_table.keys[keyword_index], "fn");
+		t.kind = if is_fn then KEYWORD_FN else KEYWORD;
+	} else {
+		t.kind = IDENT;
+	}
+	return true;
+}
+
