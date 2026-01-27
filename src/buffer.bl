@@ -1000,6 +1000,7 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 		MD      { highlight_syntax_md(buf);     }
 		ASM     { highlight_syntax_asm(buf);    }
 		CSHARP  { highlight_syntax_csharp(buf); }
+		BLM     { highlight_syntax_blm(buf);    }
 		default;
 	}
 	if buf.index == messages_buffer_index {
@@ -1037,14 +1038,15 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 #scope_private
 #load "syntax/asm.bl"
 #load "syntax/bl.bl"
+#load "syntax/blm.bl"
 #load "syntax/build.bl"
 #load "syntax/cpp.bl"
+#load "syntax/csharp.bl"
 #load "syntax/glsl.bl"
 #load "syntax/md.bl"
 #load "syntax/messages.bl"
 #load "syntax/project.bl"
 #load "syntax/search.bl"
-#load "syntax/csharp.bl"
 
 SMALL_STRING_EDIT :: 16;
 

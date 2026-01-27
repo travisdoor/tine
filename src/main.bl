@@ -246,7 +246,8 @@ FileType :: enum {
 	MD;
 	GLSL;
 	ASM;
-	CSHARP
+	CSHARP;
+	BLM;
 }
 
 FileTypeInfo :: struct {
@@ -312,6 +313,12 @@ FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
 		comment_with = "//",
 		reindent_on = "}",
 		align_on = "=",
+	},
+
+	// BLM
+	.{
+		name = "BLM",
+		comment_with = ";",
 	},
 
 	// Add your setup here...
@@ -386,6 +393,7 @@ Settings :: struct {
 	glsl_extensions:   string;
 	asm_extensions:    string;
 	csharp_extensions: string;
+	blm_extensions:    string;
 
 	// file location
 	parse_file_links:    bool;
@@ -1523,6 +1531,9 @@ detect_filetype :: fn (filename: string_view) FileType {
 	}
 	if str_match_one_of(extension, str_split_by(settings.csharp_extensions, ' ', allocator)) {
 		return CSHARP;
+	}
+	if str_match_one_of(extension, str_split_by(settings.blm_extensions, ' ', allocator)) {
+		return BLM;
 	}
 	return FileType.UNKNOWN;
 }

@@ -143,6 +143,7 @@ bl_extensions                          .bl
 glsl_extensions                        .glsl
 asm_extensions                         .asm
 csharp_extensions                      .cs
+blm_extensions                         .blm
 
 # Folowing regular expressions are used in various buffers to parse out file links which can
 # be directly openned in the editor.

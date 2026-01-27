@@ -192,10 +192,10 @@ parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
 is_path_absolute :: fn (path: string_view) bool {
 	if path.len < 1 then return false;
 
-	#if PLATFORM == Platform.WINDOWS {
+	#if PLATFORM == .WINDOWS {
 		if path.len < 2 then return false;
 		return path[1] == ':';
+	} else {
+		return path[0] == '/';
 	}
-
-	return path[0] == '/';
 }

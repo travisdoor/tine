@@ -41,10 +41,11 @@ apply_format :: fn (job_state: JobContext.state, request: *Request) {
 
 get_clang_format_executable :: fn () string_view {
 	if settings.clang_format_executable.len > 0 then return settings.clang_format_executable;
-	#if PLATFORM == Platform.WINDOWS {
+	#if PLATFORM == .WINDOWS {
 		return "clang-format.exe";
+	} else {
+		return "clang-format";
 	}
-	return "clang-format";
 }
 
 worker :: fn (ctx: *JobContext) s32 {
