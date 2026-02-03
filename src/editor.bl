@@ -491,7 +491,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 				if top < 0 {
 					top = 0;
 				} else if top+2 >= auto get_row_count(buf) {
-					top = auto get_row_count(buf) - 2;
+					top = auto (get_row_count(buf) - 2);
 				}
 				start_vertical_animation(editor, top, 0.01f);
 			}
@@ -826,12 +826,12 @@ draw_highlight_range :: fn (
 		y :: ty + line_height * auto (row_index - first_line_index);
 		if row_index == first_selection_row_index {
 			// first line
-			x_offset :: text_size(row, &font, auto start - row_start_position);
+			x_offset :: text_size(row, &font, auto (start - row_start_position));
 			w        :: text_size(string_view.{ math.min(end, auto row_start_position + row.len) - start, &row[start - row_start_position] }, &font);
 			rect(tx + x_offset, y, w, line_height, color);
 		} else if row_index == last_selection_row_index {
 			// last line
-			w :: text_size(row, &font, auto end - row_start_position);
+			w :: text_size(row, &font, auto (end - row_start_position));
 			rect(tx, y, w, line_height, color);
 		} else {
 			// middle

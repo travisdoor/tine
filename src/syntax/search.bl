@@ -69,7 +69,7 @@ parse_message :: fn (ctx: *Tokenizer, t: *Token) bool {
 		ctx.index = start_index;
 		return false;
 	}
-	ctx.index = auto start_index + path.len;
+	ctx.index = auto (start_index + path.len);
 	t.kind = LOCATION;
 	t.len  = auto path.len;
 	return true;
@@ -88,7 +88,7 @@ parse_match :: fn (ctx: *Tokenizer, t: *Token) bool {
 	position :: find_matching_subject_in_data(line, search.last_subject);
 	if position != -1 {
 		t.kind  = MATCH;
-		t.index = auto start_index + position;
+		t.index = auto (start_index + position);
 		t.len   = auto search.last_subject.len;
 
 		ctx.index = t.index + t.len;

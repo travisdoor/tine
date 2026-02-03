@@ -1045,7 +1045,7 @@ deserialize_array :: fn (ident: string_view, arr: Any, json: *JsonTokenizer) Err
 			dest.ptr = mem;
 		}
 
-		tmp :: Any.{ elem_type, ptr_shift_bytes(dest.ptr, auto elem_size * cast(usize) i) };
+		tmp :: Any.{ elem_type, ptr_shift_bytes(dest.ptr, auto (elem_size * cast(usize) i)) };
 		zeromem(tmp.data, elem_size);
 		err, is_arr_end :: deserialize_value(ident, tmp, json, true);
 		if err { return err; }

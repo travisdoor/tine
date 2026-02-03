@@ -188,7 +188,7 @@ search_cmd_changed :: fn () {
 
 		hit :: SearchLocation.{
 			start = auto hit_position,
-			end   = auto hit_position + subject.len,
+			end   = auto (hit_position + subject.len),
 			row   = row,
 			col   = col
 		};

@@ -765,7 +765,7 @@ insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
 	orig_bytes_len :: buf.bytes.len;
 	array_resize(&buf.bytes, buf.bytes.len + str.len);
 
-	memmove(&buf.bytes[position + str.len], &buf.bytes[position], auto orig_bytes_len - position);
+	memmove(&buf.bytes[position + str.len], &buf.bytes[position], auto (orig_bytes_len - position));
 	memcpy (&buf.bytes[position], str.ptr, auto str.len);
 
 	adjust_all_cursors_from_position(buf, position, str.len);
@@ -828,7 +828,7 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 		}
 	}
 
-	memmove(&buf.bytes[start], &buf.bytes[end], auto buf.bytes.len - end);
+	memmove(&buf.bytes[start], &buf.bytes[end], auto (buf.bytes.len - end));
 	buf.bytes.len -= len;
 
 	if buf.batch_active { return; }

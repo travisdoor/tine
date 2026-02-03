@@ -544,7 +544,7 @@ add_recent_location :: fn (editor: *Editor) {
 		rl.stack.len = auto rl.index + 1;
 	}
 	array_push(&rl.stack, editor.index);
-	rl.index = auto rl.stack.len-1;
+	rl.index = auto (rl.stack.len-1);
 }
 
 erase_all_locations_for_editor :: fn (editor: *Editor) {
@@ -873,7 +873,7 @@ main :: fn () s32 {
 
 	loop is_running() {
 		current_time :: get_ticks();
-		frame_delta_time = auto (current_time - prev_time) * 1000.;
+		frame_delta_time = auto ((current_time - prev_time) * 1000.);
 		prev_time = current_time;
 
 		recalculate_metrics();
@@ -1928,7 +1928,7 @@ calculate_line_offsets :: fn (text: string_view, fit_to_width: f32, font: *draw.
 	}
 
 	if start_index < text.len {
-		array_push(&lines, TextLine.{ start_index = start_index, len = auto text.len - start_index });
+		array_push(&lines, TextLine.{ start_index = start_index, len = auto (text.len - start_index) });
 	}
 
 	if lines.len == 0 {
