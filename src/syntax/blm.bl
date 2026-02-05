@@ -17,6 +17,9 @@ highlight_syntax_blm :: fn (buf: *Buffer) {
 	insert_all(&ctx.keyword_table,   KEYWORDS);
 	defer tbl_terminate(&ctx.keyword_table);
 
+	insert_all(&ctx.directive_table, DIRECTIVES);
+	defer tbl_terminate(&ctx.directive_table);
+
 	previous_token: Token;
 	previous_token_set := false;
 
@@ -59,6 +62,7 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 		KEYWORD_FN { return CODE_COLOR_KEYWORD_INDEX;   }
 		COMMENT    { return CODE_COLOR_COMMENT_INDEX;   }
 		STRING     { return CODE_COLOR_STRING_INDEX;    }
+		DIRECTIVE  { return CODE_COLOR_DIRECTIVE_INDEX; }
 
 		default;
 	}
@@ -67,6 +71,7 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 
 Tokenizer :: struct #base TokenizerBase {
 	keyword_table:   Table(string_view, s8);
+	directive_table: Table(string_view, s8);
 }
 
 Token :: struct {
@@ -79,6 +84,7 @@ Token :: struct {
 		KEYWORD_FN;
 		COMMENT;
 		STRING;
+		DIRECTIVE;
 	};
 
 	index: s32;
@@ -89,9 +95,13 @@ KEYWORDS :: [_]string_view.{
 	"fn", "setinit", "phi", "toany", "const", "nocast", "bitcast", "sext", "zext", "trunc", "fptosi", "fptoui", "fptrunc", "fpext", "sitofp",
 	"uitofp", "ptrtoint", "inttoptr", "ptrtobool", "compound", "vargs", "sizeof", "typeinfo", "typeof", "alignof", "elemptr", "memberptr",
 	"br", "switch", "unreachable", "debugbreak", "arg", "unop", "decl", "declvariant", "declmember", "declarg", "ret", "store",
-	"binop", "call", "declref", "testcases", "call_location", "unroll", "using", "designator", "msg", "addrof", "load", "insert", "defer"
+	"binop", "call", "declref", "testcases", "call_location", "unroll", "using", "msg", "addrof", "load",
 };
 KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
+
+DIRECTIVES :: [_]string_view.{
+	"~unroll~",  "~insert~", "~defer~", "~deferinsert~", "~designator~",
+};
 
 max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
 	tmp :: []string_view.{ count, ptrs };
@@ -116,6 +126,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		if c == '\"'        && parse_string      (ctx, &t) then return t;
 		if c == '\''        && parse_string      (ctx, &t) then return t;
 		if c == ';'         && parse_comment     (ctx, &t) then return t;
+		if c == '~'         && parse_directive   (ctx, &t) then return t;
 		if parse_identifier_or_keyword           (ctx, &t) then return t;
 
 		ctx.index += 1;
@@ -161,6 +172,27 @@ parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
 	}
 
 	return true;
+}
+
+parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
+	using Token.kind;
+	ctx.index += 1;
+	t.len  = 1;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c != '~' && is_alpha(c) == false { break; }
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	maybe_directive :: string_view.{ t.len, &ctx.bytes[t.index] };
+	if tbl_contains(&ctx.directive_table, maybe_directive) {
+		t.kind = DIRECTIVE;
+		return true;
+	}
+
+	return false;
 }
 
 parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
