@@ -27,6 +27,8 @@ Command :: enum {
 	PREV_LOCATION;
 	LSP_GOTO_DECLARATION;
 	LSP_GOTO_DECLARATION_OTHER_SPLIT;
+	LSP_GOTO_DEFINITION;
+	LSP_GOTO_DEFINITION_OTHER_SPLIT;
 	LSP_OTHER_FILE;
 	LSP_OTHER_FILE_OTHER_SPLIT;
 
@@ -97,6 +99,7 @@ Command :: enum {
 	INCREASE_FONT_SIZE;
 	KILL_ASYNC_JOBS;
 	LSP_COMPLETION;
+	LSP_REFERENCES;
 	LSP_KILL_SERVER;
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
@@ -158,6 +161,8 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	// LSP
 	help[auto LSP_GOTO_DECLARATION]             = "Go to delaration of the current symbol under cursor using LSP.";
 	help[auto LSP_GOTO_DECLARATION_OTHER_SPLIT] = "Go to delaration of the current symbol under cursor using LSP and open the location in other split.";
+	help[auto LSP_GOTO_DEFINITION]              = "Go to definition of the current symbol under cursor using LSP.";
+	help[auto LSP_GOTO_DEFINITION_OTHER_SPLIT]  = "Go to definition of the current symbol under cursor using LSP and open the location in other split.";
 	help[auto LSP_OTHER_FILE]                   = "Try to open related header file.";
 	help[auto LSP_OTHER_FILE_OTHER_SPLIT]       = "Try to open related header file in other split.";
 
@@ -208,7 +213,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto SEARCH_REPLACE]    = "";
 	help[auto PEEK_ERROR]        = "Peek full error message on current line if there is one.";
 	help[auto LIST_FUNCTIONS]    = "List functions in current buffer. This information might not be available for all file types.";
-	help[auto REPEAT]            = "Activate repeat mode (execute next comand N times).";
+	help[auto REPEAT]            = "Activate repeat mode, first enter number of repetitions and then invoke desired command.";
 	help[auto SHELL]             = "Execute shell command in current working directory.";
 
 	help[auto BREAK_IN_REMEDYBG]       = "Set current file location as breakpoint in RemedyBG.";
@@ -224,6 +229,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto INCREASE_FONT_SIZE]      = "";
 	help[auto KILL_ASYNC_JOBS]         = "Kill all running async jobs.";
 	help[auto LSP_COMPLETION]          = "Activate LSP completion mode on current subject under cursor.";
+	help[auto LSP_REFERENCES]          = "Find all references of symbol under cursor using LSP.";
 	help[auto LSP_KILL_SERVER]         = "";
 	help[auto LSP_RESTART_SERVER]      = "";
 	help[auto OPEN_DEFAULT_CONFIG]     = "";
@@ -344,6 +350,12 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 			// Not handled...
 			default;
 		}
+
+		switch mode {
+			Mode.COMPLETION { invoke_post_command_completion_mode(buf, cmd); }
+			default;
+		}
+
 	}
 
 	if cmd != TOGGLE_MACRO_RECORDING && macros.is_recording then add_macro_record(cmd);
@@ -642,79 +654,111 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 	using Command;
 	switch cmd {
-		MOVE_UP             { move_up             (editor, buf);                           }
-		MOVE_DOWN           { move_down           (editor, buf);                           }
-		JUMP_BEGIN          { jump_begin          (editor, buf);                           }
-		JUMP_END            { jump_end            (editor, buf);                           }
-		JUMP_INDENT_BEGIN   { jump_indent_begin   (editor, buf);                           }
-		JUMP_NEXT_PARAGRAPH { jump_next_paragraph (editor, buf);                           }
-		JUMP_PREV_PARAGRAPH { jump_prev_paragraph (editor, buf);                           }
-		JUMP_PAGE_UP        { jump_page_up        (editor, buf);                           }
-		JUMP_PAGE_DOWN      { jump_page_down      (editor, buf);                           }
-		CENTER_VIEW         { center_view         (editor);                                }
-		NEXT_ERROR          { next_error          ();                                      }
-		PREV_ERROR          { prev_error          ();                                      }
-		NEXT_LOCATION       { jump_to_next_location();                                     }
-		PREV_LOCATION       { jump_to_previous_location();                                 }
-		LSP_GOTO_DECLARATION{ lsp_goto_declaration(editor, buf);                           }
-		LSP_GOTO_DECLARATION_OTHER_SPLIT { lsp_goto_declaration(editor, buf, true);        }
-		LSP_OTHER_FILE      { lsp_switch_header_source(buf);                               }
-		LSP_OTHER_FILE_OTHER_SPLIT { lsp_switch_header_source(buf, true);                  }
-		INSERT_NEW_LINE     { insert_new_line     (editor, buf);                           }
-		INDENT              { indent              (editor, buf);                           }
-		CLANG_FORMAT        { clang_format        (buf);                                   }
-		TOGGLE_COMMENT      { toggle_comment      (editor, buf);                           }
-		SORT                { alpha_sort_lines    (editor, buf);                           }
-		INCREASE_NUMBER     { add_number_under_cursor(editor, buf,  1);                    }
-		DECREASE_NUMBER     { add_number_under_cursor(editor, buf, -1);                    }
-		ALIGN_ASSIGNMENTS   { align_assignments   (editor, buf);                           }
-		OTHER_SPLIT         { other_split         (buf);                                   }
-		CLOSE_SPLIT         { close_split         ();                                      }
-		CLOSE_OTHER_SPLIT   { close_other_split   ();                                      }
-		CLOSE_BUFFER        { close_buffer_command(buf);                                   }
-		FORCE_CLOSE_BUFFER  { force_close_buffer  (buf);                                   }
-		SAVE                { save_command        (buf);                                   }
-		SAVE_ALL            { save_all            ();                                      }
-		NEW_BUFFER          { create_new_buffer   ();                                      }
-		INCREASE_FONT_SIZE  { increase_font_size  ();                                      }
-		DECREASE_FONT_SIZE  { decrease_font_size  ();                                      }
-		UNDO                { undo                (editor, buf);                           }
-		REDO                { redo                (editor, buf);                           }
-		OPEN_FILE           { set_mode            (Mode.OPEN_FROM_DRIVE);                  }
-		QUICK_OPEN          { set_mode            (Mode.QUICK_OPEN);                       }
-		SAVE_AS             { set_mode            (Mode.SAVE_TO_DRIVE);                    }
-		GOTO_LINE           { set_mode            (Mode.GOTO_LINE);                        }
-		REPEAT              { set_mode            (Mode.REPEAT);                           }
-		SHELL               { set_mode            (Mode.SHELL_RUN);                        }
-		RUN_COMMAND         { set_mode            (Mode.RUN_COMMAND);                      }
-		SEARCH_FILE         { set_mode            (Mode.SEARCH_FILE);                      }
-		OPEN_PROJECT        { set_mode            (Mode.OPEN_PROJECT);                     }
-		SEARCH_IN_PROJECT   { set_mode            (Mode.SEARCH_IN_PROJECT);                }
-		PEEK_ERROR          { set_mode            (Mode.PEEK_ERROR);                       }
-		LIST_FUNCTIONS      { set_mode            (Mode.LIST_FUNCTIONS);                   }
-		DEBUG_REPORT        { debug_report        ();                                      }
-		OPEN_PROJECT_CONFIG { open_project_config ();                                      }
-		OPEN_DEFAULT_CONFIG { open_default_config ();                                      }
-		OPEN_MESSAGES       { open_messages       ();                                      }
-		OPEN_IN_VISUAL_STUDIO { open_current_buffer_in_visual_studio(buf);                 }
-		OPEN_IN_REMEDYBG    { open_current_buffer_in_remedybg(editor, buf);                }
-		OPEN_IN_RADDBG      { open_current_buffer_in_raddbg(editor, buf);                  }
-		BREAK_IN_REMEDYBG   { set_current_buffer_breakpoint_in_remedybg(editor, buf);      }
-		BREAK_IN_RADDBG     { set_current_buffer_breakpoint_in_raddbg(editor, buf);        }
-		DEBUG_IN_REMEDYBG   { debug_in_remedybg   ();                                      }
-		DEBUG_IN_RADDBG     { debug_in_raddbg     ();                                      }
-		KILL_ASYNC_JOBS     { kill_async_jobs     ();                                      }
-		BUILD               { start_build         ();                                      }
-		SHELL_KILL          { kill_shell          ();                                      }
-		LSP_KILL_SERVER     { kill_lsp_server     ();                                      }
-		LSP_RESTART_SERVER  { restart_lsp_server  ();                                      }
-		LSP_COMPLETION      { lsp_completion      (editor, buf);                           }
-		HELP                { help                ();                                      }
-		CLEAR_MESSAGES      { clear_messages      ();                                      }
-		OPEN_FILE_LOCATION  { open_file_location  (buf);                                   }
-		DATE                { insert_current_date (editor, buf);                           }
+		MOVE_UP                       { move_up(editor, buf); }
+		MOVE_DOWN                     { move_down(editor, buf); }
+		JUMP_BEGIN                    { jump_begin(editor, buf); }
+		JUMP_END                      { jump_end(editor, buf); }
+		JUMP_INDENT_BEGIN             { jump_indent_begin(editor, buf); }
+		JUMP_NEXT_PARAGRAPH           { jump_next_paragraph(editor, buf); }
+		JUMP_PREV_PARAGRAPH           { jump_prev_paragraph(editor, buf); }
+		JUMP_PAGE_UP                  { jump_page_up(editor, buf); }
+		JUMP_PAGE_DOWN                { jump_page_down(editor, buf); }
+		CENTER_VIEW                   { center_view(editor); }
 
-		SEARCH_TO_BUFFER    {
+		NEXT_ERROR                    { next_error(); }
+		PREV_ERROR                    { prev_error(); }
+		NEXT_LOCATION                 { jump_to_next_location(); }
+		PREV_LOCATION                 { jump_to_previous_location(); }
+
+		LSP_GOTO_DECLARATION {
+			lsp_goto_declaration(editor, buf) catch print_err("LSP: %", $);
+		}
+		LSP_GOTO_DECLARATION_OTHER_SPLIT {
+			lsp_goto_declaration(editor, buf, true) catch print_err("LSP: %", $);
+		}
+		LSP_GOTO_DEFINITION {
+			lsp_goto_definition(editor, buf) catch print_err("LSP: %", $);
+		}
+		LSP_GOTO_DEFINITION_OTHER_SPLIT {
+			lsp_goto_definition(editor, buf, true) catch print_err("LSP: %", $);
+		}
+		LSP_OTHER_FILE {
+			lsp_switch_header_source(buf) catch print_err("LSP: %", $);
+		}
+		LSP_OTHER_FILE_OTHER_SPLIT {
+			lsp_switch_header_source(buf, true) catch print_err("LSP: %", $);
+		}
+
+		INSERT_NEW_LINE               { insert_new_line(editor, buf); }
+		INDENT                        { indent(editor, buf); }
+		CLANG_FORMAT                  { clang_format(buf); }
+		TOGGLE_COMMENT                { toggle_comment(editor, buf); }
+		SORT                          { alpha_sort_lines(editor, buf); }
+		INCREASE_NUMBER               { add_number_under_cursor(editor, buf,  1); }
+		DECREASE_NUMBER               { add_number_under_cursor(editor, buf, -1); }
+		ALIGN_ASSIGNMENTS             { align_assignments(editor, buf); }
+
+		OTHER_SPLIT                   { other_split(buf); }
+		CLOSE_SPLIT                   { close_split(); }
+		CLOSE_OTHER_SPLIT             { close_other_split(); }
+		CLOSE_BUFFER                  { close_buffer_command(buf); }
+		FORCE_CLOSE_BUFFER            { force_close_buffer(buf); }
+
+		SAVE                          { save_command(buf); }
+		SAVE_ALL                      { save_all(); }
+		NEW_BUFFER                    { create_new_buffer(); }
+
+		INCREASE_FONT_SIZE            { increase_font_size(); }
+		DECREASE_FONT_SIZE            { decrease_font_size(); }
+
+		UNDO                          { undo(editor, buf); }
+		REDO                          { redo(editor, buf); }
+
+		OPEN_FILE                     { set_mode(Mode.OPEN_FROM_DRIVE); }
+		QUICK_OPEN                    { set_mode(Mode.QUICK_OPEN); }
+		SAVE_AS                       { set_mode(Mode.SAVE_TO_DRIVE); }
+		GOTO_LINE                     { set_mode(Mode.GOTO_LINE); }
+		REPEAT                        { set_mode(Mode.REPEAT); }
+		SHELL                         { set_mode(Mode.SHELL_RUN); }
+		RUN_COMMAND                   { set_mode(Mode.RUN_COMMAND); }
+		SEARCH_FILE                   { set_mode(Mode.SEARCH_FILE); }
+		OPEN_PROJECT                  { set_mode(Mode.OPEN_PROJECT); }
+		SEARCH_IN_PROJECT             { set_mode(Mode.SEARCH_IN_PROJECT); }
+		PEEK_ERROR                    { set_mode(Mode.PEEK_ERROR); }
+		LIST_FUNCTIONS                { set_mode(Mode.LIST_FUNCTIONS); }
+
+		DEBUG_REPORT                  { debug_report(); }
+		OPEN_PROJECT_CONFIG           { open_project_config(); }
+		OPEN_DEFAULT_CONFIG           { open_default_config(); }
+		OPEN_MESSAGES                 { open_messages(); }
+
+		OPEN_IN_VISUAL_STUDIO         { open_current_buffer_in_visual_studio(buf); }
+		OPEN_IN_REMEDYBG              { open_current_buffer_in_remedybg(editor, buf); }
+		OPEN_IN_RADDBG                { open_current_buffer_in_raddbg(editor, buf); }
+		BREAK_IN_REMEDYBG             { set_current_buffer_breakpoint_in_remedybg(editor, buf); }
+		BREAK_IN_RADDBG               { set_current_buffer_breakpoint_in_raddbg(editor, buf); }
+		DEBUG_IN_REMEDYBG             { debug_in_remedybg(); }
+		DEBUG_IN_RADDBG               { debug_in_raddbg(); }
+
+		KILL_ASYNC_JOBS               { kill_async_jobs(); }
+		BUILD                         { start_build(); }
+		SHELL_KILL                    { kill_shell(); }
+
+		LSP_KILL_SERVER               { kill_lsp_server(); }
+		LSP_RESTART_SERVER            { restart_lsp_server(); }
+		LSP_COMPLETION                {
+			lsp_completion(editor, buf) catch print_err("LSP: %", $);
+		}
+		LSP_REFERENCES                {
+			lsp_find_references(editor, buf) catch print_err("LSP: %", $);
+		}
+
+		HELP                          { help(); }
+		CLEAR_MESSAGES                { clear_messages(); }
+		OPEN_FILE_LOCATION            { open_file_location(buf); }
+		DATE                          { insert_current_date(editor, buf); }
+
+		SEARCH_TO_BUFFER {
 			print_warn("Command 'search-to-buffer' is available only in search modes.");
 		}
 
@@ -722,9 +766,9 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 			open_path(tprint("\"%/%\"", data_dir, PROJECTS_DIRECTORY));
 		}
 
-		TRIM_TRAILING_WHITESPACE { trim_trailing_whitespace(buf); }
-		SUPPORT_ME               { support_me();                  }
-		QUIT                     { schedule_exit();               }
+		TRIM_TRAILING_WHITESPACE      { trim_trailing_whitespace(buf); }
+		SUPPORT_ME                    { support_me(); }
+		QUIT                          { schedule_exit(); }
 
 		TOGGLE_MACRO_RECORDING {
 			if macros.is_recording {
@@ -733,9 +777,9 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 				start_macro_recording();
 			}
 		}
-		REPLAY_MACRO   { replay_macro();      }
-		COPY_FILE_PATH { copy_file_path(buf); }
 
+		REPLAY_MACRO                  { replay_macro(); }
+		COPY_FILE_PATH                { copy_file_path(buf); }
 
 		// Not handled.
 		default { return false; }
@@ -834,6 +878,8 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 
 	clear_selection(buf);
 
+	defer publish_lsp_buffer_change_if_needed(buf);
+
 	batch_begin(buf);
 	defer batch_end(buf);
 
@@ -890,7 +936,6 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 			default { panic(); }
 		}
 	}
-
 	return true;
 }
 
@@ -902,6 +947,8 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	clear_selection(buf);
+
+	defer publish_lsp_buffer_change_if_needed(buf);
 
 	batch_begin(buf);
 	defer batch_end(buf);

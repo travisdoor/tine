@@ -417,9 +417,10 @@ string_to_url :: fn (src: string_view) string_view {
 open_path :: fn (path: string_view) {
 	#if PLATFORM == Platform.WINDOWS {
 		ShellExecuteA(null, strtoc("open"), strtoc(path), null, null, SW_SHOWDEFAULT);
-	} else {
-		// @Incomplete: Maybe something else on Linux?
+	} if PLATFORM == Platform.DARWIN {
 		os_execute(tprint("open \"%\"", path));
+	} else {
+		os_execute(tprint("xdg-open \"%\"", path));
 	}
 }
 
@@ -894,5 +895,10 @@ contains_any_of :: fn (str: string_view, chars: string_view) bool #inline {
 		}
 	}
 	return false;
+}
+
+absolute_path_to_relative :: fn (path: string_view, prefix: string_view) string_view #inline {
+	if !str_match(path, prefix, auto prefix.len) then return path;
+	return tprint(".%", string_view.{ path.len - prefix.len, &path[prefix.len] });
 }
 

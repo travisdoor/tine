@@ -37,7 +37,7 @@ draw_open_from_drive_mode :: fn () {
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, get_title());
 
 	using DrawListCols;
-	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE);
+	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE);
 	draw_last_status_message(0.f, h + list_h, w);
 
 	if clicked {

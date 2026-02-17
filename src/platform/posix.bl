@@ -5,9 +5,10 @@
 IoStream :: C.int;
 Pid      :: C.pid_t;
 
-start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Error {
+start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view, stderr_to_stdout := true) Error {
 	in_pipe:  [2]s32 #noinit;
 	out_pipe: [2]s32 #noinit;
+	err_pipe: [2]s32 #noinit;
 
 	executable :: str_make(256);
 	defer str_terminate(&executable);
@@ -22,6 +23,11 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 	}
 	if C.pipe(out_pipe.ptr) != 0 {
 		return os_get_last_error2();
+	}
+	if !stderr_to_stdout {
+		if C.pipe(err_pipe.ptr) != 0 {
+			return os_get_last_error2();
+		}
 	}
 
 	flags :: C.fcntl(out_pipe[0], C.F_GETFL);
@@ -40,7 +46,12 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 		C.close(in_pipe[1]);
 		C.close(out_pipe[0]);
 
-		C.dup2(C.STDOUT, C.STDERR);
+		if stderr_to_stdout {
+			C.dup2(C.STDOUT, C.STDERR);
+		} else {
+			C.dup2(err_pipe[1], C.STDERR);
+			C.close(err_pipe[0]);
+		}
 
 		argc :: args.len + 2; // +2 executable and null terminator
 		buf: [16]*C.char #noinit;
@@ -69,9 +80,15 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view) Err
 
 		C.close(out_pipe[1]);
 		C.close(in_pipe[0]);
-
 		ctx.stdout = out_pipe[0];
 		ctx.stdin  = in_pipe[1];
+
+		if stderr_to_stdout {
+			ctx.stderr = ctx.stdout;
+		} else {
+			C.close(err_pipe[1]);
+			ctx.stderr = err_pipe[0];
+		}
 	}
 
 	return OK;
@@ -81,6 +98,7 @@ stop_process :: fn (ctx: *?TContext) Error {
 	using C;
 	close_pipe(&ctx.stdin);
 	close_pipe(&ctx.stdout);
+	close_pipe(&ctx.stderr);
 
 	assert(ctx.pid > 0);
 	kill(ctx.pid, SIGTERM);
@@ -96,35 +114,45 @@ execute_system_command :: fn (cmd: string_view) Error {
 }
 
 PollEvent :: enum #flags {
+	NO_EVENT = 0;
+	READ_STDOUT;
+	READ_STDERR;
 	READ;
 	CLOSED;
-	WAIT;
 }
 
 poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 	using C;
-	pfd := pollfd.{
-		fd = ctx.stdout,
-		events = POLLIN,
+
+	pfds := [2]pollfd.{
+		.{ fd = ctx.stdout, events = POLLIN },
+		.{ fd = ctx.stderr, events = POLLIN },
 	};
 
-	poll_result :: poll(&pfd, 1, 1);
-	if poll_result > 0 {
-		result := PollEvent.WAIT;
+	poll_result := poll(pfds.ptr, auto pfds.len, 1);
 
-		if (pfd.revents & POLLIN) != 0 {
-			result = PollEvent.READ;
+	if poll_result > 0 {
+		result: PollEvent;
+
+		if (pfds[0].revents & POLLIN) != 0 {
+			result |= PollEvent.READ_STDOUT | PollEvent.READ;
 		}
-		if (pfd.revents & POLLHUP) != 0 {
+		if (pfds[1].revents & POLLIN) != 0 {
+			result |= PollEvent.READ_STDERR | PollEvent.READ;
+		}
+		if ((pfds[0].revents | pfds[1].revents) & POLLHUP) != 0 {
 			status: s32;
-			if waitpid(ctx.pid, &status, 0) == -1 then return result, os_get_last_error2();
+			if waitpid(ctx.pid, &status, 0) == -1 {
+				return result, os_get_last_error2();
+			}
 			ctx.exit_code = C.WEXITSTATUS(status);
 			result |= PollEvent.CLOSED;
 		}
 		return result, OK;
 	} else if poll_result == 0 {
-		return PollEvent.WAIT, OK;
+		return .{}, OK;
 	}
+
 	return PollEvent.CLOSED, os_get_last_error2();
 }
 
@@ -157,7 +185,6 @@ write_pipe :: fn (stream: IoStream, msg: string_view) Error {
 		total_written += n;
 	}
 	assert(msg.len == total_written);
-	print_log("WRITE: %", msg);
 	return OK;
 }
 

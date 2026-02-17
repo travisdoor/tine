@@ -28,7 +28,7 @@ draw_quick_open_mode :: fn () {
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Quick: ");
 
 	using DrawListCols;
-	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT);
+	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT);
 	draw_last_status_message(0.f, h + list_h, w);
 	if clicked { commit(); }
 }

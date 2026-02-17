@@ -1,3 +1,11 @@
+ShellRequest :: struct {
+	args: string;
+}
+
+ShellResponse :: struct {
+	text:  string;
+}
+
 shell: struct {
 	job_index:       s32;
 	buffer_index:    s32;
@@ -33,19 +41,21 @@ request_shell_execute :: fn (cmd: string_view) Error {
 	shell.last_ansi_color = 0;
 
 	job_index :: start_async_job(JobKind.SHELL, "shell", &worker);
-
-	request := Request.{ job_kind = JobKind.SHELL };
-	request_data :: &request.data.build;
-	request_data.args = str_make(cmd);
-
-	push_request(get_job_context(job_index), &request);
-
 	shell.job_index = job_index;
+
+	ctx :: get_job_context(job_index);
+
+	request := make_request(ctx) catch return $;
+	request.as.shell = .{
+		args = str_make(cmd, request.allocator),
+	};
+
+	push_request(ctx, &request);
 	return OK;
 }
 
-apply_shell :: fn (_: JobContext.state, request: *Request) {
-	if shell.buffer_index == -1 then return;
+apply_shell :: fn (_: JobContext.state, response: *Response) Error {
+	if shell.buffer_index == -1 then return OK;
 	assert(shell.buffer_index >= 0 && shell.buffer_index < buffers.len);
 	buf :: &buffers[shell.buffer_index];
 
@@ -55,18 +65,15 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 	if buf.is_removed {
 		kill_shell();
 	} else {
-		request_data :: &request.data.build;
-
-		// append_readonly_buffer(buf, request_data.text);
-		// return;
+		response_data :: &response.as.shell;
 
 		text: string_view;
 		if shell.in_tmp.len > 0 {
-			str_append(&shell.in_tmp, request_data.text);
+			str_append(&shell.in_tmp, response_data.text);
 			text = shell.in_tmp;
 			shell.in_tmp.len = 0;
 		} else {
-			text = request_data.text;
+			text = response_data.text;
 		}
 
 		batch_begin(buf);
@@ -143,7 +150,7 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 					len :: i - esc_seq_start_index;
 					assert(len > 0, "We expect at least escape character here!");
 					str_append(&shell.in_tmp, string_view.{ len, &text[esc_seq_start_index] });
-					return;
+					return OK;
 				}
 			} else {
 				if append_len == 0 then append_start_index = i;
@@ -154,6 +161,7 @@ apply_shell :: fn (_: JobContext.state, request: *Request) {
 
 		if append_len > 0 then append(buf, .{ append_len, &text[append_start_index] }, shell.last_ansi_color);
 	}
+	return OK;
 }
 
 kill_shell :: fn () {
@@ -172,13 +180,21 @@ kill_shell :: fn () {
 worker :: fn (ctx: *JobContext) s32 {
 	using JobContext.state;
 
+	report_error_and_fail :: fn (ctx: *JobContext, err: Error) {
+		print_err(err);
+		ctx.state = .FAILED;
+	};
+
 	// wait for request
 	request: Request #noinit;
 	loop !pop_request(ctx, &request) {
 		os_sleep_ms(10);
 	}
-	request_data :: &request.data.build;
-	defer terminate_request(&request);
+	request_data :: &request.as.shell;
+	defer terminate_request(ctx, &request);
+
+	set_job_progress_indicator(ctx, true);
+	defer set_job_progress_indicator(ctx, false);
 
 	allocator :: application_context.temporary_allocator;
 
@@ -186,27 +202,26 @@ worker :: fn (ctx: *JobContext) s32 {
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
 
 	if args_with_executable.len == 0 {
-		print_err("Cannot resolve shell executable name.");
-		ctx.state = FAILED;
+		report_error_and_fail(ctx, error("Cannot resolve shell executable name."));
 		return 0;
 	}
 
 	executable :: args_with_executable[0];
 	args       :: []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
 
-	result := Request.{ job_kind = JobKind.SHELL };
-	result_data :: &result.data.build;
-
-	result_data.text = sprint("Execute: %\n", request_data.args);
-	push_result(ctx, &result);
-
-	err :: start_process(ctx, executable, args);
+	start_process(ctx, executable, args) catch {
+		report_error_and_fail(ctx, $);
+		return 1;
+	};
 	defer stop_process(ctx);
 
-	if err {
-		print_err(err);
-		ctx.state = FAILED;
-		return 1;
+	{
+		response := make_response(ctx) catch {
+			report_error_and_fail(ctx, $);
+			return 1;
+		};
+		response.as.shell.text = sprint_with_allocator(response.allocator, "Execute: %\n", request_data.args);
+		push_response(ctx, &response);
 	}
 
 	write_pipe(ctx.stdin, request_data.args);
@@ -214,23 +229,24 @@ worker :: fn (ctx: *JobContext) s32 {
 	close_pipe(&ctx.stdin);
 
 	loop !ctx.kill {
-		state, err :: poll_process(ctx);
-		if err {
-			print_err(err);
-            ctx.state = FAILED;
-            return 1;
-		}
+		state :: poll_process(ctx) catch {
+			report_error_and_fail(ctx, $);
+			return 1;
+		};
 
 		using PollEvent;
 		if is_flag(state, READ) {
-			defer push_result(ctx, &result);
-
-			err_read :: read_pipe(ctx.stdout, &result_data.text);
-			if err_read {
-				print_err(err_read);
-				ctx.state = FAILED;
+			response := make_response(ctx) catch {
+				report_error_and_fail(ctx, $);
 				return 1;
-			}
+			};
+			response.as.shell.text = str_make(response.allocator);
+			defer push_response(ctx, &response);
+
+			read_pipe(ctx.stdout, &response.as.shell.text) catch {
+				report_error_and_fail(ctx, $);
+				return 1;
+			};
 		}
 		if is_flag(state, CLOSED) {
 			ctx.state = DONE;
@@ -241,13 +257,23 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	if ctx.state == DONE {
-		result_data.text = sprint("\nProcess exited with status %.\n", ctx.exit_code);
-		push_result(ctx, &result);
+		response := make_response(ctx) catch {
+			report_error_and_fail(ctx, $);
+			return 1;
+		};
+		response.as.shell.text = sprint_with_allocator(response.allocator, "\nProcess exited with status %.\n", ctx.exit_code);
+		push_response(ctx, &response);
 		return 0;
 	}
 
-	result_data.text = str_make("\nProcess killed.\n");
-	push_result(ctx, &result);
+	{
+		response := make_response(ctx) catch {
+			report_error_and_fail(ctx, $);
+			return 1;
+		};
+		response.as.shell.text = str_make("\nProcess killed.\n", response.allocator);
+		push_response(ctx, &response);
+	}
 
 	ctx.state = KILLED;
 	return 0;

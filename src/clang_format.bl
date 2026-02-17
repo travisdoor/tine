@@ -1,3 +1,16 @@
+ClangFormatRequest :: struct {
+	filepath:     string;
+	src:          string;
+	buffer_index: s32;
+	buffer_hash:  u32;
+}
+
+ClangFormatResponse :: struct {
+	src:          string;
+	buffer_index: s32;
+	buffer_hash:  u32;
+}
+
 request_format :: fn (buf: *Buffer) Error {
 	if buf.file_type != FileType.C {
 		return error("Buffer '%' is not recognized as C/C++ source file.", buf.name);
@@ -8,33 +21,32 @@ request_format :: fn (buf: *Buffer) Error {
 	buf.flags |= BufferFlags.READONLY;
 	job_index :: start_async_job(JobKind.CLANG_FORMAT, "clang-format", &worker);
 
-	request := Request.{ job_kind = JobKind.CLANG_FORMAT };
-	rd :: &request.data.clang_format;
-	rd.filepath     = str_make(buf.filepath);
-	rd.src          = str_make(buf.bytes);
-	rd.buffer_index = buf.index;
-	rd.buffer_hash  = buf.hash;
+	ctx :: get_job_context(job_index);
 
-	buf.has_pending_job += 1;
+	request := make_request(ctx) catch return $;
+	request.as.clang_format = .{
+		filepath     = str_make(buf.filepath, request.allocator),
+		src          = str_make(buf.bytes, request.allocator),
+		buffer_index = buf.index,
+		buffer_hash  = buf.hash,
+	};
 
-	push_request(get_job_context(job_index), &request);
-
+	push_request(ctx, &request);
 	return OK;
 }
 
-apply_format :: fn (job_state: JobContext.state, request: *Request) {
+apply_format :: fn (job_state: JobContext.state, response: *Response) Error {
 	check_main_thread();
-
-	rd :: &request.data.clang_format;
+	rd :: &response.as.clang_format;
 
 	// If clang-format took long time, it's possible the target buffer was removed or
 	// the buffer slot was reused for a different file...
 	buf :: &buffers[rd.buffer_index];
-	if buf.is_removed             { return; }
-	if buf.hash != rd.buffer_hash { return; }
+	if buf.is_removed             { return OK; }
+	if buf.hash != rd.buffer_hash { return OK; }
 	clr_flag(&buf.flags, BufferFlags.READONLY);
-	buf.has_pending_job -= 1;
 	if job_state == JobContext.state.DONE then change_content(buf, rd.src);
+	return OK;
 }
 
 #scope_private
@@ -56,18 +68,33 @@ worker :: fn (ctx: *JobContext) s32 {
 	loop !pop_request(ctx, &request) {
 		os_sleep_ms(10);
 	}
-	request_data :: &request.data.clang_format;
-	executable   :: get_clang_format_executable();
+	defer terminate_request(ctx, &request);
+
+	set_job_progress_indicator(ctx, true);
+	defer set_job_progress_indicator(ctx, false);
+
+	response := make_response(ctx) catch {
+		print_err("clang-format: %", $);
+		ctx.state = FAILED;
+		return 1;
+	};
+
+	response.as.clang_format = .{
+		buffer_index = request.as.clang_format.buffer_index,
+		buffer_hash  = request.as.clang_format.buffer_hash,
+		src          = str_make(request.as.clang_format.src.len, response.allocator),
+	};
 
 	// We need to unlock the file and do other stuff even in case execution failed...
-	defer push_result(ctx, &request);
+	defer push_response(ctx, &response);
 
-	args :: [_]string_view.{ tprint("--assume-filename=\"%\"", request_data.filepath) };
+	executable :: get_clang_format_executable();
+	args       :: [_]string_view.{ tprint("--assume-filename=\"%\"", request.as.clang_format.filepath) };
 	start_process(ctx, executable, args) catch {
 		if $.code == ERR_NOT_FOUND {
-			print_err("Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
+			print_err("clang-format: Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
 		} else {
-			print_err("Cannot execute '%' with error: %", executable, $);
+			print_err("clang-format:Cannot execute '%' with error: %", executable, $);
 		}
 		ctx.state = FAILED;
 		return 1;
@@ -75,27 +102,26 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	defer stop_process(ctx);
 
-	write_pipe(ctx.stdin, request_data.src) catch {
-		print_err("The '%' failed with error: %", executable, $);
+	write_pipe(ctx.stdin, request.as.clang_format.src) catch {
+		print_err("clang-format:The '%' failed with error: %", executable, $);
 		ctx.state = FAILED;
 		return 1;
 	};
 
 	// Submit the source to the clang-format.
 	close_pipe(&ctx.stdin);
-	request_data.src.len = 0;
 
 	loop !ctx.kill {
 		state :: poll_process(ctx) catch {
-			print_err("The '%' failed with error: %", executable, $);
+			print_err("clang-format:The '%' failed with error: %", executable, $);
 			ctx.state = FAILED;
 			return 1;
 		};
 
 		using PollEvent;
 		if is_flag(state, READ) {
-			read_pipe(ctx.stdout, &request_data.src) catch {
-				print_err("The '%' failed with error: %", executable, $);
+			read_pipe(ctx.stdout, &response.as.clang_format.src) catch {
+				print_err("clang-format:The '%' failed with error: %", executable, $);
 				ctx.state = FAILED;
 				return 1;
 			};

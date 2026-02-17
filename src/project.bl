@@ -423,6 +423,26 @@ parse_settings_entry :: fn (ctx: *Tokenizer) Error {
 		return report(ctx, "Unknown settings entry name '%'.", name);
 	}
 
+	if member_type.kind == .ENUM {
+		variant_name := str_make(trim_right(eat_till(ctx, "#\n\r\t"), " "), application_context.temporary_allocator);
+		str_upper(&variant_name);
+		enum_info :: cast(*TypeInfoEnum) member_type;
+		variant_index := 0;
+		loop ; variant_index < enum_info.variants.len; variant_index += 1 {
+			variant :: enum_info.variants[variant_index];
+			if str_match(variant.name, variant_name) {
+				n_ptr :: cast(*s32) member_ptr;
+				@n_ptr = auto variant.value;
+				break;
+			}
+		}
+		if variant_index == enum_info.variants.len {
+			return report(ctx, "Unknown enumeration value '%'", variant_name);
+		}
+
+		return OK;
+	}
+
 	if member_type == typeinfo(s32) {
 		err, n :: parse_number(ctx);
 		if err { return err; }

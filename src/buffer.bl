@@ -46,15 +46,17 @@ Buffer :: struct {
 	saved_top:     s64;
 
 	tmp_string:       string;
-	has_pending_job:  s32; // 0 = no pending jobs
-	pending_t:        f32;
 	last_focus_index: s32;
 
 	lsp: struct {
 		version:            s32; // 0 = not tracked by lsp
 		published_top:      s64;
 		dia:            [..]ErrorLocation;
-		dia_strs:       [..]string;
+		last_known_end:     Cursor;
+		last_dia_pull_time: f64;
+		pending_dia:        bool;
+		
+		dia_message_pool:   PoolAllocator;
 	};
 
 	is_removed:      bool;
@@ -135,6 +137,8 @@ add_buffer :: fn (name := "") s32 {
 
 	reset_undo(buf);
 	mutex_init(&buf.mutex);
+
+	buf.lsp.dia_message_pool = pool_make(null, 2048);
 	return buf.index;
 }
 
@@ -204,7 +208,8 @@ remove_buffer :: fn (index: s32) {
 	array_terminate(&buf.functions);
 	mutex_terminate(&buf.mutex);
 
-	terminate_buffer_diagnostics(buf);
+	array_terminate(&buf.lsp.dia);
+	release_allocator(&buf.lsp.dia_message_pool);
 
 	zeroinit(buf);
 	buf.index      = index;
@@ -343,6 +348,13 @@ clear_selection :: fn {
 	};
 }
 
+is_selection_active :: fn (buf: *Buffer, cursor_index: s32) bool #inline {
+	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
+	c :: &buf.cursors[cursor_index];
+	assert(c.is_removed == false);
+	return c.selection_start != -1;
+}
+
 get_selection_start :: fn (buf: *Buffer, cursor_index: s32) s64 #inline {
 	assert(cursor_index >= 0 && cursor_index < buf.cursors.len);
 	c :: &buf.cursors[cursor_index];
@@ -395,10 +407,7 @@ commit_undo :: fn (buf: *Buffer) {
 	rec :: array_push(&buf.undo);
 	rec.kind = COMMIT;
 
-	// Update document in lsp
-	if is_lsp_running() && buf.lsp.version > 0 &&  lsp_buffer_needs_update(buf) {
-		lsp_change_document(buf);
-	}
+	publish_lsp_buffer_change_if_needed(buf);
 }
 
 reset_undo :: fn (buf: *Buffer) {
@@ -439,15 +448,15 @@ load_buffer_from_file :: fn (buf: *Buffer, filepath: string_view) Error {
 	}
 
 	set_buffer_file_info(buf, filepath);
-	buf.lsp.dia.len = 0;
-	buf.lsp.dia_strs.len = 0;
+	reset_buffer_diagnostics(buf);
 
 	// Watch for file changes.
 	if !is_watched(file_watch, buf.filepath) {
 		watch_changes(file_watch, filepath) catch print_err($);
 	}
 
-	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+
+	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
 	return OK;
 }
 
@@ -475,7 +484,7 @@ save_buffer_to_file :: fn (buf: *Buffer, filepath: string_view) Error {
 	}
 
 	if buf.lsp.version > 0 {
-		lsp_save_document(buf);
+		lsp_save_document(buf) catch print_err("LSP: %", $);
 	}
 
 	print_info("File saved to: '%'.", filepath);
@@ -964,12 +973,23 @@ find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
 	return math.max(n, 0);
 }
 
-terminate_buffer_diagnostics :: fn (buf: *Buffer) {
-	loop i := 0; i < buf.lsp.dia_strs.len; i += 1 {
-		str_terminate(&buf.lsp.dia_strs[i]);
-	}
-	array_terminate(&buf.lsp.dia);
-	array_terminate(&buf.lsp.dia_strs);
+add_buffer_dia_entry :: fn (buf: *Buffer, loc: *ErrorLocation) #inline {
+	print_log("Add dia: %", loc.message);
+	
+	row :: peek_row(buf, loc.line);
+	
+	array_push(&buf.lsp.dia, .{
+			kind      = loc.kind,
+			message   = str_make(loc.message, &buf.lsp.dia_message_pool),
+			line      = loc.line,
+			col       = loc.col,
+			line_hash = str_hash(row),
+		});
+}
+
+reset_buffer_diagnostics :: fn (buf: *Buffer) {
+	buf.lsp.dia.len = 0;
+	reset_allocator(&buf.lsp.dia_message_pool);
 }
 
 get_diagnostic_for_line :: fn (buf: *Buffer, line: s32) *ErrorLocation #inline {
@@ -1032,6 +1052,12 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 		return LineEnding.CRLF;
 	} else {
 		return LineEnding.LF;
+	}
+}
+
+publish_lsp_buffer_change_if_needed :: fn (buf: *Buffer) {
+	if is_lsp_running() && buf.lsp.version > 0 && lsp_buffer_needs_update(buf) {
+		lsp_change_document(buf) catch print_err("LSP: %", $);
 	}
 }
 
@@ -1189,7 +1215,7 @@ rebuild_lines :: fn (buf: *Buffer) {
 
 	array_push(&buf.lines, buf.bytes.len);
 
-/*
+	/*
 	buf.lines.len = 0;
 	array_push(&buf.lines, 0);
 
@@ -1197,17 +1223,17 @@ rebuild_lines :: fn (buf: *Buffer) {
 	// all 8 bytes in case there is no new line. Note that there is also simplification since
 	// we assume \r\n and \n both ends with \n.
 	loop i : s64 = 0; i < buf.bytes.len; {
-		c :: buf.bytes[i];
-		if c == '\n' {
-			i += 1;
-			array_push(&buf.lines, i);
-		} else {
-			i += 1;
-		}
+	c :: buf.bytes[i];
+	if c == '\n' {
+	i += 1;
+	array_push(&buf.lines, i);
+	} else {
+	i += 1;
+	}
 	}
 
 	array_push(&buf.lines, buf.bytes.len);
-*/
+	*/
 }
 
 load_buffer_bytes :: fn (buf: *Buffer, stream: *io.Stream) Error {

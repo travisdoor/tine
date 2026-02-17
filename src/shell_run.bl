@@ -27,7 +27,7 @@ draw_shell_run_mode :: fn () {
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Shell: ");
 
 	using DrawListCols;
-	list_h, clicked :: draw_list(0.f, h, w, TITLE);
+	_, list_h, clicked :: draw_list(0.f, h, w, TITLE);
 	draw_last_status_message(0.f, h + list_h, w);
 	if clicked {
 		set_current_item_as_caption();

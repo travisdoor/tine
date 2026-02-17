@@ -63,7 +63,7 @@ draw_search_in_project_mode :: fn () {
 	}
 
 	using DrawListCols;
-	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT | PREVIEW);
+	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT | PREVIEW);
 	draw_last_status_message(0.f, h + list_h, w);
 	if clicked { commit(); }
 }
@@ -83,7 +83,7 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 		INSERT_NEW_LINE {
 			if cmd == SEARCH_TO_BUFFER {
 				// @Incomplete 2024-12-04 We use global 'search' for storing the subject but not for storing the results
-				// as we does for "in-file" search. We might change this in the funture to make it more consitent.
+				// as we does for "in-file" search. We might change this in the future to make it more consitent.
 				search.last_subject.len = 0;
 				str_append(&search.last_subject, subject);
 

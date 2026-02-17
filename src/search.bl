@@ -3,6 +3,8 @@ search_mode_init :: fn () {
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
+	auto_commit = false;
+
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 	search.results.len       = 0;
@@ -12,10 +14,14 @@ search_mode_init :: fn () {
 	start_top      = target_editor.top;
 
 	initial_subject := peek_selection(target_buf, target_editor.cursor_index);
-	if initial_subject.len > 0 {
-		// In case we have curently some selection, we use it as the search subject later and clear selected range.
-		// Otherwise we assume we might search for the end of what should be selected.
-		clear_selection(target_buf, target_editor.cursor_index);
+	if is_selection_active(target_buf, target_editor.cursor_index) {
+		if initial_subject.len > 0 {
+			// In case we have curently some selection, we use it as the search subject later and clear selected range.
+			// Otherwise we assume we might search for the end of what should be selected.
+			clear_selection(target_buf, target_editor.cursor_index);
+		} else  {
+			auto_commit = settings.enable_quick_search;
+		}
 	}
 
 	if initial_subject.len > 0 && is_multiline(initial_subject) == false {
@@ -25,7 +31,7 @@ search_mode_init :: fn () {
 		initial_subject = search.last_subject;
 	}
 
-	if initial_subject.len > 0 {
+	if initial_subject.len > 0 && !auto_commit {
 		insert_string(buf, 0, initial_subject);
 		select_all(editor, buf);
 	}
@@ -59,7 +65,7 @@ draw_search_mode :: fn () {
 		}
 	}
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search in '%': ", target_buf.name), hint);
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("% in '%': ", if auto_commit then "Quick search" else "Search", target_buf.name), hint);
 	draw_last_status_message(0.f, h, w);
 }
 
@@ -197,7 +203,12 @@ search_cmd_changed :: fn () {
 		start_index = hit_position + subject.len;
 		col += subject_cols;
 	}
-	if search.results.len == 0 then print_warn("No match!");
+	if search.results.len == 0 {
+		print_warn("No match!");
+	} else if auto_commit {
+		next_match(target_buf, target_editor);
+		set_mode(Mode.TEXT_EDIT);
+	}
 }
 
 // Jump to the next matching search location in the last search.
@@ -298,6 +309,8 @@ focus_current_search_result :: fn () bool {
 
 start_position:      s64;
 start_top:           s32; // Editor top position, used to restore original view to prevent jumping.
+
+auto_commit: bool;
 
 // Store current subject into global cache as a last one we performed search for. And return cached
 // string.

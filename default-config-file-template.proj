@@ -4,8 +4,9 @@
 # actual project configuration files might override some of these settings.
 #
 # The configuration is split into sections, each section starts by ;section-name tag.
-
+#----------------------------------------------------------------------------------------------------
 ;include
+#----------------------------------------------------------------------------------------------------
 # List of directories included into the project. The first one is supposed to be a project root and
 # is used as a current working directory.
 # Each directory path entry is supposed to be on a separate line and may contains spaces.
@@ -13,7 +14,9 @@
 # Example:
 #   C:/my/project/root
 
+#----------------------------------------------------------------------------------------------------
 ;exclude
+#----------------------------------------------------------------------------------------------------
 # List of directories exluded from the project.
 # Each directory path entry is supposed to be on a separate line and may contains spaces.
 .svn
@@ -22,7 +25,9 @@
 .vs
 .vscode
 
+#----------------------------------------------------------------------------------------------------
 ;include_file_extensions
+#----------------------------------------------------------------------------------------------------
 # Files with these extensions will be included into the project as editable ones and visible
 # in a quick file search. Each extension is supposed to be separated by space and starting
 # with '.' character.
@@ -30,7 +35,9 @@
 # Example:
 #   .bl .txt .cpp .h
 
+#----------------------------------------------------------------------------------------------------
 ;settings
+#----------------------------------------------------------------------------------------------------
 font_size                              12
 
 # Line spacing as a percentage of the current font size. Supported range is <80, 200>.
@@ -38,17 +45,55 @@ line_spacing                           130
 
 # Customize editor font, default system font location is used for lookup of the ttf font
 # files. Full path can be used too.
-#font                                   font-name.ttf
+# font                                   font-name.ttf
 
 # Customize path to clang-format executable, otherwise editor tries to search the executable in
 # system PATH.
-#clang_format_executable                C:/Program Files/LLVM/bin/clang-format.exe
+# clang_format_executable                C:/Program Files/LLVM/bin/clang-format.exe
 
-# Customize path to clangd LSP server executable, otherwise editor tries to search the executable in
-# system PATH.
-#clangd_executable                      C:/Program Files/LLVM/bin/clangd.exe
-# Customize arguments passed into 'clangd_executable'.
-clangd_args                            -j=8 -background-index --log=error --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders=true
+#----------------------------------------------------------------------------------------------------
+# LSP
+#----------------------------------------------------------------------------------------------------
+
+# Start LSP server automatically if available.
+use_lsp                                false
+
+# Show inline hints from the LSP diagnostics.
+show_lsp_inline_diagnostics            true
+
+# Customize path to LSP server executable, otherwise editor tries to search the executable in system PATH.
+# lsp_executable                         clangd.exe
+
+# Customize arguments passed into 'lsp_executable'.
+# lsp_args                               -j=8 -background-index --log=error --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders=true
+
+# LSP server kind specification, possible values are: generic, clangd, roslyn.
+# lsp_flavor                             clangd.exe
+
+# Specify file type used by LSP. Possible values are: bl, c (same for c++), proj, md, glsl, asm, csharp, blm.
+# lsp_file_type                          c
+
+# Can be used with roslyn LSP to specify path to C# solution file.
+# lsp_roslyn_solution                    solution.sln
+
+# Example LSP setup for C/C++
+# use_lsp                                true
+# lsp_executable                         clangd.exe
+# lsp_args                               -j=8 -background-index --log=error --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders=true
+# lsp_file_type                          c
+# lsp_flavor                             clangd
+
+# Example LSP setup for C#
+# use_lsp                                true
+# lsp_executable                         dotnet.exe
+# lsp_args                               C:/path/.vscode/extensions/ms-dotnettools.csharp/.roslyn/Microsoft.CodeAnalysis.LanguageServer.dll --stdio --logLevel Information --autoLoadProjects
+# lsp_file_type                          csharp
+# lsp_flavor                             roslyn
+# lsp_roslyn_solution                    C:/path/foo.sln
+
+#----------------------------------------------------------------------------------------------------
+# Shell
+#----------------------------------------------------------------------------------------------------
 
 # Customize shell command. Command line arguments including the shell executable used when 'shell' or
 # 'build' editor commands are invoked.
@@ -91,6 +136,10 @@ shell_enable_error_location_colors     false
 # build_command                          blc -build
 # build_command                          ./build.ps1
 
+#----------------------------------------------------------------------------------------------------
+# MISC
+#----------------------------------------------------------------------------------------------------
+
 # Visual size of the tab character as if it was replaced by spaces. In case the
 # 'insert_spaces_instead_tabs' is false this value is used as a count of spaces for
 # indentation.
@@ -116,14 +165,10 @@ indent_on_new_line                     true
 # This might reduce movement required to get the cursor to the useful content of the line.
 vertical_move_tries_follow_indentation true
 
-# Start LSP server automatically if available.
-use_lsp                                false
-
-# Show inline hints from the LSP diagnostics.
-show_lsp_inline_diagnostics            false
-
 # Use large block caret when true.
 block_caret                            true
+# Change the caret in case the current editor is in selection mode.
+change_caret_on_selection              true
 maximize_on_start                      false
 save_all_before_build                  true
 
@@ -137,13 +182,17 @@ smooth_movement                        true
 show_line_numbers                      false
 line_numbers_relative                  false
 
+# Allows a slightly modified behavior of the `search-file` command. When the current editor is in
+# selection mode, the selection is empty, and `search-command` is activated, it starts in "quick"
+# mode. In this mode, any character typed that exists in the file is immediately used for the
+# search, the next match is accepted as a new cursor position, and search mode is automatically
+# deactivated. This enables quick selection from the current cursor position to a desired character.
+enable_quick_search                    true
+
 # Recognize following file extenstions as source files of given type.
 c_extensions                           .c .cpp .h .hpp .cc
-bl_extensions                          .bl
 glsl_extensions                        .glsl
 asm_extensions                         .asm
-csharp_extensions                      .cs
-blm_extensions                         .blm
 
 # Folowing regular expressions are used in various buffers to parse out file links which can
 # be directly openned in the editor.
@@ -161,7 +210,9 @@ file_location_regex :([0-9]*)(?::([0-9]*))?
 #search_size_limit_bytes 1048576
 search_size_limit_bytes 0
 
+#----------------------------------------------------------------------------------------------------
 ;keys
+#----------------------------------------------------------------------------------------------------
 # This section contains shortcuts for various commands in the editor.
 # Expected format is:
 #   command-name binding-one binding-two ... binding-N
@@ -181,9 +232,9 @@ search_size_limit_bytes 0
 #
 # By default, list of all available commands in the editor can be shown by pressing Alt+X.
 
-
+#----------------------------------------------------------------------------------------------------
 # Navigation
-
+#----------------------------------------------------------------------------------------------------
 # Text navigation is based around JKL; keys (the home position on the keyboard).
 move-right           ArrowRight      Ctrl+Semicolon
 move-left            ArrowLeft       Ctrl+J
@@ -206,21 +257,22 @@ prev-error           Ctrl+,
 next-location        Ctrl+]
 prev-location        Ctrl+[
 
+#----------------------------------------------------------------------------------------------------
 # LSP
+#----------------------------------------------------------------------------------------------------
 
-# This kinda works for C/C++ but it's very BETA; despite the fact the LSP protocol is a piece of shit
-# I sometimes need it when working on a huge code base I don't know that much.
-# Currently the LSP server is hardcoded to 'clangd' (it have to be added in your system PATH). To get
-# all features working properly you also need 'compile_commands.json' file in your project root directory,
-# it can be automatically generated by CMake.
-
-lsp-goto-declaration             F12
-lsp-goto-declaration-other-split Alt+F12
+lsp-goto-definition              F12
+lsp-references                   Shift+F12
+lsp-goto-definition-other-split  Alt+F12
+lsp-goto-declaration
+lsp-goto-declaration-other-split
 lsp-other-file                   Ctrl+H
 lsp-other-file-other-split       Ctrl+Alt+H
 lsp-completion                   Alt+Space
 
+#----------------------------------------------------------------------------------------------------
 # Editing
+#----------------------------------------------------------------------------------------------------
 insert-new-line      Enter
 insert-tab           Tab
 delete-char-left     Backspace      Shift+Backspace
@@ -303,14 +355,15 @@ shell Alt+C
 # Quit the editor.
 quit
 
+#----------------------------------------------------------------------------------------------------
 ;colors
+#----------------------------------------------------------------------------------------------------
 # Color code is expected to be RRGGBB hex number.
 # Ctrl-Space starts selection and Ctrl+/ will comment or uncomment selected block, this
 # way you can easily change editor colors.
 
-#-------------------------------------------
 # dark colors
-#-------------------------------------------
+#----------------------------------------------------------------------------------------------------
 background_color                    1B2A2F
 foreground_color                    D1D8D9
 cursor_background_color             FFFF00
@@ -324,7 +377,7 @@ command_background_color            101010
 command_foreground_color            D1D8D9
 command_title_color                 1A9A7B
 command_select_color                264F4E
-command_list_background_color       1A2527
+command_list_background_color       253940
 modification_indicator_color        FFFF00
 selection_background_color          264F4E
 selection_background_inactive_color 2A3F3C
@@ -356,9 +409,8 @@ ansi_magenta                        D172A4
 ansi_cyan                           66C7A5
 ansi_white                          D1D8D9
 
-#-------------------------------------------
 # dark colors zenburn-like
-#-------------------------------------------
+#----------------------------------------------------------------------------------------------------
 # background_color                    3F3F3F
 # foreground_color                    DCDCCC
 # cursor_background_color             00FF00
@@ -404,9 +456,8 @@ ansi_white                          D1D8D9
 # ansi_cyan                           5FD7D7
 # ansi_white                          D0D0D0
 
-#-------------------------------------------
 # dark colors casey style
-#-------------------------------------------
+#----------------------------------------------------------------------------------------------------
 # background_color                    161616
 # foreground_color                    CDAA7D
 # cursor_background_color             00FF00
@@ -452,9 +503,55 @@ ansi_white                          D1D8D9
 # ansi_cyan                           5FD7D7
 # ansi_white                          D0D0D0
 
-#-------------------------------------------
+# solarized dark
+#----------------------------------------------------------------------------------------------------
+# background_color                    002B36
+# foreground_color                    839496
+# cursor_background_color             B58900
+# cursor_foreground_color             002B36
+# current_line_background_color       073642
+# search_result_background_color      614900
+# title_bar_color                     002B36
+# title_bar_active                    1a6660
+# title_bar_text_color                FFFFFF
+# command_background_color            00212B
+# command_foreground_color            93A1A1
+# command_title_color                 2AA198
+# command_select_color                073642
+# command_list_background_color       002B36
+# modification_indicator_color        B58900
+# selection_background_color          094959
+# selection_background_inactive_color 073642
+# message_color                       2AA198
+# warning_color                       B58900
+# error_color                         DC322F
+# inline_error_background_color       3F1F1E
+# inline_warning_background_color     3B3A1A
+# macro_record_icon_color             DC322F
+# background_line_numbers_color       073642
+# foreground_line_numbers_color       586E75
+
+# code_comment                        586E75
+# code_keyword                        859900
+# code_directive                      CB4B16
+# code_string                         2AA198
+# code_number                         B58900
+# code_invalid                        DC322F
+# code_warning                        B58900
+# code_error                          DC322F
+# code_function                       268BD2
+
+# ansi_black                          073642
+# ansi_red                            DC322F
+# ansi_green                          859900
+# ansi_yellow                         B58900
+# ansi_blue                           268BD2
+# ansi_magenta                        D33682
+# ansi_cyan                           2AA198
+# ansi_white                          EEE8D5
+
 # light colors
-#-------------------------------------------
+#----------------------------------------------------------------------------------------------------
 # background_color                    FFFFFF
 # foreground_color                    000000
 # cursor_background_color             0000FF

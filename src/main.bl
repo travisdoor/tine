@@ -15,8 +15,10 @@ type_utils :: #import "std/type_utils";
 #import "std/table"
 #import "std/thread"
 #import "std/sync"
+#import "std/static_array"
 #import "extra/glm"
 #import "extra/filewatch"
+#import "experimental/variant"
 #import "pcre"
 
 #load "buffer.bl"
@@ -93,26 +95,28 @@ MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 8388608; // 8MB
 MAX_INDENTATION_RANGE_BYTES     :: 1048576; // 1MB
 
 // Unicode awesome font codes.
-ICON_BELL           : u32 : 0xF0A2;
-ICON_FILE           : u32 : 0xF1C9;
-ICON_CHANGES        : u32 : 0xF044;
-ICON_FOLDER         : u32 : 0xF07B;
-ICON_DRIVE          : u32 : 0xF0A0;
-ICON_COMMAND        : u32 : 0x26A1;
-ICON_PROJECT        : u32 : 0xF6D1;
-ICON_READONLY       : u32 : 0xF023;
-ICON_WARNING        : u32 : 0x26A0;
-ICON_ERROR          : u32 : 0xF06A;
-ICON_BL             : u32 : 0xF564;
-ICON_CODE_FUNCTION  : u32 : 0x0046;
-ICON_CODE_CLASS     : u32 : 0x0043;
-ICON_CODE_INTERFACE : u32 : 0x0049;
-ICON_CODE_TEXT      : u32 : 0xF080;
-ICON_CODE_TYPE      : u32 : 0x0054;
-ICON_CODE_VARIABLE  : u32 : 0x0056;
-ICON_CODE_ENUM      : u32 : 0x0045;
-ICON_CODE_MODULE    : u32 : 0xF1B2;
-ICON_CIRCLE         : u32 : 0x25CF;
+ICON_BELL             : u32 : 0xF0A2;
+ICON_FILE             : u32 : 0xF1C9;
+ICON_CHANGES          : u32 : 0xF044;
+ICON_FOLDER           : u32 : 0xF07B;
+ICON_DRIVE            : u32 : 0xF0A0;
+ICON_COMMAND          : u32 : 0x26A1;
+ICON_PROJECT          : u32 : 0xF6D1;
+ICON_READONLY         : u32 : 0xF023;
+ICON_WARNING          : u32 : 0x26A0;
+ICON_ERROR            : u32 : 0xF06A;
+ICON_BL               : u32 : 0xF564;
+ICON_CODE_FUNCTION    : u32 : auto 'F';
+ICON_CODE_CLASS       : u32 : auto 'C';
+ICON_CODE_INTERFACE   : u32 : auto 'I';
+ICON_CODE_TEXT        : u32 : 0xF080;
+ICON_CODE_TYPE        : u32 : auto 'T';
+ICON_CODE_VARIABLE    : u32 : auto 'V';
+ICON_CODE_ENUM        : u32 : auto 'E';
+ICON_CODE_MODULE      : u32 : 0xF466;
+ICON_CODE_KEYWORD     : u32 : 0xF02C;
+ICON_CODE_OPERATOR    : u32 : 0xF52C;
+ICON_CIRCLE           : u32 : 0x25CF;
 
 ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
@@ -256,7 +260,8 @@ FileTypeInfo :: struct {
 	reindent_on:  string_view;
 
 	// Related to align_assignments command. Each character is treated separately.
-	align_on:     string_view;
+	align_on:        string_view;
+	lsp_language_id: string_view;
 }
 
 FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
@@ -267,23 +272,24 @@ FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
 
 	// BL
 	.{
-		name = "BL",
+		name         = "BL",
 		comment_with = "//",
-		reindent_on = "}",
-		align_on = ":=",
+		reindent_on  = "}",
+		align_on     = ":=",
 	},
 
 	// C/C++
 	.{
-		name = "C/C++",
-		comment_with = "//",
-		reindent_on = "}",
-		align_on = "=",
+		name            = "C/C++",
+		comment_with    = "//",
+		reindent_on     = "}",
+		align_on        = "=",
+		lsp_language_id = "c",
 	},
 
 	// PROJ
 	.{
-		name = "Configuration",
+		name         = "Configuration",
 		comment_with = "#",
 	},
 
@@ -292,32 +298,33 @@ FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
 		name = "Markdown",
 	},
 
-	// C/C++
+	// GLSL
 	.{
-		name = "GLSL",
+		name         = "GLSL",
 		comment_with = "//",
-		reindent_on = "}",
-		align_on = "=",
+		reindent_on  = "}",
+		align_on     = "=",
 	},
 
 	// ASM
 	.{
-		name = "ASM",
+		name         = "ASM",
 		comment_with = ";",
-		reindent_on = ":",
+		reindent_on  = ":",
 	},
 
 	// C#
 	.{
-		name = "C#",
-		comment_with = "//",
-		reindent_on = "}",
-		align_on = "=",
+		name            = "C#",
+		comment_with    = "//",
+		reindent_on     = "}",
+		align_on        = "=",
+		lsp_language_id = "csharp",
 	},
 
 	// BLM
 	.{
-		name = "BLM",
+		name         = "BLM",
 		comment_with = ";",
 	},
 
@@ -366,6 +373,12 @@ Settings :: struct {
 	clangd_executable:       string;
 	clangd_args:             string;
 
+	lsp_executable:      string;
+	lsp_args:            string;
+	lsp_flavor:          LspFlavor;
+	lsp_file_type:       FileType;
+	lsp_roslyn_solution: string;
+
 	insert_spaces_instead_tabs:             bool;
 	trim_trailing_whitespace_on_save:       bool;
 	indent_on_paste:                        bool;
@@ -375,6 +388,7 @@ Settings :: struct {
 	use_lsp:                                bool;
 	show_lsp_inline_diagnostics:            bool;
 	block_caret:                            bool;
+	change_caret_on_selection:              bool;
 	word_wrap:                              bool;
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
@@ -382,6 +396,7 @@ Settings :: struct {
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
 	line_numbers_relative:                  bool;
+	enable_quick_search:                    bool;
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
@@ -389,11 +404,8 @@ Settings :: struct {
 
 	// Language support related things
 	c_extensions:      string;
-	bl_extensions:     string;
 	glsl_extensions:   string;
 	asm_extensions:    string;
-	csharp_extensions: string;
-	blm_extensions:    string;
 
 	// file location
 	parse_file_links:    bool;
@@ -691,7 +703,7 @@ main :: fn () s32 {
 	defer set_allocator_allocator(prev_allocator);
 	defer temporary_release();
 
-	// debug_allocator_break(&debug_allocator, 116);
+	// debug_allocator_break(&debug_allocator, 864);
 
 	MAIN_THREAD_ID = get_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
@@ -1048,7 +1060,7 @@ rebuild_fonts :: fn (force := false) Error {
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
 	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼", &char_set);
+	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼﻿", &char_set);
 	array_push(&char_set, 0x00A9);
 	array_push(&char_set, 0x00AE);
 	array_push(&char_set, 0x00A7);
@@ -1094,7 +1106,7 @@ rebuild_fonts :: fn (force := false) Error {
 		ICON_WARNING, ICON_ERROR, ICON_SHELL, ICON_MESSAGES,
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
-		ICON_CODE_MODULE, ICON_CIRCLE,
+		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD
 	};
 
 	array_push_all(&icon_set, ICONS);
@@ -1253,7 +1265,7 @@ close_buffer :: fn (buffer_index: s32) {
 	if buffer_index != messages_buffer_index {
 		buf :: &buffers[buffer_index];
 		if buf.lsp.version > 0 {
-			lsp_close_document(buf);
+			lsp_close_document(buf) catch print_err("LSP: %", $);
 		}
 		remove_buffer(buffer_index);
 	}
@@ -1324,7 +1336,7 @@ open :: fn (filepath: string_view, open_in_other_split := false) Error {
 			return buf_error;
 		}
 		if is_lsp_running() && lsp_is_supported_document_type(buf) {
-			lsp_open_document(buf);
+			lsp_open_document(buf) catch print_err("LSP: %", $);
 		}
 	}
 	assert(buf);
@@ -1514,7 +1526,7 @@ detect_filetype :: fn (filename: string_view) FileType {
 	if str_match_one_of(extension, str_split_by(settings.c_extensions, ' ', allocator)) {
 		return C;
 	}
-	if str_match_one_of(extension, str_split_by(settings.bl_extensions, ' ', allocator)) {
+	if str_match(extension, ".bl") {
 		return BL;
 	}
 	if str_match(extension, ".proj") {
@@ -1529,10 +1541,10 @@ detect_filetype :: fn (filename: string_view) FileType {
 	if str_match_one_of(extension, str_split_by(settings.asm_extensions, ' ', allocator)) {
 		return ASM;
 	}
-	if str_match_one_of(extension, str_split_by(settings.csharp_extensions, ' ', allocator)) {
+	if str_match(extension, ".cs") {
 		return CSHARP;
 	}
-	if str_match_one_of(extension, str_split_by(settings.blm_extensions, ' ', allocator)) {
+	if str_match(extension, ".blm") {
 		return BLM;
 	}
 	return FileType.UNKNOWN;
@@ -1552,6 +1564,8 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 // Jobs
 //
 
+MAX_REQUEST_COUNT :: 32;
+
 JobContext :: struct {
 	state: enum { RUNNING; DONE; FAILED; KILLED; };
 	kind: JobKind;
@@ -1565,47 +1579,48 @@ JobContext :: struct {
 
 	stdin:  IoStream;
 	stdout: IoStream;
+	stderr: IoStream; // Most of the time mirrored to stdout.
 
-	pending:  [..]Request;
-	complete: [..]Request;
+	pending:  StaticArray(Request,  MAX_REQUEST_COUNT);
+	complete: StaticArray(Response, MAX_REQUEST_COUNT);
 	mutex:    Mutex;
 
 	kill: bool;
 	is_removed: bool;
 
 	exit_code: s32;
+	show_progress: bool;
+
+	request_pools:            StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
+	response_pools:           StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
+	available_request_pools:  StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
+	available_response_pools: StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
 }
 
 Request :: struct {
-	job_kind: JobKind;
-	data: union {
-		clang_format: struct {
-			filepath:     string;
-			src:          string;
-			buffer_index: s32;
-			buffer_hash:  u32;
-		};
-		build: struct {
-			args:  string;
-			text:  string;
-		};
-		lsp: struct {
-			kind:           LspRequestKind;
-			buffer_index:   s32;
-			src:            string;
-			filepath:       string;
-			cursor:         Cursor;
-			version:        s32;
-			dia:        [..]ErrorLocation;
-			strs:       [..]string; // @Incomplete: Use also for src and filepath
-			ids:        [..]s32;
-			flags:          LspRequestFlags;
-		};
+	job_kind:    JobKind;
+	is_pending:  bool;
+	allocator:  *Allocator;
+
+	as: union {
+		clang_format: ClangFormatRequest;
+		shell:        ShellRequest;
+		lsp:          LspRequest;
+	}
+}
+
+Response :: struct {
+	job_kind:   JobKind;
+	allocator: *Allocator;
+	as: union {
+		clang_format: ClangFormatResponse;
+		shell:        ShellResponse;
+		lsp:          LspResponse;
 	}
 }
 
 JobKind :: enum {
-	UNKNOWN;
+	UNKNOWN = 0;
 	CLANG_FORMAT;
 	SHELL;
 	LSP;
@@ -1613,6 +1628,11 @@ JobKind :: enum {
 
 Job :: Async2(JobContext, s32);
 jobs: [..]Job;
+
+background_job_indicator: struct {
+	active_last_frame: bool;
+	t: f32;
+};
 
 jobs_init :: fn () {}
 
@@ -1676,17 +1696,14 @@ remove_async_job :: fn (index: s32) {
 		lsp.job_index = -1;
 	}
 
-	loop i := 0; i < ctx.pending.len; i += 1 {
-		terminate_request(&ctx.pending[i]);
+	loop i := 0; i < ctx.request_pools.len; i += 1 {
+		release_allocator(&ctx.request_pools.data[i]);
 	}
-	loop i := 0; i < ctx.complete.len; i += 1 {
-		terminate_request(&ctx.complete[i]);
+	loop i := 0; i < ctx.response_pools.len; i += 1 {
+		release_allocator(&ctx.response_pools.data[i]);
 	}
 
-	array_terminate(&ctx.pending);
-	array_terminate(&ctx.complete);
 	mutex_terminate(&ctx.mutex);
-
 	ctx.is_removed = true;
 }
 
@@ -1727,16 +1744,20 @@ consume_job_results :: fn (job: *Job, required := false) {
 	if locked {
 		defer mutex_unlock(&ctx.mutex);
 
-		result: Request #noinit;
-		loop pop_result(ctx, &result) {
-			assert(result.job_kind == ctx.kind);
+		response: Response #noinit;
+		loop pop_response(ctx, &response) {
+			assert(response.job_kind == ctx.kind);
+			err: Error;
 			switch ctx.kind {
-				CLANG_FORMAT { apply_format(ctx.state, &result);      }
-				SHELL        { apply_shell(ctx.state, &result);       }
-				LSP          { apply_lsp_results(ctx.state, &result); }
+				CLANG_FORMAT { err = apply_format(ctx.state, &response);        }
+				SHELL        { err = apply_shell(ctx.state, &response);         }
+				LSP          { err = apply_lsp(ctx.state, &response);           }
 				default { panic(); }
 			}
-			terminate_request(&result);
+
+			if err then print_err("LSP: %", err);
+
+			terminate_response(ctx, &response);
 			redraw();
 		}
 	}
@@ -1764,72 +1785,122 @@ get_job_context :: fn (index: s32) *JobContext #inline {
 	return &jobs[index].worker_context;
 }
 
+#scope_private
+get_allocator :: fn (ctx: *JobContext, pools: *?TPool, available: *?TAvailable) *Allocator #inline {
+	assert(ctx);
+	mutex_lock(&ctx.mutex);
+	defer mutex_unlock(&ctx.mutex);
+
+	allocator: *PoolAllocator;
+	if !sarray_pop(available, &allocator) {
+		if pools.len+1 > pools.data.len then return null;
+
+		pool :: pool_make();
+		allocator = sarray_push(pools, pool);
+	}
+	assert(allocator);
+	return allocator;
+}
+
+put_allocator :: fn (ctx: *JobContext, available: *?TAvailable, allocator: *Allocator)  #inline {
+	assert(ctx);
+	assert(allocator);
+	mutex_lock(&ctx.mutex);
+	defer mutex_unlock(&ctx.mutex);
+
+	reset_allocator(allocator);
+	sarray_push(available, auto allocator);
+}
+#scope_public
+
+make_request :: fn (ctx: *JobContext) (request: Request, err: Error) {
+	assert(ctx);
+	allocator : *Allocator : get_allocator(ctx, &ctx.request_pools, &ctx.available_request_pools);
+	if !allocator then return .{}, error("Cannot create request, queue is full, restart LSP server or try again later.");
+
+	return .{
+		job_kind  = ctx.kind,
+		allocator = allocator,
+	}, OK;
+}
+
 push_request :: fn (ctx: *JobContext, request: *Request) {
 	assert(request.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	r :: array_push(&ctx.pending);
+	assert(ctx.pending.len < ctx.pending.data.len);
+
+	r :: sarray_push(&ctx.pending);
 	memcpy(auto r, auto request, sizeof(@request));
+	r.is_pending = true;
 }
 
 pop_request :: fn (ctx: *JobContext, request: *Request) bool {
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	if array_pop_first(&ctx.pending, request) {
+	if sarray_pop_first(&ctx.pending, request) {
 		assert(request.job_kind == ctx.kind);
 		return true;
 	}
 	return false;
+}
+
+has_pending_request :: fn (ctx: *JobContext) bool #inline {
+	mutex_lock(&ctx.mutex);
+	defer mutex_unlock(&ctx.mutex);
+	return ctx.pending.len > 0;
+}
+
+make_response :: fn (ctx: *JobContext) (response: Response, err: Error) {
+	assert(ctx);
+	allocator : *Allocator : get_allocator(ctx, &ctx.response_pools, &ctx.available_response_pools);
+	if !allocator then return .{}, error("Cannot create response, queue is full, restart LSP server or try again later.");
+
+	return .{
+		job_kind  = ctx.kind,
+		allocator = allocator,
+	}, OK;
 }
 
 // Consume the 'request' data; meaning they are zero initialized in case the request is pushed
 // this way we prevent possible double-free of request data strings.
-push_result :: fn (ctx: *JobContext, request: *Request) {
-	assert(request.job_kind == ctx.kind);
+push_response :: fn (ctx: *JobContext, response: *Response) {
+	assert(response.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	r :: array_push(&ctx.complete);
-	memcpy(auto r, auto request, sizeof(@request));
-	zeroinit(&request.data);
+	assert(ctx.complete.len < ctx.complete.data.len);
+
+	r :: sarray_push(&ctx.complete);
+	memcpy(auto r, auto response, sizeof(@response));
+	zeroinit(&response.as);
 }
 
 // ctx.mutex should be locked before this is called
-pop_result :: fn (ctx: *JobContext, request: *Request) bool {
-	if array_pop_first(&ctx.complete, request) {
-		assert(request.job_kind == ctx.kind);
+pop_response :: fn (ctx: *JobContext, response: *Response) bool {
+	if sarray_pop_first(&ctx.complete, response) {
+		assert(response.job_kind == ctx.kind);
 		return true;
 	}
 	return false;
 }
 
-terminate_request :: fn (request: *Request) {
-	using JobKind;
-	switch request.job_kind {
-		CLANG_FORMAT {
-			rd :: &request.data.clang_format;
-			str_terminate(&rd.src);
-			str_terminate(&rd.filepath);
-		}
-		SHELL {
-			rd :: &request.data.build;
-			str_terminate(&rd.args);
-			str_terminate(&rd.text);
-		}
-		LSP {
-			rd :: &request.data.lsp;
-			str_terminate(&rd.src);
-			str_terminate(&rd.filepath);
-			array_terminate(&rd.dia);
-			loop i := 0; i < rd.strs.len; i += 1 {
-				str_terminate(&rd.strs[i]);
-			}
-			array_terminate(&rd.strs);
-			array_terminate(&rd.ids);
-			rd.kind = LspRequestKind.UNKNOWN;
-		}
-		default;
-	}
+set_job_progress_indicator :: fn (ctx: *JobContext, v: bool) #inline {
+	// @Hack 2026-02-11: This is set from worker thread and read from main thread,
+	//                   but it should be fine without locking since we use it only to
+	//                   draw indicator.
+	ctx.show_progress = v;
 }
+
+terminate_request :: fn (ctx: *JobContext, request: *Request) {
+	put_allocator(ctx, &ctx.available_request_pools, request.allocator);
+	zeroinit(request);
+}
+
+terminate_response :: fn (ctx: *JobContext, response: *Response) {
+	put_allocator(ctx, &ctx.available_response_pools, response.allocator);
+	zeroinit(response);
+}
+
 
 check_main_thread :: fn (loc := #call_location) #enable_if IS_DEBUG {
 	if MAIN_THREAD_ID != get_thread_id() {
@@ -1997,6 +2068,9 @@ draw_frame :: fn () {
 			draw_text_editor(left, x, y, w, h);
 		}
 
+		PROGRESS_BAR_HEIGHT :: 2.f;
+		draw_background_progress_bar(0.f, h - PROGRESS_BAR_HEIGHT, auto WINDOW_WIDTH, PROGRESS_BAR_HEIGHT);
+
 		using Mode;
 		switch mode {
 			TEXT_EDIT;
@@ -2013,10 +2087,10 @@ draw_frame :: fn () {
 			LIST_FUNCTIONS    { draw_list_functions_mode();    }
 			SHELL_RUN         { draw_shell_run_mode();         }
 			PEEK_ERROR        {
-				draw_peek_error_mode(active_x, y, w);
+				draw_peek_error_mode(active_x, y, w, h);
 			}
 			COMPLETION        {
-				draw_completion_mode(active_x, y);
+				draw_completion_mode(active_x, y, w, h);
 			}
 
 			default;
@@ -2033,7 +2107,7 @@ recalculate_metrics :: fn () {
 
 	metrics[auto TITLE_BAR_HEIGHT] = font_ui.height  * 1.6f;
 	metrics[auto LINE_HEIGHT     ] = font.height  * line_spacing;
-	metrics[auto ITEM_SPACING    ] = icons.height * 1.2f;
+	metrics[auto ITEM_SPACING    ] = icons.height * 1.3f;
 	metrics[auto TEXT_PADDING    ] = font.height  * 0.2f;
 	metrics[auto TITLE_MAX_SIZE  ] = font.height  * 25.f;
 	metrics[auto SHADOW_SIZE     ] = WINDOW_SCALE * 10.f;
@@ -2147,10 +2221,6 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 	}
 }
 
-/*
-
-*/
-
 update_caret :: fn () {
 	if !is_focused() {
 		caret.visible = true;
@@ -2163,4 +2233,35 @@ update_caret :: fn () {
 		caret.visible = !caret.visible;
 		redraw();
 	}
+}
+
+draw_background_progress_bar :: fn (x: f32, y: f32, w: f32, h: f32) {
+	using draw;
+
+	active := false;
+	loop i := 0; i < jobs.len; i += 1 {
+		ctx :: get_job_context(i);
+		if ctx.state != .RUNNING then continue;
+		if ctx.show_progress {
+			active = true;
+			break;
+		}
+	}
+
+	if !active {
+		background_job_indicator.active_last_frame = false;
+		return;
+	}
+
+
+	background_job_indicator.t += frame_delta_time;
+	if background_job_indicator.t > 2000.f || !background_job_indicator.active_last_frame {
+		background_job_indicator.t = w * -0.1f;
+	}
+
+	set_shader_color();
+	rect(x + w * background_job_indicator.t * 0.0005f, y, w * 0.1f, h, colors.warning_color);
+	redraw();
+
+	background_job_indicator.active_last_frame = true;
 }

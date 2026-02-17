@@ -9,6 +9,13 @@ MASTER
 - Add center view support into replace mode.
 - Add support for clangd argument customization.
 - Fix parsing of CL error locations.
+- LSP revamp
+  - Add general support for "any" LSP server.
+  - Add support for C# Roslyn LSP.
+  - Add `lsp-references` command.
+- Add support for C#.
+- Add background task run indicator.
+- Add LSP function signature help.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

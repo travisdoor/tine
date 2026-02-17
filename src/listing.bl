@@ -60,7 +60,7 @@ get_list_height :: fn () (h: f32, visible_lines: s32) {
 	return text_padding * 2.f + line_height * auto visible_lines, visible_lines;
 }
 
-draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.TOP_DOWN, loc := #call_location) (w: f32, clicked: bool) {
+draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.TOP_DOWN, loc := #call_location) (w: f32, h: f32, clicked: bool) {
 	using draw;
 	using Metric;
 	using DrawListCols;
@@ -68,7 +68,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	mutex_lock(&visible_list_mutex);
 	defer mutex_unlock(&visible_list_mutex);
 
-	if list[visible_list_index].len == 0 { return 0.f, false; }
+	if list[visible_list_index].len == 0 { return 0.f, 0.f, false; }
 
 	line_height     :: metrics[auto LINE_HEIGHT    ];
 	text_padding    :: metrics[auto TEXT_PADDING   ];
@@ -103,7 +103,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		loop i := start_index; i < end_index; i += 1 {
 			item :: &list[visible_list_index][i];
 			preview_w :: text_size(item.preview, &font);
-			list_w = math.max(list_w, preview_w + item_spacing);
+			list_w = math.max(list_w, preview_w + item_spacing*2.f);
 		}
 	}
 
@@ -246,10 +246,10 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	}
 
 	last_selected_index = selected_index;
-	return h, clicked;
+	return list_w, h, clicked;
 }
 
-list_completion :: fn (strs: []string, ids: []s32) {
+list_completion :: fn (strs: []string, ids: []s32, subject: string_view = "") {
 	reset_listing();
 	assert(strs.len == ids.len);
 	loop i := 0; i < strs.len; i += 1 {
@@ -259,6 +259,9 @@ list_completion :: fn (strs: []string, ids: []s32) {
 				index = i,
 			});
 	}
+
+	if subject.len < 1 then return;
+	filter_list(subject);
 }
 
 list_commands :: fn (repeatable_only := false) {
@@ -634,10 +637,7 @@ format_listing_results_to_string :: fn (str: *string) {
 
 	loop i := 0; i < list[visible_list_index].len; i += 1 {
 		item :: &list[visible_list_index][i];
-		dirpath := item.hint;
-		if str_match(dirpath, cwd, auto cwd.len) {
-			dirpath = tprint(".%", string_view.{ dirpath.len - cwd.len, &dirpath[cwd.len] });
-		}
+		dirpath :: absolute_path_to_relative(item.hint, cwd);
 		str_append(str, tprint("%/%:%:%:\t%\n", dirpath, item.title, item.row+1, item.col+1, item.preview));
 	}
 }
@@ -853,14 +853,20 @@ reset_listing :: fn () {
 	last_selected_index = -1;
 }
 
-fuzzy_cmp :: fn (str: string_view, other: string_view) s32 {
-	if other.len == 0 { return 0; }
+fuzzy_cmp :: fn (str: string_view, pattern: string_view) s32 {
+	if pattern.len == 0 { return 0; }
 	MAX :: 256;
 	score: s32;
-	loop i := 0; i < other.len; i += 1 {
-		index :: cast(s32) first_from_left_in_path(str, other[i], i);
-		if index < 0 { return -1; }
-		score += MAX - index;
+	loop i := 0; i < pattern.len; i += 1 {
+		pos :: cast(s32) first_from_left_in_path(str, pattern[i], i);
+		if pos < 0 { return -1; }
+		score += MAX - pos;
+		// score -= cast(s32) str.len;
+
+		// exact case bonus
+		if str[pos] == pattern[i] {
+			score += 10;
+		}
 	}
 	return score;
 }

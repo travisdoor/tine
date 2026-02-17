@@ -35,7 +35,7 @@ draw_list_functions_mode :: fn () {
 	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search function in '%': ", target_buf.name));
 
 	using DrawListCols;
-	list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | PREVIEW);
+	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | PREVIEW);
 	draw_last_status_message(0.f, h + list_h, w);
 	if clicked then commit();
 }

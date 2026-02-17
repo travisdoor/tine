@@ -1,8 +1,10 @@
-# Welcome to the Tine text editor.
-**To see the list of all available commands use `Ctrl+X` shortcut.**
+# Welcome to Tine text editor.
+
+Use `Alt+X` to see list of all available commands.
+Use `Ctrl+O` to open file.
 
 - Author:  Martin Dorazil
-- Version: 0.10
+- Version: 1.0
 
 ## Links
 
@@ -26,6 +28,7 @@
   | C++      | YES              | YES  |
   | Markdown | YES (basic)      | NO   |
   | GLSL     | YES              | NO   |
+  | C#       | YES              | YES  |
 
 # Feature Highlights
 
@@ -39,40 +42,33 @@
 
 # Philosophy of Tine
 
-Tine is a simple text/code editor initially designed as a main work tool just for me,
-so I did only things I needed, but after some time it turned out it might be useful and
-helpful for others.
+Tine is a simple text/code editor that was initially designed as my main work tool,
+so I implemented only the features I personally needed. Over time, however, it turned out that it might
+also be useful and helpful for others.
 
-The main goal of this editor is to keep the focus on the text editing and not be distracted
-too much by buttons, tabs, menus, and animations. So there is almost no UI. Text navigation
-and the editor interactions are strictly designed for keyboard use (since I hate moving my
-hand during typing and using the mouse); however, some basic mouse support was added after
-some time (mostly for cases like a quick presentation of code to colleagues and similar
-things).
+The main goal of this editor is to keep the focus on text editing and to avoid being distracted by buttons,
+tabs, menus, and animations. Therefore, there is almost no UI. Text navigation and editor interaction are
+strictly designed for keyboard use (since I hate moving my hand while typing and using the mouse). However,
+some basic mouse support was added later, mainly for situations such as quickly presenting code to
+colleagues and similar use cases.
 
-I mostly use C/C++ at work so the editor is designed to be used with those languages.
+I mostly use C and C++ at work, so the editor is primarily designed for these languages.
 
-I used Emacs a lot so my Ctrl key is remapped to CapsLock. I think such Control key position
-is way better and ergonomic, so consider do the same. Default Tine keybinding is a lot about
-pressing Control. Also right hand touch-type home position is used as a base for the cursor
-movement (arrows can be used too).
-
-My default working OS is Windows, so the editor was designed according to it. However, porting
-to other platforms might be possible since the language API used for the editor supports also
-Linux and Mac. I just didn't spend too much time implementing features like hot-load and
-process execution there.
+I used Emacs extensively, so my Ctrl key is remapped to Caps Lock. I believe this Control key position is
+far more ergonomic, and I recommend doing the same. The default Tine keybindings rely heavily on the
+Control key. In addition, the right-hand touch-typing home position is used as the basis for cursor movement
+ (though the arrow keys can also be used).
 
 # Authors
 
 - **Martin Dorazil** (travis) [**SUPPORT**](https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6)
 - **bovacu**
 
-# Platform
+# Patform
 
-Tine editor is actively developed on Windows and only Windows executable is currently available on
-https://travisdp.itch.io/tine. However, it's possible to compile Tine also for Linux and mac from
-the source code, but there might be some incomplete stuff and issues. See the [developer](#developer)
-section.
+- Windows
+- Linux
+- Mac
 
 # First Run
 
@@ -82,11 +78,7 @@ recommend putting the executable into a separate directory because the default c
 file `default.proj` and `projects` directory will be automatically generated for you next
 to the executable.
 
-## MacOS
-Default configuration file `default.proj` will be created in `~/.tine` directory together with
-`projects` folder.
-
-## Linux
+## Linux & MacOS
 Default configuration file `default.proj` will be created in `~/.tine` directory together with
 `projects` folder.
 
@@ -97,7 +89,7 @@ automatically on the first run. Use `open-default-config` command to open it.
 # Projects
 To enable some advanced features as "grep search" you need to create a new project file located
 in `projects` directory (use `open-projects-directory` to open the disk location in your file
-explorer). Each project is represented as a single configuration file with `.proj` extension.
+manager). Each project is represented as a single configuration file with `.proj` extension.
 In general, a project file should contain at least `;include` section with a project root
 directory path and `;include_file_extensions` section. You also might need to override some
 settings from the `default.proj` configuration. For more details see documentation in the
@@ -123,12 +115,6 @@ command list.
 
 Use fuzzy-search for a quick lookup.
 
-### Goto Line
-Command: `goto-line`
-Shortcut: `Alt+G`
-
-Move the cursor in current editor to the line number.
-
 ### Open File
 Command: `open-file`
 Shortcut: `Ctrl+O`
@@ -150,6 +136,12 @@ Only editable project files (with extensions listed in `;include_file_extension`
 be present in the list.
 
 Use fuzzy-search for a quick lookup.
+
+### Goto Line
+Command: `goto-line`
+Shortcut: `Alt+G`
+
+Move the cursor in current editor to the line number.
 
 ### Search
 Command: `search-file`
@@ -192,12 +184,13 @@ shown in a separate buffer which is used also for the `build` command output.
 In addition errors and warnings (in format used by CL or Clang) are parsed; you can jump between reported
 source locations by pressing `Ctrl+.` and `Ctrl+,` shortcuts (`next-error` and `prev-error` commands).
 
+Note that this is not intended to replace your terminal; you can only see the output of the last executed
+shell command. However, you can easily search, select, and copy the output.
+
 # LSP
 
-Experimental integration of LSP is available for C/C++ using `clangd` LSP server. To make it work, you
-need `clangd` installed and available in system `PATH`. You need to set `use_lsp` to `true` in project
-or global configuration file to enable the integration. The `compile_commands.json` file is supposed to
-be placed in the project root directory (can be generated by CMake).
+Support of LSP is currently experimental and available only for `C/C++` using `clangd` and `CSharp`
+using `Roslyn`.
 
 # clang-format
 

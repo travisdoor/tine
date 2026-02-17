@@ -1,54 +1,90 @@
+/*
+
+Completion mode is used for LSP completion. The completion request is triggered
+once explicitly and this mode is activated. When target buffer is changed, we try
+to just filter previous LSP request results (thus it might be expensive on shitty
+servers like roslyn). Current completion is canceled when:
+
+- Cursor moves (typing is not included).
+- There is no longer valid identifier under cursor (includes delimiters like '.', '->' etc).
+- Mode is canceled or commited explicitly.
+
+We have to refetch LSP completion in case we go out of the original completion range,
+because current cached results might be incomplete (for example on deletition).
+
+*/
+
 completion_mode_init :: fn () {
-	buf :: get_active_buffer_and_editor();
+	buf, editor :: get_active_buffer_and_editor();
 	notify_changes_to_buffer = buf.index;
 }
 
 completion_mode_terminate :: fn () {
+	str_terminate(&signature_help_cache);
 }
 
-draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32) {
+draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
 	using Metric;
+
+	if signature_help_cache.len > 0 {
+		draw_peek_text_box(
+			active_editor_x,
+			active_editor_y,
+			active_editor_w,
+			active_editor_h,
+			signature_help_cache,
+			colors.command_list_background_color,
+			colors.foreground_color
+		);
+	}
+
 	buf, editor :: get_active_buffer_and_editor();
+	current_cursor :: get_cursor(buf, editor.cursor_index);
 
 	text_padding :: metrics[auto TEXT_PADDING   ];
 	line_height  :: metrics[auto LINE_HEIGHT    ];
+	shadow_size  :: metrics[auto SHADOW_SIZE    ];
 
 	x :: active_editor_x;
 	y :: active_editor_y + text_padding;
 
 	first_line_index :: editor.top;
 
-	cursor :: initial_cursor;
-	line, start_index :: peek_row(buf, cursor.row);
-	line_w :: draw.text_size(line, &font, auto (cursor.position - start_index));
+	line, start_index :: peek_row(buf, current_cursor.row);
+	line_w :: draw.text_size(line, &font, auto (current_cursor.position - start_index));
 	px :: x + line_w - editor.sliding.horizontal_offset;
-	py := y * 2.f + line_height * auto (cursor.row - first_line_index + 1); // +1 one line down
+	py := y * 2.f + line_height * auto (current_cursor.row - first_line_index + 1); // +1 one line down
 
 	h :: get_list_height();
 	if py + h > auto WINDOW_HEIGHT {
 		py -= h + line_height + y * 2.f;
 	}
 
-	_, clicked :: draw_list(px, py, 300.f, DrawListCols.ICON | DrawListCols.PREVIEW, ListerMode.FLOATING);
+	_, _, clicked :: draw_list(px, py, 300.f, DrawListCols.ICON | DrawListCols.PREVIEW, ListerMode.FLOATING);
 	if clicked then commit();
 }
 
-show_completion_popup_for_active_editor :: fn (list: []string, ids: []s32) {
-	list_completion(list, ids);
+show_completion_popup_for_active_editor :: fn (list: []string, ids: []s32, is_complete: bool) {
+	set_mode(.COMPLETION);
 
-	if set_mode(Mode.COMPLETION) {
-		buf, editor :: get_active_buffer_and_editor();
-		position := get_cursor_position(buf, editor.cursor_index);
-		loop {
-			char :: peek_before_position(buf, position);
-			if char.len == 0 { break; }
-			if is_ident(buf, char) {
-				position -= char.len;
-			} else {
-				break;
-			}
-		}
-		initial_cursor = get_cursor_for_position(buf, position);
+	buf, editor       :: get_active_buffer_and_editor();
+	subject, position :: peek_current_subject(editor, buf);
+	current_position  :: get_cursor_position(buf, editor.cursor_index);
+
+	replace_position     = position;
+	initial_position     = current_position;
+	published_position   = current_position;
+	has_complete_results = is_complete;
+
+	list_completion(list, ids, subject);
+}
+
+show_signature_help_for_active_editor :: fn (overloads: []string) {
+	set_mode(.COMPLETION);
+	signature_help_cache.len = 0;
+	loop i := 0; i < overloads.len; i += 1 {
+		str_append(&signature_help_cache, overloads[i]);
+		str_append(&signature_help_cache, "\n");
 	}
 }
 
@@ -64,29 +100,60 @@ invoke_command_completion_mode :: fn (_: *Buffer, cmd: Command) bool {
 		MOVE_UP   { list_item_up();   }
 		MOVE_DOWN { list_item_down(); }
 
-		default { return false; }
+		default {
+			return false;
+		}
 	}
 
 	return true;
+}
+
+invoke_post_command_completion_mode :: fn (_: *Buffer, _: Command) {
+	buf, editor       :: get_active_buffer_and_editor();
+	current_position  :: get_cursor_position(buf, editor.cursor_index);
+	if current_position != published_position {
+		set_mode(.TEXT_EDIT);
+		print_log("Cancel completion.");
+	}
 }
 
 completion_target_buffer_changed :: fn () {
 	assert(mode == Mode.COMPLETION);
 	buf, editor :: get_active_buffer_and_editor();
 
-	start_index :: initial_cursor.position;
-	end_index   :: get_cursor_position(buf, editor.cursor_index);
-	if start_index >= end_index {
-		set_mode(Mode.TEXT_EDIT);
+	subject          :: peek_current_subject(editor, buf);
+	current_position :: get_cursor_position(buf, editor.cursor_index);
+	print_log("Completion subject: %", subject);
+
+	published_position = current_position;
+
+	if initial_position >= current_position || subject.len == 0 {
+		if subject.len == 0 {
+			set_mode(.TEXT_EDIT);
+		} else {
+			lsp_completion(editor, buf);
+		}
 		return;
 	}
 
-	lsp_completion(editor, buf);
+	if !has_complete_results {
+		print_log("Completion list is incomplete, requesting new one!");
+		lsp_completion(editor, buf);
+		return;
+	}
+
+	filter_list(subject);
 }
 
 #scope_private
 
-initial_cursor: Cursor;
+replace_position:   s64; // Position where replacement subject starts.
+initial_position:   s64; // Position where the last completion request was triggered.
+published_position: s64; // Position where the last completion was published (filtered).
+
+has_complete_results: bool;
+
+signature_help_cache: string;
 
 commit :: fn () {
 	set_mode(Mode.TEXT_EDIT);
@@ -96,7 +163,7 @@ commit :: fn () {
 	item :: get_selected_item_in_list();
 	if !item { return; }
 
-	start_index :: initial_cursor.position;
+	start_index :: replace_position;
 	end_index   :: get_cursor_position(buf, editor.cursor_index);
 	if start_index > end_index { return; }
 
@@ -109,3 +176,15 @@ commit :: fn () {
 	batch_end(buf);
 }
 
+peek_current_subject :: fn (editor: *Editor, buf: *Buffer) (subject: string_view, position: s64) {
+	subject := str_make(application_context.temporary_allocator);
+	position := get_cursor_position(buf, editor.cursor_index);
+	loop {
+		char :: peek_before_position(buf, position);
+		if !is_ident(buf, char) then break;
+		str_insert(&subject, 0, char);
+		position -= char.len;
+	}
+
+	return subject, position;
+}

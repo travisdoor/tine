@@ -118,6 +118,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	if editor.buffer_index == -1 { return; }
 	buf :: &buffers[editor.buffer_index];
 
+	lsp_pull_diagnostics_update(buf);
+
 	lock_buffer(buf);
 	defer unlock_buffer(buf);
 
@@ -189,9 +191,11 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	char_under_cursor :: peek_position(buf, cursor.position);
 	line, start_index :: peek_row_without_new_line(buf, cursor.row);
 
+	use_block_caret :: settings.block_caret && !(is_selection_active(buf, editor.cursor_index) && settings.change_caret_on_selection);
+
 	cursor_x := text_size(line, &font, auto (cursor.position - start_index));
 	cursor_w := 2.f;
-	if settings.block_caret || !is_active {
+	if use_block_caret || !is_active {
 		cw :: text_size(char_under_cursor, &font);
 		cursor_w = cw;
 		if cursor_w == 0.f {
@@ -325,7 +329,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			memcpy(line_colors.ptr, &buf.colors[row_start_index], auto math.min(line.len, line_colors.len));
 		}
 
-		if settings.block_caret && i == cursor.row  && is_active && caret.visible {
+		if use_block_caret && i == cursor.row  && is_active && caret.visible {
 			cursor_position :: cursor.position - start_index;
 			if cursor_position < line_colors.len {
 				line_colors[cursor_position] = CODE_COLOR_CURSOR_INDEX;
@@ -376,17 +380,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	set_shader_color();
 	draw_shadow(x, y + h - title_bar_height, w, title_bar_height, ShadowMode.TOP);
 
-	// Draw pending job indicator.
-	if is_active && buf.has_pending_job > 0 {
-		buf.pending_t += frame_delta_time;
-
-		if buf.pending_t > 2000.f { buf.pending_t = 0.f; }
-
-		set_shader_color();
-		rect(x + w * buf.pending_t * 0.0005f, h-2.f-title_bar_height, w * 0.1f, 2.f, colors.warning_color);
-		redraw();
-	}
-
 	// file info bar
 	has_changes :: buf.saved_top != buf.undo_top;
 	line_ending_name := "UNKNOWN";
@@ -414,7 +407,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	set_shader_font(&icons);
 
 	text(status_x, icon_y, get_icon_for_buffer(buf), colors.title_bar_text_color);
-	status_x += item_spacing + 4.f;
+	status_x += item_spacing;
 
 	if macros.is_recording && is_active {
 		color := colors.macro_record_icon_color;
@@ -443,19 +436,22 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	set_shader_font(&font_ui);
 
 	title := str_make(256, application_context.temporary_allocator);
-
 	str_concat(&title, "Ln: ", cursor.row+1, "    Col: ", cursor.col+1);
 
-	selected_chars, selected_rows :: count_characters_and_rows_in_selection(buf, editor.cursor_index);
-	if selected_chars > 0 {
-		str_concat(&title, "    Lns: ", selected_rows + 1, "    Chars: ", selected_chars, "    ");
+	if is_selection_active(buf, editor.cursor_index) {
+		selected_chars, selected_rows :: count_characters_and_rows_in_selection(buf, editor.cursor_index);
+		if selected_rows > 0 {
+			str_concat(&title, "    Lns: ", selected_rows + 1);
+		}
+		str_concat(&title, "    Chars: ", selected_chars, "    ");
 	} else {
-		str_concat(&title, "    ");
+		str_append(&title, "    ");
 	}
+
 	str_concat(&title, FILE_TYPE[auto buf.file_type].name, "    ", line_ending_name);
 
 	if buf.lsp.version > 0 {
-		str_concat(&title, "    LSP: ", lsp.server_name);
+		str_concat(&title, "    LSP: ", if lsp.server_name.len == 0 then "N/A" else lsp.server_name);
 	}
 
 	name_size :: text_size(buf.name, &font_ui_b);
@@ -550,6 +546,8 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	if editor.buffer_index == -1 { return; }
 	buf :: &buffers[editor.buffer_index];
 
+	use_block_caret :: settings.block_caret && !(is_selection_active(buf, editor.cursor_index) && settings.change_caret_on_selection);
+
 	is_active    :: active_editor == editor.index;
 	line_height  :: metrics[auto LINE_HEIGHT ];
 	text_padding :: metrics[auto TEXT_PADDING];
@@ -576,7 +574,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 
 	cursor_x :: text_size(line, &font, auto cursor.position);
 	cursor_w := 2.f;
-	if settings.block_caret {
+	if use_block_caret {
 		cw :: text_size(char_under_cursor, &font);
 		cursor_w = cw;
 		if cursor_w == 0.f {
@@ -622,7 +620,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 
 	{ // Edit line (just current one).
 		if line.len > 0 {
-			if settings.block_caret && caret.visible {
+			if use_block_caret && caret.visible {
 				lhs, rhs: string_view;
 				str_split_at_index(line, auto cursor.position, &lhs, &rhs);
 				str_split_at_index(rhs, auto char_under_cursor.len, null, &rhs);
@@ -712,6 +710,42 @@ get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink,
 	return link, true;
 }
 
+draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32, text: string_view, bg_color: v4, fg_color: v4) {
+	using Metric;
+
+	buf, editor :: get_active_buffer_and_editor();
+
+	r                :: metrics[auto CORNER_ROUNDING];
+	line_height      :: metrics[auto LINE_HEIGHT];
+	text_padding     :: metrics[auto TEXT_PADDING];
+	shadow_size      :: metrics[auto SHADOW_SIZE];
+	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
+
+	text_font :: &font;
+
+	px := active_editor_x + shadow_size;
+	py := active_editor_y + active_editor_h - title_bar_height - shadow_size * 2.f;
+	pw := active_editor_w - shadow_size * 2.f;
+
+	lines :: calculate_line_offsets(text, pw-(text_padding*2.f), text_font);
+
+	ph := (line_height * auto lines.len) + text_padding;
+	py -= ph;
+
+	draw_shadow(px, py, pw, ph, ShadowMode.ALL);
+	draw.rect_rounded(px, py, pw, ph, r, bg_color, bg_color);
+	px += text_padding;
+	py += text_padding;
+
+	draw.set_shader_font(text_font);
+
+	loop i := 0; i < lines.len; i += 1 {
+		line :: string_view.{ lines[i].len, &text[lines[i].start_index] };
+		draw.text(px, py, line, fg_color);
+		py += line_height;
+	}
+}
+
 #scope_private
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
@@ -777,14 +811,21 @@ draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_v
 	bg_color := colors.inline_error_background_color;
 	ic       := icon(ICON_ERROR);
 
+	message: string_view;
+	str_split_by_first(loc.message, '\n', &message);
+	message = trim_right(message, " \t\r");
+
 	if loc.kind == ErrorLocation.kind.WARNING {
 		fg_color = colors.warning_color;
 		bg_color = colors.inline_warning_background_color;
 		ic       = icon(ICON_WARNING);
 	}
 
+	bg_color2 := bg_color;
+	bg_color2.w = 0.f;
+
 	set_shader_color();
-	rect(x, y, w, line_height, bg_color);
+	rect(x, y, w, line_height, [_]v4.{ bg_color2, bg_color, bg_color2, bg_color });
 	if highlight_only then return;
 
 	line_size    := text_size(line, &font);
@@ -795,7 +836,7 @@ draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_v
 	text(err_x, y + (line_height * 0.5f - icons.height * 0.5f), ic, fg_color);
 
 	set_shader_font(&font_ui);
-	text(err_x + item_spacing, y + (line_height * 0.5f - font_ui.height * 0.5f), loc.message, fg_color);
+	text(err_x + item_spacing, y + (line_height * 0.5f - font_ui.height * 0.5f), message, fg_color);
 	set_shader_font(&font);
 
 }

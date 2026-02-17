@@ -10,7 +10,7 @@ DEFAULT_SHELL :: "CMD.exe /Q /K prompt $";
 IoStream :: HANDLE;
 Pid      :: DWORD;
 
-start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_view) Error {
+start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_view, stderr_to_stdout := true) Error {
 	static_assert(type_utils.has_member#(TContext, "pid"));
 	static_assert(type_utils.has_member#(TContext, "stdin"));
 	static_assert(type_utils.has_member#(TContext, "stdout"));
@@ -33,6 +33,8 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 	stdin_write:  HANDLE;
 	stdout_read:  HANDLE;
 	stdout_write: HANDLE;
+	stderr_read:  HANDLE;
+	stderr_write: HANDLE;
 
 	security_attributes :: SECURITY_ATTRIBUTES.{
 		nLength = auto sizeof(SECURITY_ATTRIBUTES),
@@ -45,12 +47,17 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 	if CreatePipe(&stdin_read, &stdin_write, &security_attributes, 0)   == 0 then return os_get_last_error2();
 	if SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0)        == 0 then return os_get_last_error2();
 
+	if !stderr_to_stdout {
+		if CreatePipe(&stderr_read, &stderr_write, &security_attributes, 0) == 0 then return os_get_last_error2();
+		if SetHandleInformation(stderr_read, HANDLE_FLAG_INHERIT, 0)        == 0 then return os_get_last_error2();
+	}
+
 	// Create process
 	process_info: PROCESS_INFORMATION;
 
 	startup_info :: STARTUPINFOA.{
 		cb          = auto sizeof(STARTUPINFOA),
-		hStdError   = stdout_write,
+		hStdError   = if stderr_to_stdout then stdout_write else stderr_write,
 		hStdOutput  = stdout_write,
 		hStdInput   = stdin_read,
 		dwFlags     = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW,
@@ -71,6 +78,10 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 		CloseHandle(stdout_write);
 		CloseHandle(stdin_read);
 		CloseHandle(stdin_write);
+		if !stderr_to_stdout {
+			CloseHandle(stderr_read);
+			CloseHandle(stderr_write);
+		}
 		return os_get_last_error2();
 	}
 
@@ -84,6 +95,9 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 		CloseHandle(job_handle);
 		CloseHandle(stdout_read);
 		CloseHandle(stdin_write);
+		if !stderr_to_stdout {
+			CloseHandle(stderr_read);
+		}
 		return os_get_last_error2();
 	}
 
@@ -93,6 +107,11 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 	ctx.pid    = process_info.dwProcessId;
 	ctx.stdin  = stdin_write;
 	ctx.stdout = stdout_read;
+	if stderr_to_stdout {
+		ctx.stderr = stdout_read;
+	} else {
+		ctx.stderr = stderr_read;
+	}
 
 	ctx.win_process_handle = process_info.hProcess;
 	ctx.win_job_handle     = job_handle;
@@ -101,10 +120,16 @@ start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_vi
 }
 
 stop_process :: fn (ctx: *?TContext) Error {
+	has_separate_stderr :: ctx.stderr != ctx.stdout;
 	handles :: [_]*HANDLE.{ &ctx.win_process_handle, &ctx.win_job_handle, &ctx.stdout, &ctx.stdin };
 	loop i := 0; i < handles.len; i += 1 {
 		CloseHandle(@handles[i]);
 		@handles[i] = INVALID_HANDLE_VALUE;
+	}
+
+	if has_separate_stderr {
+		CloseHandle(ctx.stderr);
+		ctx.stderr = INVALID_HANDLE_VALUE;
 	}
 
 	return OK;
@@ -124,26 +149,46 @@ execute_system_command :: fn (cmd: string_view) Error {
 }
 
 PollEvent :: enum #flags {
+	NO_EVENT = 0;
+	READ_STDOUT;
+	READ_STDERR;
 	READ;
 	CLOSED;
-	WAIT;
 }
 
 poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
-	result := PollEvent.WAIT;
+	result: PollEvent;
+
+	has_separate_stderr :: ctx.stderr != ctx.stdout;
 
 	// Check if pipe has any data to read (process might be already closed).
-	available_bytes: u32 #noinit;
-	if PeekNamedPipe(ctx.stdout, null, 0, null, &available_bytes, null) == 0 {
+	available_bytes_stdout: u32 #noinit;
+	if PeekNamedPipe(ctx.stdout, null, 0, null, &available_bytes_stdout, null) == 0 {
 		err :: os_get_last_error2();
 		if err.code != ERROR_BROKEN_PIPE {
 			return PollEvent.CLOSED, err;
 		}
 	}
 
-	if available_bytes > 0 {
-		result =  PollEvent.READ;
-	} else {
+	if available_bytes_stdout > 0 {
+		result |= PollEvent.READ_STDOUT | PollEvent.READ;
+	}
+
+	if has_separate_stderr {
+		available_bytes_stderr: u32 #noinit;
+		if PeekNamedPipe(ctx.stderr, null, 0, null, &available_bytes_stderr, null) == 0 {
+			err :: os_get_last_error2();
+			if err.code != ERROR_BROKEN_PIPE {
+				return PollEvent.CLOSED, err;
+			}
+		}
+
+		if available_bytes_stderr > 0 {
+			result |= PollEvent.READ_STDERR | PollEvent.READ;
+		}
+	}
+
+	if result == PollEvent.NO_EVENT {
 		// Check if process is still alive.
 		exit_code: DWORD;
 		if GetExitCodeProcess(ctx.win_process_handle, &exit_code) != 0 {
@@ -216,27 +261,27 @@ get_fonts_directory :: fn () string {
 	return path;
 }
 
-new_filepath_from_url :: fn (url: string_view) (err: Error, filepath: string) {
+new_filepath_from_url :: fn (url: string_view, allocator: *Allocator) (filepath: string, err: Error) {
 	buf: [MAX_PATH]u8 #noinit;
 	len: DWORD = auto buf.len;
 	status :: PathCreateFromUrlA(strtoc(url), auto buf.ptr, &len, 0);
 	if status != S_OK {
-		return error("Url '%' cannot be converted to file path.", url), string.{};
+		return .{}, error("Url '%' cannot be converted to file path.", url);
 	}
-	result :: str_make(string_view.{ auto len, buf.ptr });
+	result :: str_make(string_view.{ auto len, buf.ptr }, allocator);
 	str_replace_all(&result, '\\', '/');
-	return OK, result;
+	return result, OK;
 }
 
-new_url_from_filepath :: fn (filepath: string_view) (err: Error, url: string) {
+new_url_from_filepath :: fn (filepath: string_view) (url: string, err: Error) {
 	buf: [2084]u8 #noinit; // INTERNET_MAX_URL_LENGTH
 	len: DWORD = auto buf.len;
 	status :: UrlCreateFromPathA(strtoc(filepath), auto buf.ptr, &len, 0);
 	if status != S_OK {
-		return error("Filepath '%' cannot be converted to URL.", filepath), string.{};
+		return .{}, error("Filepath '%' cannot be converted to URL.", filepath);
 	}
 	result :: str_make(string_view.{ auto len, buf.ptr });
-	return OK, result;
+	return result, OK;
 }
 
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
