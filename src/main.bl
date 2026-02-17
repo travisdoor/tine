@@ -1,5 +1,4 @@
 draw       :: #import "extra/draw";
-glfw       :: #import "extra/glfw3";
 math       :: #import "std/math";
 io         :: #import "std/io";
 C          :: #import "libc";
