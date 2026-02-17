@@ -15,7 +15,7 @@ because current cached results might be incomplete (for example on deletition).
 */
 
 completion_mode_init :: fn () {
-	buf, editor :: get_active_buffer_and_editor();
+	buf :: get_active_buffer_and_editor();
 	notify_changes_to_buffer = buf.index;
 }
 
@@ -43,7 +43,6 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 
 	text_padding :: metrics[auto TEXT_PADDING   ];
 	line_height  :: metrics[auto LINE_HEIGHT    ];
-	shadow_size  :: metrics[auto SHADOW_SIZE    ];
 
 	x :: active_editor_x;
 	y :: active_editor_y + text_padding;

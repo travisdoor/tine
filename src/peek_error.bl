@@ -17,7 +17,6 @@ peek_error_mode_terminate :: fn () {
 }
 
 draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
-	buf, editor :: get_active_buffer_and_editor();
 	loc :: current_loc;
 
 	text :: loc.message;

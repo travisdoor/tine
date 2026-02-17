@@ -356,7 +356,6 @@ lsp_save_document :: fn (buf: *Buffer) Error {
 	ctx :: get_job_context(lsp.job_index);
 
 	request :: make_request(ctx) catch return $;
-	rd :: &request.as.lsp;
 	set_variant(&request.as.lsp, .document_save, .{
 			filepath = str_make(buf.filepath, request.allocator),
 		});
@@ -1501,7 +1500,7 @@ handle_error :: fn (json: JsonTokenizer, current_request: *Request) Error {
 	return OK;
 }
 
-handle_log_message :: fn (ctx: *JobContext, json: JsonTokenizer) {
+handle_log_message :: fn (_: *JobContext, json: JsonTokenizer) {
 	log_message: RpcParams(LspLogMessage);
 	deserialize_object(log_message, json) catch return;
 
@@ -1747,8 +1746,6 @@ _deserialize_object :: fn (obj: Any, json: *JsonTokenizer, top_level := true) Er
 		}
 
 		member_info, member_ptr :: find_member(obj.data, info, ident);
-		is_json_poly := false;
-
 		tmp: Any;
 
 		if member_info && is_flag(member_info.tag, TAG_JSON_POLY) {
@@ -2208,8 +2205,8 @@ LspTextDocumentPositionParams :: struct {
 	position:     LspPosition;
 }
 
-LSP_COMPLETION_KIND_INVOKED :: 1;
-LSP_COMPLETION_KIND_TRIGGER_CHARACTER :: 2;
+LSP_COMPLETION_KIND_INVOKED :: 1 #maybe_unused;
+LSP_COMPLETION_KIND_TRIGGER_CHARACTER :: 2 #maybe_unused;
 
 LspCompletionContext :: struct {
 	triggerKind:  s32;
@@ -2249,10 +2246,6 @@ LspInitializeResult :: struct {
 		name:    string_view;
 		version: string_view;
 	}
-}
-
-LspWorkDoneProgressOptions :: struct {
-	workDoneProgress: bool;
 }
 
 LspTextDocumentSyncKind :: enum {
@@ -2360,22 +2353,9 @@ LspReferenceContext :: struct {
 	includeDeclaration: bool;
 }
 
-LspHoverParams :: struct {
-	textDocument: LspTextDocumentIdentifier;
-	position:     LspPosition;
-}
-
-LspHover :: struct {
-	contents: LspMarkupContent;
-}
-
 LspMarkupContent :: struct {
 	kind:  string_view;
 	value: string_view;
-}
-
-LspDidChangeConfigurationParams :: struct {
-	settings: string_view #tag TAG_JSON_INLINE;
 }
 
 LspDocumentDiagnosticParams :: struct {

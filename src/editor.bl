@@ -713,8 +713,6 @@ get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink,
 draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32, text: string_view, bg_color: v4, fg_color: v4) {
 	using Metric;
 
-	buf, editor :: get_active_buffer_and_editor();
-
 	r                :: metrics[auto CORNER_ROUNDING];
 	line_height      :: metrics[auto LINE_HEIGHT];
 	text_padding     :: metrics[auto TEXT_PADDING];
