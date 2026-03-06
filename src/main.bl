@@ -1059,10 +1059,11 @@ rebuild_fonts :: fn (force := false) Error {
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
 	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼﻿", &char_set);
+	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼", &char_set);
 	array_push(&char_set, 0x00A9);
 	array_push(&char_set, 0x00AE);
 	array_push(&char_set, 0x00A7);
+	array_push(&char_set, 0xFEFF);
 
 	err: Error;
 
