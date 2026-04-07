@@ -2143,5 +2143,5 @@ copy_file_path :: fn (buf: *Buffer) {
 }
 
 toggle_line_numbers :: fn () {
-	settings.show_line_numbers = true;
+	settings.show_line_numbers = !settings.show_line_numbers;
 }
