@@ -55,11 +55,14 @@ Buffer :: struct {
 		last_known_end:     Cursor;
 		last_dia_pull_time: f64;
 		pending_dia:        bool;
-		
+
 		dia_message_pool:   PoolAllocator;
 	};
 
-	is_removed:      bool;
+	is_removed: bool;
+	is_word_wrap_enabled: bool;
+
+	version: u32;
 }
 
 is_file_open :: fn (filepath: string_view) bool {
@@ -138,6 +141,8 @@ add_buffer :: fn (name := "") s32 {
 	reset_undo(buf);
 	mutex_init(&buf.mutex);
 
+	buf.version = 0;
+	buf.is_word_wrap_enabled = settings.word_wrap;
 	buf.lsp.dia_message_pool = pool_make(null, 2048);
 	return buf.index;
 }
@@ -162,6 +167,7 @@ add_builtin_buffer :: fn (name: string_view, additional_flags: BufferFlags = .{}
 	buf.flags = BufferFlags.READONLY | additional_flags;
 
 	buf.name.len = 0;
+	buf.is_word_wrap_enabled = true;
 	str_append(&buf.name, name);
 	return index;
 }
@@ -317,7 +323,8 @@ get_closest_cursor_row_col_position :: fn (buf: *Buffer, row: s32, col: s32) s64
 	line, start_index := peek_row(buf, row);
 	valid_cols: s32;
 	loop i := 0; i < line.len && valid_cols < col; valid_cols += 1 {
-		char_len :: math.min(get_character_len(line[i]), 1);
+		char_len :: get_character_len(line[i]);
+		if char_len == 0 then break;
 		i += char_len;
 		start_index += char_len;
 	}
@@ -563,6 +570,7 @@ batch_end :: fn (buf: *Buffer) {
 	rebuild_lines(buf);
 	if notify_changes_to_buffer == buf.index then notify();
 	buf.dirty_syntax = true;
+	buf.version += 1;
 }
 
 insert_ascii_character :: fn (buf: *Buffer, position: s64, c: u8) #inline {
@@ -651,6 +659,7 @@ get_line_ending :: fn (line_ending: LineEnding) string_view {
 	return "";
 }
 
+// Returns length of the line-end character.
 is_line_end :: fn {
 	is_line_end_ptr;
 	is_line_end_str;
@@ -806,6 +815,7 @@ insert_string_impl :: fn (buf: *Buffer, position: s64, str: string_view) {
 
 	if notify_changes_to_buffer == buf.index then notify();
 	buf.dirty_syntax = true;
+	buf.version += 1;
 }
 
 delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
@@ -848,6 +858,7 @@ delete_range_impl :: fn (buf: *Buffer, start: s64, end: s64) {
 
 	if notify_changes_to_buffer == buf.index then notify();
 	buf.dirty_syntax = true;
+	buf.version += 1;
 }
 
 reset_undo_top_before_inserting :: fn (buf: *Buffer) {
@@ -975,9 +986,9 @@ find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
 
 add_buffer_dia_entry :: fn (buf: *Buffer, loc: *ErrorLocation) #inline {
 	print_log("Add dia: %", loc.message);
-	
+
 	row :: peek_row(buf, loc.line);
-	
+
 	array_push(&buf.lsp.dia, .{
 			kind      = loc.kind,
 			message   = str_make(loc.message, &buf.lsp.dia_message_pool),
@@ -1059,6 +1070,14 @@ publish_lsp_buffer_change_if_needed :: fn (buf: *Buffer) {
 	if is_lsp_running() && buf.lsp.version > 0 && lsp_buffer_needs_update(buf) {
 		lsp_change_document(buf) catch print_err("LSP: %", $);
 	}
+}
+
+toggle_buffer_word_wrap :: fn (buf: *Buffer) {
+	buf.is_word_wrap_enabled = !buf.is_word_wrap_enabled;
+	if !buf.is_word_wrap_enabled then return;
+
+	// Force virtual line rebuild for active editors.
+	buf.version += 1;
 }
 
 #scope_private
@@ -1214,26 +1233,6 @@ rebuild_lines :: fn (buf: *Buffer) {
 	}
 
 	array_push(&buf.lines, buf.bytes.len);
-
-	/*
-	buf.lines.len = 0;
-	array_push(&buf.lines, 0);
-
-	// Following solution seems to be almost 3x faster on my machine, we basically exclude
-	// all 8 bytes in case there is no new line. Note that there is also simplification since
-	// we assume \r\n and \n both ends with \n.
-	loop i : s64 = 0; i < buf.bytes.len; {
-	c :: buf.bytes[i];
-	if c == '\n' {
-	i += 1;
-	array_push(&buf.lines, i);
-	} else {
-	i += 1;
-	}
-	}
-
-	array_push(&buf.lines, buf.bytes.len);
-	*/
 }
 
 load_buffer_bytes :: fn (buf: *Buffer, stream: *io.Stream) Error {

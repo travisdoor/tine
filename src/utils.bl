@@ -902,3 +902,18 @@ absolute_path_to_relative :: fn (path: string_view, prefix: string_view) string_
 	return tprint(".%", string_view.{ path.len - prefix.len, &path[prefix.len] });
 }
 
+
+count_visual_cols_to_position_str :: fn (line: string_view, position: s64) s32 {
+	count := 0;
+	loop i := 0; i < position; {
+		char_len :: get_character_len(line[i]);
+		if char_len == 0 then break;
+		if char_len == 1 && line[i] == '\t' {
+			count += settings.tab_size;
+		} else {
+			count += 1;
+		}
+		i += char_len;
+	}
+	return count;
+}

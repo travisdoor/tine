@@ -39,7 +39,7 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 	}
 
 	buf, editor :: get_active_buffer_and_editor();
-	current_cursor :: get_cursor(buf, editor.cursor_index);
+	current_cursor :: get_virtual_cursor(editor, buf);
 
 	text_padding :: metrics[auto TEXT_PADDING   ];
 	line_height  :: metrics[auto LINE_HEIGHT    ];
@@ -49,7 +49,7 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 
 	first_line_index :: editor.top;
 
-	line, start_index :: peek_row(buf, current_cursor.row);
+	line, start_index :: peek_virtual_row(editor, buf, current_cursor.row);
 	line_w :: draw.text_size(line, &font, auto (current_cursor.position - start_index));
 	px :: x + line_w - editor.sliding.horizontal_offset;
 	py := y * 2.f + line_height * auto (current_cursor.row - first_line_index + 1); // +1 one line down

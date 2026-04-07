@@ -17,6 +17,14 @@ Editor :: struct {
 	prev_frame_cursor_position: s64;
 	track_recent_locations:     bool;
 
+	wrap: struct {
+		// Buffer Hash | Buffer Version. This is used to identify dirty line wrapping if enabled for buffer.
+		last_buffer_hash: u64;
+		last_w: s32;
+
+		virtual_lines: VirtualLines;
+	};
+
 	is_removed: bool;
 }
 
@@ -84,6 +92,8 @@ remove_editor :: fn (index: s32) {
 	buf :: get_editor_buffer(editor);
 	remove_cursor(buf, editor.cursor_index);
 
+	tbl_terminate(&editor.wrap.virtual_lines);
+
 	zeroinit(editor);
 
 	editor.index        = index;
@@ -93,7 +103,8 @@ remove_editor :: fn (index: s32) {
 }
 
 set_editor_buffer :: fn (editor: *Editor, buffer_index: s32) {
-	editor.buffer_index = buffer_index;
+	editor.buffer_index          = buffer_index;
+	editor.wrap.last_buffer_hash = -1;
 }
 
 get_editor_buffer :: fn (editor: *Editor) *Buffer {
@@ -118,10 +129,10 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	if editor.buffer_index == -1 { return; }
 	buf :: &buffers[editor.buffer_index];
 
-	lsp_pull_diagnostics_update(buf);
-
 	lock_buffer(buf);
 	defer unlock_buffer(buf);
+
+	lsp_pull_diagnostics_update(buf);
 
 	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
 	line_height      :: metrics[auto LINE_HEIGHT ];
@@ -146,9 +157,12 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	defer clear_scissor();
 
 	rebuild_coloring_and_indentation_info(buf);
-	is_active    :: active_editor == editor.index;
+	is_active :: active_editor == editor.index;
 
 	line_w :: content_w - text_padding*2.f;
+
+	rebuild_virtual_lines_if_needed(editor, buf, line_w);
+	virtual_lines_count :: get_virtual_lines_count(editor, buf);
 
 	// Draw background
 	set_shader_color();
@@ -158,6 +172,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	sliding :: &editor.sliding;
 
 	cursor :: get_cursor(buf, editor.cursor_index);
+	virtual_cursor :: physical_cursor_to_virtual(editor, buf, cursor);
+
 	visible_lines :: cast(s32) math.round(h / line_height);
 
 	first_line_index := editor.top;
@@ -177,23 +193,23 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	editor.visible_lines = visible_lines;
 
 	// Make cursor visible if position changed
-	if editor.prev_frame_cursor_position != cursor.position {
+	if editor.prev_frame_cursor_position != virtual_cursor.position || first_line_index > virtual_lines_count {
 		top := -1;
-		if cursor.row < first_line_index {
-			top = math.max(0, cursor.row);
-		} else if cursor.row > last_line_index - BOTTOM_SCROLL_TRIGGER {
-			top = math.max(0, first_line_index + cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
+		if virtual_cursor.row < first_line_index {
+			top = math.max(0, virtual_cursor.row);
+		} else if virtual_cursor.row > last_line_index - BOTTOM_SCROLL_TRIGGER {
+			top = math.max(0, first_line_index + virtual_cursor.row - last_line_index + BOTTOM_SCROLL_TRIGGER);
 		}
 		if top != -1 then start_vertical_animation(editor, top);
 	}
 
 	// Cursor position and size.
-	char_under_cursor :: peek_position(buf, cursor.position);
-	line, start_index :: peek_row_without_new_line(buf, cursor.row);
+	char_under_cursor :: peek_position(buf, virtual_cursor.position);
+	line, start_index :: peek_virtual_row_without_new_line(editor, buf, virtual_cursor.row);
 
 	use_block_caret :: settings.block_caret && !(is_selection_active(buf, editor.cursor_index) && settings.change_caret_on_selection);
 
-	cursor_x := text_size(line, &font, auto (cursor.position - start_index));
+	cursor_x := text_size(line, &font, auto (virtual_cursor.position - start_index));
 	cursor_w := 2.f;
 	if use_block_caret || !is_active {
 		cw :: text_size(char_under_cursor, &font);
@@ -208,45 +224,54 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	ty :: y + text_padding + sliding.vertical_offset;
 
 	// Adjust text x offset
-	if settings.word_wrap == false {
-		update_editor_x_offset(editor, line_w, cursor_x);
-	}
+	update_editor_x_offset(editor, line_w, cursor_x);
 
 	tx -= sliding.horizontal_offset;
 	tx = math.round(tx);
 
-	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
+	{ // Current line highlight background.
+		current_line_num, first_current_line_row :: get_virtual_row_count_in_line(editor, buf, virtual_cursor.row);
+		current_line_y :: ty + line_height * auto (first_current_line_row - first_line_index);
 
-	// current line highlight
-	rect(x, current_line_y, w, line_height, colors.current_line_background_color);
+		// current line highlight
+		rect(x, current_line_y, w, line_height * auto current_line_num, colors.current_line_background_color);
+	}
 
 	inline_compilation_error :: get_current_compilation_error();
 	has_inline_errors :: settings.show_lsp_inline_diagnostics || inline_compilation_error;
 
 	if has_inline_errors {
 		is_peeking :: mode == Mode.PEEK_ERROR;
+
 		line_base_y := ty;
-		loop i := first_line_index; i < last_line_index; i += 1 {
-			line :: peek_row(buf, i);
+		loop virtual_row_index := first_line_index; virtual_row_index < last_line_index && virtual_row_index < virtual_lines_count; virtual_row_index += 1 {
+			physical_row_index :: virtual_row_to_raw(editor, buf, virtual_row_index);
+
+			virtual_line  :: peek_virtual_row(editor, buf, virtual_row_index);
+			physical_line :: peek_row(buf, physical_row_index);
+
+			// @Performance 2026-03-22: We might do it only in case the error is captured on current row.
+			virtual_count, virtual_first_index :: get_virtual_row_count_in_line(editor, buf, virtual_row_index);
+
 			error_reported_for_line := false;
+			highliht_only :: (is_peeking && cursor.row == physical_row_index) || (virtual_first_index + virtual_count-1) != virtual_row_index;
 
 			// Highlight errors and warnings.
 			if inline_compilation_error {
 				loc :: inline_compilation_error;
-				if i == loc.line-1 && cursor.row == loc.line-1 && loc.file_hash == buf.hash {
-					draw_inline_error(editor, content_x, line_base_y, w, line, loc, is_peeking);
+				if physical_row_index == loc.line-1 && cursor.row == loc.line-1 && loc.file_hash == buf.hash {
+					draw_inline_error(editor, content_x, line_base_y, w, virtual_line, loc, highliht_only);
 					error_reported_for_line = true;
 				}
 			}
 
-			if settings.show_lsp_inline_diagnostics && error_reported_for_line == false {
-				loc :: get_diagnostic_for_line(buf, i);
-				if loc && loc.is_hidden == false {
-					if loc.line_hash != str_hash(line) {
+			if settings.show_lsp_inline_diagnostics && !error_reported_for_line {
+				loc :: get_diagnostic_for_line(buf, physical_row_index);
+				if loc && !loc.is_hidden {
+					if loc.line_hash != str_hash(physical_line) {
 						loc.is_hidden = true;
 					}
-					highliht_only :: is_peeking && cursor.row == i;
-					draw_inline_error(editor, content_x, line_base_y, w, line, loc, highliht_only);
+					draw_inline_error(editor, content_x, line_base_y, w, virtual_line, loc, highliht_only);
 				}
 			}
 
@@ -256,24 +281,24 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	set_shader_color();
 
-	_, first_position :: peek_row(buf, first_line_index);
-	_, last_position  :: peek_row(buf, math.min(cast(s32) buf.lines.len - 2, last_line_index) );
+	_, first_position :: peek_virtual_row(editor, buf, first_line_index);
+	_, last_position  :: peek_virtual_row(editor, buf, math.min(cast(s32) virtual_lines_count-1, last_line_index) );
 
-	// draw selection
+	// Draw selection.
 	{
-		start := cursor.selection_start;
+		start := virtual_cursor.selection_start;
 		if start != -1 {
-			end := cursor.position;
-			if start > end { swap(&start, &end); }
+			end := virtual_cursor.position;
+			if start > end then swap(&start, &end);
 			if end > start {
 				color := colors.selection_background_color;
-				if !is_active { color = colors.selection_background_inactive_color; }
+				if !is_active then color = colors.selection_background_inactive_color;
 				draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, color);
 			}
 		}
 	}
 
-	// draw search highlights
+	// Draw search highlights.
 	highlight_last_search_results :: mode == Mode.SEARCH_FILE || mode == Mode.REPLACE;
 	if highlight_last_search_results && last_active_text_editor == editor.index {
 		drawn_count := 0;
@@ -293,33 +318,36 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		}
 	}
 
-	// draw file links
+	// Draw file links
 	if is_active && !has_selection(buf, editor.cursor_index) && is_flag(buf.flags, BufferFlags.PARSE_FILE_LINKS) {
 		// @Pefrormance 2025-02-21: We should probably not do it every frame but link lookup is fast enought now.
-		link, found :: get_file_link_under_cursor(buf, cursor.position);
+		link, found :: get_file_link_under_cursor(buf, virtual_cursor.position);
 		if found {
 			draw_highlight_range(buf, editor, tx, ty, link.start, link.end, first_position, last_position, colors.selection_background_color);
 		}
 	}
 
-	// cursor
-	if is_active && caret.visible {
-		color := colors.cursor_background_color;
-		rect(math.round(tx + cursor_x), current_line_y, cursor_w, line_height, color);
-	} else if !is_active {
-		// Draw just empty box.
-		lw :: 2.f;
-		cx :: math.round(tx + cursor_x);
-		rect(cx, current_line_y, cursor_w, lw, colors.cursor_background_color);
-		rect(cx, current_line_y + line_height - lw, cursor_w, lw, colors.cursor_background_color);
-		rect(cx, current_line_y, lw, line_height, colors.cursor_background_color);
-		rect(cx + cursor_w - lw, current_line_y, lw, line_height, colors.cursor_background_color);
+	{ // Cursor.
+		cursor_y :: ty + line_height * auto (virtual_cursor.row - first_line_index);
+		if is_active && caret.visible {
+			color := colors.cursor_background_color;
+			rect(math.round(tx + cursor_x), cursor_y, cursor_w, line_height, color);
+		} else if !is_active {
+			// Draw just empty box.
+			lw :: 2.f;
+			cx :: math.round(tx + cursor_x);
+			rect(cx, cursor_y, cursor_w, lw, colors.cursor_background_color);
+			rect(cx, cursor_y + line_height - lw, cursor_w, lw, colors.cursor_background_color);
+			rect(cx, cursor_y, lw, line_height, colors.cursor_background_color);
+			rect(cx + cursor_w - lw, cursor_y, lw, line_height, colors.cursor_background_color);
+		}
 	}
 
+	// Text.
 	set_shader_font(&font);
 	line_base_y := math.round(ty);
 	loop i := first_line_index; i < last_line_index; i += 1 {
-		line, row_start_index :: peek_row(buf, i);
+		line, row_start_index :: peek_virtual_row(editor, buf, i);
 		if line.len == 0 { break; }
 
 		line_colors: [1024]u8 #noinit;
@@ -329,29 +357,17 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			memcpy(line_colors.ptr, &buf.colors[row_start_index], auto math.min(line.len, line_colors.len));
 		}
 
-		if use_block_caret && i == cursor.row  && is_active && caret.visible {
-			cursor_position :: cursor.position - start_index;
+		if use_block_caret && i == virtual_cursor.row  && is_active && caret.visible {
+			cursor_position :: virtual_cursor.position - start_index;
 			if cursor_position < line_colors.len {
 				line_colors[cursor_position] = CODE_COLOR_CURSOR_INDEX;
 			}
 		}
 
 
-		if settings.word_wrap {
-			// @Incomplete
-			rest := line;
-			loop rest.len > 0 {
-				ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
-				left, right :: split_text_to_fit(rest, &font, line_w, true);
-				code(tx, ly, left, line_colors, code_color_table);
-				rest = right;
-				line_base_y += line_height;
-			}
-		} else {
-			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
-			code(tx, ly, line, line_colors, code_color_table);
-			line_base_y += line_height;
-		}
+		ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
+		code(tx, ly, line, line_colors, code_color_table);
+		line_base_y += line_height;
 	}
 
 	// Line numbers
@@ -361,18 +377,19 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 		set_shader_font(&font);
 		line_base_y = math.round(ty);
-		line_number := if settings.line_numbers_relative then first_line_index - cursor.row else first_line_index + 1;
-		loop i := first_line_index; i < last_line_index; i += 1 {
-			line :: peek_row(buf, i);
-			if line.len == 0 then break;
+		loop i := first_line_index; i < last_line_index && i < virtual_lines_count; {
+			physical_row :: virtual_row_to_raw(editor, buf, i);
+			count, first :: get_virtual_row_count_in_line(editor, buf, i);
 
 			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
-			line_number_str :: tprint("%", math.abs(line_number));
+			line_number_str :: tprint("%", math.abs(physical_row+1));
 			line_number_x := x + line_number_w - text_size(line_number_str, &font).width - item_spacing * 0.5f;
 			text(line_number_x, ly, line_number_str, colors.foreground_line_numbers_color);
 
-			line_number += 1;
-			line_base_y += line_height;
+			skip :: count - (i - first);
+
+			line_base_y += line_height * auto skip;
+			i += skip;
 		}
 	}
 
@@ -454,6 +471,10 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		str_concat(&title, "    LSP: ", if lsp.server_name.len == 0 then "N/A" else lsp.server_name);
 	}
 
+	if buf.is_word_wrap_enabled {
+		str_concat(&title, "    WRAP ");
+	}
+
 	name_size :: text_size(buf.name, &font_ui_b);
 	status_x += name_size + item_spacing;
 	text(status_x, text_y, title, colors.title_bar_text_color);
@@ -486,8 +507,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 				top := editor.top - auto (mouse.scroll * 5.f);
 				if top < 0 {
 					top = 0;
-				} else if top+2 >= auto get_row_count(buf) {
-					top = auto (get_row_count(buf) - 2);
+				} else if top+2 >= virtual_lines_count {
+					top = auto (virtual_lines_count - 2);
 				}
 				start_vertical_animation(editor, top, 0.01f);
 			}
@@ -515,12 +536,14 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	if set_cursor_under_mouse || is_lmb_dragging(loc.hash) {
 		// Calculate the position of cursor in the text based on the click position.
-		row :: (cast(s32) ((mouse.position.y - ty) / line_height)) + editor.top;
-		if row >= 0 {
+		virtual_row :: (cast(s32) ((mouse.position.y - ty) / line_height)) + editor.top;
+		if virtual_row >= 0 {
 			position: s64;
-			if row < get_row_count(buf) {
-				line :: peek_row(buf, row);
-				col  :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.position.x - tx);
+			if virtual_row < virtual_lines_count {
+				line        :: peek_virtual_row(editor, buf, virtual_row);
+				virtual_col :: get_character_count_to_fit(trim_right(line, "\n\r"), &font, mouse.position.x - tx);
+				row, col    :: virtual_row_col_to_raw(editor, buf, virtual_row, virtual_col);
+
 				position = get_closest_cursor_row_col_position(buf, row, col);
 			} else {
 				position = get_last_position_in_buffer(buf);
@@ -534,8 +557,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		reset_caret_blinking();
 	}
 
-	editor.prev_frame_cursor_position = cursor.position;
-	#if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
+	editor.prev_frame_cursor_position = virtual_cursor.position;
+	#if IS_DEBUG && EDITOR_DEBUG { draw_debug(editor, buf, x, y, w, h); }
 }
 
 draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := "", hint := "", loc := #call_location) {
@@ -689,7 +712,7 @@ center_view :: fn (editor: *Editor) {
 	buf :: &buffers[editor.buffer_index];
 	assert(!buf.is_removed);
 
-	cursor :: get_cursor(buf, editor.cursor_index);
+	cursor :: get_virtual_cursor(editor, buf);
 
 	first_row    :: editor.top;
 	visible_rows :: editor.visible_lines;
@@ -727,7 +750,7 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 
 	lines :: calculate_line_offsets(text, pw-(text_padding*2.f), text_font);
 
-	ph := (line_height * auto lines.len) + text_padding;
+	ph := (line_height * auto lines.len) + text_padding * 2.f;
 	py -= ph;
 
 	draw_shadow(px, py, pw, ph, ShadowMode.ALL);
@@ -745,6 +768,8 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 }
 
 #scope_private
+
+EDITOR_DEBUG :: false;
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
@@ -772,7 +797,10 @@ update_editor_x_offset :: fn (editor: *Editor, line_w: f32, cursor_x: f32) {
 	sliding :: &editor.sliding;
 
 	result := sliding.horizontal_offset;
-	if line_w > 0.f {
+
+	if (editor.wrap.virtual_lines.len > 0) {
+		result = 0.f;
+	} else if line_w > 0.f {
 		c :: cursor_x - result;
 		pilot_char_w :: draw.text_size("X", &font);
 		t := pilot_char_w * 6.f;
@@ -854,13 +882,16 @@ draw_highlight_range :: fn (
 
 	first_line_index := editor.top;
 
-	first_selection_row_index :: find_row_for_position(buf, start, 0);
-	last_selection_row_index  :: find_row_for_position(buf, end, first_selection_row_index);
+	first_selection_row_index :: find_virtual_row_for_position(editor, buf, start, 0);
+	last_selection_row_index  :: find_virtual_row_for_position(editor, buf, end, first_selection_row_index);
 
 	loop row_index := first_selection_row_index; row_index <= last_selection_row_index; row_index += 1 {
-		row, row_start_position :: peek_row(buf, row_index);
-		if row_start_position < first_visible_position { continue; }
-		if row_start_position > last_visible_position  { break;    }
+		row, row_start_position :: peek_virtual_row(editor, buf, row_index);
+		if row_start_position < first_visible_position then continue;
+		if row_start_position > last_visible_position {
+			print_log("Here!");
+			break;
+		}
 
 		y :: ty + line_height * auto (row_index - first_line_index);
 		if row_index == first_selection_row_index {
@@ -892,6 +923,246 @@ get_status_bar_colors :: fn (kind: PrintLogKind) (bg: v4, fg: v4) #inline {
 	}
 	return rgb(0xff00ff), white;
 }
+
+//
+// Line virtualization
+//
+
+// @Note 2026-03-28: In case virtual lines are not present (wrapping is disabled or buffer is empty) all virtual
+//                   related functions are redirected to regular buffer API.
+
+VirtualLines :: Table(u64, struct { position: s64; len: s32 });
+
+VIRTUAL_ROW_MASK : u64 : 0xFFFFFFFF << 32;
+
+virtual_line_hash :: fn (row: s32, sub_row: s32) u64 #inline {
+	return (cast(u64) row << 32) | cast(u64) sub_row;
+}
+
+// @Performace 2026-03-28: Goes over whole buffer content!
+rebuild_virtual_lines_if_needed :: fn (editor: *Editor, buf: *Buffer, w: f32) {
+	wrap_hash :: (cast(u64)buf.hash << 32) | cast(u64)buf.version;
+	if !buf.is_word_wrap_enabled {
+		tbl_terminate(&editor.wrap.virtual_lines);
+		return;
+	}
+	if wrap_hash == editor.wrap.last_buffer_hash && cast(s32) w == editor.wrap.last_w {
+		return;
+	}
+
+	editor.wrap.last_buffer_hash = wrap_hash;
+	editor.wrap.last_w           = auto w;
+
+	measure_elapsed_ms_begin();
+	defer measure_elapsed_ms_end();
+
+	row_num :: get_row_count(buf);
+
+	virtual_lines :: &editor.wrap.virtual_lines;
+	tbl_clear(virtual_lines);
+
+	loop i := 0; i < row_num; i += 1 {
+		line, position := peek_row(buf, i);
+
+		sub_line := 0;
+		rest := line;
+		loop {
+			left, right :: draw.split_text_to_fit(rest, &font, w, true);
+			rest = right;
+
+			tbl_insert(virtual_lines, virtual_line_hash(i, sub_line), .{
+					position = position,
+					len      = auto left.len,
+				});
+
+			position += left.len;
+			sub_line += 1;
+			if rest.len == 0 then break;
+		}
+	}
+}
+
+get_virtual_lines_count :: fn (editor: *Editor, buf: *Buffer) s64 #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len > 0 then return virtual_lines.len;
+	return get_row_count(buf);
+}
+
+#scope_public
+
+physical_cursor_to_virtual :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor) Cursor #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return cursor;
+
+	index := tbl_lookup_index(virtual_lines, virtual_line_hash(cursor.row, 0));
+	assert(index != -1);
+	index = find_virtual_row_for_position(editor, buf, cursor.position, index);
+
+	virtual_row :: index;
+
+	virtual_line :: virtual_lines.values[index];
+	virtual_col := 0;
+	p := virtual_line.position;
+	loop p < cursor.position {
+		char :: peek_position(buf, p);
+		if char.len == 0              { break; }
+		if is_line_end(buf, char) > 0 { break; }
+
+		virtual_col += 1;
+		p += char.len;
+	}
+
+	return .{
+		position        = cursor.position,
+		selection_start = cursor.selection_start,
+		row             = virtual_row,
+		col             = virtual_col,
+	};
+}
+
+get_virtual_cursor :: fn (editor: *Editor, buf: *Buffer) Cursor #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	cursor :: get_cursor(buf, editor.cursor_index);
+	if editor.wrap.virtual_lines.len == 0 then return cursor;
+	return physical_cursor_to_virtual(editor, buf, cursor);
+}
+
+// Just for consistency.
+set_virtual_cursor :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor) #inline {
+	set_cursor_position(buf, editor.cursor_index, cursor.position);
+}
+
+// Just for consistency.
+set_virtual_cursor_position :: fn (editor: *Editor, buf: *Buffer, position: s64) #inline {
+	set_cursor_position(buf, editor.cursor_index, position);
+}
+
+virtual_cursor_to_physical :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor) Cursor #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	if editor.wrap.virtual_lines.len == 0 then return cursor;
+	return get_cursor_for_position(buf, cursor.position);
+}
+
+virtual_row_to_raw :: fn (editor: *Editor, buf: *Buffer, virtual_row: s32) s32 #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return virtual_row;
+
+	assert(virtual_row >= 0 && virtual_row < virtual_lines.len);
+	key :: virtual_lines.keys[virtual_row];
+	return cast(s32)((key & VIRTUAL_ROW_MASK) >> 32);
+}
+
+virtual_row_col_to_raw :: fn (editor: *Editor, buf: *Buffer, virtual_row: s32, virtual_col: s32) (s32, s32) #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return virtual_row, virtual_col;
+
+	assert(virtual_row >= 0 && virtual_row < virtual_lines.len);
+	key :: virtual_lines.keys[virtual_row];
+
+	virtual_line :: virtual_lines.values[virtual_row];
+	line :: peek_virtual_row(editor, buf, virtual_row);
+
+	col_offset := 0;
+	loop c := 0; c < virtual_col && col_offset < line.len; c += 1 {
+		char_len :: get_character_len(line[col_offset]);
+		if char_len == 0 then break;
+		col_offset += auto char_len;
+	}
+
+	physical_row :: cast(s32)((key & VIRTUAL_ROW_MASK) >> 32);
+	physical_col :: count_cols_to_position(buf, virtual_line.position + col_offset);
+
+	return physical_row, physical_col;
+}
+
+peek_virtual_row :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) (line: string_view, start_position: s64) #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return peek_row(buf, virtual_row_index);
+
+	if virtual_row_index < 0 || virtual_row_index >= virtual_lines.len then return "", 0;
+	virtual_line :: virtual_lines.values[virtual_row_index];
+
+	return .{ virtual_line.len, &buf.bytes[virtual_line.position] }, virtual_line.position;
+}
+
+peek_virtual_row_without_new_line :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) (text: string_view, start_index: s64, len_with_new_line: s32) #inline {
+	row, start_position  := peek_virtual_row(editor, buf, virtual_row_index);
+	len_with_new_line :: cast(s32) row.len;
+	row  = trim_right(row, "\r\n");
+	return row, start_position, len_with_new_line;
+}
+
+find_virtual_row_for_position :: fn (editor: *Editor, buf: *Buffer, position: s64, start_row_index: s32 = 0) s32 #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return find_row_for_position(buf, position, start_row_index);
+
+	index := start_row_index;
+	loop ; index < virtual_lines.len - 1; index += 1 {
+		virtual_line :: virtual_lines.values[index];
+		last_position_in_line :: virtual_line.position + virtual_line.len;
+		if position < last_position_in_line then break;
+	}
+	return index;
+}
+
+// Returns true in case the line in wrapped at the end.
+is_virtual_row_wrapped_down :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) bool #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return false;
+
+	if virtual_row_index < 0 || virtual_row_index >= virtual_lines.len then return false;
+	key :: virtual_lines.keys[virtual_row_index] & VIRTUAL_ROW_MASK;
+	return virtual_row_index+1 < virtual_lines.len && (virtual_lines.keys[virtual_row_index+1] & VIRTUAL_ROW_MASK) == key;
+}
+
+is_virtual_row_wrapped_up :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) bool #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return false;
+
+	if virtual_row_index < 0 || virtual_row_index >= virtual_lines.len then return false;
+	key :: virtual_lines.keys[virtual_row_index] & VIRTUAL_ROW_MASK;
+	return virtual_row_index-1 >= 0 && (virtual_lines.keys[virtual_row_index-1] & VIRTUAL_ROW_MASK) == key;
+}
+
+get_virtual_row_count_in_line :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) (count: s32, first_virtual_row: s32)  #inline {
+	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
+	
+	virtual_lines :: &editor.wrap.virtual_lines;
+	if virtual_lines.len == 0 then return 1, virtual_row_index;
+
+	if virtual_row_index < 0 || virtual_row_index >= virtual_lines.len then return 0, 0;
+	key :: virtual_lines.keys[virtual_row_index] & VIRTUAL_ROW_MASK;
+	first_virtual_row_index := tbl_lookup_index(virtual_lines, key);
+	assert(first_virtual_row_index != -1);
+
+	count := 0;
+	loop i := first_virtual_row_index; i < virtual_lines.len; i += 1 {
+		if (virtual_lines.keys[i] & VIRTUAL_ROW_MASK) != key then break;
+		count += 1;
+	}
+
+	return count, first_virtual_row_index;
+}
+
+#scope_private
 
 draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32) #maybe_unused {
 	using draw;

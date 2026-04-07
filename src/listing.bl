@@ -278,6 +278,7 @@ list_commands :: fn (repeatable_only := false) {
 			continue;
 		}
 		if repeatable_only && !is_command_valid_for_repeating(auto i) then continue;
+		if skip then continue;
 
 		command_name : string_view : COMMAND_NAMES[i];
 		title :: str_make(command_name, &string_cache[DEFAULT_CACHE_INDEX]);

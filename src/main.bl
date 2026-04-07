@@ -90,8 +90,8 @@ CARET_BLINK_MS :: 500.f;
 draw_next_frame := true;
 
 // Limits
-MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 8388608; // 8MB
-MAX_INDENTATION_RANGE_BYTES     :: 1048576; // 1MB
+MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 1024*1024*16; // 8MB
+MAX_INDENTATION_RANGE_BYTES     :: 1024*1024; // 1MB
 
 // Unicode awesome font codes.
 ICON_BELL             : u32 : 0xF0A2;
@@ -361,6 +361,7 @@ Settings :: struct {
 	font_size:    s32;
 	tab_size:     s32;
 	line_spacing: s32;
+	word_wrap:    bool;
 
 	font: string;
 
@@ -388,13 +389,12 @@ Settings :: struct {
 	show_lsp_inline_diagnostics:            bool;
 	block_caret:                            bool;
 	change_caret_on_selection:              bool;
-	word_wrap:                              bool;
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
 	show_hints:                             bool;
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
-	line_numbers_relative:                  bool;
+	line_numbers_relative:                  bool; // deprecated
 	enable_quick_search:                    bool;
 
 	shell_parse_error_locations:            bool;
@@ -1059,11 +1059,10 @@ rebuild_fonts :: fn (force := false) Error {
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
 	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼", &char_set);
+	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼﻿", &char_set);
 	array_push(&char_set, 0x00A9);
 	array_push(&char_set, 0x00AE);
 	array_push(&char_set, 0x00A7);
-	array_push(&char_set, 0xFEFF);
 
 	err: Error;
 
@@ -2108,7 +2107,7 @@ recalculate_metrics :: fn () {
 	metrics[auto TITLE_BAR_HEIGHT] = font_ui.height  * 1.6f;
 	metrics[auto LINE_HEIGHT     ] = font.height  * line_spacing;
 	metrics[auto ITEM_SPACING    ] = icons.height * 1.3f;
-	metrics[auto TEXT_PADDING    ] = font.height  * 0.2f;
+	metrics[auto TEXT_PADDING    ] = font.height  * 0.5f;
 	metrics[auto TITLE_MAX_SIZE  ] = font.height  * 25.f;
 	metrics[auto SHADOW_SIZE     ] = WINDOW_SCALE * 10.f;
 	metrics[auto CORNER_ROUNDING ] = WINDOW_SCALE * 4.f;

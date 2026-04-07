@@ -137,7 +137,7 @@ handle_window_event_loop :: fn () {
 				GetWindowSizeInPixels(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
 				draw.set_viewport_size(WINDOW_WIDTH, WINDOW_HEIGHT);
 
-				if event.type == EVENT_WINDOW_PIXEL_SIZE_CHANGED || event.type == EVENT_WINDOW_DISPLAY_SCALE_CHANGED{
+				if /*event.type == EVENT_WINDOW_PIXEL_SIZE_CHANGED || */event.type == EVENT_WINDOW_DISPLAY_SCALE_CHANGED {
 					WINDOW_SCALE = GetWindowDisplayScale(window);
 					rebuild_fonts(true);
 				}
@@ -349,7 +349,13 @@ is_running :: fn () bool #inline {
 }
 
 set_window_title :: fn (title: string_view) #inline {
-	if !sdl.SetWindowTitle(window, strtoc(title)) then print_err(sdl_last_error());
+	#if IS_DEBUG {
+		text :: tprint("% [DEBUG]", title);
+	} else {
+		text :: title;
+	}
+
+	if !sdl.SetWindowTitle(window, strtoc(text)) then print_err(sdl_last_error());
 }
 
 //

@@ -16,6 +16,9 @@ MASTER
 - Add support for C#.
 - Add background task run indicator.
 - Add LSP function signature help.
+- Remove support for relative line numbers.
+- Add support for line word-wrapping.
+- Hide Windows only commands on Linux & Mac.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

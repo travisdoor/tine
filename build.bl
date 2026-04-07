@@ -5,6 +5,7 @@
 
 Args :: struct {
 	is_release: bool;
+	sanitize_address: bool;
 }
 
 args: Args;
@@ -24,6 +25,7 @@ main :: fn () s32 {
 	add_usage(&parser, "[options]");
 
 	add(&parser, &args.is_release, "--release", "", "Compile in release mode.");
+	add(&parser, &args.sanitize_address, "--sanitize-address", "", "Use ASAN.");
 
 	_, parse_error :: parse(&parser, command_line_arguments, 0);
 	if parse_error {
@@ -48,6 +50,8 @@ main :: fn () s32 {
 	set_module_dir(exe, "modules");
 	add_unit(exe, "src/main.bl");
 
+	exe.sanitize_address = args.sanitize_address;
+
 	#if PLATFORM == Platform.WINDOWS {
 		add_unit(exe, "src/platform/win32.bl");
 		if args.is_release {
@@ -69,7 +73,7 @@ main :: fn () s32 {
 			create_macos_bundle();
 		}
 	}
-	
+
 	return 0;
 }
 
