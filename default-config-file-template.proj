@@ -52,7 +52,7 @@ line_spacing                           130
 # clang_format_executable                C:/Program Files/LLVM/bin/clang-format.exe
 
 # Enable word wrap by default.
-word_wrap false
+word_wrap true
 
 #----------------------------------------------------------------------------------------------------
 # LSP
@@ -348,7 +348,7 @@ replay-macro           F11
 increase-number Alt+PageUp
 decrease-number Alt+PageDown
 
-# Repeat command mode is acitivated directly in case following modifier key is pressed in
+# Repeat command mode is activated directly in case following modifier key is pressed in
 # combination with number.
 repeat Ctrl
 
@@ -603,3 +603,50 @@ ansi_white                          D6C7A1
 # ansi_magenta                        FF00FF
 # ansi_cyan                           00AFAF
 # ansi_white                          BFBFBF
+
+# light colors
+#----------------------------------------------------------------------------------------------------
+# background_color                    FBF1C7
+# foreground_color                    3C3836
+# cursor_background_color             3C3836
+# cursor_foreground_color             FBF1C7
+# current_line_background_color       F2E5BC
+# search_result_background_color      FEF37A
+# title_bar_color                     EBDBB2
+# title_bar_active                    D79921
+# title_bar_text_color                3C3836
+# command_background_color            FBF1C7
+# command_foreground_color            3C3836
+# command_title_color                 076678
+# command_select_color                D5C4A1
+# command_list_background_color       F2E5BC
+# modification_indicator_color        CC241D
+# selection_background_color          D5C4A1
+# selection_background_inactive_color EADDB5
+# message_color                       79740E
+# warning_color                       D79921
+# error_color                         CC241D
+# inline_error_background_color       FB4934
+# inline_warning_background_color     FE8019
+# macro_record_icon_color             CC241D
+# background_line_numbers_color       F2E5BC
+# foreground_line_numbers_color       928374
+
+# code_comment                        928374
+# code_keyword                        9D0006
+# code_directive                      AF3A03
+# code_string                         79740E
+# code_number                         458588
+# code_invalid                        CC241D
+# code_warning                        D79921
+# code_error                          CC241D
+# code_function                       076678
+
+# ansi_black                          3C3836
+# ansi_red                            CC241D
+# ansi_green                          98971A
+# ansi_yellow                         D79921
+# ansi_blue                           458588
+# ansi_magenta                        B16286
+# ansi_cyan                           689D6A
+# ansi_white                          A89984
