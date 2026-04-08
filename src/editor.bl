@@ -984,7 +984,7 @@ rebuild_virtual_lines_if_needed :: fn (editor: *Editor, buf: *Buffer, w: f32) {
 
 get_virtual_lines_count :: fn (editor: *Editor, buf: *Buffer) s64 #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len > 0 then return virtual_lines.len;
 	return get_row_count(buf);
@@ -994,7 +994,7 @@ get_virtual_lines_count :: fn (editor: *Editor, buf: *Buffer) s64 #inline {
 
 physical_cursor_to_virtual :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor) Cursor #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return cursor;
 
@@ -1026,7 +1026,7 @@ physical_cursor_to_virtual :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor)
 
 get_virtual_cursor :: fn (editor: *Editor, buf: *Buffer) Cursor #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	cursor :: get_cursor(buf, editor.cursor_index);
 	if editor.wrap.virtual_lines.len == 0 then return cursor;
 	return physical_cursor_to_virtual(editor, buf, cursor);
@@ -1044,14 +1044,14 @@ set_virtual_cursor_position :: fn (editor: *Editor, buf: *Buffer, position: s64)
 
 virtual_cursor_to_physical :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor) Cursor #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	if editor.wrap.virtual_lines.len == 0 then return cursor;
 	return get_cursor_for_position(buf, cursor.position);
 }
 
 virtual_row_to_raw :: fn (editor: *Editor, buf: *Buffer, virtual_row: s32) s32 #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return virtual_row;
 
@@ -1062,7 +1062,7 @@ virtual_row_to_raw :: fn (editor: *Editor, buf: *Buffer, virtual_row: s32) s32 #
 
 virtual_row_col_to_raw :: fn (editor: *Editor, buf: *Buffer, virtual_row: s32, virtual_col: s32) (s32, s32) #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return virtual_row, virtual_col;
 
@@ -1087,7 +1087,7 @@ virtual_row_col_to_raw :: fn (editor: *Editor, buf: *Buffer, virtual_row: s32, v
 
 peek_virtual_row :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) (line: string_view, start_position: s64) #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return peek_row(buf, virtual_row_index);
 
@@ -1106,7 +1106,7 @@ peek_virtual_row_without_new_line :: fn (editor: *Editor, buf: *Buffer, virtual_
 
 find_virtual_row_for_position :: fn (editor: *Editor, buf: *Buffer, position: s64, start_row_index: s32 = 0) s32 #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return find_row_for_position(buf, position, start_row_index);
 
@@ -1122,7 +1122,7 @@ find_virtual_row_for_position :: fn (editor: *Editor, buf: *Buffer, position: s6
 // Returns true in case the line in wrapped at the end.
 is_virtual_row_wrapped_down :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) bool #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return false;
 
@@ -1133,7 +1133,7 @@ is_virtual_row_wrapped_down :: fn (editor: *Editor, buf: *Buffer, virtual_row_in
 
 is_virtual_row_wrapped_up :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) bool #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return false;
 
@@ -1144,7 +1144,7 @@ is_virtual_row_wrapped_up :: fn (editor: *Editor, buf: *Buffer, virtual_row_inde
 
 get_virtual_row_count_in_line :: fn (editor: *Editor, buf: *Buffer, virtual_row_index: s32) (count: s32, first_virtual_row: s32)  #inline {
 	rebuild_virtual_lines_if_needed(editor, buf, auto editor.wrap.last_w);
-	
+
 	virtual_lines :: &editor.wrap.virtual_lines;
 	if virtual_lines.len == 0 then return 1, virtual_row_index;
 

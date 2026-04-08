@@ -171,6 +171,7 @@ notify_changes_to_buffer: s32 = -1;
 messages_buffer_index := -1;
 help_buffer_index     := -1;
 search_buffer_index   := -1;
+conf_buffer_index     := -1;
 
 SearchLocation :: struct {
 	start: s32;
@@ -1256,6 +1257,8 @@ close_buffer :: fn (buffer_index: s32) {
 		clear_error_list();
 	} else if buffer_index == help_buffer_index {
 		help_buffer_index = -1;
+	} else if buffer_index == conf_buffer_index {
+		conf_buffer_index = -1;
 	} else if buffer_index == search_buffer_index {
 		search_buffer_index = -1;
 	}

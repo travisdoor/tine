@@ -103,6 +103,7 @@ Command :: enum {
 	LSP_KILL_SERVER;
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
+	OPEN_CONFIG_TEMPLATE;
 
 	_WINDOWS_BEGIN;
 	OPEN_IN_REMEDYBG;
@@ -235,6 +236,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto LSP_KILL_SERVER]         = "";
 	help[auto LSP_RESTART_SERVER]      = "";
 	help[auto OPEN_DEFAULT_CONFIG]     = "";
+	help[auto OPEN_CONFIG_TEMPLATE]    = "Open read-only default configuration template.";
 	help[auto OPEN_IN_REMEDYBG]        = "Open current file location in RemedyBG.";
 	help[auto OPEN_IN_RADDBG]          = "Open current file location in RAD Debugger.";
 	help[auto OPEN_IN_VISUAL_STUDIO]   = "Open current file location in Visual Studio.";
@@ -622,6 +624,13 @@ help :: fn () {
 	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
 }
 
+open_config_template :: fn () {
+	if conf_buffer_index == -1 {
+		conf_buffer_index = add_implicit_file_buffer("Default Config Template", DEFAULT_PROJECT_FILE_TEMPLATE_DATA, .PROJ);
+	}
+	active_editor = find_or_create_editor_in_split(get_active_split(), conf_buffer_index);
+}
+
 is_command_valid_for_repeating :: fn (cmd: Command) bool {
 	using Command;
 	switch cmd {
@@ -759,6 +768,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		DEBUG_REPORT                  { debug_report(); }
 		OPEN_PROJECT_CONFIG           { open_project_config(); }
 		OPEN_DEFAULT_CONFIG           { open_default_config(); }
+		OPEN_CONFIG_TEMPLATE          { open_config_template(); }
 		OPEN_MESSAGES                 { open_messages(); }
 
 		OPEN_IN_VISUAL_STUDIO         { open_current_buffer_in_visual_studio(buf); }
