@@ -779,7 +779,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		DEBUG_IN_REMEDYBG             { debug_in_remedybg(); }
 		DEBUG_IN_RADDBG               { debug_in_raddbg(); }
 
-		KILL_ASYNC_JOBS               { kill_async_jobs(); }
+		KILL_ASYNC_JOBS               { kill_async_jobs_cmd(); }
 		BUILD                         { start_build(); }
 		SHELL_KILL                    { kill_shell(); }
 
@@ -1736,6 +1736,15 @@ selection_to_upper_or_lower :: fn (editor: *Editor, buf: *Buffer, op: ToUpperOrL
 clang_format :: fn (buf: *Buffer) {
 	err :: request_format(buf);
 	if err { print_err(err); }
+}
+
+kill_async_jobs_cmd :: fn () {
+	if jobs.len == 0 {
+		print_info("No asynchronous jobs are running.");
+		return;
+	}
+
+	kill_async_jobs();
 }
 
 start_build :: fn () {

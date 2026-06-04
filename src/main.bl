@@ -1392,6 +1392,7 @@ open_location :: fn (filepath: string_view, line: s32, col: s32, open_in_other_s
 
 open_project :: fn (directory: string_view, filepath: string_view) Error {
 	kill_async_jobs();
+	cancel_async_search();
 
 	err :: load_project(directory, filepath);
 	if err { return err; }
@@ -1712,19 +1713,13 @@ remove_async_job :: fn (index: s32) {
 kill_async_jobs :: fn () {
 	using JobContext.state;
 
-	has_running_jobs := false;
 	loop i := 0; i < jobs.len; i += 1 {
 		job :: &jobs[i];
 		if job.worker_context.is_removed { continue; }
 		remove_async_job(i);
-		has_running_jobs = true;
 	}
 	array_terminate(&jobs);
 	zeroinit(&jobs);
-
-	if !has_running_jobs {
-		print_info("No asynchronous jobs are running.");
-	}
 }
 
 consume_job_results :: fn (job: *Job, required := false) {

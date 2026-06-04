@@ -183,6 +183,7 @@ index_included_directories :: fn () {
 		return;
 	}
 
+	project.is_indexing = true;
 	indexing.ctx = IndexWorkerContext.{};
 	async(&indexing.job, &indexing.ctx, &index_worker);
 }
@@ -191,6 +192,7 @@ cancel_indexing :: fn () {
 	if !project.is_indexing { return; }
 	indexing.ctx.cancel = true;
 	async_wait(&indexing.job);
+	project.is_indexing = false;
 }
 
 index_worker :: fn (ctx: *IndexWorkerContext) s32 {
@@ -220,7 +222,6 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 	// search is in progress...
 	mutex_lock(&project.mutex);
 	defer mutex_unlock(&project.mutex);
-	project.is_indexing = true;
 	project.indexed_files.len = 0;
 
 	loop i := 0; i < project.included_directories.len && ctx.cancel == false; i += 1 {

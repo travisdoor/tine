@@ -623,12 +623,10 @@ add_all_supported_buffers_to_lsp :: fn () {
 }
 
 remove_all_buffers_from_lsp :: fn () {
-	if !(is_lsp_running() && lsp.initialized) then return;
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
 		if buf.is_removed then continue;
 		if !lsp_is_supported_document_type(buf) then continue;
-		assert(buf.lsp.version > 0, "Buffer not added to LSP session.");
 		buf.lsp.version = 0;
 		reset_buffer_diagnostics(buf);
 	}
