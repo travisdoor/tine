@@ -124,8 +124,8 @@ ICON_MESSAGES : u32 : 0x2709;
 // FONT                          :: "FiraCode-Regular.ttf";
 FONT                          :: "JetBrainsMono-Regular.ttf";
 // FONT                          :: "GeistMono-Regular.ttf";
-FONT_UI                       :: "SourceSans3-Regular.ttf";
-FONT_UI_B                     :: "SourceSans3-Bold.ttf";
+FONT_UI                       :: "selawk.ttf";
+FONT_UI_B                     :: "selawkb.ttf";
 
 ICONS                         :: "fa-solid-900.ttf";
 APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
