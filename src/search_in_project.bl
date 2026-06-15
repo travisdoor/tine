@@ -58,7 +58,9 @@ draw_search_in_project_mode :: fn () {
 	search_list_begin(.{
 			title = tprint("Search in '%'...", project.name),
 		}, 
-		false, progress_t,
+		false, 
+		progress_t,
+		1920
 	); {
 		clicked = draw_simple_list();
 	} search_list_end();

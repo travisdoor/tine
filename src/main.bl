@@ -2112,7 +2112,7 @@ recalculate_metrics :: fn () {
 	metrics[auto TITLE_MAX_SIZE  ]     = font.height  * 25.f;
 	metrics[auto SHADOW_SIZE     ]     = WINDOW_SCALE * 8.f;
 	metrics[auto CORNER_ROUNDING ]     = WINDOW_SCALE * 4.f;
-	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1200.f);
+	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1024.f);
 	metrics[auto LIST_PANEL_FACTOR]    = 0.8f;
 }
 

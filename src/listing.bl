@@ -77,14 +77,14 @@ list_ui_ctx: struct {
 };
 #scope_public
 
-search_list_begin :: fn (cmd_params: DrawCommandEditorParams, two_row_item := false, progress_t := 0.f) {
+search_list_begin :: fn (cmd_params: DrawCommandEditorParams, two_row_item := false, progress_t := 0.f, prefer_width := 0) {
 	window_h := cast(f32) WINDOW_HEIGHT;
 	window_w := cast(f32) WINDOW_WIDTH;
 
 	mutex_lock(&visible_list_mutex);
 
 	using Metric;
-	max_w        :: metrics[auto LIST_PANEL_MAX_WIDTH];
+	max_w        :: if prefer_width > 0 then cast(f32) prefer_width else metrics[auto LIST_PANEL_MAX_WIDTH];
 	f            :: metrics[auto LIST_PANEL_FACTOR];
 	line_height  := metrics[auto LINE_HEIGHT];
 	text_padding :: metrics[auto TEXT_PADDING   ];
