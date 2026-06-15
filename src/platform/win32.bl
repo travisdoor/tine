@@ -1,4 +1,4 @@
-#import "os/windows"
+#import "os/windows" // @Cleanup 2026-06-11: Probably namespace this?
 
 BUILD_COMMAND :: "build.bat";
 DEFAULT_SHELL :: "CMD.exe /Q /K prompt $";
@@ -297,3 +297,31 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 
 	return 0, os_get_last_error2();
 }
+
+make_start_menu_entry :: fn () Error {
+	buf: [MAX_PATH]s8 #noinit;
+	SHGetFolderPathA(null, CSIDL_APPDATA, null, 0, buf.ptr);
+
+	len :: C.strlen(buf.ptr);
+	if len < 1 then {
+		return error("Unable to resolve path AppData.");
+	}
+
+	app_data :: string_view.{ auto len, auto buf.ptr };
+	ln_path  :: tprint("%\\Microsoft\\Windows\\Start Menu\\Programs\\Tine.lnk", app_data);
+
+	cmd :: tprint("powershell -Command \"$lnk=\'%\';$s=(New-Object -COM WScript.Shell).CreateShortcut($lnk);$s.TargetPath=\'%\';$s.Save()\"", ln_path, EXEC_PATH);
+
+	execute_system_command(cmd) catch {
+		return $;
+	};
+
+	print_info("Desktop entry file created at '%'.", ln_path);
+	return OK;
+}
+
+#scope_private
+
+// in ShlObj_core.h
+CSIDL_APPDATA  :: 0x001a; // APPDATA/Roaming
+SHGetFolderPathA :: fn (hwnd: HWND, csidl: s32, hToken: HANDLE, dwFlags: DWORD, pszPath: LPSTR) #extern;

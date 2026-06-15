@@ -51,6 +51,8 @@ LineEnding :: enum {
 	LF;
 }
 
+EXEC_PATH: string;
+
 MOUSE_DRAG_OFFSET :: 4.f;
 MOUSE_DBL_CLICK_S :: 0.5;
 
@@ -125,8 +127,8 @@ ICON_MESSAGES : u32 : 0x2709;
 // FONT                          :: "FiraCode-Regular.ttf";
 FONT                          :: "JetBrainsMono-Regular.ttf";
 // FONT                          :: "GeistMono-Regular.ttf";
-FONT_UI                       :: "selawk.ttf";
-FONT_UI_B                     :: "selawkb.ttf";
+FONT_UI                       :: "SourceSans3-Regular.ttf";
+FONT_UI_B                     :: "SourceSans3-Bold.ttf";
 
 ICONS                         :: "fa-solid-900.ttf";
 APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
@@ -733,10 +735,10 @@ main :: fn () s32 {
 
 
 	// Resolve editor executable path.
-	exec_path :: os_get_exec_path();
-	defer str_terminate(&exec_path);
+	EXEC_PATH = os_get_exec_path();
+	defer str_terminate(&EXEC_PATH);
 
-	head :: path_split(exec_path);
+	head :: path_split(EXEC_PATH);
 	exec_dir = head;
 	if exec_dir.len > 0 && exec_dir[exec_dir.len-1] == '/' {
 		exec_dir.len -= 1;
@@ -766,10 +768,6 @@ main :: fn () s32 {
 	defer str_terminate(&data_dir);
 
 	print_log("Editor data directory: '%'", data_dir);
-
-	#if PLATFORM == Platform.LINUX {
-		make_desktop_entry_if_needed();
-	}
 
 	fw :: new_filewatch() catch panic($);
 	file_watch = fw; // @Cleanup 2025-03-02

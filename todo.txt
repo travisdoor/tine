@@ -1,0 +1,5 @@
+[ ] Platform commands should be visible only on supported platform.
+[ ] Use highter resolution for app icon. It's blurry in Windows start menu.
+[ ] LSP for proj files.
+[ ] Scroll + Ctrl for font resize.
+[ ] Split resize.
