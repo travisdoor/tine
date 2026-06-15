@@ -565,6 +565,7 @@ DrawCommandEditorParams :: struct {
 	title:  string_view;
 	hint:   string_view;
 	prefix: string_view;
+	icon:   string_view;
 }
 
 draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: DrawCommandEditorParams, loc := #call_location) {
@@ -631,7 +632,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 	// Icon:
 
 	set_shader_font(&icons);
-	text(title_x, text_base_line_y + 2.f, icon(ICON_SEARCH), colors.foreground_color);
+	text(title_x, text_base_line_y + 2.f, if params.icon.len == 0 then icon(ICON_SEARCH) else params.icon, colors.foreground_color);
 
 	set_shader_font(&font);
 
