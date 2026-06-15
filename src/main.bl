@@ -116,6 +116,7 @@ ICON_CODE_MODULE      : u32 : 0xF466;
 ICON_CODE_KEYWORD     : u32 : 0xF02C;
 ICON_CODE_OPERATOR    : u32 : 0xF52C;
 ICON_CIRCLE           : u32 : 0x25CF;
+ICON_SEARCH           : u32 : 0xF002;
 
 ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
@@ -1106,7 +1107,8 @@ rebuild_fonts :: fn (force := false) Error {
 		ICON_WARNING, ICON_ERROR, ICON_SHELL, ICON_MESSAGES,
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
-		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD
+		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD,
+		ICON_SEARCH
 	};
 
 	array_push_all(&icon_set, ICONS);
@@ -2067,6 +2069,27 @@ draw_frame :: fn () {
 
 		PROGRESS_BAR_HEIGHT :: 2.f;
 		draw_background_progress_bar(0.f, h - PROGRESS_BAR_HEIGHT, auto WINDOW_WIDTH, PROGRESS_BAR_HEIGHT);
+
+		{
+			h := cast(f32) WINDOW_HEIGHT;
+			w := cast(f32) WINDOW_WIDTH;
+
+			px :: 100.f;
+			py :: 100.f;
+			pw :: w - 200.f;
+			ph :: h - 200.f;
+			r  :: 24.f;
+
+			_, cmd_h :: get_command_editor_size();
+
+			fg_color :: colors.command_list_background_color;
+			bg_color :: colors.background_color;
+
+			draw_shadow(px, py, pw, ph, ShadowMode.ALL);
+			draw.rect_rounded(px, py, pw, ph, r, fg_color, fg_color);
+			draw.rect_rounded(px+2.f, py+2.f, pw-4.f, ph-4.f, r, bg_color, bg_color);
+			draw.rect(px+2.f, py+cmd_h, pw-4.f, 2.f, fg_color);
+		}
 
 		using Mode;
 		switch mode {

@@ -664,7 +664,8 @@ ShadowMode :: enum {
 
 draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 	using draw;
-	r :: metrics[auto Metric.CORNER_ROUNDING];
+	// r :: metrics[auto Metric.CORNER_ROUNDING];
+	r :: 24.f;
 	s :: metrics[auto Metric.SHADOW_SIZE];
 
 	set_shader_color();
@@ -674,13 +675,13 @@ draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 	switch mode {
 		NONE { return; }
 		ALL {
-			rect_rounded(x - s + r, y - s + r, w + s * 2.f - r * 2.f, h + s * 2.f - r * 2.f, s, inner_color, outer_color);
+			rect_rounded(x - s, y - s, w + s * 2.f, h + s * 2.f, r, inner_color, outer_color);
 		}
 		TOP {
-			rect_rounded(x - s, y - s, w + s * 2.f, h + s, s, inner_color, outer_color);
+			rect_rounded(x - s, y - s, w + s * 2.f, h + s, r, inner_color, outer_color);
 		}
 		BOTTOM {
-			rect_rounded(x - s, y, w + s * 2.f, h + s, s, inner_color, outer_color);
+			rect_rounded(x - s, y, w + s * 2.f, h + s, r, inner_color, outer_color);
 		}
 	}
 }

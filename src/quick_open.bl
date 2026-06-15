@@ -25,10 +25,11 @@ draw_quick_open_mode :: fn () {
 		return;
 	}
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Quick: ");
+	draw_command_editor(command_editor, 100.f, 100.f, w-200.f, h, "Quick: ");
+	
 
 	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT);
+	_, list_h, clicked :: draw_list(100.f, 100.f+h, w-200.f, ICON | TITLE | HINT);
 	draw_last_status_message(0.f, h + list_h, w);
 	if clicked { commit(); }
 }
