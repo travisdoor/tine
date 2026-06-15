@@ -207,6 +207,8 @@ Metric :: enum s64 {
 	TITLE_MAX_SIZE;
 	SHADOW_SIZE;
 	CORNER_ROUNDING;
+	LIST_PANEL_MAX_WIDTH;
+	LIST_PANEL_FACTOR;
 }
 
 metrics: [type_utils.enum_variant_count(Metric)]f32;
@@ -431,7 +433,7 @@ Colors :: struct {
 	title_bar_active                    : v4;
 	title_bar_text_color                : v4;
 	command_background_color            : v4;
-	command_foreground_color            : v4;
+	command_foreground_color            : v4; // @Cleanup 2026-06-15?
 	command_title_color                 : v4;
 	command_select_color                : v4;
 	command_list_background_color       : v4;
@@ -2068,27 +2070,6 @@ draw_frame :: fn () {
 		PROGRESS_BAR_HEIGHT :: 2.f;
 		draw_background_progress_bar(0.f, h - PROGRESS_BAR_HEIGHT, auto WINDOW_WIDTH, PROGRESS_BAR_HEIGHT);
 
-		{
-			h := cast(f32) WINDOW_HEIGHT;
-			w := cast(f32) WINDOW_WIDTH;
-
-			px :: 100.f;
-			py :: 100.f;
-			pw :: w - 200.f;
-			ph :: h - 200.f;
-			r  :: 24.f;
-
-			_, cmd_h :: get_command_editor_size();
-
-			fg_color :: colors.command_list_background_color;
-			bg_color :: colors.background_color;
-
-			draw_shadow(px, py, pw, ph, ShadowMode.ALL);
-			draw.rect_rounded(px, py, pw, ph, r, fg_color, fg_color);
-			draw.rect_rounded(px+2.f, py+2.f, pw-4.f, ph-4.f, r, bg_color, bg_color);
-			draw.rect(px+2.f, py+cmd_h, pw-4.f, 2.f, fg_color);
-		}
-
 		using Mode;
 		switch mode {
 			TEXT_EDIT;
@@ -2123,13 +2104,15 @@ recalculate_metrics :: fn () {
 
 	line_spacing :: math.min(math.max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
 
-	metrics[auto TITLE_BAR_HEIGHT] = font_ui.height  * 1.6f;
-	metrics[auto LINE_HEIGHT     ] = font.height  * line_spacing;
-	metrics[auto ITEM_SPACING    ] = icons.height * 1.3f;
-	metrics[auto TEXT_PADDING    ] = font.height  * 0.5f;
-	metrics[auto TITLE_MAX_SIZE  ] = font.height  * 25.f;
-	metrics[auto SHADOW_SIZE     ] = WINDOW_SCALE * 10.f;
-	metrics[auto CORNER_ROUNDING ] = WINDOW_SCALE * 4.f;
+	metrics[auto TITLE_BAR_HEIGHT]     = font_ui.height  * 1.6f;
+	metrics[auto LINE_HEIGHT     ]     = font.height  * line_spacing;
+	metrics[auto ITEM_SPACING    ]     = icons.height * 1.3f;
+	metrics[auto TEXT_PADDING    ]     = font.height  * 0.5f;
+	metrics[auto TITLE_MAX_SIZE  ]     = font.height  * 25.f;
+	metrics[auto SHADOW_SIZE     ]     = WINDOW_SCALE * 8.f;
+	metrics[auto CORNER_ROUNDING ]     = WINDOW_SCALE * 4.f;
+	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1024.f);
+	metrics[auto LIST_PANEL_FACTOR]    = 0.8f;
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {

@@ -591,9 +591,18 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	line_w :: w-text_padding*2.f-title_size;
 
 	cursor :: get_cursor(buf, editor.cursor_index);
-	line   :: peek_row(buf, 0);
+	line   := peek_row(buf, 0);
 
-	char_under_cursor :: peek_position(buf, cursor.position);
+	use_title :: line.len == 0;
+
+	char_under_cursor: string_view;
+	if use_title {
+		assert(title.len > 0);
+		line = title;
+		char_under_cursor = .{ 1, &title[0] };
+	} else {
+		char_under_cursor = peek_position(buf, cursor.position);
+	}
 
 	cursor_x :: text_size(line, &font, auto cursor.position);
 	cursor_w := 2.f;
@@ -610,15 +619,13 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 
 	text_base_line_y :: text_y + (line_height * 0.5f - font.height * 0.5f);
 
-	// title:
+	// Icon:
 
 	set_shader_font(&icons);
 	text(title_x, text_base_line_y + 2.f, icon(ICON_SEARCH), colors.foreground_color);
 	set_shader_font(&font);
 
-	// text(title_x, text_base_line_y, title, colors.command_title_color);
-	title_color :: colors.command_foreground_color;
-	text(text_x, text_y, title, .{ title_color.x, title_color.y, title_color.z, 0.4f });
+	// Hint:
 	if hint.len > 0 {
 		hint_w :: text_size(hint, &font);
 		text(x + w - hint_w - text_padding, text_base_line_y, hint, colors.command_title_color);
@@ -649,17 +656,20 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 
 	{ // Edit line (just current one).
 		if line.len > 0 {
+			text_color := colors.foreground_color;
+			if use_title then text_color.w = 0.4f;
+
 			if use_block_caret && caret.visible {
 				lhs, rhs: string_view;
 				str_split_at_index(line, auto cursor.position, &lhs, &rhs);
 				str_split_at_index(rhs, auto char_under_cursor.len, null, &rhs);
 				lhs_size :: text_size(lhs, &font);
 
-				text(text_x, text_base_line_y, lhs, colors.command_foreground_color);
+				text(text_x, text_base_line_y, lhs, text_color);
 				text(text_x + lhs_size, text_base_line_y, char_under_cursor, colors.cursor_foreground_color);
-				text(text_x + lhs_size + cursor_w, text_base_line_y, rhs, colors.command_foreground_color);
+				text(text_x + lhs_size + cursor_w, text_base_line_y, rhs, text_color);
 			} else {
-				text(text_x, text_base_line_y, line, colors.command_foreground_color);
+				text(text_x, text_base_line_y, line, text_color);
 			}
 		}
 	}

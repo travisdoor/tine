@@ -25,8 +25,8 @@ draw_quick_open_mode :: fn () {
 		return;
 	}
 
-	draw_command_editor(command_editor, 100.f, 100.f, w-200.f, h, "Quick: ");
-	
+	draw_command_editor(command_editor, 100.f, 100.f, w-200.f, h, "Search file...");
+
 
 	using DrawListCols;
 	_, list_h, clicked :: draw_list(100.f, 100.f+h, w-200.f, ICON | TITLE | HINT);

@@ -2,4 +2,12 @@
 [ ] Use highter resolution for app icon. It's blurry in Windows start menu.
 [ ] LSP for proj files.
 [ ] Scroll + Ctrl for font resize.
-[ ] Split resize.
+[ ] Metrics should be regular struct, there is no benefit from having it as an array. It's actually just more complicated.
+[ ] All commands must have help text.
+
+[ ] New UI
+	[ ] Resize list based on available items.
+	[ ] Command help should be on second line.
+	[ ] Pretty shortcut rendering.
+	[ ] Search in file should not use fullscreen overlay.
+    [ ] Split resize.

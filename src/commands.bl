@@ -199,7 +199,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto CLOSE_SPLIT]       = "";
 	help[auto CLOSE_OTHER_SPLIT] = "";
 
-	help[auto CLOSE_BUFFER]       = "";
+	help[auto CLOSE_BUFFER]       = "Close currnet buffer and check if it was saved.";
 	help[auto FORCE_CLOSE_BUFFER] = "Close current buffer without saving.";
 	help[auto SAVE]               = "";
 	help[auto SAVE_ALL]           = "";
@@ -263,7 +263,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 
 	help[auto INCREASE_NUMBER]         = "Increase number under cursor by one.";
 	help[auto DECREASE_NUMBER]         = "Decrease number under cursor by one.";
-	help[auto ALIGN_ASSIGNMENTS]       = "Align selected lines my assignment symbols set for current file type.";
+	help[auto ALIGN_ASSIGNMENTS]       = "Align selected lines by assignment symbols set for current file type.";
 
 	help[auto QUIT]                    = "Quit Tine.";
 

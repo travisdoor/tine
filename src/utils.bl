@@ -675,7 +675,7 @@ draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 	switch mode {
 		NONE { return; }
 		ALL {
-			rect_rounded(x - s, y - s, w + s * 2.f, h + s * 2.f, r, inner_color, outer_color);
+			rect_rounded(x, y, w + s, h + s, r, inner_color, outer_color);
 		}
 		TOP {
 			rect_rounded(x - s, y - s, w + s * 2.f, h + s, r, inner_color, outer_color);
