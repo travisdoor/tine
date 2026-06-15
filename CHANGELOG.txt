@@ -19,6 +19,8 @@ MASTER
 - Remove support for relative line numbers.
 - Add support for line word-wrapping.
 - Hide Windows only commands on Linux & Mac.
+- Add `install` command for Windows and Linux to create desktop entry.
+- Change default color scheme.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

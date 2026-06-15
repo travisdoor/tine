@@ -129,6 +129,7 @@ Command :: enum {
 	TOGGLE_WRAP;
 	TOGGLE_LINE_NUMBERS;
 
+	INSTALL;
 	SUPPORT_ME;
 	QUIT;
 }
@@ -250,6 +251,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto DATE]                    = "Inserts current system date into focused buffer.";
 
 	help[auto SUPPORT_ME]              = "Consider supporting this project via PayPal.";
+	help[auto INSTALL]                 = "Add application menu entry.";
 
 	help[auto TOGGLE_MACRO_RECORDING]  = "Start/Stop macro sequence recording.";
 	help[auto REPLAY_MACRO]            = "Replay last recorded macro sequence.";
@@ -807,6 +809,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 		TRIM_TRAILING_WHITESPACE      { trim_trailing_whitespace(buf); }
 		SUPPORT_ME                    { support_me(); }
+		INSTALL                       { install(); }
 		QUIT                          { schedule_exit(); }
 
 		TOGGLE_MACRO_RECORDING {
@@ -2137,6 +2140,17 @@ clear_messages :: fn () {
 
 support_me :: fn () {
 	open_path("https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6");
+}
+
+install :: fn () {
+	err := OK;
+	#if PLATFORM == .LINUX {
+		err = make_desktop_entry();
+	} else if PLATFORM == .WINDOWS {
+		err = make_start_menu_entry();
+	}
+
+	if err then print_err(err);
 }
 
 open_file_location :: fn (buf: *Buffer) {
