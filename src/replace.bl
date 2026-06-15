@@ -64,7 +64,7 @@ draw_replace_mode :: fn () {
 		set_shader_font(&font);
 		text(title_x, title_y, title, colors.command_title_color);
 	} else {
-		draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Replace '%' in '%' with: ", search.last_subject, target_buf.name));
+		draw_command_editor(command_editor, 0.f, 0.f, w, h, .{ title = tprint("Replace '%' in '%' with: ", search.last_subject, target_buf.name) });
 	}
 	draw_last_status_message(0.f, h, w);
 }

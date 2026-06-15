@@ -22,7 +22,9 @@ draw_run_command_mode :: fn () {
 
 	clicked := false;
 
-	search_list_begin(title); {
+	search_list_begin(.{ 
+			title = title,
+		}, true); {
 		clicked = draw_command_list();
 	} search_list_end();
 

@@ -77,11 +77,9 @@ list_ui_ctx: struct {
 };
 #scope_public
 
-search_list_begin :: fn (search_placeholder := "") {
+search_list_begin :: fn (cmd_params: DrawCommandEditorParams, two_row_item := false, progress_t := 0.f) {
 	window_h := cast(f32) WINDOW_HEIGHT;
 	window_w := cast(f32) WINDOW_WIDTH;
-
-	double_lines :: true;
 
 	mutex_lock(&visible_list_mutex);
 
@@ -97,7 +95,7 @@ search_list_begin :: fn (search_placeholder := "") {
 
 	// @Incomplete 2026-06-15: Handle minimum size?
 
-	if double_lines {
+	if two_row_item {
 		line_height = math.ceil(2.5f * line_height);
 	}
 
@@ -109,8 +107,8 @@ search_list_begin :: fn (search_placeholder := "") {
 
 	list_max_h :: math.max(max_h - h, 0.f);
 
-	list_h := math.min(line_height * cast(f32) list[visible_list_index].len, list_max_h);
-	visible_lines :: cast(s32) ((list_h-text_padding*2.f)/line_height);
+	list_h := math.min(line_height * cast(f32) list[visible_list_index].len, list_max_h-text_padding*2.f);
+	visible_lines :: cast(s32) (list_h/line_height);
 	list_h = line_height * cast(f32) visible_lines;
 
 	h += list_h;
@@ -133,13 +131,21 @@ search_list_begin :: fn (search_placeholder := "") {
 	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, r, bg_color, bg_color);
 
 	assert(active_editor == command_editor);
-	draw_command_editor(command_editor, x, y, w, command_editor_h, search_placeholder);
+	draw_command_editor(command_editor, x, y, w, command_editor_h, cmd_params);
 
-	// Separators
 	set_shader_color();
 	y += command_editor_h;
-	rect(x+border_line_width, y, w-border_line_width*2.f, border_line_width, fg_color);
 
+	// Separator
+	rect(x, y, w, border_line_width, fg_color);
+
+	if progress_t > 0.f { // Progress
+		progress_bar_color :: colors.warning_color; // @Incomplete 2026-06-15: Use separate theme entry?
+		progress_w :: w * progress_t;
+		rect(x+border_line_width, y-border_line_width, progress_w-border_line_width, border_line_width, progress_bar_color);
+
+		redraw();
+	}
 
 	list_ui_ctx = .{
 		x, y,
@@ -151,7 +157,7 @@ search_list_begin :: fn (search_placeholder := "") {
 	// Separators
 	set_shader_color();
 	y += list_h;
-	rect(x+border_line_width, y, w-border_line_width*2.f, border_line_width, fg_color);
+	rect(x, y, w, border_line_width, fg_color);
 }
 
 search_list_end :: fn () {
@@ -163,7 +169,7 @@ draw_command_list :: fn (loc := #call_location) bool {
 	using draw;
 	using Metric;
 	using DrawListCols;
-	
+
 	allocator :: application_context.temporary_allocator;
 
 	ctx :: &list_ui_ctx;
@@ -196,7 +202,172 @@ draw_command_list :: fn (loc := #call_location) bool {
 	tx := ctx.x + text_padding;
 	ty :: ctx.y;
 
-	aval_width := ctx.w - text_padding * 2.f;
+	hover_index : s64 = -1;
+	{ // Selected line
+		set_shader_color();
+
+		if selected_index >= start_index && selected_index < start_index + ctx.visible_lines {
+			selected_y :: ty + line_height * auto (selected_index - start_index);
+			rect_rounded(ctx.x, selected_y, ctx.w, line_height, rounding, colors.command_select_color, colors.command_select_color);
+		}
+
+		if mouse.last_hover_elem_id == loc.hash {
+			ly := ty;
+			loop i := start_index; i < end_index; i += 1 {
+				if is_point_in_rect(ctx.x, ly, ctx.w, line_height, mouse.position.x, mouse.position.y) {
+					rect_rounded(ctx.x, ly, ctx.w, line_height, rounding, colors.selection_background_color, colors.selection_background_color);
+					hover_index = i;
+					break;
+				}
+				ly += line_height;
+			}
+		}
+	}
+
+	item_y := ty;
+	loop i := start_index; i < end_index; i += 1 {
+		item :: &list[visible_list_index][i];
+		item_x := tx;
+
+		aval_width := ctx.w - text_padding * 2.f;
+
+		{ // Separator
+			set_shader_color();
+			border_line_width :: 2.f; // @Incomplete 2026-06-15: Metrics!
+
+			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
+		}
+
+
+		{ // Icon
+			set_shader_font(&icons);
+
+			ly :: item_y + (line_height * 0.5f - icons.height * 0.5f);
+			item :: &list[visible_list_index][i];
+			color := colors.foreground_color;
+			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
+				color = colors.modification_indicator_color;
+			}
+			text(item_x, ly, item.icon, color);
+
+			item_x     += item_spacing;
+			aval_width -= item_spacing;
+		}
+
+		{ // Keymap
+			key_mapping :: str_split_by(item.hint, '\0', allocator);
+
+			hx := ctx.x + ctx.w;
+			loop i := 0; i < key_mapping.len; i += 1 {
+				text_w, text_h :: text_size(key_mapping[i], &font_ui);
+				cell_w         :: text_w + text_padding*2.f;
+
+				offset_x :: cell_w + text_padding;
+
+				hx         -= offset_x;
+				aval_width -= offset_x;
+
+				hint_height   :: metrics[auto LINE_HEIGHT] * 1.2f;
+				box_offset_y  :: line_height / 2.f - hint_height / 2.f;
+				text_offset_y :: line_height / 2.f - text_h / 2.f;
+
+				c := colors.foreground_color;
+				c.w = 0.3f;
+				set_shader_color();
+				rect_rounded(hx, item_y + box_offset_y, cell_w, hint_height, rounding, c, c);
+
+				set_shader_font(&font_ui);
+				text(hx + text_padding, item_y + text_offset_y, key_mapping[i], colors.foreground_color);
+			}
+		}
+
+		{ // Commands
+			set_shader_font(&font_ui);
+
+			title_w := aval_width;
+			title_w  = math.clamp(title_w, 0.f, aval_width);
+			set_scissor(item_x, ctx.y, title_w, ctx.h);
+			defer clear_scissor();
+			defer flush();
+
+			help_color := colors.foreground_color;
+			help_color.w = 0.4f;
+
+			ly :: item_y + (line_height * 0.5f - font_ui.height * 0.5f);
+
+			item_row_h :: line_height / 5.f;
+
+			item :: &list[visible_list_index][i];
+			text(item_x, ly-item_row_h, item.title, colors.foreground_color);
+			text(item_x, ly+item_row_h, item.preview, help_color);
+		}
+
+		item_y += line_height;
+	}
+
+	// Mouse input
+	if is_point_in_rect(ctx.x, ctx.y, ctx.w, ctx.h, mouse.position.x, mouse.position.y) {
+		mouse.hover_elem_id = loc.hash;
+	}
+
+	clicked := false;
+	if mouse.last_hover_elem_id == loc.hash {
+		set_cursor();
+		if is_lmb_press() && hover_index != -1 {
+			clicked        = true;
+			selected_index = hover_index;
+		}
+		if math.abs(mouse.scroll) > 0.f {
+			top_index -= auto (mouse.scroll * 3.f);
+			if top_index < 0 {
+				top_index = 0;
+			}
+			else if top_index >= list[visible_list_index].len {
+				top_index = list[visible_list_index].len - 1;
+			}
+		}
+	}
+
+	last_selected_index = selected_index;
+	return clicked;
+}
+
+draw_simple_list :: fn (loc := #call_location) bool {
+	using draw;
+	using Metric;
+	using DrawListCols;
+
+	allocator :: application_context.temporary_allocator;
+
+	ctx :: &list_ui_ctx;
+	if ctx.visible_lines == 0 then return false;
+
+	text_padding    :: metrics[auto TEXT_PADDING   ];
+	title_max_size  :: metrics[auto TITLE_MAX_SIZE ];
+	item_spacing    :: metrics[auto ITEM_SPACING   ];
+	rounding        :: metrics[auto CORNER_ROUNDING];
+
+	line_height :: ctx.item_height;
+
+	// scrolling
+	if top_index + ctx.visible_lines >= list[visible_list_index].len {
+		top_index = math.max(list[visible_list_index].len - ctx.visible_lines, 0);
+	}
+
+	if last_selected_index != selected_index {
+		if selected_index >= top_index + ctx.visible_lines {
+			top_index = selected_index - ctx.visible_lines + 1;
+		}
+		if selected_index < top_index {
+			top_index = selected_index;
+		}
+	}
+	start_index = top_index;
+
+	end_index :: start_index + ctx.visible_lines;
+
+	tx := ctx.x + text_padding;
+	ty :: ctx.y;
 
 	hover_index : s64 = -1;
 	{ // Selected line
@@ -219,89 +390,83 @@ draw_command_list :: fn (loc := #call_location) bool {
 			}
 		}
 	}
-	
-	{ // Icons
-		set_shader_font(&icons);
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			ly :: line_base_y + (line_height * 0.5f - icons.height * 0.5f);
+
+	content_w :: ctx.w - text_padding * 2.f;
+	item_y := ty;
+	loop i := start_index; i < end_index; i += 1 {
+		item :: &list[visible_list_index][i];
+		item_x := tx;
+
+		{ // Separator
+			set_shader_color();
+			border_line_width :: 2.f; // @Incomplete 2026-06-15: Metrics!
+
+			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
+		}
+
+		icon_y :: item_y + (line_height * 0.5f - icons.height * 0.5f);
+
+		{ // Icon
+			set_shader_font(&icons);
+
 			item :: &list[visible_list_index][i];
 			color := colors.foreground_color;
 			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
 				color = colors.modification_indicator_color;
 			}
-			text(tx, ly, item.icon, color);
-			line_base_y += line_height;
+			text(item_x, icon_y, item.icon, color);
+
+			item_x += item_spacing;
 		}
-		tx         += item_spacing;
-		aval_width -= item_spacing;
-	}
 
-	{ // Separators
-		set_shader_color();
-		border_line_width :: 2.f; // @Incomplete 2026-06-15: Metrics!
+		show_preview :: item.preview.len > 0;
 
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			rect(ctx.x+border_line_width, line_base_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
-			line_base_y += line_height;
-		}
-	}
+		{ // Commands
 
-	set_shader_font(&font_ui);
+			PREVIEW_FACTOR :: 0.25f;
+			
+			// set_shader_color();
+			// rect(ctx.x, item_y, title_w, line_height, v4.{ x = 1.f, w = 0.2f });
+			
+			set_scissor(ctx.x, item_y, if show_preview then content_w * PREVIEW_FACTOR - item_spacing else content_w, line_height); 
+			set_shader_font(&font_ui);
 
-	{ // Commands
-		title_w := aval_width;
-		title_w  = math.clamp(title_w, 0.f, aval_width);
-		set_scissor(tx, ctx.y, title_w, ctx.h);
-		defer clear_scissor();
-		defer flush();
+			text(item_x, icon_y, item.title, colors.foreground_color);
+			if item.hint.len > 0 {
+				item_x += text_size(item.title, &font_ui).width + text_padding;
 
-		help_color := colors.foreground_color;
-		help_color.w = 0.4f;
+				hint_color := colors.foreground_color;
+				hint_color.w = 0.4f;
 
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
+				set_shader_font(&icons);
+				text(item_x, icon_y, icon(ICON_ARROW_EAST), hint_color);
+				item_x += text_size(icon(ICON_ARROW_EAST), &icons).width + text_padding;
 
-			item_row_h :: line_height / 5.f;
-
-			item :: &list[visible_list_index][i];
-			text(tx, ly-item_row_h, item.title, colors.foreground_color);
-			text(tx, ly+item_row_h, item.preview, help_color);
-			line_base_y += line_height;
-		}
-		tx         += title_w + item_spacing;
-		aval_width -= title_w;
-	}
-	
-	{ // Get size required for key mapping hints.
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			item :: &list[visible_list_index][i];
-			mapping :: str_split_by(item.hint, '|', allocator);
-
-			hx := ctx.x + ctx.w;
-			loop i := 0; i < mapping.len; i += 1 {
-				text_w, text_h :: text_size(mapping[i], &font_ui);
-				hx -= text_w + text_padding * 3.f;
-				
-				hint_height :: metrics[auto LINE_HEIGHT] * 1.2f;
-				box_offset_y :: line_height / 2.f - hint_height / 2.f;
-				text_offset_y :: line_height / 2.f - text_h / 2.f;
-				
-
-				c := colors.foreground_color;
-				c.w = 0.3f;
-				set_shader_color();
-				rect_rounded(hx, line_base_y + box_offset_y, text_w + text_padding*2.f, hint_height, rounding, c, c);
 				set_shader_font(&font_ui);
-				text(hx + text_padding, line_base_y + text_offset_y, mapping[i], colors.foreground_color);
-				
+				text(item_x, icon_y, item.hint, hint_color);
+
+			}
+			flush();
+
+			if show_preview {
+
+				// set_shader_color();
+				// rect(0.f, item_y, preview_w, line_height, v4.{ y = 1.f, w = 0.2f });
+
+				set_scissor(ctx.x, item_y, content_w, line_height); {
+					set_shader_font(&font);
+					item_x = ctx.x + content_w * PREVIEW_FACTOR;
+
+					preview_color :: colors.foreground_color;
+					text(item_x, icon_y, item.preview, preview_color);
+				}
+				flush();
 			}
 			
-			line_base_y += line_height;
+			clear_scissor();
 		}
+
+		item_y += line_height;
 	}
 
 	// Mouse input
@@ -590,7 +755,7 @@ list_commands :: fn (repeatable_only := false) {
 			if keymap_index == -1 { break; }
 
 			if hint.len > 0 {
-				str_append(&hint, "|");
+				str_append(&hint, "\0");
 			}
 			str_append(&hint, keymap_entry_to_string(keymap_index));
 		}

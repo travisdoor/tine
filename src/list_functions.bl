@@ -32,7 +32,10 @@ draw_list_functions_mode :: fn () {
 	target_buf :: get_last_active_buffer_and_editor();
 
 	w, h :: get_command_editor_size();
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search function in '%': ", target_buf.name));
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, .{
+			title = tprint("Search function in '%': ", target_buf.name)
+		}
+	);
 
 	using DrawListCols;
 	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | PREVIEW);

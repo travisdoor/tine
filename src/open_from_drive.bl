@@ -22,27 +22,28 @@ open_from_drive_mode_terminate :: fn () {
 draw_open_from_drive_mode :: fn () {
 	get_title :: fn () string_view #inline {
 		if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
-			return "Open: ";
+			return "";
 		}
 		if base_path.len == 1 && PLATFORM != Platform.WINDOWS {
-			return "Open: /";
+			return "/";
 		}
 
-		return tprint("Open: %/", base_path);
+		return tprint("%/", base_path);
 	};
 
 	assert(active_editor == command_editor);
-	w, h :: get_command_editor_size();
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, get_title());
+	clicked := false;
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE);
-	draw_last_status_message(0.f, h + list_h, w);
+	search_list_begin(.{ 
+			title  = "Search file...",
+			prefix = get_title(),
+		}); {
+		clicked = draw_simple_list();
+	} search_list_end();
 
-	if clicked {
-		commit();
-	}
+	// draw_last_status_message(0.f, h + list_h, w);
+	if clicked then commit();
 }
 
 //

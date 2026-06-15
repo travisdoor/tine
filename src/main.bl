@@ -119,6 +119,7 @@ ICON_CODE_KEYWORD     : u32 : 0xF02C;
 ICON_CODE_OPERATOR    : u32 : 0xF52C;
 ICON_CIRCLE           : u32 : 0x25CF;
 ICON_SEARCH           : u32 : 0xF002;
+ICON_ARROW_EAST       : u32 : 0x203A;
 
 ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
@@ -1108,7 +1109,7 @@ rebuild_fonts :: fn (force := false) Error {
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
 		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD,
-		ICON_SEARCH
+		ICON_SEARCH, ICON_ARROW_EAST
 	};
 
 	array_push_all(&icon_set, ICONS);
@@ -2111,7 +2112,7 @@ recalculate_metrics :: fn () {
 	metrics[auto TITLE_MAX_SIZE  ]     = font.height  * 25.f;
 	metrics[auto SHADOW_SIZE     ]     = WINDOW_SCALE * 8.f;
 	metrics[auto CORNER_ROUNDING ]     = WINDOW_SCALE * 4.f;
-	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1024.f);
+	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1200.f);
 	metrics[auto LIST_PANEL_FACTOR]    = 0.8f;
 }
 

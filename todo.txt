@@ -3,7 +3,8 @@
 [ ] LSP for proj files.
 [ ] Scroll + Ctrl for font resize.
 [ ] Metrics should be regular struct, there is no benefit from having it as an array. It's actually just more complicated.
-[ ] All commands must have help text.
+[x] All commands must have help text.
+[ ] When opening file without project loaded change cwd?
 
 [ ] New UI
 	[ ] Resize list based on available items.
@@ -11,3 +12,4 @@
 	[ ] Pretty shortcut rendering.
 	[ ] Search in file should not use fullscreen overlay.
     [ ] Split resize.
+    [ ] Remove themes which are not looking good with a new setup.

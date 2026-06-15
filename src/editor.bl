@@ -561,7 +561,13 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	#if IS_DEBUG && EDITOR_DEBUG { draw_debug(editor, buf, x, y, w, h); }
 }
 
-draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := "", hint := "", loc := #call_location) {
+DrawCommandEditorParams :: struct {
+	title:  string_view;
+	hint:   string_view;
+	prefix: string_view;
+}
+
+draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: DrawCommandEditorParams, loc := #call_location) {
 	using draw;
 	using Metric;
 
@@ -593,13 +599,16 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 	cursor :: get_cursor(buf, editor.cursor_index);
 	line   := peek_row(buf, 0);
 
-	use_title :: line.len == 0;
+	use_title :: line.len == 0 && params.title.len > 0;
+
+	text_color := colors.foreground_color;
 
 	char_under_cursor: string_view;
 	if use_title {
-		assert(title.len > 0);
-		line = title;
-		char_under_cursor = .{ 1, &title[0] };
+		assert(params.title.len > 0);
+		line              = params.title;
+		char_under_cursor = .{ 1, &params.title[0] };
+		text_color.w      = 0.4f;
 	} else {
 		char_under_cursor = peek_position(buf, cursor.position);
 	}
@@ -623,12 +632,21 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 
 	set_shader_font(&icons);
 	text(title_x, text_base_line_y + 2.f, icon(ICON_SEARCH), colors.foreground_color);
+
 	set_shader_font(&font);
 
+	// Prefix:
+	if params.prefix.len > 0 {
+		prefix_color := text_color;
+		prefix_color.w = 0.4f;
+		text(text_x, text_base_line_y, params.prefix, prefix_color);
+		text_x += text_size(params.prefix, &font).width;
+	}
+
 	// Hint:
-	if hint.len > 0 {
-		hint_w :: text_size(hint, &font);
-		text(x + w - hint_w - text_padding, text_base_line_y, hint, colors.command_title_color);
+	if params.hint.len > 0 {
+		hint_w :: text_size(params.hint, &font);
+		text(x + w - hint_w - text_padding, text_base_line_y, params.hint, colors.command_title_color);
 	}
 
 	set_scissor(scissor_x, y, line_w, h);
@@ -656,9 +674,6 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, title := 
 
 	{ // Edit line (just current one).
 		if line.len > 0 {
-			text_color := colors.foreground_color;
-			if use_title then text_color.w = 0.4f;
-
 			if use_block_caret && caret.visible {
 				lhs, rhs: string_view;
 				str_split_at_index(line, auto cursor.position, &lhs, &rhs);

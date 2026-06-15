@@ -20,7 +20,7 @@ draw_goto_mode :: fn () {
 	assert(active_editor == command_editor);
 
 	w, h :: get_command_editor_size();
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Goto Line: ");
+	draw_command_editor(command_editor, 0.f, 0.f, w, h, .{ title = "Goto Line: " });
 	draw_last_status_message(0.f, h, w);
 }
 

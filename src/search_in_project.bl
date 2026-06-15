@@ -50,22 +50,21 @@ draw_search_in_project_mode :: fn () {
 		set_mode(Mode.TEXT_EDIT);
 		return;
 	}
+	
+	clicked := false;
+	
+	_, progress_t :: get_async_search_progress();
 
-	w, h :: get_command_editor_size();
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search in %: ", project.name));
+	search_list_begin(.{
+			title = tprint("Search in '%'...", project.name),
+		}, 
+		false, progress_t,
+	); {
+		clicked = draw_simple_list();
+	} search_list_end();
 
-	is_running, progress :: get_async_search_progress();
-	if is_running {
-		using draw;
-		set_shader_color();
-		rect(0.f, h-2.f, w * progress, 2.f, colors.warning_color);
-		redraw();
-	}
-
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT | PREVIEW);
-	draw_last_status_message(0.f, h + list_h, w);
-	if clicked { commit(); }
+	// draw_last_status_message(0.f, h + list_h, w);
+	if clicked then commit();
 }
 
 //
