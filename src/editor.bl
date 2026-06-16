@@ -157,7 +157,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	defer clear_scissor();
 
 	rebuild_coloring_and_indentation_info(buf);
-	is_active :: active_editor == editor.index;
+	is_active  :: active_editor == editor.index;
 
 	line_w :: content_w - text_padding*2.f;
 
@@ -479,7 +479,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	status_x += name_size + item_spacing;
 	text(status_x, text_y, title, colors.title_bar_text_color);
 
-	if is_active {
+	if is_active || (active_editor == command_editor && last_active_text_editor == index) {
 		draw_last_status_message(status_x, h - title_bar_height, w, ShadowMode.NONE);
 	}
 
@@ -947,10 +947,9 @@ draw_highlight_range :: fn (
 get_status_bar_colors :: fn (kind: PrintLogKind) (bg: v4, fg: v4) #inline {
 	using PrintLogKind;
 	white :: rgb(0xffffff);
-	black :: rgb(0x0);
 	switch kind {
 		INFO    { return colors.message_color, white; }
-		WARNING { return colors.warning_color, black; }
+		WARNING { return colors.warning_color, white; }
 		ERROR   { return colors.error_color,   white; }
 		default;
 	}

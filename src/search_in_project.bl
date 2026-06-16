@@ -26,14 +26,6 @@ search_in_project_mode_init :: fn () {
 	err :: list_async_search(subject, true);
 	if err {
 		print_err(err);
-	} else if settings.show_hints {
-		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
-		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
-		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
-		cancel_binding           :: get_keybinding_for_command(Command.CANCEL_MODE);
-
-		hint :: tprint("[%] next match\t[%] prev match\t[%] show results in buffer\t[%] cancel", next_binding, prev_binding, result_to_buffer_binding, cancel_binding);
-		print_info(hint);
 	}
 }
 
@@ -61,11 +53,31 @@ draw_search_in_project_mode :: fn () {
 			});
 
 		clicked = draw_search_simple_list();
-		
-		
+
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "use"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.SEARCH_TO_BUFFER),
+					info        = "to buffer",
+				},
+			});
 	} search_list_end();
 
-	// draw_last_status_message(0.f, h + list_h, w);
 	if clicked then commit();
 }
 

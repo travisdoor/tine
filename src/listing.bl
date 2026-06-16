@@ -79,6 +79,11 @@ list_ui_ctx: struct {
 	item_height:   f32;
 	visible_items: s32;
 
+	// hints
+	hints_y: f32;
+	hints_h: f32;
+
+
 	is_active: bool;
 };
 #scope_public
@@ -97,7 +102,7 @@ search_list_begin :: fn (two_row_item := false, progress_t := 0.f, prefer_width 
 	mutex_lock(&visible_list_mutex);
 	x, y, w, h, list_y, list_max_h := compute_command_panel_layout(prefer_width);
 
-	item_h :: if two_row_item then math.ceil(metrics[auto LINE_HEIGHT]*2.5f) else metrics[auto LINE_HEIGHT];
+	item_h :: if two_row_item then math.ceil(metrics[auto LINE_ITEM_HEIGHT]*2.5f) else metrics[auto LINE_ITEM_HEIGHT];
 	cmd_h  :: math.max(list_y - y, 0.f);
 
 	list_h, visible_items :: compute_list_height(item_h, list_max_h);
@@ -119,6 +124,10 @@ search_list_begin :: fn (two_row_item := false, progress_t := 0.f, prefer_width 
 		item_h,
 		visible_items,
 
+		// hints
+		y+h-cmd_h,
+		cmd_h,
+
 		is_active = true
 	};
 }
@@ -138,6 +147,17 @@ draw_search_command_editor :: fn (cmd_params: DrawCommandEditorParams) {
 
 	assert(active_editor == command_editor);
 	draw_command_editor(command_editor, x, y, w, h, cmd_params);
+}
+
+draw_search_hints :: fn (hints: []PanelHint) #inline {
+	assert(list_ui_ctx.is_active);
+
+	x :: list_ui_ctx.x;
+	y :: list_ui_ctx.hints_y;
+	w :: list_ui_ctx.w;
+	h :: list_ui_ctx.hints_h;
+
+	draw_command_panel_hints(x, y, w, h, hints, 0.5f);  // @Incomplete 2026-06-16: Alpha to metrics/theme.
 }
 
 draw_search_command_list :: fn (loc := #call_location) bool {

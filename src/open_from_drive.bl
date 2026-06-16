@@ -42,9 +42,28 @@ draw_open_from_drive_mode :: fn () {
 			});
 
 		clicked = draw_search_simple_list();
+		
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "open"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+			});
+
 	} search_list_end();
 
-	// draw_last_status_message(0.f, h + list_h, w);
 	if clicked then commit();
 }
 

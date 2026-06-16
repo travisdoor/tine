@@ -6,14 +6,6 @@ goto_mode_init :: fn () {
 
 	input_mode               = InputMode.NUMBERS;
 	notify_changes_to_buffer = buf.index;
-	
-	if settings.show_hints {
-		commit_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
-		cancel_binding :: get_keybinding_for_command(Command.CANCEL_MODE);
-
-		hint :: tprint("Enter line number and press [%]\t[%] cancel", commit_binding, cancel_binding);
-		print_info(hint);
-	}
 }
 
 draw_goto_mode :: fn () {
@@ -21,6 +13,15 @@ draw_goto_mode :: fn () {
 
 	draw_simple_command_editor_panel(.{
 			title = "Goto line number...",
+		}, [_]PanelHint.{
+			.{
+				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+				info        = "use"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+				info        = "cancel"
+			}
 		});
 }
 

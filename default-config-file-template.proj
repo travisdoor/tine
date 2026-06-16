@@ -308,7 +308,7 @@ save-as              # No mapping
 save-all             # No mapping
 goto-line            Alt+G
 run-command          Alt+X
-cancel-mode          Escape Ctrl+Q
+cancel-mode          Escape
 
 search-file          Ctrl+S
 search-in-project    Ctrl+Alt+S
@@ -388,9 +388,9 @@ command_list_background_color       2A2722
 modification_indicator_color        C28B3C
 selection_background_color          3A3326
 selection_background_inactive_color 2C2924
-message_color                       7FA36B
-warning_color                       C2A23A
-error_color                         C2553A
+message_color                       658255
+warning_color                       B8860B
+error_color                         881b1b
 inline_error_background_color       3A2623
 inline_warning_background_color     3A3322
 macro_record_icon_color             C2553A

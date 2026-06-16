@@ -151,10 +151,11 @@ MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
 PROJECT_IS_INDEXING_MESSAGE :: "Project indexing in progress, please wait.";
 
-font:      draw.Font;
-font_ui:   draw.Font;
-font_ui_b: draw.Font;
-icons:     draw.Font;
+font:          draw.Font;
+font_ui:       draw.Font;
+font_ui_b:     draw.Font;
+font_ui_small: draw.Font;
+icons:         draw.Font;
 
 current_font_hash: u32;
 
@@ -211,6 +212,7 @@ Metric :: enum s64 {
 	CORNER_ROUNDING;
 	LIST_PANEL_MAX_WIDTH;
 	LIST_PANEL_FACTOR;
+	LINE_ITEM_HEIGHT;
 }
 
 metrics: [type_utils.enum_variant_count(Metric)]f32;
@@ -834,6 +836,7 @@ main :: fn () s32 {
 	defer draw.font_terminate(&font);
 	defer draw.font_terminate(&font_ui);
 	defer draw.font_terminate(&font_ui_b);
+	defer draw.font_terminate(&font_ui_small);
 	defer draw.font_terminate(&icons);
 
 	listing_init();
@@ -1058,6 +1061,7 @@ rebuild_fonts :: fn (force := false) Error {
 	draw.font_terminate(&font);
 	draw.font_terminate(&font_ui);
 	draw.font_terminate(&font_ui_b);
+	draw.font_terminate(&font_ui_small);
 	draw.font_terminate(&icons);
 
 	char_set: [..]u32;
@@ -1094,6 +1098,10 @@ rebuild_fonts :: fn (force := false) Error {
 
 	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2);
 	if err { panic(err); }
+
+	err = draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, scaled_size - 2);
+	if err { panic(err); }
+
 
 	// Set tab size!
 	font.tab_size = settings.tab_size;
@@ -2031,7 +2039,7 @@ draw_frame :: fn () {
 	begin_frame();
 	defer end_frame();
 
-	clear_color(colors.foreground_color);
+	clear_color(colors.command_list_background_color); // @Incomplete 2026-06-16
 
 	{
 		active_x, last_active_x: f32;
@@ -2040,16 +2048,6 @@ draw_frame :: fn () {
 
 		h := cast(f32) WINDOW_HEIGHT;
 		w := cast(f32) WINDOW_WIDTH;
-
-		/*
-		// This is probably temporary solution fixing the issue when we cannot see the search hit
-		// on the first line which is covered by the command buffer line.
-		if active_editor == command_editor && (mode == Mode.SEARCH_FILE || mode == Mode.REPLACE) {
-			_, ch :: get_command_editor_size();
-			y += ch;
-			h -= ch;
-		}
-		*/
 
 		assert(left != -1);
 		if right != -1 {
@@ -2123,6 +2121,7 @@ recalculate_metrics :: fn () {
 	metrics[auto CORNER_ROUNDING ]     = WINDOW_SCALE * 4.f;
 	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1024.f);
 	metrics[auto LIST_PANEL_FACTOR]    = 0.8f;
+	metrics[auto LINE_ITEM_HEIGHT]     = font.height * 1.4f;
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {

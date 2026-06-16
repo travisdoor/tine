@@ -23,19 +23,42 @@ save_to_drive_mode_terminate :: fn () {
 draw_save_to_drive_mode :: fn () {
 	get_title :: fn () string_view #inline {
 		if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
-			return "Save as: ";
+			return "";
 		}
-		return tprint("Save as: %/", base_path);
+		return tprint("%/", base_path);
 	};
 
-	assert(active_editor == command_editor);
-	w, h :: get_command_editor_size();
+	clicked := false;
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, .{ prefix = get_title() });
+	search_list_begin(.{}); {
+		draw_search_command_editor(.{
+				title  = "Save file...",
+				prefix = get_title(),
+			});
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE);
-	draw_last_status_message(0.f, h + list_h, w);
+		clicked = draw_search_simple_list();
+
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "save"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+			});
+
+	} search_list_end();
+
 	if clicked { commit(); }
 }
 

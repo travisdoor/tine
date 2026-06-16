@@ -46,13 +46,14 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 
 	text_padding     :: metrics[auto Metric.TEXT_PADDING];
 	title_bar_height :: metrics[auto Metric.TITLE_BAR_HEIGHT];
-	w_factor         :: 0.4f; // @Incomplete 2026-06-16: Metrics.
 
-	_, _, _, h, content_start_y :: compute_command_panel_layout();
-	w :: active_editor_w * w_factor;
+	_, _, _, h :: compute_command_panel_layout();
+	w :: search_panel_width(active_editor_w);
 	x :: active_editor_x + active_editor_w - text_padding - w;
 	y :: active_editor_y + active_editor_h - text_padding - h - title_bar_height;
 	draw_command_editor_panel(x, y, w, h);
+	
+	cmd_h :: h/2.f;
 	
 	if is_replacing {
 		using Metric;
@@ -79,15 +80,34 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 		title :: tprint("Replace '%' in '%' with...", search.last_subject, target_buf.name);
 		
 		assert(active_editor == command_editor);
-		draw_command_editor(command_editor, x, y, w, y+h-content_start_y, .{
+		draw_command_editor(command_editor, x, y, w, cmd_h, .{
 				title = title,
 				icon  = icon(ICON_REPLACE),
 			});
 	}
-
 	
-	
-	// draw_last_status_message(0.f, h, w);
+	draw_command_panel_hints(x, y+cmd_h, w, cmd_h, [_]PanelHint.{
+			.{
+				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+				info        = "replace"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+				info        = "cancel"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+				info        = "next match",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.MOVE_UP),
+				info        = "prev match",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.SELECT_ALL),
+				info        = "all",
+			},
+		}, 0.5f); // @Incomplete 2026-06-16: Alpha to metrics/theme.
 }
 
 invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {

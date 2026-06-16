@@ -21,7 +21,16 @@ repeat_mode_init :: fn () {
 draw_repeat_mode :: fn () {
 	assert(active_editor == command_editor);
 	draw_simple_command_editor_panel(.{
-			title = "Number of Repetitions...",
+			title = "Number of repetitions followed by command invocation...",
+		}, [_]PanelHint.{
+			.{
+				key_mapping = get_keybinding_for_command(.RUN_COMMAND),
+				info        = "list commands"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+				info        = "cancel"
+			}
 		});
 }
 

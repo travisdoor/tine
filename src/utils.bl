@@ -710,12 +710,16 @@ compute_command_panel_layout :: fn (prefer_width: s32 = 0) (x: f32, y: f32, w: f
 	return x, y, w, h, content_start_y, content_max_h;
 }
 
-draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams) #inline {
+draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams, hints: []PanelHint = .{}) #inline {
 	x, y, w, h, content_start_y :: compute_command_panel_layout();
 	draw_command_editor_panel(x, y, w, h);
 
+	cmd_h :: y+h-content_start_y;
+
 	assert(active_editor == command_editor);
-	draw_command_editor(command_editor, x, y, w, y+h-content_start_y, cmd_params);
+	draw_command_editor(command_editor, x, y, w, cmd_h, cmd_params);
+
+	draw_command_panel_hints(x, y+h-cmd_h, w, cmd_h, hints, 0.5f);  // @Incomplete 2026-06-16: Alpha to metrics/theme.
 }
 
 draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0.f) {
@@ -755,9 +759,6 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 
 	elem_y = y + h - notif_area_h;
 	rect(x, elem_y, w, border_line_width, fg_color);
-
-	// Notifications
-	// draw_last_status_message(x, y + h - notif_area_h, w, ShadowMode.NONE);
 }
 
 calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
@@ -767,7 +768,7 @@ calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
 
 	total_w := 0.f;
 	loop i := 0; i < key_mapping.len; i += 1 {
-		text_w :: text_size(key_mapping[i], &font_ui);
+		text_w :: text_size(key_mapping[i], &font_ui_small);
 		cell_w :: text_w + text_padding*2.f;
 
 		total_w += cell_w + text_padding;
@@ -786,10 +787,10 @@ draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_vie
 	hx := x;
 	total_w := 0.f;
 	loop i := 0; i < key_mapping.len; i += 1 {
-		text_w, text_h :: text_size(key_mapping[i], &font_ui);
+		text_w, text_h :: text_size(key_mapping[i], &font_ui_small);
 		cell_w         :: text_w + text_padding*2.f;
 
-		offset_x :: cell_w + text_padding;
+		offset_x :: cell_w + text_padding*0.5f;
 
 		box_offset_y  :: item_h / 2.f - hint_height / 2.f;
 		text_offset_y :: item_h / 2.f - text_h / 2.f;
@@ -802,7 +803,7 @@ draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_vie
 		set_shader_color();
 		rect_rounded(hx, y + box_offset_y, cell_w, hint_height, rounding, body_color, body_color);
 
-		set_shader_font(&font_ui);
+		set_shader_font(&font_ui_small);
 		text(hx + text_padding, y + text_offset_y, key_mapping[i], text_color);
 
 		hx += offset_x;
@@ -841,12 +842,12 @@ draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHi
 		cells_w :: draw_keybind_cells(hx, y, h, [_]string_view.{ key_mapping }, base_alpha);
 		hx += cells_w;
 
-		set_shader_font(&font_ui);
-		tw, th        :: text_size(hints[i].info, &font_ui);
+		set_shader_font(&font_ui_small);
+		tw, th        :: text_size(hints[i].info, &font_ui_small);
 		text_offset_y :: h / 2.f - th / 2.f;
 
 		text(hx, y + text_offset_y, hints[i].info, color);
-		hx += tw + text_padding;
+		hx += tw + text_padding * 2.f;
 	}
 }
 
