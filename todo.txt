@@ -7,6 +7,7 @@
 [ ] When opening file without project loaded change cwd?
 [ ] Improve search sorting by pushing project local files to front?
 [ ] Improve save dialog.
+[ ] Keybindings do not keep order from config file.
 
 [ ] New UI
 	[x] Resize list based on available items.
