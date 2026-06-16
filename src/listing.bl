@@ -1,5 +1,7 @@
 ListItem :: struct {
-	score:   s32;
+	score:      s32;
+	base_score: s32;
+
 	icon:    string_view;
 	title:   string_view;
 	preview: string_view;
@@ -915,6 +917,7 @@ list_buffers :: fn () {
 			index = buf.index,
 			flags = ItemFlags.HIGHLIGHT,
 			score = buf.last_focus_index,
+			base_score = 100,
 		});
 	}
 
@@ -967,7 +970,7 @@ filter_list :: fn (filter: string_view) {
 			search_for = tail;
 		}
 
-		item.score = fuzzy_cmp(search_for, filter);
+		item.score = fuzzy_cmp(search_for, filter) + item.base_score;
 		if item.score >= 0 {
 			// Copy valid item into filtered list.
 			array_push(&list[FILTER_LIST_INDEX], @item);
