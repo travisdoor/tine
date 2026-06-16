@@ -39,34 +39,55 @@ replace_mode_terminate :: fn () {
 	}
 }
 
-draw_replace_mode :: fn () {
+draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
 	assert(active_editor == command_editor);
 	assert(search.last_subject.len > 0);
-	w, h :: get_command_editor_size();
 	target_buf :: get_last_active_buffer_and_editor();
 
+	text_padding     :: metrics[auto Metric.TEXT_PADDING];
+	title_bar_height :: metrics[auto Metric.TITLE_BAR_HEIGHT];
+	w_factor         :: 0.4f; // @Incomplete 2026-06-16: Metrics.
+
+	_, _, _, h, content_start_y :: compute_command_panel_layout();
+	w :: active_editor_w * w_factor;
+	x :: active_editor_x + active_editor_w - text_padding - w;
+	y :: active_editor_y + active_editor_h - text_padding - h - title_bar_height;
+	draw_command_editor_panel(x, y, w, h);
+	
 	if is_replacing {
-		using draw;
 		using Metric;
+		using draw;
+		
+		title :: tprint("Replacing '%' with '%'.", search.last_subject, search.last_replacement);
 
 		line_height  :: metrics[auto LINE_HEIGHT ];
 		text_padding :: metrics[auto TEXT_PADDING];
+		item_spacing :: metrics[auto ITEM_SPACING];
 
-		set_shader_color();
-		draw_shadow(0.f, 0.f, w, h, ShadowMode.BOTTOM);
-		rect(0.f, 0.f, w, h, colors.command_background_color);
+		title_x := x + text_padding;
+		title_y :: y + text_padding + (line_height * 0.5f - font_ui.height * 0.5f);
+		icon_y  :: y + text_padding + (line_height * 0.5f - icons.height * 0.5f);
 
-		title_x :: text_padding;
-		title_y :: text_padding + (line_height * 0.5f - font.height * 0.5f);
+		set_shader_font(&icons);
+		text(title_x, icon_y, icon(ICON_REPLACE), colors.foreground_color);
 
-		title :: tprint("Replacing '%' with '%'.", search.last_subject, search.last_replacement);
+		title_x += item_spacing;
 
-		set_shader_font(&font);
-		text(title_x, title_y, title, colors.command_title_color);
+		set_shader_font(&font_ui);
+		text(title_x, title_y, title, colors.foreground_color);
 	} else {
-		draw_command_editor(command_editor, 0.f, 0.f, w, h, .{ title = tprint("Replace '%' in '%' with: ", search.last_subject, target_buf.name) });
+		title :: tprint("Replace '%' in '%' with...", search.last_subject, target_buf.name);
+		
+		assert(active_editor == command_editor);
+		draw_command_editor(command_editor, x, y, w, y+h-content_start_y, .{
+				title = title,
+				icon  = icon(ICON_REPLACE),
+			});
 	}
-	draw_last_status_message(0.f, h, w);
+
+	
+	
+	// draw_last_status_message(0.f, h, w);
 }
 
 invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {

@@ -28,18 +28,18 @@ list_functions_mode_terminate :: fn () {
 
 draw_list_functions_mode :: fn () {
 	assert(active_editor == command_editor);
-
 	target_buf :: get_last_active_buffer_and_editor();
 
-	w, h :: get_command_editor_size();
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, .{
-			title = tprint("Search function in '%': ", target_buf.name)
-		}
-	);
+	clicked := false;
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | PREVIEW);
-	draw_last_status_message(0.f, h + list_h, w);
+	search_list_begin(.{}); {
+		draw_search_command_editor(.{
+				title = tprint("Search function in '%'...", target_buf.name),
+			});
+
+		clicked = draw_search_simple_list();
+	} search_list_end();
+
 	if clicked then commit();
 }
 

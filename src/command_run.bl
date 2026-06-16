@@ -22,10 +22,15 @@ draw_run_command_mode :: fn () {
 
 	clicked := false;
 
-	search_list_begin(.{ 
-			title = title,
-		}, true); {
-		clicked = draw_command_list();
+	search_list_begin(true); {
+		
+		draw_search_command_editor(.{
+				title = title,
+			});
+
+		
+		clicked = draw_search_command_list();
+		
 	} search_list_end();
 
 	// draw_last_status_message(0.f, h + list_h, w);

@@ -25,10 +25,14 @@ draw_quick_open_mode :: fn () {
 
 	clicked := false;
 
-	search_list_begin(.{
-			title = "Search file...",
-		}); {
-		clicked = draw_simple_list();
+	search_list_begin(.{}); {
+
+		draw_search_command_editor(.{
+				title = "Search file...",
+			});
+
+		clicked = draw_search_simple_list();
+
 	} search_list_end();
 
 	// draw_last_status_message(0.f, h + list_h, w);

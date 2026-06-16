@@ -50,19 +50,19 @@ draw_search_in_project_mode :: fn () {
 		set_mode(Mode.TEXT_EDIT);
 		return;
 	}
-	
+
 	clicked := false;
-	
+
 	_, progress_t :: get_async_search_progress();
 
-	search_list_begin(.{
-			title = tprint("Search in '%'...", project.name),
-		}, 
-		false, 
-		progress_t,
-		1920
-	); {
-		clicked = draw_simple_list();
+	search_list_begin(false, progress_t, 1920); {
+		draw_search_command_editor(.{
+				title = tprint("Search in '%'...", project.name),
+			});
+
+		clicked = draw_search_simple_list();
+		
+		
 	} search_list_end();
 
 	// draw_last_status_message(0.f, h + list_h, w);

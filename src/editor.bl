@@ -628,11 +628,12 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 	text_x -= editor.sliding.horizontal_offset;
 
 	text_base_line_y :: text_y + (line_height * 0.5f - font.height * 0.5f);
+	icon_y           :: text_y + (line_height * 0.5f - icons.height * 0.5f);
 
 	// Icon:
 
 	set_shader_font(&icons);
-	text(title_x, text_base_line_y + 2.f, if params.icon.len == 0 then icon(ICON_SEARCH) else params.icon, colors.foreground_color);
+	text(title_x, icon_y, if params.icon.len == 0 then icon(ICON_SEARCH) else params.icon, colors.foreground_color);
 
 	set_shader_font(&font);
 

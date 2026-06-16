@@ -686,6 +686,170 @@ draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 	}
 }
 
+compute_command_panel_layout :: fn (prefer_width: s32 = 0) (x: f32, y: f32, w: f32, h: f32, content_start_y: f32, content_max_h: f32) {
+	using Metric;
+
+	window_h := cast(f32) WINDOW_HEIGHT;
+	window_w := cast(f32) WINDOW_WIDTH;
+
+	panel_offset_y :: 50.f; // @Incomplete 2026-06-16: Metrics
+	max_w          :: if prefer_width > 0 then cast(f32) prefer_width else metrics[auto LIST_PANEL_MAX_WIDTH];
+	f              :: metrics[auto LIST_PANEL_FACTOR];
+	max_h          :: math.max(math.ceil(window_h - panel_offset_y * 2.f), 0.f);
+
+	_, command_editor_h :: get_command_editor_size();
+	notif_area_h        :: command_editor_h; // @Incomplete 2026-06-15
+
+	w               :: math.ceil(math.min(window_w * f, max_w));
+	h               :: command_editor_h + notif_area_h;
+	x               :: math.ceil(window_w/2.f - w/2.f);
+	y               :: panel_offset_y;
+	content_start_y :: y + command_editor_h;
+	content_max_h   :: math.clamp(max_h - h, 0.f, max_h);
+
+	return x, y, w, h, content_start_y, content_max_h;
+}
+
+draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams) #inline {
+	x, y, w, h, content_start_y :: compute_command_panel_layout();
+	draw_command_editor_panel(x, y, w, h);
+
+	assert(active_editor == command_editor);
+	draw_command_editor(command_editor, x, y, w, y+h-content_start_y, cmd_params);
+}
+
+draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0.f) {
+	using draw;
+
+	_, command_editor_h :: get_command_editor_size();
+	notif_area_h        :: command_editor_h; // @Incomplete 2026-06-15
+	border_line_width   :: 2.f; // @Incomplete 2026-06-15: Metrics!
+	r                   :: 16.f; // @Incomplete 2026-06-15: Metrics!
+
+
+	fg_color :: colors.command_list_background_color;
+	bg_color :: colors.background_color;
+
+	draw_shadow(x, y, w, h, ShadowMode.ALL);
+
+	set_shader_color();
+
+	// Background
+	rect_rounded(x, y, w, h, r, fg_color, fg_color);
+	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, r, bg_color, bg_color);
+
+	set_shader_color();
+
+
+	// Separator
+	elem_y := y + command_editor_h;
+	rect(x, elem_y, w, border_line_width, fg_color);
+
+	if progress_t > 0.f { // Progress
+		progress_bar_color :: colors.warning_color; // @Incomplete 2026-06-15: Use separate theme entry?
+		progress_w :: w * progress_t;
+		rect(x+border_line_width, elem_y-border_line_width, progress_w-border_line_width, border_line_width, progress_bar_color);
+
+		redraw();
+	}
+
+	elem_y = y + h - notif_area_h;
+	rect(x, elem_y, w, border_line_width, fg_color);
+
+	// Notifications
+	// draw_last_status_message(x, y + h - notif_area_h, w, ShadowMode.NONE);
+}
+
+calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
+	using draw;
+	using Metric;
+	text_padding    :: metrics[auto TEXT_PADDING];
+
+	total_w := 0.f;
+	loop i := 0; i < key_mapping.len; i += 1 {
+		text_w :: text_size(key_mapping[i], &font_ui);
+		cell_w :: text_w + text_padding*2.f;
+
+		total_w += cell_w + text_padding;
+	}
+	return total_w;
+}
+
+draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_view, base_alpha := 1.f) f32 {
+	using draw;
+	using Metric;
+
+	text_padding    :: metrics[auto TEXT_PADDING];
+	rounding        :: metrics[auto CORNER_ROUNDING];
+	hint_height   :: metrics[auto LINE_HEIGHT] * 1.2f;
+
+	hx := x;
+	total_w := 0.f;
+	loop i := 0; i < key_mapping.len; i += 1 {
+		text_w, text_h :: text_size(key_mapping[i], &font_ui);
+		cell_w         :: text_w + text_padding*2.f;
+
+		offset_x :: cell_w + text_padding;
+
+		box_offset_y  :: item_h / 2.f - hint_height / 2.f;
+		text_offset_y :: item_h / 2.f - text_h / 2.f;
+
+		body_color := colors.foreground_color;
+		text_color := colors.foreground_color;
+		body_color.w = math.max(base_alpha - 0.8f, 0.1f);
+		text_color.w = math.max(base_alpha, 0.2f);
+
+		set_shader_color();
+		rect_rounded(hx, y + box_offset_y, cell_w, hint_height, rounding, body_color, body_color);
+
+		set_shader_font(&font_ui);
+		text(hx + text_padding, y + text_offset_y, key_mapping[i], text_color);
+
+		hx += offset_x;
+		total_w += offset_x;
+	}
+
+	return total_w;
+}
+
+PanelHint :: struct {
+	key_mapping: string_view;
+	info:        string_view;
+}
+
+draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHint, base_alpha := 1.f) {
+	using Metric;
+	using draw;
+
+	text_padding :: metrics[auto TEXT_PADDING];
+
+	color   := colors.foreground_color;
+	color.w = 0.4f;
+
+	set_scissor(x+text_padding, y, w-text_padding*2.f, h);
+	defer clear_scissor();
+	defer flush();
+
+	hx := x + text_padding;
+	loop i := 0; i < hints.len; i += 1 {
+		hint :: &hints[i];
+
+		// Use primary only to save some space.
+		key_mapping := "";
+		str_split_by_first(hint.key_mapping, '\0', &key_mapping);
+
+		cells_w :: draw_keybind_cells(hx, y, h, [_]string_view.{ key_mapping }, base_alpha);
+		hx += cells_w;
+
+		set_shader_font(&font_ui);
+		tw, th        :: text_size(hints[i].info, &font_ui);
+		text_offset_y :: h / 2.f - th / 2.f;
+
+		text(hx, y + text_offset_y, hints[i].info, color);
+		hx += tw + text_padding;
+	}
+}
+
 is_ident :: fn (buf: *Buffer, char: string_view) bool #inline {
 	NON_IDENT_CHARS :: " ()[]{}.-+:;\"\',!@#$%^&*~`<>/?\t\r\n";
 
@@ -812,7 +976,7 @@ get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") strin
 		keymap_index = lookup_command_keymap_index(cmd, keymap_index);
 		if keymap_index == -1 then break;
 
-		if tmp.len > 0 then str_append(&tmp, " | ");
+		if tmp.len > 0 then str_append(&tmp, "\0");
 		str_append(&tmp, keymap_entry_to_string(keymap_index));
 	}
 
