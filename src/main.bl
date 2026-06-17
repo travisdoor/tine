@@ -448,7 +448,9 @@ Colors :: struct {
 	warning_color                       : v4;
 	error_color                         : v4;
 	inline_error_background_color       : v4;
+	inline_error_foreground_color       : v4;
 	inline_warning_background_color     : v4;
+	inline_warning_foreground_color     : v4;
 	macro_record_icon_color             : v4;
 	background_line_numbers_color       : v4;
 	foreground_line_numbers_color       : v4;

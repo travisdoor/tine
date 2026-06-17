@@ -838,7 +838,7 @@ draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHi
 		// Use primary only to save some space.
 		key_mapping := "";
 		str_split_by_first(hint.key_mapping, '\0', &key_mapping);
-		
+
 		cells_w :: draw_keybind_cells(hx, y, h, [_]string_view.{ key_mapping }, base_alpha);
 		hx += cells_w;
 

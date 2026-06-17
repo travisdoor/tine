@@ -495,6 +495,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			set_cursor(CursorShape.IBEAM);
 
 			if is_lmb_press() {
+				print_err("Error!");
+
 				set_mode(Mode.TEXT_EDIT);
 				active_editor = index;
 				clear_selection(buf, editor.cursor_index);
@@ -866,7 +868,7 @@ draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_v
 	item_spacing :: metrics[auto ITEM_SPACING];
 	text_padding :: metrics[auto TEXT_PADDING];
 
-	fg_color := colors.error_color;
+	fg_color := colors.inline_error_foreground_color;
 	bg_color := colors.inline_error_background_color;
 	ic       := icon(ICON_ERROR);
 
@@ -875,13 +877,13 @@ draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_v
 	message = trim_right(message, " \t\r");
 
 	if loc.kind == ErrorLocation.kind.WARNING {
-		fg_color = colors.warning_color;
+		fg_color = colors.inline_warning_foreground_color;
 		bg_color = colors.inline_warning_background_color;
 		ic       = icon(ICON_WARNING);
 	}
 
 	bg_color2 := bg_color;
-	bg_color2.w = 0.f;
+	bg_color2.w = 0.1f;
 
 	set_shader_color();
 	rect(x, y, w, line_height, [_]v4.{ bg_color2, bg_color, bg_color2, bg_color });
