@@ -578,7 +578,7 @@ map_key_binding :: fn (ctx: *Tokenizer, command_id: Command, key: u32, mods: u32
 unmap_binding_for_command :: fn (command_id: Command) {
 	loop i := 0; i < key_binding.len; {
 		if key_binding[i].cmd == command_id {
-			array_erase(&key_binding, i);
+			array_erase_keep_order(&key_binding, i);
 			continue;
 		}
 		i += 1;
