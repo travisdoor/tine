@@ -664,9 +664,9 @@ ShadowMode :: enum {
 
 draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 	using draw;
-	// r :: metrics[auto Metric.CORNER_ROUNDING];
+	// r :: metrics.corner_rounding;
 	r :: 24.f;
-	s :: metrics[auto Metric.SHADOW_SIZE];
+	s :: metrics.shadow_size;
 
 	set_shader_color();
 	inner_color :: rgba(0x00000060);
@@ -687,14 +687,12 @@ draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
 }
 
 compute_command_panel_layout :: fn (prefer_width: s32 = 0) (x: f32, y: f32, w: f32, h: f32, content_start_y: f32, content_max_h: f32) {
-	using Metric;
-
 	window_h := cast(f32) WINDOW_HEIGHT;
 	window_w := cast(f32) WINDOW_WIDTH;
 
 	panel_offset_y :: 50.f; // @Incomplete 2026-06-16: Metrics
-	max_w          :: if prefer_width > 0 then cast(f32) prefer_width else metrics[auto LIST_PANEL_MAX_WIDTH];
-	f              :: metrics[auto LIST_PANEL_FACTOR];
+	max_w          :: if prefer_width > 0 then cast(f32) prefer_width else metrics.list_panel_max_width;
+	f              :: metrics.list_panel_factor;
 	max_h          :: math.max(math.ceil(window_h - panel_offset_y * 2.f), 0.f);
 
 	_, command_editor_h :: get_command_editor_size();
@@ -763,8 +761,7 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 
 calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
 	using draw;
-	using Metric;
-	text_padding    :: metrics[auto TEXT_PADDING];
+	text_padding    :: metrics.text_padding;
 
 	total_w := 0.f;
 	loop i := 0; i < key_mapping.len; i += 1 {
@@ -778,11 +775,10 @@ calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
 
 draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_view, base_alpha := 1.f) f32 {
 	using draw;
-	using Metric;
 
-	text_padding    :: metrics[auto TEXT_PADDING];
-	rounding        :: metrics[auto CORNER_ROUNDING];
-	hint_height   :: metrics[auto LINE_HEIGHT] * 1.2f;
+	text_padding    :: metrics.text_padding;
+	rounding        :: metrics.corner_rounding;
+	hint_height   :: metrics.line_height * 1.2f;
 
 	hx := x;
 	total_w := 0.f;
@@ -819,10 +815,9 @@ PanelHint :: struct {
 }
 
 draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHint, base_alpha := 1.f) {
-	using Metric;
 	using draw;
 
-	text_padding :: metrics[auto TEXT_PADDING];
+	text_padding :: metrics.text_padding;
 
 	color   := colors.foreground_color;
 	color.w = 0.4f;

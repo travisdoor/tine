@@ -123,7 +123,6 @@ duplicate_editor_cursor :: fn (editor: *Editor) s32 {
 
 draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call_location) {
 	using draw;
-	using Metric;
 
 	editor :: &editors[index];
 	if editor.buffer_index == -1 { return; }
@@ -134,10 +133,10 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	lsp_pull_diagnostics_update(buf);
 
-	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
-	line_height      :: metrics[auto LINE_HEIGHT ];
-	text_padding     :: metrics[auto TEXT_PADDING];
-	item_spacing     :: metrics[auto ITEM_SPACING ];
+	title_bar_height :: metrics.title_bar_height;
+	line_height      :: metrics.line_height;
+	text_padding     :: metrics.text_padding;
+	item_spacing     :: metrics.item_spacing;
 
 	show_line_numbers := settings.show_line_numbers
 	&& buf.index != messages_buffer_index
@@ -495,8 +494,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			set_cursor(CursorShape.IBEAM);
 
 			if is_lmb_press() {
-				print_err("Error!");
-
 				set_mode(Mode.TEXT_EDIT);
 				active_editor = index;
 				clear_selection(buf, editor.cursor_index);
@@ -572,7 +569,6 @@ DrawCommandEditorParams :: struct {
 
 draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: DrawCommandEditorParams, loc := #call_location) {
 	using draw;
-	using Metric;
 
 	editor :: &editors[index];
 	if editor.buffer_index == -1 { return; }
@@ -581,8 +577,8 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 	use_block_caret :: settings.block_caret && !(is_selection_active(buf, editor.cursor_index) && settings.change_caret_on_selection);
 
 	is_active       :: active_editor == editor.index;
-	line_height     :: metrics[auto LINE_HEIGHT ];
-	text_padding    :: metrics[auto TEXT_PADDING];
+	line_height     :: metrics.line_height;
+	text_padding    :: metrics.text_padding;
 
 	// Draw background
 	set_shader_color();
@@ -718,15 +714,13 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 }
 
 draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOTTOM) bool {
-	using Metric;
-
 	has_one, kind, text :: last_message();
 	if !has_one { return false; }
 
-	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
-	item_spacing     :: metrics[auto ITEM_SPACING    ];
-	text_padding     :: metrics[auto TEXT_PADDING    ] * 2.f;
-	rounding         :: metrics[auto CORNER_ROUNDING];
+	title_bar_height :: metrics.title_bar_height;
+	item_spacing     :: metrics.item_spacing;
+	text_padding     :: metrics.text_padding * 2.f;
+	rounding         :: metrics.corner_rounding;
 
 	background_color, foreground_color :: get_status_bar_colors(kind);
 
@@ -769,13 +763,11 @@ get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink,
 }
 
 draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32, text: string_view, bg_color: v4, fg_color: v4) {
-	using Metric;
-
-	r                :: metrics[auto CORNER_ROUNDING];
-	line_height      :: metrics[auto LINE_HEIGHT];
-	text_padding     :: metrics[auto TEXT_PADDING];
-	shadow_size      :: metrics[auto SHADOW_SIZE];
-	title_bar_height :: metrics[auto TITLE_BAR_HEIGHT];
+	r                :: metrics.corner_rounding;
+	line_height      :: metrics.line_height;
+	text_padding     :: metrics.text_padding;
+	shadow_size      :: metrics.shadow_size;
+	title_bar_height :: metrics.title_bar_height;
 
 	text_font :: &font;
 
@@ -808,10 +800,8 @@ EDITOR_DEBUG :: false;
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
-	using Metric;
-
 	sliding      :: &editor.sliding;
-	line_height  :: metrics[auto LINE_HEIGHT ];
+	line_height  :: metrics.line_height;
 
 	if editor.top == top then return;
 	if !settings.smooth_movement {
@@ -862,11 +852,10 @@ update_editor_x_offset :: fn (editor: *Editor, line_w: f32, cursor_x: f32) {
 
 draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_view, loc: *ErrorLocation, highlight_only: bool) {
 	using draw;
-	using Metric;
 
-	line_height  :: metrics[auto LINE_HEIGHT ];
-	item_spacing :: metrics[auto ITEM_SPACING];
-	text_padding :: metrics[auto TEXT_PADDING];
+	line_height  :: metrics.line_height;
+	item_spacing :: metrics.item_spacing;
+	text_padding :: metrics.text_padding;
 
 	fg_color := colors.inline_error_foreground_color;
 	bg_color := colors.inline_error_background_color;
@@ -913,7 +902,7 @@ draw_highlight_range :: fn (
 	using draw;
 
 	assert(end > start);
-	line_height :: metrics[auto Metric.LINE_HEIGHT];
+	line_height :: metrics.line_height;
 
 	first_line_index := editor.top;
 

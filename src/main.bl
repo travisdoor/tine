@@ -202,20 +202,18 @@ Split :: enum { FLOATING; LEFT; RIGHT; }
 left:  s32 = -1;
 right: s32 = -1;
 
-Metric :: enum s64 {
-	LINE_HEIGHT;
-	TITLE_BAR_HEIGHT;
-	ITEM_SPACING;
-	TEXT_PADDING;
-	TITLE_MAX_SIZE;
-	SHADOW_SIZE;
-	CORNER_ROUNDING;
-	LIST_PANEL_MAX_WIDTH;
-	LIST_PANEL_FACTOR;
-	LINE_ITEM_HEIGHT;
-}
-
-metrics: [type_utils.enum_variant_count(Metric)]f32;
+metrics: struct {
+	line_height: f32;
+	title_bar_height: f32;
+	item_spacing: f32;
+	text_padding: f32;
+	title_max_size: f32;
+	shadow_size: f32;
+	corner_rounding: f32;
+	list_panel_max_width: f32;
+	list_panel_factor: f32;
+	line_item_height: f32;
+};
 
 InputMode :: enum {
 	TEXT;
@@ -1219,9 +1217,8 @@ set_default_mode :: fn () bool #inline {
 }
 
 get_command_editor_size :: fn () (w: f32, h: f32) #inline {
-	using Metric;
-	line_height  :: metrics[auto LINE_HEIGHT];
-	text_padding :: metrics[auto TEXT_PADDING];
+	line_height  :: metrics.line_height;
+	text_padding :: metrics.text_padding;
 	return cast(f32) WINDOW_WIDTH, line_height + text_padding * 2.f;
 }
 
@@ -2110,20 +2107,18 @@ draw_frame :: fn () {
 }
 
 recalculate_metrics :: fn () {
-	using Metric;
-
 	line_spacing :: math.min(math.max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
 
-	metrics[auto TITLE_BAR_HEIGHT]     = font_ui.height  * 1.6f;
-	metrics[auto LINE_HEIGHT     ]     = font.height  * line_spacing;
-	metrics[auto ITEM_SPACING    ]     = icons.height * 1.3f;
-	metrics[auto TEXT_PADDING    ]     = font.height  * 0.5f;
-	metrics[auto TITLE_MAX_SIZE  ]     = font.height  * 25.f;
-	metrics[auto SHADOW_SIZE     ]     = WINDOW_SCALE * 8.f;
-	metrics[auto CORNER_ROUNDING ]     = WINDOW_SCALE * 4.f;
-	metrics[auto LIST_PANEL_MAX_WIDTH] = math.floor(WINDOW_SCALE * 1024.f);
-	metrics[auto LIST_PANEL_FACTOR]    = 0.8f;
-	metrics[auto LINE_ITEM_HEIGHT]     = font.height * 1.4f;
+	metrics.title_bar_height     = font_ui.height  * 1.6f;
+	metrics.line_height          = font.height  * line_spacing;
+	metrics.item_spacing         = icons.height * 1.3f;
+	metrics.text_padding         = font.height  * 0.5f;
+	metrics.title_max_size       = font.height  * 25.f;
+	metrics.shadow_size          = WINDOW_SCALE * 8.f;
+	metrics.corner_rounding      = WINDOW_SCALE * 4.f;
+	metrics.list_panel_max_width = math.floor(WINDOW_SCALE * 1024.f);
+	metrics.list_panel_factor    = 0.8f;
+	metrics.line_item_height     = font.height * 1.4f;
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {

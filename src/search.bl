@@ -40,7 +40,7 @@ search_mode_init :: fn () {
 search_mode_terminate :: fn () {}
 
 search_panel_width :: fn (active_editor_w: f32) f32 #inline {
-	text_padding :: metrics[auto Metric.TEXT_PADDING];
+	text_padding :: metrics.text_padding;
 	
 	w := 650.f * WINDOW_SCALE;
 	w  = math.min(w, cast(f32) WINDOW_WIDTH - text_padding * 2.f);
@@ -62,8 +62,8 @@ draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edito
 		}
 	}
 
-	text_padding     :: metrics[auto Metric.TEXT_PADDING];
-	title_bar_height :: metrics[auto Metric.TITLE_BAR_HEIGHT];
+	text_padding     :: metrics.text_padding;
+	title_bar_height :: metrics.title_bar_height;
 
 	_, _, _, h :: compute_command_panel_layout();
 	w :: search_panel_width(active_editor_w);

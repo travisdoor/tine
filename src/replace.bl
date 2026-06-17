@@ -44,8 +44,8 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 	assert(search.last_subject.len > 0);
 	target_buf :: get_last_active_buffer_and_editor();
 
-	text_padding     :: metrics[auto Metric.TEXT_PADDING];
-	title_bar_height :: metrics[auto Metric.TITLE_BAR_HEIGHT];
+	text_padding     :: metrics.text_padding;
+	title_bar_height :: metrics.title_bar_height;
 
 	_, _, _, h :: compute_command_panel_layout();
 	w :: search_panel_width(active_editor_w);
@@ -56,14 +56,13 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 	cmd_h :: h/2.f;
 	
 	if is_replacing {
-		using Metric;
 		using draw;
 		
 		title :: tprint("Replacing '%' with '%'.", search.last_subject, search.last_replacement);
 
-		line_height  :: metrics[auto LINE_HEIGHT ];
-		text_padding :: metrics[auto TEXT_PADDING];
-		item_spacing :: metrics[auto ITEM_SPACING];
+		line_height  :: metrics.line_height;
+		text_padding :: metrics.text_padding;
+		item_spacing :: metrics.item_spacing;
 
 		title_x := x + text_padding;
 		title_y :: y + text_padding + (line_height * 0.5f - font_ui.height * 0.5f);

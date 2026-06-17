@@ -24,7 +24,6 @@ completion_mode_terminate :: fn () {
 }
 
 draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
-	using Metric;
 
 	if signature_help_cache.len > 0 {
 		draw_peek_text_box(
@@ -41,8 +40,8 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 	buf, editor :: get_active_buffer_and_editor();
 	current_cursor :: get_virtual_cursor(editor, buf);
 
-	text_padding :: metrics[auto TEXT_PADDING   ];
-	line_height  :: metrics[auto LINE_HEIGHT    ];
+	text_padding :: metrics.text_padding;
+	line_height  :: metrics.line_height;
 
 	x :: active_editor_x;
 	y :: active_editor_y + text_padding;

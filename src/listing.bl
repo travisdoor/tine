@@ -52,13 +52,8 @@ DrawListCols :: enum #flags {
 ListerMode :: enum { TOP_DOWN; FLOATING }
 
 get_list_height :: fn (double_line := false) (h: f32, visible_lines: s32) {
-	using Metric;
-	line_height     := metrics[auto LINE_HEIGHT    ];
-	text_padding    :: metrics[auto TEXT_PADDING   ];
-
-	if double_line {
-		line_height *= 2.f;
-	}
+	line_height     :: if double_line then metrics.line_height * 2.f else metrics.line_height;
+	text_padding    :: metrics.text_padding;
 
 	visible_lines := cast(s32) (cast(f32) WINDOW_HEIGHT / line_height);
 	visible_lines = math.min(visible_lines, auto list[visible_list_index].len);
@@ -91,10 +86,9 @@ list_ui_ctx: struct {
 #scope_public
 
 search_list_begin :: fn (two_row_item := false, progress_t := 0.f, prefer_width := 0) {
-	using Metric;
 
 	compute_list_height :: fn (item_h: f32, list_max_h: f32) (height: f32, visible_items: s32) #inline {
-		text_padding :: metrics[auto TEXT_PADDING];
+		text_padding :: metrics.text_padding;
 
 		list_h :: math.min(item_h * cast(f32) list[visible_list_index].len, list_max_h-text_padding*2.f);
 		visible_items :: cast(s32) (list_h/item_h);
@@ -104,7 +98,7 @@ search_list_begin :: fn (two_row_item := false, progress_t := 0.f, prefer_width 
 	mutex_lock(&visible_list_mutex);
 	x, y, w, h, list_y, list_max_h := compute_command_panel_layout(prefer_width);
 
-	item_h :: if two_row_item then math.ceil(metrics[auto LINE_ITEM_HEIGHT]*2.5f) else metrics[auto LINE_ITEM_HEIGHT];
+	item_h :: if two_row_item then math.ceil(metrics.line_item_height*2.5f) else metrics.line_item_height;
 	cmd_h  :: math.max(list_y - y, 0.f);
 
 	list_h, visible_items :: compute_list_height(item_h, list_max_h);
@@ -164,7 +158,6 @@ draw_search_hints :: fn (hints: []PanelHint) #inline {
 
 draw_search_command_list :: fn (loc := #call_location) bool {
 	using draw;
-	using Metric;
 	using DrawListCols;
 
 	allocator :: application_context.temporary_allocator;
@@ -174,9 +167,9 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 	if ctx.visible_items == 0 then return false;
 
-	text_padding    :: metrics[auto TEXT_PADDING   ];
-	item_spacing    :: metrics[auto ITEM_SPACING   ];
-	rounding        :: metrics[auto CORNER_ROUNDING];
+	text_padding    :: metrics.text_padding;
+	item_spacing    :: metrics.item_spacing;
+	rounding        :: metrics.corner_rounding;
 
 	item_h :: ctx.item_height;
 
@@ -315,7 +308,6 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 draw_search_simple_list :: fn (loc := #call_location) bool {
 	using draw;
-	using Metric;
 	using DrawListCols;
 
 	ctx :: &list_ui_ctx;
@@ -323,9 +315,9 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 	if ctx.visible_items == 0 then return false;
 
-	text_padding    :: metrics[auto TEXT_PADDING   ];
-	item_spacing    :: metrics[auto ITEM_SPACING   ];
-	rounding        :: metrics[auto CORNER_ROUNDING];
+	text_padding    :: metrics.text_padding;
+	item_spacing    :: metrics.item_spacing;
+	rounding        :: metrics.corner_rounding;
 
 	item_h :: ctx.item_height;
 
@@ -480,9 +472,8 @@ draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
 	window_h := cast(f32) WINDOW_HEIGHT;
 	window_w := cast(f32) WINDOW_WIDTH;
 
-	using Metric;
-	max_w :: metrics[auto LIST_PANEL_MAX_WIDTH];
-	f     :: metrics[auto LIST_PANEL_FACTOR];
+	max_w :: metrics.list_panel_max_width;
+	f     :: metrics.list_panel_factor;
 
 	w :: math.min(math.ceil(window_w * f), max_w);
 	h :: math.ceil(window_h * f);
@@ -508,7 +499,6 @@ draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
 
 draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.TOP_DOWN, loc := #call_location) (w: f32, h: f32, clicked: bool) {
 	using draw;
-	using Metric;
 	using DrawListCols;
 
 	mutex_lock(&visible_list_mutex);
@@ -516,11 +506,11 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 
 	if list[visible_list_index].len == 0 { return 0.f, 0.f, false; }
 
-	line_height     :: metrics[auto LINE_HEIGHT    ];
-	text_padding    :: metrics[auto TEXT_PADDING   ];
-	title_max_size  :: metrics[auto TITLE_MAX_SIZE ];
-	item_spacing    :: metrics[auto ITEM_SPACING   ];
-	rounding        :: metrics[auto CORNER_ROUNDING];
+	line_height     :: metrics.line_height;
+	text_padding    :: metrics.text_padding;
+	title_max_size  :: metrics.title_max_size;
+	item_spacing    :: metrics.item_spacing;
+	rounding        :: metrics.corner_rounding;
 
 	h, visible_lines :: get_list_height();
 	list_w := w;
@@ -562,7 +552,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		// rect(x, y, list_w, h, colors.command_list_background_color);
 	} else {
 		draw_shadow(x, y, list_w, h, ShadowMode.ALL);
-		r :: metrics[auto Metric.CORNER_ROUNDING];
+		r :: metrics.corner_rounding;
 		c :: colors.command_list_background_color;
 		rect_rounded(x, y, list_w, h, r, c, c);
 	}
