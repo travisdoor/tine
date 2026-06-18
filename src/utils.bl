@@ -727,8 +727,8 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 	border_line_width   :: metrics.border_line_width;
 	rounding            :: metrics.corner_rounding_panel;
 
-	fg_color :: colors.command_list_background_color;
-	bg_color :: colors.background_color;
+	fg_color :: colors.command_list_background;
+	bg_color :: colors.background;
 
 	draw_shadow(x, y, w, h, ShadowMode.ALL);
 
@@ -746,7 +746,7 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 	rect(x, elem_y, w, border_line_width, fg_color);
 
 	if progress_t > 0.f { // Progress
-		progress_bar_color :: colors.warning_color; // @Incomplete 2026-06-15: Use separate theme entry?
+		progress_bar_color :: colors.progress_bar;
 		progress_w :: w * progress_t;
 		rect(x+border_line_width, elem_y-border_line_width, progress_w-border_line_width, border_line_width, progress_bar_color);
 
@@ -789,8 +789,8 @@ draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_vie
 		box_offset_y  :: item_h / 2.f - hint_height / 2.f;
 		text_offset_y :: item_h / 2.f - text_h / 2.f;
 
-		body_color := colors.foreground_color;
-		text_color := colors.foreground_color;
+		body_color := colors.foreground;
+		text_color := colors.foreground;
 		body_color.w = math.max(base_alpha - 0.8f, 0.1f);
 		text_color.w = math.max(base_alpha, 0.2f);
 
@@ -817,7 +817,7 @@ draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHi
 
 	text_padding :: metrics.text_padding;
 
-	color   := colors.foreground_color;
+	color   := colors.foreground;
 	color.w = 0.4f;
 
 	set_scissor(x+text_padding, y, w-text_padding*2.f, h);

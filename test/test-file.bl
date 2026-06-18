@@ -99,7 +99,7 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 
 	// Draw background
 	set_shader_color();
-	rect(x, y, w, h, colors.background_color);
+	rect(x, y, w, h, colors.background);
 
 	tx :: x + text_padding;
 	ty :: y + text_padding;
@@ -128,7 +128,7 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 	current_line_y :: ty + line_height * auto (cursor.row - first_line_index);
 	if is_active {
 		// current line highlight
-		rect(x, current_line_y, w, line_height, colors.current_line_background_color);
+		rect(x, current_line_y, w, line_height, colors.current_line_background);
 	}
 
 	_, first_position :: peek_row(buf, first_line_index);
@@ -141,8 +141,8 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 			end := cursor.position;
 			if start > end { swap(&start, &end); }
 			if end > start {
-				color := colors.selection_background_color;
-				if !is_active { color = colors.selection_background_inactive_color; }
+				color := colors.selection_background;
+				if !is_active { color = colors.selection_background_inactive; }
 				draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, color);
 			}
 		}
@@ -158,7 +158,7 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 			if end   < first_position { continue; }
 			if start > last_position  { break;    }
 
-			draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, colors.search_result_background_color);
+			draw_highlight_range(buf, editor, tx, ty, start, end, first_position, last_position, colors.search_result_background);
 
 			drawn_count += 1;
 			if drawn_count > MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR {
@@ -180,9 +180,9 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 	}
 
 	// cursor
-	rect(ceil(tx + cursor_x), current_line_y, cursor_w, line_height, colors.cursor_background_color);
+	rect(ceil(tx + cursor_x), current_line_y, cursor_w, line_height, colors.cursor_background);
 	if !is_active {
-		rect(ceil(tx + cursor_x + 2.f), current_line_y + 2.f, cursor_w - 4.f, line_height - 4.f, colors.background_color);
+		rect(ceil(tx + cursor_x + 2.f), current_line_y + 2.f, cursor_w - 4.f, line_height - 4.f, colors.background);
 	}
 
 
@@ -223,7 +223,7 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 		LF   { line_ending_name = "LF";   }
 		default;
 	}
-	title_bar_color := colors.title_bar_color;
+	title_bar_color := colors.title_bar;
 	if is_active { title_bar_color = colors.title_bar_active; }
 
 	// Status bar background
@@ -235,15 +235,15 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 	status_y :: y + h - title_bar_height;
 
 	set_shader_font(&icons);
-	text(status_x, status_y + icon_correction, icon(ICON_FILE), colors.title_bar_text_color);
+	text(status_x, status_y + icon_correction, icon(ICON_FILE), colors.title_bar_text);
 	status_x += item_spacing;
 
 	if has_changes {
-		text(status_x, status_y + icon_correction, icon(ICON_CHANGES), colors.modification_indicator_color);
+		text(status_x, status_y + icon_correction, icon(ICON_CHANGES), colors.modification_indicator);
 		status_x += item_spacing;
 	}
 	if (buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
-		text(status_x, status_y + icon_correction, icon(ICON_READONLY), colors.modification_indicator_color);
+		text(status_x, status_y + icon_correction, icon(ICON_READONLY), colors.modification_indicator);
 		status_x += item_spacing;
 	}
 
@@ -261,7 +261,7 @@ draw_text_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32) {
 		str_concat(&title, "  ", icon(CHAR_BULLET), "  ");
 	}
 	str_concat(&title, FILE_TYPE_NAME[auto buf.file_type], "  ", icon(CHAR_BULLET), "  ", line_ending_name);
-	text(status_x, status_y + font_correction, title, colors.title_bar_text_color);
+	text(status_x, status_y + font_correction, title, colors.title_bar_text);
 
 #if IS_DEBUG { draw_debug(editor, buf, x, y, w, h); }
 }
@@ -281,7 +281,7 @@ draw_command_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32, title := 
 	// Draw background
 	set_shader_color();
 	rect(x, y+h, w, SHADOW_SIZE, TOP_DOWN_SHADOW);
-	rect(x, y, w, h, colors.command_background_color);
+	rect(x, y, w, h, colors.command_background);
 
 	title_size :: text_size(title, &font);
 
@@ -296,8 +296,8 @@ draw_command_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32, title := 
 	{
 		start, end :: get_selection_range(buf, editor.cursor_index);
 		if end > start {
-			color := colors.selection_background_color;
-			if !is_active { color = colors.selection_background_inactive_color; }
+			color := colors.selection_background;
+			if !is_active { color = colors.selection_background_inactive; }
 
 			draw_highlight_range(buf, editor, tx1, ty, start, end, 0, line.len, color);
 		}
@@ -315,17 +315,17 @@ draw_command_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32, title := 
 	}
 
 	if is_active {
-		rect(std.ceil(tx1 + cursor_x), ty, cursor_w, line_height, colors.cursor_background_color);
+		rect(std.ceil(tx1 + cursor_x), ty, cursor_w, line_height, colors.cursor_background);
 	}
 
 	set_shader_font(&font);
 	ly :: ty + line_height * 0.2f;
 
 	// title:
-	text(tx0, ly, title, colors.command_title_color);
+	text(tx0, ly, title, colors.command_title);
 	if hint.len > 0 {
 		hint_w :: text_size(hint, &font);
-		text(x + w - hint_w - text_padding, ly, hint, colors.command_title_color);
+		text(x + w - hint_w - text_padding, ly, hint, colors.command_title);
 	}
 
 	{ // Edit line (just current one).
@@ -335,9 +335,9 @@ draw_command_editor :: fn (index: s64, x: f32, y: f32, w: f32, h: f32, title := 
 			std.str_split_at_index(rhs, auto char_under_cursor.len, null, &rhs);
 			lhs_size :: text_size(lhs, &font);
 
-			text(tx1, ly, lhs, colors.command_foreground_color);
-			text(tx1 + lhs_size, ly, char_under_cursor, colors.cursor_foreground_color);
-			text(tx1 + lhs_size + cursor_w, ly, rhs, colors.command_foreground_color);
+			text(tx1, ly, lhs, colors.command_foreground);
+			text(tx1 + lhs_size, ly, char_under_cursor, colors.cursor_foreground);
+			text(tx1 + lhs_size + cursor_w, ly, rhs, colors.command_foreground);
 		}
 	}
 }
@@ -431,9 +431,9 @@ get_status_bar_colors :: fn (kind: PrintLogKind) (bg: glm.v4, fg: glm.v4) #inlin
 	white :: rgb(0xffffff);
 	black :: rgb(0x0);
 	switch kind {
-		INFO    { return colors.message_color, white; }
-		WARNING { return colors.warning_color, black; }
-		ERROR   { return colors.error_color,   white; }
+		INFO    { return colors.message, white; }
+		WARNING { return colors.warning, black; }
+		ERROR   { return colors.error,   white; }
 		default;
 	}
 	return rgb(0xff00ff), white;

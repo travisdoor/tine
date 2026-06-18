@@ -279,8 +279,8 @@ do_the_stuff_after_project_load :: fn () {
 	if settings.search_size_limit_bytes < 1 then settings.search_size_limit_bytes = -1;
 
 	// map color codes for source code syntax
-	code_color_table[auto CODE_COLOR_DEFAULT_INDEX  ] = colors.foreground_color;
-	code_color_table[auto CODE_COLOR_CURSOR_INDEX   ] = colors.cursor_foreground_color;
+	code_color_table[auto CODE_COLOR_DEFAULT_INDEX  ] = colors.foreground;
+	code_color_table[auto CODE_COLOR_CURSOR_INDEX   ] = colors.cursor_foreground;
 	code_color_table[auto CODE_COLOR_KEYWORD_INDEX  ] = colors.code_keyword;
 	code_color_table[auto CODE_COLOR_COMMENT_INDEX  ] = colors.code_comment;
 	code_color_table[auto CODE_COLOR_DIRECTIVE_INDEX] = colors.code_directive;

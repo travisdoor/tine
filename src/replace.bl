@@ -69,12 +69,12 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 		icon_y  :: y + text_padding + (line_height * 0.5f - icons.height * 0.5f);
 
 		set_shader_font(&icons);
-		text(title_x, icon_y, icon(ICON_REPLACE), colors.foreground_color);
+		text(title_x, icon_y, icon(ICON_REPLACE), colors.foreground);
 
 		title_x += item_spacing;
 
 		set_shader_font(&font_ui);
-		text(title_x, title_y, title, colors.foreground_color);
+		text(title_x, title_y, title, colors.foreground);
 	} else {
 		title :: tprint("Replace '%' in '%' with...", search.last_subject, target_buf.name);
 

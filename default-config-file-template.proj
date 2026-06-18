@@ -9,7 +9,7 @@
 #----------------------------------------------------------------------------------------------------
 # List of directories included into the project. The first one is supposed to be a project root and
 # is used as a current working directory.
-# Each directory path entry is supposed to be on a separate line and may contains spaces.
+# Each directory path entry is supposed to be on a separate line and may contain spaces.
 #
 # Example:
 #   C:/my/project/root
@@ -17,7 +17,7 @@
 #----------------------------------------------------------------------------------------------------
 ;exclude
 #----------------------------------------------------------------------------------------------------
-# List of directories exluded from the project.
+# List of directories excluded from the project.
 # Each directory path entry is supposed to be on a separate line and may contains spaces.
 .svn
 .git
@@ -41,7 +41,7 @@
 font_size                              12
 
 # Line spacing as a percentage of the current font size. Supported range is <80, 200>.
-line_spacing                           130
+line_spacing                           120
 
 # Customize editor font, default system font location is used for lookup of the ttf font
 # files. Full path can be used too.
@@ -114,6 +114,7 @@ show_lsp_inline_diagnostics            true
 # shell                                  CMD.exe /Q /K prompt $
 # shell                                  C:/Program\ Files/Git/bin/bash.exe
 # shell                                  /bin/fish
+# shell                                  /bin/bash --login
 
 # Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
 # locations parsed from the output are available later in error list for quick navigation (used with
@@ -123,7 +124,7 @@ shell_parse_error_locations            true
 # Enable ANSI color codes in shell output.
 shell_enable_ansi_colors               true
 
-# Enable additional error or warning highlight in the shell output. This feature require
+# Enable additional error or warning highlight in the shell output. This feature requires
 # shell_parse_error_locations enabled.
 shell_enable_error_location_colors     false
 
@@ -191,13 +192,13 @@ show_line_numbers                      false
 # deactivated. This enables quick selection from the current cursor position to a desired character.
 enable_quick_search                    true
 
-# Recognize following file extenstions as source files of given type.
+# Recognize following file extensions as source files of given type.
 c_extensions                           .c .cpp .h .hpp .cc
 glsl_extensions                        .glsl
 asm_extensions                         .asm
 
-# Folowing regular expressions are used in various buffers to parse out file links which can
-# be directly openned in the editor.
+# Following regular expressions are used in various buffers to parse out file links which can
+# be directly opened in the editor.
 #
 # Expected format is 'filepath[:line[:column]]'.
 #
@@ -371,34 +372,35 @@ quit
 
 # dark colors
 #----------------------------------------------------------------------------------------------------
-background_color                    1C1A17
-foreground_color                    D6C7A1
-cursor_background_color             C27A2C
-cursor_foreground_color             1C1A17
-current_line_background_color       26231E
-search_result_background_color      6B5A35
-title_bar_color                     1A1815
+background                          1C1A17
+foreground                          D6C7A1
+cursor_background                   C27A2C
+cursor_foreground                   1C1A17
+current_line_background             26231E
+search_result_background            6B5A35
+title_bar                           1A1815
 title_bar_active                    3A3326
-title_bar_text_color                D6C7A1
-command_background_color            211F1B
-command_foreground_color            CFC2A0
-command_title_color                 B07A3A
-command_select_color                3F3728
-command_list_background_color       2A2722
-modification_indicator_color        C28B3C
-selection_background_color          4F4535
-selection_background_inactive_color 3A342C
-selection_background_inactive_color 2C2924
-message_color                       658255
-warning_color                       B8860B
-error_color                         881b1b
-inline_error_background_color       400000
-inline_error_foreground_color       CC0000
-inline_warning_background_color     6D6C1B
-inline_warning_foreground_color     FFFF00
-macro_record_icon_color             C2553A
-background_line_numbers_color       2A2722
-foreground_line_numbers_color       7A7468
+title_bar_text                      D6C7A1
+command_background                  211F1B
+command_foreground                  CFC2A0
+command_title                       B07A3A
+command_select                      3F3728
+command_list_background             2A2722
+modification_indicator              C28B3C
+selection_background                4F4535
+selection_background_inactive       3A342C
+selection_background_inactive       2C2924
+message                             658255
+warning                             B8860B
+error                               881b1b
+inline_error_background             400000
+inline_error_foreground             CC0000
+inline_warning_background           6D6C1B
+inline_warning_foreground           FFFF00
+macro_record_icon                   C2553A
+background_line_numbers             2A2722
+foreground_line_numbers             7A7468
+progress_bar                        99E2FF
 
 code_comment                        7A8F6B
 code_keyword                        C2A23A
@@ -421,33 +423,34 @@ ansi_white                          D6C7A1
 
 # light colors
 #-------------------------------------------
-# background_color                    F6F0E6
-# foreground_color                    2E241A
-# cursor_background_color             6B4E2E
-# cursor_foreground_color             F6F0E6
-# current_line_background_color       E9E0D2
-# search_result_background_color      D8C8A4
-# title_bar_color                     E8DEC9
+# background                          F6F0E6
+# foreground                          2E241A
+# cursor_background                   6B4E2E
+# cursor_foreground                   F6F0E6
+# current_line_background             E9E0D2
+# search_result_background            D8C8A4
+# title_bar                           E8DEC9
 # title_bar_active                    D7C2A1
-# title_bar_text_color                2E241A
-# command_background_color            F0E7D8
-# command_foreground_color            3A2E22
-# command_title_color                 7A5A3A
-# command_select_color                D7C2A1
-# command_list_background_color       E2D6C2
-# modification_indicator_color        7A5A3A
-# selection_background_color          D7C2A1
-# selection_background_inactive_color EDE3D3
-# message_color                       3E6B4A
-# warning_color                       9A6B23
-# error_color                         8E2A2A
-# inline_error_background_color       E8C9C6
-# inline_error_foreground_color       FF0000
-# inline_warning_background_color     FFE299
-# inline_warning_foreground_color     9A895F
-# macro_record_icon_color             8E2A2A
-# background_line_numbers_color       E2D6C2
-# foreground_line_numbers_color       6A5A46
+# title_bar_text                      2E241A
+# command_background                  F0E7D8
+# command_foreground                  3A2E22
+# command_title                       7A5A3A
+# command_select                      D7C2A1
+# command_list_background             E2D6C2
+# modification_indicator              7A5A3A
+# selection_background                D7C2A1
+# selection_background_inactive       EDE3D3
+# message                             3E6B4A
+# warning                             9A6B23
+# error                               8E2A2A
+# inline_error_background             E8C9C6
+# inline_error_foreground             FF0000
+# inline_warning_background           FFE299
+# inline_warning_foreground           9A895F
+# macro_record_icon                   8E2A2A
+# background_line_numbers             E2D6C2
+# foreground_line_numbers             6A5A46
+# progress_bar                        8A4100
 
 # code_comment                        5E6B57
 # code_keyword                        2E4A7D

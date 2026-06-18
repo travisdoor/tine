@@ -199,14 +199,14 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 		if selected_index >= start_index && selected_index < start_index + ctx.visible_items {
 			selected_y :: ty + item_h * auto (selected_index - start_index);
-			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select_color, colors.command_select_color);
+			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select, colors.command_select);
 		}
 
 		if mouse.last_hover_elem_id == loc.hash {
 			ly := ty;
 			loop i := start_index; i < end_index; i += 1 {
 				if is_point_in_rect(ctx.x, ly, ctx.w, item_h, mouse.position.x, mouse.position.y) {
-					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background_color, colors.selection_background_color);
+					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background, colors.selection_background);
 					hover_index = i;
 					break;
 				}
@@ -225,7 +225,7 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 		{ // Separator
 			set_shader_color();
 			border_line_width :: metrics.border_line_width;
-			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
+			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background);
 		}
 
 
@@ -234,9 +234,9 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 			ly :: item_y + (item_h * 0.5f - icons.height * 0.5f);
 			item :: &list[visible_list_index][i];
-			color := colors.foreground_color;
+			color := colors.foreground;
 			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
-				color = colors.modification_indicator_color;
+				color = colors.modification_indicator;
 			}
 			text(item_x, ly, item.icon, color);
 
@@ -263,7 +263,7 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 			defer clear_scissor();
 			defer flush();
 
-			help_color := colors.foreground_color;
+			help_color := colors.foreground;
 			help_color.w = 0.4f;
 
 			ly :: item_y + (item_h * 0.5f - font_ui.height * 0.5f);
@@ -271,7 +271,7 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 			item_row_h :: item_h / 5.f;
 
 			item :: &list[visible_list_index][i];
-			text(item_x, ly-item_row_h, item.title, colors.foreground_color);
+			text(item_x, ly-item_row_h, item.title, colors.foreground);
 			text(item_x, ly+item_row_h, item.preview, help_color);
 		}
 
@@ -346,14 +346,14 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 		if selected_index >= start_index && selected_index < start_index + ctx.visible_items {
 			selected_y :: ty + item_h * auto (selected_index - start_index);
-			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select_color, colors.command_select_color);
+			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select, colors.command_select);
 		}
 
 		if mouse.last_hover_elem_id == loc.hash {
 			ly := ty;
 			loop i := start_index; i < end_index; i += 1 {
 				if is_point_in_rect(ctx.x, ly, ctx.w, item_h, mouse.position.x, mouse.position.y) {
-					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background_color, colors.selection_background_color);
+					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background, colors.selection_background);
 					hover_index = i;
 					break;
 				}
@@ -371,7 +371,7 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 		{ // Separator
 			set_shader_color();
 			border_line_width :: metrics.border_line_width;
-			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
+			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background);
 		}
 
 		icon_y :: item_y + (item_h * 0.5f - icons.height * 0.5f);
@@ -380,9 +380,9 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 			set_shader_font(&icons);
 
 			item :: &list[visible_list_index][i];
-			color := colors.foreground_color;
+			color := colors.foreground;
 			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
-				color = colors.modification_indicator_color;
+				color = colors.modification_indicator;
 			}
 			text(item_x, icon_y, item.icon, color);
 
@@ -401,11 +401,11 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 			set_scissor(ctx.x, item_y, if show_preview then content_w * PREVIEW_FACTOR - item_spacing else content_w, item_h);
 			set_shader_font(&font_ui);
 
-			text(item_x, icon_y, item.title, colors.foreground_color);
+			text(item_x, icon_y, item.title, colors.foreground);
 			if item.hint.len > 0 {
 				item_x += text_size(item.title, &font_ui).width + text_padding;
 
-				hint_color := colors.foreground_color;
+				hint_color := colors.foreground;
 				hint_color.w = 0.4f;
 
 				set_shader_font(&icons);
@@ -427,7 +427,7 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 					set_shader_font(&font);
 					item_x = ctx.x + content_w * PREVIEW_FACTOR;
 
-					preview_color :: colors.foreground_color;
+					preview_color :: colors.foreground;
 					text(item_x, icon_y, item.preview, preview_color);
 				}
 				flush();
@@ -482,8 +482,8 @@ draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
 
 	_, cmd_h :: get_command_editor_size();
 
-	fg_color :: colors.command_list_background_color;
-	bg_color :: colors.background_color;
+	fg_color :: colors.command_list_background;
+	bg_color :: colors.background;
 
 	using draw;
 
@@ -547,18 +547,18 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	set_shader_color();
 	if mode == ListerMode.TOP_DOWN {
 		// draw_shadow(x, y, list_w, h, ShadowMode.BOTTOM);
-		// rect(x, y, list_w, h, colors.command_list_background_color);
+		// rect(x, y, list_w, h, colors.command_list_background);
 	} else {
 		draw_shadow(x, y, list_w, h, ShadowMode.ALL);
 		r :: metrics.corner_rounding;
-		c :: colors.command_list_background_color;
+		c :: colors.command_list_background;
 		rect_rounded(x, y, list_w, h, r, c, c);
 	}
 
 	// Selected line
 	if selected_index >= start_index && selected_index < start_index + visible_lines {
 		selected_y :: ty + line_height * auto (selected_index - start_index);
-		rect_rounded(x, selected_y, list_w, line_height, rounding, colors.command_select_color, colors.command_select_color);
+		rect_rounded(x, selected_y, list_w, line_height, rounding, colors.command_select, colors.command_select);
 	}
 
 	hover_index : s64 = -1;
@@ -566,7 +566,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		ly := ty;
 		loop i := start_index; i < end_index; i += 1 {
 			if is_point_in_rect(x, ly, list_w, line_height, mouse.position.x, mouse.position.y) {
-				rect_rounded(x, ly, list_w, line_height, rounding, colors.selection_background_color, colors.selection_background_color);
+				rect_rounded(x, ly, list_w, line_height, rounding, colors.selection_background, colors.selection_background);
 				hover_index = i;
 				break;
 			}
@@ -581,9 +581,9 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		loop i := start_index; i < end_index; i += 1 {
 			ly :: line_base_y + (line_height * 0.5f - icons.height * 0.5f);
 			item :: &list[visible_list_index][i];
-			color := colors.foreground_color;
+			color := colors.foreground;
 			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
-				color = colors.modification_indicator_color;
+				color = colors.modification_indicator;
 			}
 			text(tx, ly, item.icon, color);
 			line_base_y += line_height;
@@ -610,7 +610,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
 
 			item :: &list[visible_list_index][i];
-			text(tx, ly, item.title, colors.foreground_color);
+			text(tx, ly, item.title, colors.foreground);
 			line_base_y += line_height;
 		}
 		tx         += title_w + item_spacing;
@@ -651,7 +651,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		loop i := start_index; i < end_index; i += 1 {
 			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
 			item :: &list[visible_list_index][i];
-			text(tx, ly, item.preview, colors.foreground_color);
+			text(tx, ly, item.preview, colors.foreground);
 			line_base_y += line_height;
 		}
 	}

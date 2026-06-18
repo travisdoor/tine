@@ -126,8 +126,8 @@ ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
-// FONT                          :: "FiraCode-Regular.ttf";
-FONT                          :: "JetBrainsMono-Regular.ttf";
+FONT                          :: "FiraCode-Regular.ttf";
+// FONT                          :: "JetBrainsMono-Regular.ttf";
 // FONT                          :: "GeistMono-Regular.ttf";
 FONT_UI                       :: "SourceSans3-Regular.ttf";
 FONT_UI_B                     :: "SourceSans3-Bold.ttf";
@@ -429,33 +429,34 @@ Settings :: struct {
 settings: Settings;
 
 Colors :: struct {
-	background_color                    : v4;
-	foreground_color                    : v4;
-	cursor_background_color             : v4;
-	cursor_foreground_color             : v4;
-	current_line_background_color       : v4;
-	search_result_background_color      : v4;
-	title_bar_color                     : v4;
-	title_bar_active                    : v4;
-	title_bar_text_color                : v4;
-	command_background_color            : v4;
-	command_foreground_color            : v4; // @Cleanup 2026-06-15?
-	command_title_color                 : v4;
-	command_select_color                : v4;
-	command_list_background_color       : v4;
-	modification_indicator_color        : v4;
-	selection_background_color          : v4;
-	selection_background_inactive_color : v4;
-	message_color                       : v4;
-	warning_color                       : v4;
-	error_color                         : v4;
-	inline_error_background_color       : v4;
-	inline_error_foreground_color       : v4;
-	inline_warning_background_color     : v4;
-	inline_warning_foreground_color     : v4;
-	macro_record_icon_color             : v4;
-	background_line_numbers_color       : v4;
-	foreground_line_numbers_color       : v4;
+	background                    : v4;
+	foreground                    : v4;
+	cursor_background             : v4;
+	cursor_foreground             : v4;
+	current_line_background       : v4;
+	search_result_background      : v4;
+	title_bar                     : v4;
+	title_bar_active              : v4;
+	title_bar_text                : v4;
+	command_background            : v4;
+	command_foreground            : v4; // @Cleanup 2026-06-15?
+	command_title                 : v4;
+	command_select                : v4;
+	command_list_background       : v4;
+	modification_indicator        : v4;
+	selection_background          : v4;
+	selection_background_inactive : v4;
+	message                       : v4;
+	warning                       : v4;
+	error                         : v4;
+	inline_error_background       : v4;
+	inline_error_foreground       : v4;
+	inline_warning_background     : v4;
+	inline_warning_foreground     : v4;
+	macro_record_icon             : v4;
+	background_line_numbers       : v4;
+	foreground_line_numbers       : v4;
+	progress_bar                  : v4;
 
 	// code
 	code_comment   : v4;
@@ -1071,10 +1072,11 @@ rebuild_fonts :: fn (force := false) Error {
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
 	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼﻿", &char_set);
+	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼—", &char_set);
 	array_push(&char_set, 0x00A9);
 	array_push(&char_set, 0x00AE);
 	array_push(&char_set, 0x00A7);
+	array_push(&char_set, 0xFEFF);
 
 	err: Error;
 
@@ -2042,7 +2044,7 @@ draw_frame :: fn () {
 	begin_frame();
 	defer end_frame();
 
-	clear_color(colors.command_list_background_color); // @Incomplete 2026-06-16
+	clear_color(colors.command_list_background); // @Incomplete 2026-06-16
 
 	{
 		active_x, last_active_x: f32;
@@ -2275,7 +2277,7 @@ draw_background_progress_bar :: fn (x: f32, y: f32, w: f32, h: f32) {
 	}
 
 	set_shader_color();
-	progress_bar_color :: colors.warning_color; // @Incomplete 2026-06-15: Use separate theme entry?
+	progress_bar_color :: colors.progress_bar;
 	rect(x + w * background_job_indicator.t * 0.0005f, y, w * 0.1f, h, progress_bar_color);
 	redraw();
 
