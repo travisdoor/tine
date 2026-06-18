@@ -210,9 +210,13 @@ metrics: struct {
 	title_max_size: f32;
 	shadow_size: f32;
 	corner_rounding: f32;
+	corner_rounding_panel: f32;
 	list_panel_max_width: f32;
 	list_panel_factor: f32;
 	line_item_height: f32;
+	command_panel_hints_alpha: f32;
+	command_panel_offset_y: f32;
+	border_line_width: f32;
 };
 
 InputMode :: enum {
@@ -2109,16 +2113,20 @@ draw_frame :: fn () {
 recalculate_metrics :: fn () {
 	line_spacing :: math.min(math.max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
 
-	metrics.title_bar_height     = font_ui.height  * 1.6f;
-	metrics.line_height          = font.height  * line_spacing;
-	metrics.item_spacing         = icons.height * 1.3f;
-	metrics.text_padding         = font.height  * 0.5f;
-	metrics.title_max_size       = font.height  * 25.f;
-	metrics.shadow_size          = WINDOW_SCALE * 8.f;
-	metrics.corner_rounding      = WINDOW_SCALE * 4.f;
-	metrics.list_panel_max_width = math.floor(WINDOW_SCALE * 1024.f);
-	metrics.list_panel_factor    = 0.8f;
-	metrics.line_item_height     = font.height * 1.4f;
+	metrics.title_bar_height          = font_ui.height  * 1.6f;
+	metrics.line_height               = font.height  * line_spacing;
+	metrics.item_spacing              = icons.height * 1.3f;
+	metrics.text_padding              = font.height  * 0.5f;
+	metrics.title_max_size            = font.height  * 25.f;
+	metrics.shadow_size               = WINDOW_SCALE * 8.f;
+	metrics.corner_rounding           = WINDOW_SCALE * 4.f;
+	metrics.corner_rounding_panel     = WINDOW_SCALE * 10.f;
+	metrics.list_panel_max_width      = math.floor(WINDOW_SCALE * 1024.f);
+	metrics.list_panel_factor         = 0.8f;
+	metrics.line_item_height          = font.height * 1.4f;
+	metrics.command_panel_hints_alpha = 0.5f;
+	metrics.command_panel_offset_y    = 50.f;
+	metrics.border_line_width         = 2.f;
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {
@@ -2267,7 +2275,8 @@ draw_background_progress_bar :: fn (x: f32, y: f32, w: f32, h: f32) {
 	}
 
 	set_shader_color();
-	rect(x + w * background_job_indicator.t * 0.0005f, y, w * 0.1f, h, colors.warning_color);
+	progress_bar_color :: colors.warning_color; // @Incomplete 2026-06-15: Use separate theme entry?
+	rect(x + w * background_job_indicator.t * 0.0005f, y, w * 0.1f, h, progress_bar_color);
 	redraw();
 
 	background_job_indicator.active_last_frame = true;

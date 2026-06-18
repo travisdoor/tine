@@ -690,13 +690,13 @@ compute_command_panel_layout :: fn (prefer_width: s32 = 0) (x: f32, y: f32, w: f
 	window_h := cast(f32) WINDOW_HEIGHT;
 	window_w := cast(f32) WINDOW_WIDTH;
 
-	panel_offset_y :: 50.f; // @Incomplete 2026-06-16: Metrics
+	panel_offset_y :: metrics.command_panel_offset_y;
 	max_w          :: if prefer_width > 0 then cast(f32) prefer_width else metrics.list_panel_max_width;
 	f              :: metrics.list_panel_factor;
 	max_h          :: math.max(math.ceil(window_h - panel_offset_y * 2.f), 0.f);
 
 	_, command_editor_h :: get_command_editor_size();
-	notif_area_h        :: command_editor_h; // @Incomplete 2026-06-15
+	notif_area_h        :: command_editor_h;
 
 	w               :: math.ceil(math.min(window_w * f, max_w));
 	h               :: command_editor_h + notif_area_h;
@@ -716,18 +716,16 @@ draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams, hin
 
 	assert(active_editor == command_editor);
 	draw_command_editor(command_editor, x, y, w, cmd_h, cmd_params);
-
-	draw_command_panel_hints(x, y+h-cmd_h, w, cmd_h, hints, 0.5f);  // @Incomplete 2026-06-16: Alpha to metrics/theme.
+	draw_command_panel_hints(x, y+h-cmd_h, w, cmd_h, hints, metrics.command_panel_hints_alpha);
 }
 
 draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0.f) {
 	using draw;
 
 	_, command_editor_h :: get_command_editor_size();
-	notif_area_h        :: command_editor_h; // @Incomplete 2026-06-15
-	border_line_width   :: 2.f; // @Incomplete 2026-06-15: Metrics!
-	r                   :: 16.f; // @Incomplete 2026-06-15: Metrics!
-
+	notif_area_h        :: command_editor_h;
+	border_line_width   :: metrics.border_line_width;
+	rounding            :: metrics.corner_rounding_panel;
 
 	fg_color :: colors.command_list_background_color;
 	bg_color :: colors.background_color;
@@ -737,8 +735,8 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 	set_shader_color();
 
 	// Background
-	rect_rounded(x, y, w, h, r, fg_color, fg_color);
-	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, r, bg_color, bg_color);
+	rect_rounded(x, y, w, h, rounding, fg_color, fg_color);
+	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, rounding, bg_color, bg_color);
 
 	set_shader_color();
 

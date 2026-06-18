@@ -41,11 +41,11 @@ search_mode_terminate :: fn () {}
 
 search_panel_width :: fn (active_editor_w: f32) f32 #inline {
 	text_padding :: metrics.text_padding;
-	
+
 	w := 650.f * WINDOW_SCALE;
 	w  = math.min(w, cast(f32) WINDOW_WIDTH - text_padding * 2.f);
 	w  = math.min(w, active_editor_w - text_padding * 2.f);
-	
+
 	return w;
 }
 
@@ -104,7 +104,7 @@ draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edito
 				key_mapping = get_keybinding_for_command(.SEARCH_TO_BUFFER),
 				info        = "to buffer",
 			},
-		}, 0.5f); // @Incomplete 2026-06-16: Alpha to metrics/theme.
+		}, metrics.command_panel_hints_alpha);
 }
 
 //

@@ -153,7 +153,7 @@ draw_search_hints :: fn (hints: []PanelHint) #inline {
 	w :: list_ui_ctx.w;
 	h :: list_ui_ctx.hints_h;
 
-	draw_command_panel_hints(x, y, w, h, hints, 0.5f);  // @Incomplete 2026-06-16: Alpha to metrics/theme.
+	draw_command_panel_hints(x, y, w, h, hints, metrics.command_panel_hints_alpha);
 }
 
 draw_search_command_list :: fn (loc := #call_location) bool {
@@ -224,8 +224,7 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 		{ // Separator
 			set_shader_color();
-			border_line_width :: 2.f; // @Incomplete 2026-06-15: Metrics!
-
+			border_line_width :: metrics.border_line_width;
 			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
 		}
 
@@ -371,8 +370,7 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 		{ // Separator
 			set_shader_color();
-			border_line_width :: 2.f; // @Incomplete 2026-06-15: Metrics!
-
+			border_line_width :: metrics.border_line_width;
 			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.command_list_background_color);
 		}
 

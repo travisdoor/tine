@@ -52,12 +52,12 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 	x :: active_editor_x + active_editor_w - text_padding - w;
 	y :: active_editor_y + active_editor_h - text_padding - h - title_bar_height;
 	draw_command_editor_panel(x, y, w, h);
-	
+
 	cmd_h :: h/2.f;
-	
+
 	if is_replacing {
 		using draw;
-		
+
 		title :: tprint("Replacing '%' with '%'.", search.last_subject, search.last_replacement);
 
 		line_height  :: metrics.line_height;
@@ -77,14 +77,14 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 		text(title_x, title_y, title, colors.foreground_color);
 	} else {
 		title :: tprint("Replace '%' in '%' with...", search.last_subject, target_buf.name);
-		
+
 		assert(active_editor == command_editor);
 		draw_command_editor(command_editor, x, y, w, cmd_h, .{
 				title = title,
 				icon  = icon(ICON_REPLACE),
 			});
 	}
-	
+
 	draw_command_panel_hints(x, y+cmd_h, w, cmd_h, [_]PanelHint.{
 			.{
 				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
@@ -106,7 +106,7 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 				key_mapping = get_keybinding_for_command(.SELECT_ALL),
 				info        = "all",
 			},
-		}, 0.5f); // @Incomplete 2026-06-16: Alpha to metrics/theme.
+		}, metrics.command_panel_hints_alpha);
 }
 
 invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
