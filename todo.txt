@@ -1,4 +1,4 @@
-[x] Platform commands should be visible only on supported platform.
+[ ] Platform commands should be visible only on supported platform.
 [ ] Use highter resolution for app icon. It's blurry in Windows start menu.
 [ ] LSP for proj files.
 [ ] Scroll + Ctrl for font resize.
@@ -9,6 +9,7 @@
 [ ] Improve save dialog.
 [x] Keybindings do not keep order from config file.
 [x] Broken wrap for non ASCII chars:
+[ ] Add function to verify line-endings consistency in files.
 
 [ ] New UI
 	[x] Resize list based on available items.
@@ -18,3 +19,4 @@
     [ ] Split resize.
     [x] Remove themes which are not looking good with a new setup.
 	[x] Use custom line spacing for list entries.
+	[ ] LSP auto complete list.
