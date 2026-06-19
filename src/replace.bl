@@ -20,16 +20,6 @@ replace_mode_init :: fn () {
 	if !focus_current_search_result() {
 		closest_match(target_buf, target_editor);
 	}
-
-	if settings.show_hints {
-		using Command;
-		replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
-		next_binding    :: get_keybinding_for_command(MOVE_DOWN);
-		prev_binding    :: get_keybinding_for_command(MOVE_UP);
-		all_binding     :: get_keybinding_for_command(SELECT_ALL);
-		hint :: tprint("[%] next match\t[%] prev match\t[%] commit replacement\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
-		print_info(hint);
-	}
 }
 
 replace_mode_terminate :: fn () {
@@ -161,16 +151,6 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 			} else {
 				commit_current_replacement();
 				is_replacing = true;
-
-				if settings.show_hints {
-					using Command;
-					replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
-					next_binding    :: get_keybinding_for_command(MOVE_DOWN);
-					prev_binding    :: get_keybinding_for_command(MOVE_UP);
-					all_binding     :: get_keybinding_for_command(SELECT_ALL);
-					hint :: tprint("[%] next match\t[%] prev match\t[%] replace\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
-					print_info(hint);
-				}
 			}
 		}
 

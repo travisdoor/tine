@@ -404,6 +404,8 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		// rect(x, 100.f, w, s, [_]v4.{ c2, c2, c1, c1 });
 	}
 
+	draw_shadow(x, y + h - title_bar_height, w, title_bar_height);
+
 	// file info bar
 	has_changes :: buf.saved_top != buf.undo_top;
 	line_ending_name := "UNKNOWN";
@@ -588,11 +590,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 	line_height     :: metrics.line_height;
 	text_padding    :: metrics.text_padding;
 
-	// Draw background
 	set_shader_color();
-	// draw_shadow(x, y, w, h, ShadowMode.BOTTOM);
-	// rect(x, y, w, h, colors.command_background);
-
 	title_size :: text_size(icon(ICON_SEARCH), &icons).width + text_padding;
 
 	title_x :: x + text_padding;
@@ -727,13 +725,12 @@ draw_last_status_message :: fn (x: f32, y: f32, w: f32) bool {
 
 	title_bar_height :: metrics.title_bar_height;
 	item_spacing     :: metrics.item_spacing;
-	text_padding     :: metrics.text_padding * 2.f;
+	text_padding     :: metrics.text_padding;
 	rounding         :: metrics.corner_rounding;
 
 	background_color, foreground_color :: get_status_bar_colors(kind);
 
 	draw.set_shader_color();
-	draw_shadow(x, y, w, title_bar_height, rounding, .NONE);
 	draw.rect_rounded(x, y, w, title_bar_height, rounding, background_color, background_color);
 
 	draw.set_shader_font(&icons);
@@ -770,8 +767,8 @@ get_file_link_under_cursor :: fn (buf: *Buffer, cursor_position: s64) (FileLink,
 	return link, true;
 }
 
-draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32, text: string_view, bg_color: v4, fg_color: v4) {
-	r                :: metrics.corner_rounding;
+draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32, text: string_view) {
+	rounding         :: metrics.corner_rounding_panel;
 	line_height      :: metrics.line_height;
 	text_padding     :: metrics.text_padding;
 	shadow_size      :: metrics.shadow_size;
@@ -788,8 +785,8 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 	ph := (line_height * auto lines.len) + text_padding * 2.f;
 	py -= ph;
 
-	draw_shadow(px, py, pw, ph, r, .ALL);
-	draw.rect_rounded(px, py, pw, ph, r, bg_color, bg_color);
+	draw_panel_body(px, py, pw, ph, rounding);
+
 	px += text_padding;
 	py += text_padding;
 
@@ -797,7 +794,7 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 
 	loop i := 0; i < lines.len; i += 1 {
 		line :: string_view.{ lines[i].len, &text[lines[i].start_index] };
-		draw.text(px, py, line, fg_color);
+		draw.text(px, py, line, colors.foreground);
 		py += line_height;
 	}
 }

@@ -176,9 +176,6 @@ change_caret_on_selection              true
 maximize_on_start                      false
 save_all_before_build                  true
 
-# Show special command binding in some modes.
-show_hints                             true
-
 # Enable smooth animated navigation.
 smooth_movement                        true
 

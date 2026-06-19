@@ -453,36 +453,6 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 	return clicked;
 }
 
-draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
-	window_h := cast(f32) WINDOW_HEIGHT;
-	window_w := cast(f32) WINDOW_WIDTH;
-
-	max_w    :: metrics.list_panel_max_width;
-	f        :: metrics.list_panel_factor;
-	rounding :: metrics.corner_rounding_panel;
-
-	w :: math.min(math.ceil(window_w * f), max_w);
-	h :: math.ceil(window_h * f);
-
-	px :: window_w/2.f - w/2.f;
-	py :: window_h/2.f - h/2.f;
-	r  :: 16.f;
-
-	_, cmd_h :: get_command_editor_size();
-
-	fg_color :: colors.command_list_background;
-	bg_color :: colors.background;
-
-	using draw;
-
-	draw_shadow(px, py, w, h, rounding, .ALL);
-	rect_rounded(px, py, w, h, r, fg_color, fg_color);
-	rect_rounded(px+2.f, py+2.f, w-4.f, h-4.f, r, bg_color, bg_color);
-	rect(px+2.f, py+cmd_h, w-4.f, 2.f, fg_color);
-
-	return px, py, w, h;
-}
-
 draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, loc := #call_location) bool {
 	using draw;
 
@@ -526,15 +496,8 @@ draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, loc := #call_location) 
 
 	available_w := list_w - text_padding * 2.f;
 
-	{ // Draw background
-		set_shader_color();
+	draw_panel_body(x, y, list_w, h, rounding);
 	
-		draw_shadow(x, y, list_w, h, rounding, .ALL);
-		r :: metrics.corner_rounding;
-		c :: colors.command_list_background;
-		rect_rounded(x, y, list_w, h, r, c, c);
-	}
-
 	// Selected line
 	if selected_index >= start_index && selected_index < start_index + visible_lines {
 		selected_y :: ty + line_height * auto (selected_index - start_index);

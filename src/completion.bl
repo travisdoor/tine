@@ -32,8 +32,6 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 			active_editor_w,
 			active_editor_h,
 			signature_help_cache,
-			colors.command_list_background,
-			colors.foreground
 		);
 	}
 

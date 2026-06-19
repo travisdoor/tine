@@ -25,12 +25,7 @@ draw_peek_error_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 		return;
 	}
 
-	is_warning :: loc.kind == ErrorLocation.kind.WARNING;
-
-	fg_color :: if is_warning then colors.inline_warning_foreground else colors.inline_error_foreground;
-	bg_color :: if is_warning then colors.inline_warning_background else colors.inline_error_background;
-
-	draw_peek_text_box(active_editor_x, active_editor_y, active_editor_w, active_editor_h, text, bg_color, fg_color);
+	draw_peek_text_box(active_editor_x, active_editor_y, active_editor_w, active_editor_h, text);
 }
 
 #scope_private

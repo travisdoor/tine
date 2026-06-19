@@ -403,7 +403,7 @@ Settings :: struct {
 	change_caret_on_selection:              bool;
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
-	show_hints:                             bool;
+	show_hints:                             bool; // deprecated
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
 	line_numbers_relative:                  bool; // deprecated

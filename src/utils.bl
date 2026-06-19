@@ -655,32 +655,15 @@ get_file_hash :: fn (filepath: string_view) u32 {
 	return str_hash(tmp);
 }
 
-ShadowMode :: enum {
-	NONE;
-	ALL;
-	TOP;
-	BOTTOM;
-}
-
-draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, rounding: f32, mode := ShadowMode.ALL) {
+draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32) {
 	using draw;
 	s := metrics.shadow_size;
 
 	set_shader_color();
-	inner_color :: rgba(0x00000050);
+	inner_color :: rgba(0x00000040);
 	outer_color :: rgba(0x0);
-	using ShadowMode;
-	switch mode {
-		NONE { return; }
-		ALL {
-			s /= 2.f;
-			rect_rounded(x + s, y + s, w + s, h + s, s*4.f, inner_color, outer_color);
-		}
-		
-		default {
-			rect_rounded(x - s, y - s, w + 2.f * s, h + 2.f * s, s*2.f, inner_color, outer_color);
-		}
-	}
+
+	rect_rounded(x - s, y - s, w + 2.f * s, h + 2.f * s, s*2.f, inner_color, outer_color);
 }
 
 compute_command_panel_layout :: fn (prefer_width: s32 = 0) (x: f32, y: f32, w: f32, h: f32, content_start_y: f32, content_max_h: f32) {
@@ -716,6 +699,19 @@ draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams, hin
 	draw_command_panel_hints(x, y+h-cmd_h, w, cmd_h, hints, metrics.command_panel_hints_alpha);
 }
 
+draw_panel_body :: fn (x: f32, y: f32, w: f32, h: f32, rounding: f32) {
+	using draw;
+	border_line_width   :: metrics.border_line_width;
+	fg_color            :: colors.command_list_background;
+	bg_color            :: colors.background;
+
+	draw_shadow(x, y, w, h);
+
+	set_shader_color();
+	rect_rounded(x, y, w, h, rounding, fg_color, fg_color);
+	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, rounding, bg_color, bg_color);
+}
+
 draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0.f) {
 	using draw;
 
@@ -723,21 +719,11 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 	notif_area_h        :: command_editor_h;
 	border_line_width   :: metrics.border_line_width;
 	rounding            :: metrics.corner_rounding_panel;
+	fg_color            :: colors.command_list_background;
 
-	fg_color :: colors.command_list_background;
-	bg_color :: colors.background;
-
-	draw_shadow(x, y, w, h, metrics.corner_rounding_panel, .ALL);
+	draw_panel_body(x, y, w, h, rounding);
 
 	set_shader_color();
-
-	// Background
-	rect_rounded(x, y, w, h, rounding, fg_color, fg_color);
-	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, rounding, bg_color, bg_color);
-
-	set_shader_color();
-
-
 	// Separator
 	elem_y := y + command_editor_h;
 	rect(x, elem_y, w, border_line_width, fg_color);
