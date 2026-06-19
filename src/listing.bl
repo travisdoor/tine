@@ -41,16 +41,6 @@ listing_terminate :: fn () {
 	mutex_terminate(&visible_list_mutex);
 }
 
-DrawListCols :: enum #flags {
-	NO_COLS = 0;
-	ICON;
-	TITLE;
-	HINT;
-	PREVIEW;
-}
-
-ListerMode :: enum { TOP_DOWN; FLOATING }
-
 get_list_height :: fn (double_line := false) (h: f32, visible_lines: s32) {
 	line_height     :: if double_line then metrics.line_height * 2.f else metrics.line_height;
 	text_padding    :: metrics.text_padding;
@@ -158,8 +148,6 @@ draw_search_hints :: fn (hints: []PanelHint) #inline {
 
 draw_search_command_list :: fn (loc := #call_location) bool {
 	using draw;
-	using DrawListCols;
-
 	allocator :: application_context.temporary_allocator;
 
 	ctx :: &list_ui_ctx;
@@ -307,7 +295,6 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 draw_search_simple_list :: fn (loc := #call_location) bool {
 	using draw;
-	using DrawListCols;
 
 	ctx :: &list_ui_ctx;
 	assert(ctx.is_active);
@@ -470,8 +457,9 @@ draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
 	window_h := cast(f32) WINDOW_HEIGHT;
 	window_w := cast(f32) WINDOW_WIDTH;
 
-	max_w :: metrics.list_panel_max_width;
-	f     :: metrics.list_panel_factor;
+	max_w    :: metrics.list_panel_max_width;
+	f        :: metrics.list_panel_factor;
+	rounding :: metrics.corner_rounding_panel;
 
 	w :: math.min(math.ceil(window_w * f), max_w);
 	h :: math.ceil(window_h * f);
@@ -487,7 +475,7 @@ draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
 
 	using draw;
 
-	draw_shadow(px, py, w, h, ShadowMode.ALL);
+	draw_shadow(px, py, w, h, rounding, .ALL);
 	rect_rounded(px, py, w, h, r, fg_color, fg_color);
 	rect_rounded(px+2.f, py+2.f, w-4.f, h-4.f, r, bg_color, bg_color);
 	rect(px+2.f, py+cmd_h, w-4.f, 2.f, fg_color);
@@ -495,18 +483,15 @@ draw_list_panel :: fn () (x: f32, y: f32, w: f32, h: f32) {
 	return px, py, w, h;
 }
 
-draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.TOP_DOWN, loc := #call_location) (w: f32, h: f32, clicked: bool) {
+draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, loc := #call_location) bool {
 	using draw;
-	using DrawListCols;
 
 	mutex_lock(&visible_list_mutex);
 	defer mutex_unlock(&visible_list_mutex);
-
-	if list[visible_list_index].len == 0 { return 0.f, 0.f, false; }
+	if list[visible_list_index].len == 0 then return false;
 
 	line_height     :: metrics.line_height;
 	text_padding    :: metrics.text_padding;
-	title_max_size  :: metrics.title_max_size;
 	item_spacing    :: metrics.item_spacing;
 	rounding        :: metrics.corner_rounding;
 
@@ -533,23 +518,18 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	tx := x + text_padding;
 	ty :: y + text_padding;
 
-	if mode == ListerMode.FLOATING {
-		loop i := start_index; i < end_index; i += 1 {
-			item :: &list[visible_list_index][i];
-			preview_w :: text_size(item.preview, &font);
-			list_w = math.max(list_w, preview_w + item_spacing*2.f);
-		}
+	loop i := start_index; i < end_index; i += 1 {
+		item :: &list[visible_list_index][i];
+		preview_w :: text_size(item.preview, &font);
+		list_w = math.max(list_w, preview_w + item_spacing*2.f);
 	}
 
 	available_w := list_w - text_padding * 2.f;
 
-	// Draw background
-	set_shader_color();
-	if mode == ListerMode.TOP_DOWN {
-		// draw_shadow(x, y, list_w, h, ShadowMode.BOTTOM);
-		// rect(x, y, list_w, h, colors.command_list_background);
-	} else {
-		draw_shadow(x, y, list_w, h, ShadowMode.ALL);
+	{ // Draw background
+		set_shader_color();
+	
+		draw_shadow(x, y, list_w, h, rounding, .ALL);
 		r :: metrics.corner_rounding;
 		c :: colors.command_list_background;
 		rect_rounded(x, y, list_w, h, r, c, c);
@@ -574,8 +554,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		}
 	}
 
-	// draw icons
-	if (cols & ICON) == ICON {
+	{ // Icon
 		set_shader_font(&icons);
 		line_base_y := ty;
 		loop i := start_index; i < end_index; i += 1 {
@@ -592,57 +571,10 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		available_w -= item_spacing;
 	}
 
-	set_shader_font(&font_ui);
 
-	if (cols & TITLE) == TITLE {
-		title_w := available_w;
-		if (cols & (HINT | PREVIEW)) != NO_COLS {
-			title_w = math.min(title_max_size, available_w*0.2f);
-		}
-		title_w -= item_spacing;
-		title_w  = math.clamp(title_w, 0.f, available_w);
-		set_scissor(tx, y, title_w, h);
-		defer clear_scissor();
-		defer flush();
+	{ // Text
+		set_shader_font(&font);
 
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
-
-			item :: &list[visible_list_index][i];
-			text(tx, ly, item.title, colors.foreground);
-			line_base_y += line_height;
-		}
-		tx         += title_w + item_spacing;
-		available_w -= title_w;
-	}
-
-	if (cols & HINT) == HINT {
-		hint_w := available_w;
-		if (cols & PREVIEW) != NO_COLS {
-			hint_w = available_w * 0.2f;
-		}
-		hint_w -= item_spacing;
-		hint_w  = math.clamp(hint_w, 0.f, available_w);
-		set_scissor(tx, y, hint_w, h);
-		defer clear_scissor();
-		defer flush();
-
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
-
-			item :: &list[visible_list_index][i];
-			text(tx, ly, item.hint, colors.code_comment);
-			line_base_y += line_height;
-		}
-		tx         += hint_w + item_spacing;
-		available_w -= hint_w;
-	}
-
-	set_shader_font(&font);
-
-	if (cols & PREVIEW) == PREVIEW {
 		set_scissor(tx, y, available_w, h);
 		defer clear_scissor();
 		defer flush();
@@ -680,7 +612,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	}
 
 	last_selected_index = selected_index;
-	return list_w, h, clicked;
+	return clicked;
 }
 
 list_completion :: fn (strs: []string, ids: []s32, subject: string_view = "") {

@@ -392,9 +392,17 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		}
 	}
 
-	// shadow
-	set_shader_color();
-	draw_shadow(x, y + h - title_bar_height, w, title_bar_height, ShadowMode.TOP);
+	{ // shadow
+		// s :: metrics.shadow_size;
+		// s :: 200.f;
+
+		// c2 :: v4.{ x = 1.f, w = 0.f };
+		// c1 :: v4.{ x = 1.f, w = 8.f };
+
+		// set_shader_color();
+		// y + h - title_bar_height - s
+		// rect(x, 100.f, w, s, [_]v4.{ c2, c2, c1, c1 });
+	}
 
 	// file info bar
 	has_changes :: buf.saved_top != buf.undo_top;
@@ -479,7 +487,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	text(status_x, text_y, title, colors.title_bar_text);
 
 	if is_active || (active_editor == command_editor && last_active_text_editor == index) {
-		draw_last_status_message(status_x, h - title_bar_height, w, ShadowMode.NONE);
+		draw_last_status_message(status_x, h - title_bar_height, w);
 	}
 
 	// Mouse input
@@ -713,7 +721,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 	}
 }
 
-draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOTTOM) bool {
+draw_last_status_message :: fn (x: f32, y: f32, w: f32) bool {
 	has_one, kind, text :: last_message();
 	if !has_one { return false; }
 
@@ -725,7 +733,7 @@ draw_last_status_message :: fn (x: f32, y: f32, w: f32, shadow := ShadowMode.BOT
 	background_color, foreground_color :: get_status_bar_colors(kind);
 
 	draw.set_shader_color();
-	draw_shadow(x, y, w, title_bar_height, shadow);
+	draw_shadow(x, y, w, title_bar_height, rounding, .NONE);
 	draw.rect_rounded(x, y, w, title_bar_height, rounding, background_color, background_color);
 
 	draw.set_shader_font(&icons);
@@ -780,7 +788,7 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 	ph := (line_height * auto lines.len) + text_padding * 2.f;
 	py -= ph;
 
-	draw_shadow(px, py, pw, ph, ShadowMode.ALL);
+	draw_shadow(px, py, pw, ph, r, .ALL);
 	draw.rect_rounded(px, py, pw, ph, r, bg_color, bg_color);
 	px += text_padding;
 	py += text_padding;

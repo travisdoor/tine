@@ -58,7 +58,7 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 		py -= h + line_height + y * 2.f;
 	}
 
-	_, _, clicked :: draw_list(px, py, 300.f, DrawListCols.ICON | DrawListCols.PREVIEW, ListerMode.FLOATING);
+	clicked :: draw_simple_floating_list(px, py, 300.f);
 	if clicked then commit();
 }
 

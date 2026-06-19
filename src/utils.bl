@@ -662,26 +662,23 @@ ShadowMode :: enum {
 	BOTTOM;
 }
 
-draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
+draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, rounding: f32, mode := ShadowMode.ALL) {
 	using draw;
-	// r :: metrics.corner_rounding;
-	r :: 24.f;
-	s :: metrics.shadow_size;
+	s := metrics.shadow_size;
 
 	set_shader_color();
-	inner_color :: rgba(0x00000060);
+	inner_color :: rgba(0x00000050);
 	outer_color :: rgba(0x0);
 	using ShadowMode;
 	switch mode {
 		NONE { return; }
 		ALL {
-			rect_rounded(x, y, w + s, h + s, r, inner_color, outer_color);
+			s /= 2.f;
+			rect_rounded(x + s, y + s, w + s, h + s, s*4.f, inner_color, outer_color);
 		}
-		TOP {
-			rect_rounded(x - s, y - s, w + s * 2.f, h + s, r, inner_color, outer_color);
-		}
-		BOTTOM {
-			rect_rounded(x - s, y, w + s * 2.f, h + s, r, inner_color, outer_color);
+		
+		default {
+			rect_rounded(x - s, y - s, w + 2.f * s, h + 2.f * s, s*2.f, inner_color, outer_color);
 		}
 	}
 }
@@ -730,7 +727,7 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 	fg_color :: colors.command_list_background;
 	bg_color :: colors.background;
 
-	draw_shadow(x, y, w, h, ShadowMode.ALL);
+	draw_shadow(x, y, w, h, metrics.corner_rounding_panel, .ALL);
 
 	set_shader_color();
 
