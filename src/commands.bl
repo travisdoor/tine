@@ -1,8 +1,8 @@
 Command :: enum {
 	UNKNOWN;
-	_PUBLIC;
-
 	DEBUG_REPORT;
+
+	_PUBLIC;
 
 	// Navigation
 	MOVE_RIGHT;
@@ -266,6 +266,18 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto ALIGN_ASSIGNMENTS]                = "Align selected lines by assignment symbols set for current file type.";
 
 	help[auto QUIT]                             = "Quit Tine.";
+
+	loop i := 0; i < help.len; i += 1 {
+		using Command;
+		switch cast(Command) i {
+			.UNKNOWN, .DEBUG_REPORT, ._WINDOWS_BEGIN, ._WINDOWS_END, ._PUBLIC {
+				continue;
+			}
+			default;
+		}
+
+		if help[i].len == 0 then print_warn("Command '%' has no help string.", cast(Command) i);
+	}
 
 	return help;
 }

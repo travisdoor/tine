@@ -1,4 +1,4 @@
-[ ] Platform commands should be visible only on supported platform.
+[x] Platform commands should be visible only on supported platform.
 [ ] Use highter resolution for app icon. It's blurry in Windows start menu.
 [ ] LSP for proj files.
 [ ] Scroll + Ctrl for font resize.
@@ -9,12 +9,6 @@
 [ ] Improve save dialog.
 [x] Keybindings do not keep order from config file.
 [x] Broken wrap for non ASCII chars:
-
- Now I can see the bug clearly. In  get_character_count_to_fit , the  num  counter tracks the number of characters (Unicode codepoints), but when used as a byte offset in  slice_range 
-  at line 688, it's used as a byte index. Multi-byte UTF-8 characters (like  áčď…  which take 2+ bytes each) cause  num  to advance by 1 per codepoint but  converted_bytes  advances by
-  their actual byte count and the final  return num  returns the character count, not the byte offs.
-
-
 
 [ ] New UI
 	[x] Resize list based on available items.

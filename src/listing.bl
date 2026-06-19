@@ -703,7 +703,9 @@ list_commands :: fn (repeatable_only := false) {
 
 	skip := false;
 	loop i := 0; i < COMMAND_NAMES.len; i += 1 {
-		if i <= auto Command._PUBLIC then continue;
+		if i == auto Command.UNKNOWN then continue;
+
+		if !IS_DEBUG && i <= auto Command._PUBLIC then continue;
 		if (i == auto Command._WINDOWS_BEGIN) {
 			skip = PLATFORM != Platform.WINDOWS;
 			continue;
