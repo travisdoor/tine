@@ -489,7 +489,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	text(status_x, text_y, title, colors.title_bar_text);
 
 	if is_active || (active_editor == command_editor && last_active_text_editor == index) {
-		draw_last_status_message(status_x, h - title_bar_height, w);
+		draw_last_status_message(status_x, h - title_bar_height, w-(status_x-x));
 	}
 
 	// Mouse input
