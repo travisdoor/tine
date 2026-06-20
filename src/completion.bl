@@ -51,12 +51,14 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 	px :: x + line_w - editor.sliding.horizontal_offset;
 	py := y * 2.f + line_height * auto (current_cursor.row - first_line_index + 1); // +1 one line down
 
-	h :: get_list_height();
+	MAX_COMLETION_ITEMS :: 20;
+
+	h :: get_list_height(false, MAX_COMLETION_ITEMS);
 	if py + h > auto WINDOW_HEIGHT {
 		py -= h + line_height + y * 2.f;
 	}
 
-	clicked :: draw_simple_floating_list(px, py, 300.f);
+	clicked :: draw_simple_floating_list(px, py, 300.f, MAX_COMLETION_ITEMS);
 	if clicked then commit();
 }
 

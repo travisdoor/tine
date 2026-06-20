@@ -41,11 +41,12 @@ listing_terminate :: fn () {
 	mutex_terminate(&visible_list_mutex);
 }
 
-get_list_height :: fn (double_line := false) (h: f32, visible_lines: s32) {
+// @Duplicate 2026-06-20: compute_list_height
+get_list_height :: fn (double_line := false, max_item_count := math.S32_MAX) (h: f32, visible_lines: s32) {
 	line_height     :: if double_line then metrics.line_height * 2.f else metrics.line_height;
 	text_padding    :: metrics.text_padding;
 
-	visible_lines := cast(s32) (cast(f32) WINDOW_HEIGHT / line_height);
+	visible_lines := math.min(cast(s32) (cast(f32) WINDOW_HEIGHT / line_height), max_item_count);
 	visible_lines = math.min(visible_lines, auto list[visible_list_index].len);
 
 	return text_padding * 2.f + line_height * auto visible_lines, visible_lines;
@@ -453,7 +454,7 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 	return clicked;
 }
 
-draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, loc := #call_location) bool {
+draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, max_item_count: s32, loc := #call_location) bool {
 	using draw;
 
 	mutex_lock(&visible_list_mutex);
@@ -465,7 +466,7 @@ draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, loc := #call_location) 
 	item_spacing    :: metrics.item_spacing;
 	rounding        :: metrics.corner_rounding;
 
-	h, visible_lines :: get_list_height();
+	h, visible_lines :: get_list_height(false, max_item_count);
 	list_w := w;
 
 	// scrolling
@@ -497,7 +498,7 @@ draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, loc := #call_location) 
 	available_w := list_w - text_padding * 2.f;
 
 	draw_panel_body(x, y, list_w, h, rounding);
-	
+
 	// Selected line
 	if selected_index >= start_index && selected_index < start_index + visible_lines {
 		selected_y :: ty + line_height * auto (selected_index - start_index);
