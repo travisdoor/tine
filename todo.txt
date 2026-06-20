@@ -10,6 +10,8 @@
 [x] Keybindings do not keep order from config file.
 [x] Broken wrap for non ASCII chars:
 [ ] Add function to verify line-endings consistency in files.
+[ ] Allow no auto-facus on build command.
+	[ ] Print number of error and warings when build is done.
 
 [ ] New UI
 	[x] Resize list based on available items.

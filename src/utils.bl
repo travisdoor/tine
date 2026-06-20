@@ -282,7 +282,7 @@ get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_undersco
 	loop i := 0; i < tmp.len; i += 1 {
 		name :: str_make(info.variants[i].name);
 		str_lower(&name);
-		if replace_underscore {
+		if replace_underscore && name[0] != '_' {
 			str_replace_all(&name, '_', '-');
 		}
 
@@ -702,7 +702,7 @@ draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams, hin
 draw_panel_body :: fn (x: f32, y: f32, w: f32, h: f32, rounding: f32) {
 	using draw;
 	border_line_width   :: metrics.border_line_width;
-	fg_color            :: colors.command_list_background;
+	fg_color            :: colors.panel_outline;
 	bg_color            :: colors.background;
 
 	draw_shadow(x, y, w, h);
@@ -719,7 +719,7 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 	notif_area_h        :: command_editor_h;
 	border_line_width   :: metrics.border_line_width;
 	rounding            :: metrics.corner_rounding_panel;
-	fg_color            :: colors.command_list_background;
+	fg_color            :: colors.panel_outline;
 
 	draw_panel_body(x, y, w, h, rounding);
 

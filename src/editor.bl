@@ -652,7 +652,7 @@ draw_command_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, params: D
 	// Hint:
 	if params.hint.len > 0 {
 		hint_w :: text_size(params.hint, &font);
-		text(x + w - hint_w - text_padding, text_base_line_y, params.hint, colors.command_title);
+		text(x + w - hint_w - text_padding, text_base_line_y, params.hint, colors.message);
 	}
 
 	set_scissor(scissor_x, y, line_w, h);

@@ -439,10 +439,11 @@ Colors :: struct {
 	title_bar_active              : v4;
 	title_bar_text                : v4;
 	command_background            : v4;
-	command_foreground            : v4; // @Cleanup 2026-06-15?
-	command_title                 : v4;
+	command_foreground            : v4; // Deprecated
+	command_title                 : v4; // Deprecated
 	command_select                : v4;
-	command_list_background       : v4;
+	command_list_background       : v4; // Deprecated
+	panel_outline                 : v4;
 	modification_indicator        : v4;
 	selection_background          : v4;
 	selection_background_inactive : v4;
@@ -2044,7 +2045,7 @@ draw_frame :: fn () {
 	begin_frame();
 	defer end_frame();
 
-	clear_color(colors.command_list_background); // @Incomplete 2026-06-16
+	clear_color(colors.panel_outline);
 
 	{
 		active_x, last_active_x: f32;

@@ -378,11 +378,8 @@ search_result_background            6B5A35
 title_bar                           1A1815
 title_bar_active                    3A3326
 title_bar_text                      D6C7A1
-command_background                  211F1B
-command_foreground                  CFC2A0
-command_title                       B07A3A
 command_select                      3F3728
-command_list_background             2A2722
+panel_outline                       2A2722
 modification_indicator              C28B3C
 selection_background                4F4535
 selection_background_inactive       3A342C
@@ -429,11 +426,8 @@ ansi_white                          D6C7A1
 # title_bar                           E8DEC9
 # title_bar_active                    D7C2A1
 # title_bar_text                      2E241A
-# command_background                  F0E7D8
-# command_foreground                  3A2E22
-# command_title                       7A5A3A
 # command_select                      D7C2A1
-# command_list_background             E2D6C2
+# panel_outline                       E2D6C2
 # modification_indicator              7A5A3A
 # selection_background                D7C2A1
 # selection_background_inactive       EDE3D3
