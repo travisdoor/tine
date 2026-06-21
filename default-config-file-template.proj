@@ -175,6 +175,9 @@ block_caret                            true
 change_caret_on_selection              true
 maximize_on_start                      false
 save_all_before_build                  true
+# Focus the shell buffer automatically when build command is invoked. Otherwise compilation
+# runs in background.
+focus_shell_on_build                   false
 
 # Enable smooth animated navigation.
 smooth_movement                        true
@@ -300,6 +303,9 @@ save                 Ctrl+W F2
 new-buffer           Ctrl+Alt+N
 open-file            Ctrl+O
 open-project         Ctrl+Shift+O
+
+open-messages
+open-shell           Ctrl+`
 
 quick-open           Ctrl+P F3
 save-as              # No mapping
@@ -441,7 +447,7 @@ ansi_white                          D6C7A1
 # macro_record_icon                   8E2A2A
 # background_line_numbers             E2D6C2
 # foreground_line_numbers             6A5A46
-# progress_bar                        8A4100
+# progress_bar                        FF4C00
 
 # code_comment                        5E6B57
 # code_keyword                        2E4A7D

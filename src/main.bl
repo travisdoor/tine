@@ -126,8 +126,8 @@ ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
 
 // Static assets loaded directly into the executable data segment.
-FONT                          :: "FiraCode-Regular.ttf";
-// FONT                          :: "JetBrainsMono-Regular.ttf";
+// FONT                          :: "FiraCode-Regular.ttf";
+FONT                          :: "JetBrainsMono-Regular.ttf";
 // FONT                          :: "GeistMono-Regular.ttf";
 FONT_UI                       :: "SourceSans3-Regular.ttf";
 FONT_UI_B                     :: "SourceSans3-Bold.ttf";
@@ -403,6 +403,7 @@ Settings :: struct {
 	change_caret_on_selection:              bool;
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
+	focus_shell_on_build:                   bool;
 	show_hints:                             bool; // deprecated
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
@@ -508,6 +509,18 @@ clear_error_list :: fn () {
 	error_marker_visible = false;
 
 	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+}
+
+get_error_and_warning_count :: fn () (errors: s32, warnings: s32) {
+	ec, wc := 0;
+	loop i := 0; i < error_list.len; i += 1 {
+		if error_list[i].kind == .ERROR {
+			ec += 1;
+		} else {
+			wc += 1;
+		}
+	}
+	return ec, wc;
 }
 
 // Compilation errors are in the list and shown only if the line with error is focused and not changed.
@@ -1073,11 +1086,26 @@ rebuild_fonts :: fn (force := false) Error {
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
 	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼—", &char_set);
-	array_push(&char_set, 0x00A9);
-	array_push(&char_set, 0x00AE);
-	array_push(&char_set, 0x00A7);
-	array_push(&char_set, 0xFEFF);
+	draw.font_generate_char_set(
+		// Your original string:
+		"áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü"
+		// Unique Extended Latin additions (French, Spanish, Nordic):
+		"çàâèêëîïôùûÿæœÇÀÂÈÊËÎÏÔÙÛŸÆŒñ¿¡ÑåøÅØ"
+		// Unique Typographical & Currency:
+		"‘’“”«»…•¶¬€£¥¢"
+		// Unique Math, Greek, & Arrows (↵ removed):
+		"±×÷≈≠≤≥∞√µπ°∀∃∈∉λ←↑→↓↔⇒⇐⇔"
+		// Unique Extended Box Drawing & Blocks:
+		"┬┌│─├└┘┤┐┴┼—╔╗╚╝╠╣╦╩╬═║╭╮╯╰█▓▒░▄▀▌▐■□▪▫",
+		&char_set
+	);
+
+	array_push(&char_set, 0x00A9); // ©
+	array_push(&char_set, 0x00AE); // ®
+	array_push(&char_set, 0x00A7); // §
+	array_push(&char_set, 0xFEFF); // BOM
+	array_push(&char_set, 0x2122); // ™ Trademark
+	array_push(&char_set, 0x00B7); // · Middle dot (for visible spaces)
 
 	err: Error;
 
@@ -1495,14 +1523,7 @@ find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
 	}
 	assert(editor_index > -1);
 
-	using Split;
-	switch split {
-		LEFT    { left  = editor_index; }
-		RIGHT   { right = editor_index; }
-		default { panic();              }
-	}
-
-	active_editor = editor_index;
+	activate_editor(editor_index);
 	return editor_index;
 }
 
@@ -1514,7 +1535,6 @@ find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buff
 		if @buffer_index == -1 {
 			@buffer_index = add_builtin_buffer(buffer_name, BufferFlags.PARSE_FILE_LINKS);
 		}
-		buf = &buffers[@buffer_index];
 		return find_or_create_editor_in_split(get_other_split(), @buffer_index);
 	}
 	return editor.index;
@@ -1585,7 +1605,7 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 // Jobs
 //
 
-MAX_REQUEST_COUNT :: 32;
+MAX_REQUEST_COUNT :: 128;
 
 JobContext :: struct {
 	state: enum { RUNNING; DONE; FAILED; KILLED; };
@@ -1700,19 +1720,15 @@ remove_async_job :: fn (index: s32) {
 	ctx.kill = true;
 	async_wait(job);
 
-	switch ctx.state {
-		DONE   { print_info("Job '%' finished.", ctx.name); }
-		KILLED { print_warn("Job '%' killed.", ctx.name); }
-		FAILED;
-
-		default { panic(); }
-	}
-
 	consume_job_results(job, true);
 
-	if ctx.kind == JobKind.SHELL {
+	if ctx.kind == .SHELL {
 		shell.job_index = -1;
-	} else if ctx.kind == JobKind.LSP {
+		if shell.buffer_index != -1 && !buffers[shell.buffer_index].is_removed {
+			// @Hack 2026-06-20: We need this in case build output is not automatically focused to parse compilation errors.
+			rebuild_coloring_and_indentation_info(&buffers[shell.buffer_index]);
+		}
+	} else if ctx.kind == .LSP {
 		remove_all_buffers_from_lsp();
 		lsp.job_index = -1;
 	}
@@ -1722,6 +1738,23 @@ remove_async_job :: fn (index: s32) {
 	}
 	loop i := 0; i < ctx.response_pools.len; i += 1 {
 		release_allocator(&ctx.response_pools.data[i]);
+	}
+
+	switch ctx.state {
+		DONE   {
+			ec, wc :: get_error_and_warning_count();
+			if ec > 0 {
+				print_err("Job '%' finished with % error%.", ctx.name, ec, if ec > 1 then "s" else "");
+			} else if wc > 0 {
+				print_warn("Job '%' finished with % warning%.", ctx.name, wc, if wc > 1 then "s" else "");
+			} else {
+				print_info("Job '%' finished with exit code: %.", ctx.name, ctx.exit_code);
+			}
+		}
+		KILLED { print_warn("Job '%' killed.", ctx.name); }
+		FAILED;
+
+		default { panic(); }
 	}
 
 	mutex_terminate(&ctx.mutex);
@@ -1740,7 +1773,7 @@ kill_async_jobs :: fn () {
 	zeroinit(&jobs);
 }
 
-consume_job_results :: fn (job: *Job, required := false) {
+consume_job_results :: fn (job: *Job, is_blocking := false) {
 	using JobContext.state;
 	using JobKind;
 
@@ -1748,33 +1781,33 @@ consume_job_results :: fn (job: *Job, required := false) {
 	assert(!ctx.is_removed);
 
 	locked := false;
-	if required {
+	if is_blocking {
 		locked = true;
 		mutex_lock(&ctx.mutex);
 	} else {
-		l, err :: mutex_try_lock(&ctx.mutex);
-		if err then print_err(err) else locked = l;
+		locked = mutex_try_lock(&ctx.mutex) catch {
+			print_err($);
+		};
 	}
 
-	if locked {
-		defer mutex_unlock(&ctx.mutex);
+	if !locked then return;
+	defer mutex_unlock(&ctx.mutex);
 
-		response: Response #noinit;
-		loop pop_response(ctx, &response) {
-			assert(response.job_kind == ctx.kind);
-			err: Error;
-			switch ctx.kind {
-				CLANG_FORMAT { err = apply_format(ctx.state, &response);        }
-				SHELL        { err = apply_shell(ctx.state, &response);         }
-				LSP          { err = apply_lsp(ctx.state, &response);           }
-				default { panic(); }
-			}
-
-			if err then print_err("LSP: %", err);
-
-			terminate_response(ctx, &response);
-			redraw();
+	response: Response #noinit;
+	loop pop_response(ctx, &response) {
+		assert(response.job_kind == ctx.kind);
+		err: Error;
+		switch ctx.kind {
+			CLANG_FORMAT { err = apply_format(ctx.state, &response);        }
+			SHELL        { err = apply_shell(ctx.state, &response);         }
+			LSP          { err = apply_lsp(ctx.state, &response);           }
+			default { panic(); }
 		}
+
+		if err then print_err(err);
+
+		terminate_response(ctx, &response);
+		redraw();
 	}
 }
 
@@ -2081,7 +2114,7 @@ draw_frame :: fn () {
 			draw_text_editor(left, x, y, w, h);
 		}
 
-		PROGRESS_BAR_HEIGHT :: 2.f;
+		PROGRESS_BAR_HEIGHT :: 3.f;
 		draw_background_progress_bar(0.f, h - PROGRESS_BAR_HEIGHT, auto WINDOW_WIDTH, PROGRESS_BAR_HEIGHT);
 
 		using Mode;

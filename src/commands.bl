@@ -116,6 +116,7 @@ Command :: enum {
 	_WINDOWS_END;
 
 	OPEN_MESSAGES;
+	OPEN_SHELL;
 	OPEN_PROJECTS_DIRECTORY;
 	OPEN_PROJECT_CONFIG;
 	REDO;
@@ -242,6 +243,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto OPEN_IN_RADDBG]                   = "Open current file location in RAD Debugger.";
 	help[auto OPEN_IN_VISUAL_STUDIO]            = "Open current file location in Visual Studio.";
 	help[auto OPEN_MESSAGES]                    = "Open messages buffer with editor logs.";
+	help[auto OPEN_SHELL]                       = "Open shell buffer.";
 	help[auto OPEN_PROJECTS_DIRECTORY]          = "Open project location in file explorer.";
 	help[auto OPEN_PROJECT_CONFIG]              = "Open configuration file of current project.";
 	help[auto REDO]                             = "Open configuration file of current project.";
@@ -633,7 +635,7 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 
 help :: fn () {
 	if help_buffer_index == -1 {
-		help_buffer_index = add_implicit_file_buffer("Help", HELP_FILE_DATA, FileType.MD);
+		help_buffer_index = add_implicit_file_buffer("Help", HELP_FILE_DATA, .MD);
 	}
 	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
 }
@@ -784,6 +786,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		OPEN_DEFAULT_CONFIG           { open_default_config(); }
 		OPEN_CONFIG_TEMPLATE          { open_config_template(); }
 		OPEN_MESSAGES                 { open_messages(); }
+		OPEN_SHELL                    { open_shell(); }
 
 		OPEN_IN_VISUAL_STUDIO         { open_current_buffer_in_visual_studio(buf); }
 		OPEN_IN_REMEDYBG              { open_current_buffer_in_remedybg(editor, buf); }
@@ -1711,6 +1714,15 @@ open_messages :: fn () {
 	active_editor = find_or_create_editor_in_split(get_active_split(), messages_buffer_index);
 }
 
+open_shell :: fn () {
+	if shell.buffer_index == -1 {
+		print_warn("No shell output found. Use `run-command` to run shell command.");
+		return;
+	}
+
+	active_editor = find_or_create_editor_in_split(get_active_split(), shell.buffer_index);
+}
+
 ToUpperOrLower :: enum {
 	UPPER;
 	LOWER;
@@ -1769,7 +1781,7 @@ start_build :: fn () {
 
 	build_command :: if settings.build_command.len == 0 then BUILD_COMMAND else settings.build_command;
 
-	err :: request_shell_execute(build_command);
+	err :: request_shell_execute(build_command, .BUILD);
 	if err then print_err(err);
 }
 
