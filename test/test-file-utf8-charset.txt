@@ -1,0 +1,48 @@
+UTF-8 Character Set Test File
+
+1. Central European / Czech:
+áčďéěíňóřšťúůýž
+ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ
+Příliš žluťoučký kůň úpěl ďábelské ódy.
+
+2. German:
+ÄÖÜßäöü
+Victor jagt zwölf Boxkämpfer quer über den großen Sylter Deich.
+
+3. French, Spanish, Nordic:
+çàâèêëîïôùûÿæœ
+ÇÀÂÈÊËÎÏÔÙÛŸÆŒ
+ñ¿¡Ñ
+åøÅØ
+El pingüino Wenceslao hizo kilómetros bajo exhaustiva lluvia y frío, añoraba a su querido cachorro.
+Voyez le brick géant que j'examine près du wharf.
+
+4. Cyrillic (Azbuka) for Slavic languages:
+АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ
+абвгдеёжзийклмнопрстуфхцчшщъыьэюя
+ІіЇїЄєҐґЎўЂђЈјЉљЊњЋћЏџЃѓЅѕЌќ
+Russian: Съешь же ещё этих мягких французских булок, да выпей чаю.
+Ukrainian: Чуєш їх, доцю, га? Кумедна ж ти, прощайся без ґольфів!
+Serbian/Macedonian: Љубазни фенђерџија чађавог лица хоће да ми покаже штос.
+
+5. Typographical & Currency:
+‘Single Quotes’ “Double Quotes”
+« Guillemets »
+Ellipsis… Bullet• Paragraph¶ Not¬
+€ £ ¥ ¢ (Euro, Pound, Yen, Cent)
+© Copyright, ® Registered, ™ Trademark, § Section
+· Middle dot
+
+6. Math, Greek, Arrows:
+± × ÷ ≈ ≠ ≤ ≥ ∞ √ µ π ° ∀ ∃ ∈ ∉ λ
+← ↑ → ↓ ↔ ⇒ ⇐ ⇔
+
+7. Box Drawing & Blocks:
+┌─┬─┐  ╔═╦═╗  ╭─┬─╮
+│ │ │  ║ ║ ║  │ │ │
+├─┼─┤  ╠═╬═╣  ├─┼─┤
+│ │ │  ║ ║ ║  │ │ │
+└─┴─┘  ╚═╩═╝  ╰─┴─╯
+
+Blocks:
+█▓▒░▄▀▌▐■□▪▫
