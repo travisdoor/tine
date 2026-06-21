@@ -170,7 +170,7 @@ commit :: fn () {
 			return;
 		}
 		if file_exist(filepath) && may_override_file == false {
-			print_warn("File exists, press [ENTER] again to override it, [ESC] to cancel or change the file name and try again.");
+			print_warn("File exists, press [ENTER] again to overwrite it, [ESC] to cancel or change the file name and try again.");
 			may_override_file = true;
 			return;
 		}

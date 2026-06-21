@@ -76,8 +76,7 @@ ANSI_COLOR_MAGENTA_INDEX   : u8 : 17;
 ANSI_COLOR_CYAN_INDEX      : u8 : 18;
 ANSI_COLOR_WHITE_INDEX     : u8 : 19;
 
-DEFAULT_FONT_SIZE              :: 20;
-MAX_FONT_SIZE                  :: 64;
+MAX_FONT_SIZE                  :: 48; // @Incomplete 2026-06-21: Bigger font is not loaded correctly for some reason, might be due to way the rasterization into the texture works, where we simly render all glypsh into one row instead of making NxN atlas.
 MIN_FONT_SIZE                  :: 4;
 BOTTOM_SCROLL_TRIGGER          :: 5;
 
@@ -1083,16 +1082,25 @@ rebuild_fonts :: fn (force := false) Error {
 	draw.font_terminate(&font_ui_small);
 	draw.font_terminate(&icons);
 
-	char_set: [..]u32;
-	defer array_terminate(&char_set);
-	array_push_all(&char_set, draw.font_default_char_set());
+	ui_char_set: [..]u32;
+	defer array_terminate(&ui_char_set);
+	array_push_all(&ui_char_set, draw.font_default_char_set());
 	draw.font_generate_char_set(
 		// Your original string:
 		"áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü"
 		// Unique Extended Latin additions (French, Spanish, Nordic):
 		"çàâèêëîïôùûÿæœÇÀÂÈÊËÎÏÔÙÛŸÆŒñ¿¡ÑåøÅØ"
+		// Cyrillic (Azbuka) for Slavic languages:
+		"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюяІіЇїЄєҐґЎўЂђЈјЉљЊњЋћЏџЃѓЅѕЌќ"
 		// Unique Typographical & Currency:
-		"‘’“”«»…•¶¬€£¥¢"
+		"‘’“”«»…•¶¬€£¥¢",
+		&ui_char_set
+	);
+
+	char_set: [..]u32;
+	defer array_terminate(&char_set);
+	array_push_all(&char_set, ui_char_set);
+	draw.font_generate_char_set(
 		// Unique Math, Greek, & Arrows (↵ removed):
 		"±×÷≈≠≤≥∞√µπ°∀∃∈∉λ←↑→↓↔⇒⇐⇔"
 		// Unique Extended Box Drawing & Blocks:
@@ -1128,13 +1136,13 @@ rebuild_fonts :: fn (force := false) Error {
 		current_font_hash = 0;
 	}
 
-	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2);
+	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2, ui_char_set);
 	if err { panic(err); }
 
-	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2);
+	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2, ui_char_set);
 	if err { panic(err); }
 
-	err = draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, scaled_size - 2);
+	err = draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, scaled_size - 2, ui_char_set);
 	if err { panic(err); }
 
 

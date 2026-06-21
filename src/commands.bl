@@ -924,14 +924,14 @@ save_all :: fn () {
 	}
 
 	if saved_num == 0 {
-		print_info("No changes needs to be saved.");
+		print_info("No changes need to be saved.");
 	}
 }
 
 undo :: fn (editor: *Editor, buf: *Buffer) bool {
 	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return false; }
 	if buf.undo_top == 0 {
-		print_warn("No further undo change.");
+		print_warn("No further changes to undo.");
 		return false;
 	}
 
@@ -1001,7 +1001,7 @@ undo :: fn (editor: *Editor, buf: *Buffer) bool {
 redo :: fn (editor: *Editor, buf: *Buffer) bool {
 	if (buf.flags & BufferFlags.NO_UNDO) == BufferFlags.NO_UNDO { return false; }
 	if buf.undo_top == buf.undo.len - 1 {
-		print_warn("No further redo change.");
+		print_warn("No further changes to redo.");
 		return false;
 	}
 
@@ -1532,14 +1532,22 @@ jump_prev_word :: fn (editor: *Editor, buf: *Buffer) bool {
 }
 
 increase_font_size :: fn () bool {
+	prev_size :: settings.font_size;
 	settings.font_size = math.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
-	rebuild_fonts();
+	if settings.font_size != prev_size {
+		print_log("settings.font_size = %", settings.font_size);
+		rebuild_fonts();
+	}
 	return true;
 }
 
 decrease_font_size :: fn () bool {
+	prev_size :: settings.font_size;
 	settings.font_size = math.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
-	rebuild_fonts();
+	if settings.font_size != prev_size {
+		print_log("settings.font_size = %", settings.font_size);
+		rebuild_fonts();
+	}
 	return true;
 }
 
@@ -1643,7 +1651,7 @@ open_current_buffer_in_remedybg :: fn (editor: *Editor, buf: *Buffer) {
 	if err {
 		print_err(err);
 	} else {
-		print_info("Current file openned in RemedyBG.");
+		print_info("Current file opened in RemedyBG.");
 	}
 }
 
@@ -1671,7 +1679,7 @@ open_current_buffer_in_raddbg :: fn (editor: *Editor, buf: *Buffer) {
 	err := OK;
 	err = execute_system_command(tprint("raddbg --ipc find_code_location %:%", buf.filepath, cursor.row + 1));
 	if err { print_err(err); return; }
-	print_info("Current file openned in RAD Debugger.");
+	print_info("Current file opened in RAD Debugger.");
 }
 
 set_current_buffer_breakpoint_in_raddbg :: fn (editor: *Editor, buf: *Buffer) {

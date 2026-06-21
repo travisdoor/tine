@@ -180,7 +180,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 				return false;
 			}
 			if search.results.len == 0 {
-				print_warn("No match to be replaced!");
+				print_warn("No matches to replace!");
 				return false;
 			}
 			set_mode(Mode.REPLACE);

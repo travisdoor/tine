@@ -23,3 +23,7 @@
 	[x] Use custom line spacing for list entries.
 	[x] LSP auto complete list.
 	[x] Completion list might get too long.
+
+
+[ ] Presentation
+	- Shell mode (error locations, clear output on each run, man pages).

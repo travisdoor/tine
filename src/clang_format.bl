@@ -94,7 +94,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		if $.code == ERR_NOT_FOUND {
 			print_err("clang-format: Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
 		} else {
-			print_err("clang-format:Cannot execute '%' with error: %", executable, $);
+			print_err("clang-format: Cannot execute '%' with error: %", executable, $);
 		}
 		ctx.state = FAILED;
 		return 1;
@@ -103,7 +103,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	defer stop_process(ctx);
 
 	write_pipe(ctx.stdin, request.as.clang_format.src) catch {
-		print_err("clang-format:The '%' failed with error: %", executable, $);
+		print_err("clang-format: The '%' failed with error: %", executable, $);
 		ctx.state = FAILED;
 		return 1;
 	};
@@ -113,7 +113,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	loop !ctx.kill {
 		state :: poll_process(ctx) catch {
-			print_err("clang-format:The '%' failed with error: %", executable, $);
+			print_err("clang-format: The '%' failed with error: %", executable, $);
 			ctx.state = FAILED;
 			return 1;
 		};
@@ -121,7 +121,7 @@ worker :: fn (ctx: *JobContext) s32 {
 		using PollEvent;
 		if is_flag(state, READ) {
 			read_pipe(ctx.stdout, &response.as.clang_format.src) catch {
-				print_err("clang-format:The '%' failed with error: %", executable, $);
+				print_err("clang-format: The '%' failed with error: %", executable, $);
 				ctx.state = FAILED;
 				return 1;
 			};

@@ -398,13 +398,13 @@ goto :: fn (editor: *Editor, buf: *Buffer, kind: LspGotoKind, open_in_other_spli
 	switch kind {
 		.DECLARATION {
 			if !lsp.features.goto_declaration {
-				print_warn("LSP: Goto declaration feature is not supported by LSP server.");
+				print_warn("LSP: Goto declaration feature is not supported by the LSP server.");
 				return OK;
 			}
 		}
 		.DEFINITION {
 			if !lsp.features.goto_definition {
-				print_warn("LSP: Goto definition feature is not supported by LSP server.");
+				print_warn("LSP: Goto definition feature is not supported by the LSP server.");
 				return OK;
 			}
 		}
@@ -433,7 +433,7 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) Erro
 		return OK;
 	}
 	if !lsp.features.clang_header_switch {
-		print_warn("LSP: Switch header-source feature is not supported by LSP server.");
+		print_warn("LSP: Switch header-source feature is not supported by the LSP server.");
 		return OK;
 	}
 
@@ -485,7 +485,7 @@ lsp_find_references :: fn (editor: *Editor, buf: *Buffer) Error {
 		return OK;
 	}
 	if !lsp.features.find_references {
-		print_warn("LSP: Find references feature is not supported by LSP server.");
+		print_warn("LSP: Find references feature is not supported by the LSP server.");
 		return OK;
 	}
 	if !check_roslyn_solution_load_in_progress() then return OK;
@@ -684,7 +684,7 @@ get_lsp_executable :: fn () string_view {
 	if settings.lsp_executable.len > 0 then return settings.lsp_executable;
 	// @Deprecated 2026-02-08
 	if settings.clangd_executable.len > 0 then return settings.clangd_executable;
-	print_warn("LSP: LSP server executable not set in setting 'lsp_executable', defaulting to clangd.");
+	print_warn("LSP: LSP server executable not set in the 'lsp_executable' setting, defaulting to clangd.");
 	#if PLATFORM == .WINDOWS {
 		return "clangd.exe";
 	} else {
@@ -744,7 +744,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	if err {
 		if err.code == ERR_NOT_FOUND {
-			print_err("LSP: Cannot find '%' executable. Please use valid path or set the executable in your PATH environment variable.", executable);
+			print_err("LSP: Cannot find '%' executable. Please use a valid path or set the executable in your PATH environment variable.", executable);
 		} else {
 			print_err("LSP: Cannot execute '%' with error: %", executable, err);
 		}
