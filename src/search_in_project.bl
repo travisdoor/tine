@@ -22,6 +22,8 @@ search_in_project_mode_init :: fn () {
 		select_all(editor, buf);
 	}
 
+	warn_if_no_project_open();
+
 	print_log("Search for: '%'", subject);
 	err :: list_async_search(subject, true);
 	if err {

@@ -1693,8 +1693,7 @@ debug_in_raddbg :: fn () {
 }
 
 open_project_config :: fn () {
-	if project.filepath.len == 0 || project.is_default {
-		print_warn("No project is open. Use 'open-project' command first to open one.");
+	if warn_if_no_project_open() {
 		return;
 	}
 	err :: open(project.filepath);
@@ -1716,7 +1715,7 @@ open_messages :: fn () {
 
 open_shell :: fn () {
 	if shell.buffer_index == -1 {
-		print_warn("No shell output found. Use `run-command` to run shell command.");
+		print_warn("No shell output found. Use `shell` command.");
 		return;
 	}
 
@@ -1775,6 +1774,10 @@ kill_async_jobs_cmd :: fn () {
 }
 
 start_build :: fn () {
+	if warn_if_no_project_open() {
+		return;
+	}
+
 	if settings.save_all_before_build {
 		save_all();
 	}

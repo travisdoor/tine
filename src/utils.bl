@@ -1059,3 +1059,12 @@ count_visual_cols_to_position_str :: fn (line: string_view, position: s64) s32 {
 	}
 	return count;
 }
+
+warn_if_no_project_open :: fn () bool {
+	if project.filepath.len == 0 || project.is_default {
+		print_warn("No project is open. Use 'open-project' command first to open one.");
+		return true;
+	}
+	
+	return false;
+}

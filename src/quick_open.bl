@@ -7,6 +7,8 @@ quick_open_mode_init :: fn () {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 
+	warn_if_no_project_open();
+
 	list_project();
 }
 
@@ -32,7 +34,7 @@ draw_quick_open_mode :: fn () {
 			});
 
 		clicked = draw_search_simple_list();
-		
+
 		draw_search_hints([_]PanelHint.{
 				.{
 					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
