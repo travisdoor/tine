@@ -68,7 +68,7 @@ worker :: fn (ctx: *JobContext) s32 {
 	loop !pop_request(ctx, &request) {
 		os_sleep_ms(10);
 	}
-	defer terminate_request(ctx, &request);
+	defer terminate_request(&request);
 
 	set_job_progress_indicator(ctx, true);
 	defer set_job_progress_indicator(ctx, false);

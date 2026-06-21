@@ -4,21 +4,22 @@ io         :: #import "std/io";
 C          :: #import "libc";
 type_utils :: #import "std/type_utils";
 
+#import "experimental/variant"
+#import "extra/filewatch"
+#import "extra/glm"
+#import "pcre"
+#import "std/array"
 #import "std/async"
+#import "std/bucket_array"
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
-#import "std/string"
 #import "std/print"
-#import "std/array"
+#import "std/static_array"
+#import "std/string"
+#import "std/sync"
 #import "std/table"
 #import "std/thread"
-#import "std/sync"
-#import "std/static_array"
-#import "extra/glm"
-#import "extra/filewatch"
-#import "experimental/variant"
-#import "pcre"
 
 #load "buffer.bl"
 #load "clang_format.bl"
@@ -1613,7 +1614,7 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 // Jobs
 //
 
-MAX_REQUEST_COUNT :: 128;
+MAX_REQUEST_COUNT :: 32;
 
 JobContext :: struct {
 	state: enum { RUNNING; DONE; FAILED; KILLED; };
@@ -1630,8 +1631,8 @@ JobContext :: struct {
 	stdout: IoStream;
 	stderr: IoStream; // Most of the time mirrored to stdout.
 
-	pending:  StaticArray(Request,  MAX_REQUEST_COUNT);
-	complete: StaticArray(Response, MAX_REQUEST_COUNT);
+	pending:  [..]Request;
+	complete: [..]Response;
 	mutex:    Mutex;
 
 	kill: bool;
@@ -1640,10 +1641,10 @@ JobContext :: struct {
 	exit_code: s32;
 	show_progress: bool;
 
-	request_pools:            StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
-	response_pools:           StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
-	available_request_pools:  StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
-	available_response_pools: StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
+	// request_pools:            StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
+	// response_pools:           StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
+	// available_request_pools:  StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
+	// available_response_pools: StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
 }
 
 Request :: struct {
@@ -1676,17 +1677,33 @@ JobKind :: enum {
 }
 
 Job :: Async2(JobContext, s32);
+
 jobs: [..]Job;
+jobs_pools: struct {
+	pools:          BucketArray(PoolAllocator);
+	available: [..]*Allocator;
+	mutex:          Mutex;
+};
 
 background_job_indicator: struct {
 	active_last_frame: bool;
 	t: f32;
 };
 
-jobs_init :: fn () {}
+jobs_init :: fn () {
+	mutex_init(&jobs_pools.mutex);
+}
 
 jobs_terminate :: fn () {
 	kill_async_jobs();
+
+	loop it := bucket_array_begin(&jobs_pools.pools); it; it = bucket_array_iter_next(&jobs_pools.pools, it) {
+		release_allocator(&it.value);
+	}
+
+	bucket_array_terminate(&jobs_pools.pools);
+	array_terminate(&jobs_pools.available);
+	mutex_terminate(&jobs_pools.mutex);
 }
 
 start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobContext) s32) s32 {
@@ -1741,13 +1758,6 @@ remove_async_job :: fn (index: s32) {
 		lsp.job_index = -1;
 	}
 
-	loop i := 0; i < ctx.request_pools.len; i += 1 {
-		release_allocator(&ctx.request_pools.data[i]);
-	}
-	loop i := 0; i < ctx.response_pools.len; i += 1 {
-		release_allocator(&ctx.response_pools.data[i]);
-	}
-
 	switch ctx.state {
 		DONE   {
 			ec, wc :: get_error_and_warning_count();
@@ -1764,6 +1774,9 @@ remove_async_job :: fn (index: s32) {
 
 		default { panic(); }
 	}
+
+	array_terminate(&ctx.pending);
+	array_terminate(&ctx.complete);
 
 	mutex_terminate(&ctx.mutex);
 	ctx.is_removed = true;
@@ -1814,7 +1827,7 @@ consume_job_results :: fn (job: *Job, is_blocking := false) {
 
 		if err then print_err(err);
 
-		terminate_response(ctx, &response);
+		terminate_response(&response);
 		redraw();
 	}
 }
@@ -1842,36 +1855,32 @@ get_job_context :: fn (index: s32) *JobContext #inline {
 }
 
 #scope_private
-get_allocator :: fn (ctx: *JobContext, pools: *?TPool, available: *?TAvailable) *Allocator #inline {
-	assert(ctx);
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
+get_allocator :: fn () *Allocator #inline {
+	mutex_lock(&jobs_pools.mutex);
+	defer mutex_unlock(&jobs_pools.mutex);
 
-	allocator: *PoolAllocator;
-	if !sarray_pop(available, &allocator) {
-		if pools.len+1 > pools.data.len then return null;
-
+	allocator: *Allocator;
+	if !array_pop(&jobs_pools.available, &allocator) {
 		pool :: pool_make();
-		allocator = sarray_push(pools, pool);
+		allocator = bucket_array_push(&jobs_pools.pools, pool);
 	}
 	assert(allocator);
 	return allocator;
 }
 
-put_allocator :: fn (ctx: *JobContext, available: *?TAvailable, allocator: *Allocator)  #inline {
-	assert(ctx);
+put_allocator :: fn (allocator: *Allocator)  #inline {
 	assert(allocator);
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
+	mutex_lock(&jobs_pools.mutex);
+	defer mutex_unlock(&jobs_pools.mutex);
 
 	reset_allocator(allocator);
-	sarray_push(available, auto allocator);
+	array_push(&jobs_pools.available, auto allocator);
 }
 #scope_public
 
 make_request :: fn (ctx: *JobContext) (request: Request, err: Error) {
 	assert(ctx);
-	allocator : *Allocator : get_allocator(ctx, &ctx.request_pools, &ctx.available_request_pools);
+	allocator :: get_allocator();
 	if !allocator then return .{}, error("Cannot create request, queue is full, restart LSP server or try again later.");
 
 	return .{
@@ -1884,9 +1893,8 @@ push_request :: fn (ctx: *JobContext, request: *Request) {
 	assert(request.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	assert(ctx.pending.len < ctx.pending.data.len);
 
-	r :: sarray_push(&ctx.pending);
+	r :: array_push(&ctx.pending);
 	memcpy(auto r, auto request, sizeof(@request));
 	r.is_pending = true;
 }
@@ -1894,7 +1902,7 @@ push_request :: fn (ctx: *JobContext, request: *Request) {
 pop_request :: fn (ctx: *JobContext, request: *Request) bool {
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	if sarray_pop_first(&ctx.pending, request) {
+	if array_pop_first(&ctx.pending, request) {
 		assert(request.job_kind == ctx.kind);
 		return true;
 	}
@@ -1909,7 +1917,7 @@ has_pending_request :: fn (ctx: *JobContext) bool #inline {
 
 make_response :: fn (ctx: *JobContext) (response: Response, err: Error) {
 	assert(ctx);
-	allocator : *Allocator : get_allocator(ctx, &ctx.response_pools, &ctx.available_response_pools);
+	allocator :: get_allocator();
 	if !allocator then return .{}, error("Cannot create response, queue is full, restart LSP server or try again later.");
 
 	return .{
@@ -1924,16 +1932,15 @@ push_response :: fn (ctx: *JobContext, response: *Response) {
 	assert(response.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	assert(ctx.complete.len < ctx.complete.data.len);
 
-	r :: sarray_push(&ctx.complete);
+	r :: array_push(&ctx.complete);
 	memcpy(auto r, auto response, sizeof(@response));
 	zeroinit(&response.as);
 }
 
 // ctx.mutex should be locked before this is called
 pop_response :: fn (ctx: *JobContext, response: *Response) bool {
-	if sarray_pop_first(&ctx.complete, response) {
+	if array_pop_first(&ctx.complete, response) {
 		assert(response.job_kind == ctx.kind);
 		return true;
 	}
@@ -1947,13 +1954,13 @@ set_job_progress_indicator :: fn (ctx: *JobContext, v: bool) #inline {
 	ctx.show_progress = v;
 }
 
-terminate_request :: fn (ctx: *JobContext, request: *Request) {
-	put_allocator(ctx, &ctx.available_request_pools, request.allocator);
+terminate_request :: fn (request: *Request) {
+	put_allocator(request.allocator);
 	zeroinit(request);
 }
 
-terminate_response :: fn (ctx: *JobContext, response: *Response) {
-	put_allocator(ctx, &ctx.available_response_pools, response.allocator);
+terminate_response :: fn (response: *Response) {
+	put_allocator(response.allocator);
 	zeroinit(response);
 }
 

@@ -759,15 +759,15 @@ worker :: fn (ctx: *JobContext) s32 {
 		if current_request.is_pending == false && pop_request(ctx, &current_request) {
 			process_request(ctx, &current_request);
 			if err {
-				terminate_request(ctx, &current_request);
+				terminate_request(&current_request);
 				print_err("LSP: The '%' failed with error: %", executable, err);
 			} else if is_notification(current_request.as.lsp.kind) {
-				terminate_request(ctx, &current_request);
+				terminate_request(&current_request);
 			}
 		}
 
 		process_response(ctx, &current_request) catch {
-			terminate_request(ctx, &current_request);
+			terminate_request(&current_request);
 			print_err("LSP: The '%' failed with error: %", executable, $);
 			ctx.state = FAILED;
 			return 1;
@@ -1153,7 +1153,7 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 	allocator :: application_context.temporary_allocator;
 
 	assert(!is_notification(crd.kind));
-	defer terminate_request(ctx, current_request);
+	defer terminate_request(current_request);
 
 	switch crd.kind {
 		.initialize {
@@ -1256,7 +1256,7 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			} else {
 				response :: make_response(ctx) catch return $;
 				filepath :: new_filepath_from_url(first_location.uri, response.allocator) catch {
-					terminate_response(ctx, &response);
+					terminate_response(&response);
 					return $;
 				};
 
@@ -1279,7 +1279,7 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			} else {
 				response :: make_response(ctx) catch return $;
 				filepath :: new_filepath_from_url(switch_result.result, response.allocator) catch {
-					terminate_response(ctx, &response);
+					terminate_response(&response);
 					return $;
 				};
 
