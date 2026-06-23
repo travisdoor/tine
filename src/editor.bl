@@ -165,7 +165,6 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 
 	// Draw background
 	set_shader_color();
-	// rect(x, y, line_number_w, h, colors.background_line_numbers);
 	rect(content_x, y, content_w, h, colors.background);
 
 	sliding :: &editor.sliding;
@@ -392,93 +391,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 		}
 	}
 
-	draw_shadow(x, y + h - title_bar_height, w, title_bar_height);
-
-	// file info bar
-	has_changes :: buf.saved_top != buf.undo_top;
-	line_ending_name := "UNKNOWN";
-	using LineEnding;
-	switch buf.line_ending {
-		CRLF { line_ending_name = "CRLF"; }
-		LF   { line_ending_name = "LF";   }
-		default;
-	}
-	title_bar_color := colors.title_bar;
-	if is_active then title_bar_color = colors.title_bar_active;
-
-	// Status bar background
-	set_shader_color();
-	rect(x, y + h - title_bar_height, w, title_bar_height, title_bar_color);
-
-	status_x := x + text_padding;
-	status_y :: y + h - title_bar_height;
-
-	icon_y :: status_y + (title_bar_height * 0.5f - icons.height * 0.5f);
-	text_y :: status_y + (title_bar_height * 0.5f - font_ui.height * 0.5f);
-	name_y :: status_y + (title_bar_height * 0.5f - font_ui_b.height * 0.5f);
-
-	// Title bar icons
-	set_shader_font(&icons);
-
-	text(status_x, icon_y, get_icon_for_buffer(buf), colors.title_bar_text);
-	status_x += item_spacing;
-
-	if macros.is_recording && is_active {
-		color := colors.macro_record_icon;
-		color.w = (math.sin(cast(f32) get_ticks() * 6.f) + 1.f) * 0.5f;
-		text(status_x, icon_y, icon(ICON_CIRCLE), color);
-		status_x += item_spacing;
-		redraw();
-	}
-	if buf.missing_on_disk {
-		text(status_x, icon_y, icon(ICON_WARNING), colors.warning);
-		status_x += item_spacing;
-
-	}
-	if has_changes {
-		text(status_x, icon_y, icon(ICON_CHANGES), colors.modification_indicator);
-		status_x += item_spacing;
-	}
-	if (buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
-		text(status_x, icon_y, icon(ICON_READONLY), colors.modification_indicator);
-		status_x += item_spacing;
-	}
-
-	// Title bar info
-	set_shader_font(&font_ui_b);
-	text(status_x, name_y, buf.name, colors.title_bar_text);
-	set_shader_font(&font_ui);
-
-	title := str_make(256, application_context.temporary_allocator);
-	str_concat(&title, "Ln: ", cursor.row+1, "    Col: ", cursor.col+1);
-
-	if is_selection_active(buf, editor.cursor_index) {
-		selected_chars, selected_rows :: count_characters_and_rows_in_selection(buf, editor.cursor_index);
-		if selected_rows > 0 {
-			str_concat(&title, "    Lns: ", selected_rows + 1);
-		}
-		str_concat(&title, "    Chars: ", selected_chars, "    ");
-	} else {
-		str_append(&title, "    ");
-	}
-
-	str_concat(&title, FILE_TYPE[auto buf.file_type].name, "    ", line_ending_name);
-
-	if buf.lsp.version > 0 {
-		str_concat(&title, "    LSP: ", if lsp.server_name.len == 0 then "N/A" else lsp.server_name);
-	}
-
-	if buf.is_word_wrap_enabled {
-		str_concat(&title, "    WRAP ");
-	}
-
-	name_size :: text_size(buf.name, &font_ui_b);
-	status_x += name_size + item_spacing;
-	text(status_x, text_y, title, colors.title_bar_text);
-
-	if is_active || (active_editor == command_editor && last_active_text_editor == index) {
-		draw_last_status_message(status_x, h - title_bar_height, w-(status_x-x));
-	}
+	draw_title_bar(editor, buf, cursor, x, y, w, h);
 
 	// Mouse input
 	if is_point_in_rect(x, y, w, h, mouse.position.x, mouse.position.y) {
@@ -1180,6 +1093,103 @@ get_virtual_row_count_in_line :: fn (editor: *Editor, buf: *Buffer, virtual_row_
 
 #scope_private
 
+draw_title_bar :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor, x: f32, y: f32, w: f32, h: f32) {
+	using draw;
+
+	is_active        :: active_editor == editor.index;
+	title_bar_height :: metrics.title_bar_height;
+	text_padding     :: metrics.text_padding;
+	item_spacing     :: metrics.item_spacing;
+
+	draw_shadow(x, y + h - title_bar_height, w, title_bar_height);
+
+	// file info bar
+	has_changes :: buf.saved_top != buf.undo_top;
+	line_ending_name := "UNKNOWN";
+	using LineEnding;
+	switch buf.line_ending {
+		CRLF { line_ending_name = "CRLF"; }
+		LF   { line_ending_name = "LF";   }
+		default;
+	}
+	title_bar_color := colors.title_bar;
+	if is_active then title_bar_color = colors.title_bar_active;
+
+	// Status bar background
+	set_shader_color();
+	rect(x, y + h - title_bar_height, w, title_bar_height, title_bar_color);
+
+	status_x := x + text_padding;
+	status_y :: y + h - title_bar_height;
+
+	icon_y :: status_y + (title_bar_height * 0.5f - icons.height * 0.5f);
+	text_y :: status_y + (title_bar_height * 0.5f - font_ui.height * 0.5f);
+	name_y :: status_y + (title_bar_height * 0.5f - font_ui_b.height * 0.5f);
+
+	// Title bar icons
+	set_shader_font(&icons);
+
+	text(status_x, icon_y, get_icon_for_buffer(buf), colors.title_bar_text);
+	status_x += item_spacing;
+
+	if macros.is_recording && is_active {
+		color := colors.macro_record_icon;
+		color.w = (math.sin(cast(f32) get_ticks() * 6.f) + 1.f) * 0.5f;
+		text(status_x, icon_y, icon(ICON_CIRCLE), color);
+		status_x += item_spacing;
+		redraw();
+	}
+	if buf.missing_on_disk {
+		text(status_x, icon_y, icon(ICON_WARNING), colors.warning);
+		status_x += item_spacing;
+
+	}
+	if has_changes {
+		text(status_x, icon_y, icon(ICON_CHANGES), colors.modification_indicator);
+		status_x += item_spacing;
+	}
+	if (buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
+		text(status_x, icon_y, icon(ICON_READONLY), colors.modification_indicator);
+		status_x += item_spacing;
+	}
+
+	// Title bar info
+	set_shader_font(&font_ui_b);
+	text(status_x, name_y, buf.name, colors.title_bar_text);
+	set_shader_font(&font_ui);
+
+	title := str_make(256, application_context.temporary_allocator);
+	str_concat(&title, "Ln: ", cursor.row+1, "    Col: ", cursor.col+1);
+
+	if is_selection_active(buf, editor.cursor_index) {
+		selected_chars, selected_rows :: count_characters_and_rows_in_selection(buf, editor.cursor_index);
+		if selected_rows > 0 {
+			str_concat(&title, "    Lns: ", selected_rows + 1);
+		}
+		str_concat(&title, "    Chars: ", selected_chars, "    ");
+	} else {
+		str_append(&title, "    ");
+	}
+
+	str_concat(&title, FILE_TYPE[auto buf.file_type].name, "    ", line_ending_name);
+
+	if buf.lsp.version > 0 {
+		str_concat(&title, "    LSP: ", if lsp.server_name.len == 0 then "N/A" else lsp.server_name);
+	}
+
+	if buf.is_word_wrap_enabled {
+		str_concat(&title, "    WRAP ");
+	}
+
+	name_size :: text_size(buf.name, &font_ui_b);
+	status_x += name_size + item_spacing;
+	text(status_x, text_y, title, colors.title_bar_text);
+
+	if is_active || (active_editor == command_editor && last_active_text_editor == editor.index) {
+		draw_last_status_message(status_x, h - title_bar_height, w-(status_x-x));
+	}
+}
+
 draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32) #maybe_unused {
 	using draw;
 	set_shader_font(&font);
@@ -1231,3 +1241,4 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 		text(ux, uy, tprint("%", buf.name), color); uy += font.height;
 	}
 }
+

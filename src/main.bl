@@ -124,6 +124,7 @@ ICON_REPLACE          : u32 : 0xF363;
 
 ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
+ICON_HELP     : u32 : 0x003F;
 
 // Static assets loaded directly into the executable data segment.
 // FONT                          :: "FiraCode-Regular.ttf";
@@ -1162,7 +1163,7 @@ rebuild_fonts :: fn (force := false) Error {
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
 		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD,
-		ICON_SEARCH, ICON_ARROW_EAST, ICON_REPLACE
+		ICON_SEARCH, ICON_ARROW_EAST, ICON_REPLACE, ICON_HELP
 	};
 
 	array_push_all(&icon_set, ICONS);
@@ -2256,7 +2257,7 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 	}
 
 	switch kind {
-		INFO, WARNING, ERROR, MESSAGE {
+		INFO, WARNING, ERROR { // @Note 2026-06-23: We do not print log messages, they might cause deadlocks.
 			index :: messages_buffer_index;
 			if index >= 0 && index < buffers.len {
 				buf :: &buffers[index];

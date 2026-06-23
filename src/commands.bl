@@ -635,7 +635,7 @@ indent_range :: fn (buf: *Buffer, start: s64, end: s64) bool {
 
 help :: fn () {
 	if help_buffer_index == -1 {
-		help_buffer_index = add_implicit_file_buffer("Help", HELP_FILE_DATA, .MD);
+		help_buffer_index = add_implicit_file_buffer("help", HELP_FILE_DATA, .MD);
 	}
 	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
 }
@@ -1601,7 +1601,7 @@ close_other_split :: fn () bool {
 close_buffer_command :: fn (buf: *Buffer) bool {
 	buffer_name :: tprint("%", buf.name); // make copy because we'll delete it later
 	if buf.saved_top != buf.undo_top {
-		print_warn("Buffer contains unsaved changes. Use [%] command to ignore it.", COMMAND_NAMES[auto Command.FORCE_CLOSE_BUFFER]);
+		print_warn("Buffer contains unsaved changes. Use `%` command to ignore it.", COMMAND_NAMES[auto Command.FORCE_CLOSE_BUFFER]);
 		return false;
 	}
 	close_buffer(buf.index);
@@ -1723,7 +1723,7 @@ open_messages :: fn () {
 
 open_shell :: fn () {
 	if shell.buffer_index == -1 {
-		print_warn("No shell output found. Use `shell` command.");
+		print_warn("No shell output found. Use `%` command.", COMMAND_NAMES[auto Command.SHELL]);
 		return;
 	}
 
