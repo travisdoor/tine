@@ -564,64 +564,165 @@ get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink,
 // Recent locations
 //
 
-recent_locations: struct {
-	stack: [..]s32;
-	index:     s32;
-
-	did_jump: bool;
-};
-
-add_recent_location :: fn (editor: *Editor) {
-	assert(editor.track_recent_locations);
-	rl :: &recent_locations;
-	if rl.did_jump {
-		rl.did_jump = false;
-		return;
-	}
-	if rl.index >= 0 {
-		if rl.stack[rl.index] == editor.index { return; }
-		// Drop rest of the stack here.
-		rl.stack.len = auto rl.index + 1;
-	}
-	array_push(&rl.stack, editor.index);
-	rl.index = auto (rl.stack.len-1);
+RecentLocation :: struct {
+	hash:  u32;
+	split: Split;
+	row:   s32;
+	col:   s32;
 }
 
-erase_all_locations_for_editor :: fn (editor: *Editor) {
-	// Erase also current editor index.
-	assert(editor.track_recent_locations);
-	rl  :: &recent_locations;
-	loop i := 0; i < rl.stack.len; {
-		editor_index :: rl.stack[i];
-		if editor_index == editor.index {
-			array_erase_keep_order(&rl.stack, i);
-			if rl.index >= i { rl.index -= 1; }
-			continue;
-		}
-		i += 1;
+recent_locations: struct {
+	stack: [..]RecentLocation;
+	index:     s32;
+
+	cache: Table(u32, struct {
+			filepath:           string;
+			left_split_editor:  s32;
+			right_split_editor: s32;
+		});
+};
+
+init_recent_locations :: fn () {
+	recent_locations.index = -1;
+}
+
+terminate_recent_locations :: fn () {
+	clear_recent_locations();
+	tbl_terminate(&recent_locations.cache);
+	array_terminate(&recent_locations.stack);
+}
+
+clear_recent_locations :: fn () { // @Incomplete 2026-06-21: not used!
+	loop i := 0; i < recent_locations.cache.len; i += 1 {
+		loc :: &recent_locations.cache.values[i];
+		str_terminate(&loc.filepath);
 	}
+	tbl_clear(&recent_locations.cache);
+
+	recent_locations.stack.len = 0;
+	recent_locations.index     = -1;
+}
+
+recent_location_add_editor :: fn (editor: *Editor) {
+	buf :: &buffers[editor.buffer_index];
+	assert(!buf.is_removed);
+
+	hash :: buf.hash;
+	assert(hash != 0);
+
+	left_split_editor, right_split_editor := -1;
+	if editor.split == .LEFT {
+		left_split_editor = editor.index;
+	} else {
+		right_split_editor = editor.index;
+	}
+
+	index :: tbl_lookup_index(&recent_locations.cache, hash);
+	if index == -1 {
+		print_log("Add editor %.", hash);
+		tbl_insert(&recent_locations.cache, hash, .{
+				filepath           = str_make(buf.filepath),
+				left_split_editor  = left_split_editor,
+				right_split_editor = right_split_editor
+			});
+	} else {
+		entry :: &recent_locations.cache.values[index];
+		if entry.left_split_editor == -1 {
+			print_log("Add editor left split %.", hash);
+			entry.left_split_editor = left_split_editor;
+		} else if entry.right_split_editor == -1 {
+			print_log("Add editor right split %.", hash);
+			entry.right_split_editor = right_split_editor;
+		} else {
+			unreachable;
+		}
+	}
+}
+
+recent_location_remove_editor :: fn (editor: *Editor) {
+	buf :: &buffers[editor.buffer_index];
+	assert(!buf.is_removed);
+	hash :: buf.hash;
+
+	index :: tbl_lookup_index(&recent_locations.cache, hash);
+	assert(index != -1);
+
+	entry :: &recent_locations.cache.values[index];
+
+	if editor.split == .LEFT {
+		print_log("Remove editor left split %.", hash);
+		assert(entry.left_split_editor != -1);
+		entry.left_split_editor = -1;
+	} else {
+		print_log("Remove editor right split %.", hash);
+		assert(entry.right_split_editor != -1);
+		entry.right_split_editor = -1;
+	}
+}
+
+record_recent_location :: fn (editor: *Editor) {
+	if editor.index == command_editor then return;
+	buf    :: &buffers[editor.buffer_index];
+	hash   :: buf.hash;
+	cursor :: get_cursor(buf, editor.cursor_index);
+
+	assert(hash != 0);
+
+	last_loc: *RecentLocation;
+	if recent_locations.index != -1 {
+		last_loc = &recent_locations.stack[recent_locations.index];
+		if last_loc.hash != hash || last_loc.split != editor.split {
+			last_loc = null;
+		}
+	}
+
+	if last_loc {
+		last_loc.row = cursor.row;
+		last_loc.col = cursor.col;
+	} else {
+		recent_locations.index += 1;
+		recent_locations.stack.len = recent_locations.index;
+
+		array_push(&recent_locations.stack, .{
+				hash  = hash,
+				row   = cursor.row,
+				col   = cursor.col,
+				split = editor.split,
+			});
+	}
+}
+
+get_recent_location_filepath :: fn (loc: *RecentLocation) string_view #inline {
+	index :: tbl_lookup_index(&recent_locations.cache, loc.hash);
+	assert(index != -1);
+
+	return recent_locations.cache.values[index].filepath;
 }
 
 jump_to_previous_location :: fn () bool {
-	rl  :: &recent_locations;
-	if rl.index < 1 { return false; }
+	/*
+	if recent_locations.index < 1 then return false; // @Incomplete 2026-06-22: Print warning.
 	assert(active_editor != command_editor);
 
-	rl.index -= 1;
-	activate_editor(rl.stack[rl.index]);
-	rl.did_jump = true;
+	recent_locations.index -= 1;
+	loc :: &recent_locations.stack[recent_locations.index];
+	buf, editor :: activate_editor(loc.editor_index);
+	try_set_cursor_row_col(buf, editor.cursor_index, loc.row, loc.col);
+	*/
 
 	return true;
 }
 
 jump_to_next_location :: fn () bool {
-	rl  :: &recent_locations;
-	if rl.index+1 >= rl.stack.len { return false; }
+	/*
+	if recent_locations.index+1 >= recent_locations.stack.len then return false; // @Incomplete 2026-06-22: Print warning.
 	assert(active_editor != command_editor);
 
-	rl.index += 1;
-	activate_editor(rl.stack[rl.index]);
-	rl.did_jump = true;
+	recent_locations.index += 1;
+	loc :: &recent_locations.stack[recent_locations.index];
+	buf, editor :: activate_editor(loc.editor_index);
+	try_set_cursor_row_col(buf, editor.cursor_index, loc.row, loc.col);
+	*/
 
 	return true;
 }
@@ -742,8 +843,8 @@ main :: fn () s32 {
 	defer str_terminate(&message.text);
 
 	// Recent location
-	recent_locations.index = -1;
-	defer array_terminate(&recent_locations.stack);
+	init_recent_locations();
+	defer terminate_recent_locations();
 
 	// Create command editor.
 	command_editor = add_editor(add_command_buffer());
@@ -981,7 +1082,7 @@ main :: fn () s32 {
 			last_focus_index += 1;
 
 			if editor.track_recent_locations {
-				add_recent_location(editor);
+				// add_recent_location(editor); // @Cleanup 2026-06-21
 			}
 		}
 
@@ -1012,9 +1113,6 @@ main :: fn () s32 {
 
 	// Terminate all pending jobs. After that it's save to remove all buffers and editors.
 	jobs_terminate();
-
-	// To speed things up a bit.
-	recent_locations.stack.len = 0;
 
 	loop i := 0; i < editors.len; i += 1 { remove_editor(i); }
 	loop i := 0; i < buffers.len; i += 1 { remove_buffer(i); }
@@ -1321,6 +1419,7 @@ close_buffer :: fn (buffer_index: s32) {
 	// We should not remove buffer for messages.
 	if buffer_index != messages_buffer_index {
 		buf :: &buffers[buffer_index];
+
 		if buf.lsp.version > 0 {
 			lsp_close_document(buf) catch print_err("LSP: %", $);
 		}
@@ -1379,7 +1478,7 @@ get_buffer_by_filepath :: fn (filepath: string_view) *Buffer {
 	return &buffers[buffer_index];
 }
 
-open :: fn (filepath: string_view, open_in_other_split := false) Error {
+open :: fn (filepath: string_view, open_in_other_split := false) Error { // @Incomplete 2026-06-22: Use split explicitly.
 	normalized_path := str_make(filepath, application_context.temporary_allocator);
 	norm_err :: path_normalize(&normalized_path);
 	if norm_err {

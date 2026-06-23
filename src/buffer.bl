@@ -165,6 +165,7 @@ add_builtin_buffer :: fn (name: string_view, additional_flags: BufferFlags = .{}
 
 	buf.line_ending = LineEnding.LF;
 	buf.flags = BufferFlags.READONLY | additional_flags;
+	buf.hash  = str_hash(name);
 
 	buf.name.len = 0;
 	buf.is_word_wrap_enabled = true;

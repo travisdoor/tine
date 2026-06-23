@@ -297,7 +297,6 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	defer set_prev_executed_command(cmd);
 
 	if prev_executed_command != cmd then commit_undo(buf);
-	// print_log("Executed command: %", cmd);
 
 	handled := false;
 
@@ -417,6 +416,10 @@ keymap_entry_to_string :: fn (keymap_index: s32) string_view {
 // Just to make it deferable;
 set_prev_executed_command :: fn (cmd: Command) #inline {
 	prev_executed_command = cmd;
+}
+
+get_prev_executed_command :: fn () Command #inline {
+	return prev_executed_command;
 }
 
 select_all :: fn (editor: *Editor, buf: *Buffer) {

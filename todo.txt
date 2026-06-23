@@ -24,6 +24,9 @@
 	[x] LSP auto complete list.
 	[x] Completion list might get too long.
 
-
 [ ] Presentation
 	- Shell mode (error locations, clear output on each run, man pages).
+
+[ ] Recent location
+	[ ] Use it as central split handling.
+	[ ] Add explicit command to record the location.

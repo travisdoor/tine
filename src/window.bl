@@ -187,6 +187,8 @@ handle_window_event_loop :: fn () {
 					buf, editor :: get_active_buffer_and_editor();
 					clear_message();
 					if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+
+					record_recent_location(editor);
 					invoke_command(editor, buf, m.cmd);
 
 					if redirect_as_text_input {
