@@ -7,6 +7,8 @@ quick_open_mode_init :: fn () {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 
+	warn_if_no_project_open();
+
 	list_project();
 }
 
@@ -17,20 +19,44 @@ quick_open_mode_terminate :: fn () {
 
 draw_quick_open_mode :: fn () {
 	assert(active_editor == command_editor);
-	w, h :: get_command_editor_size();
-
 	if project.is_indexing {
 		print_warn(PROJECT_IS_INDEXING_MESSAGE);
 		set_mode(Mode.TEXT_EDIT);
 		return;
 	}
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Quick: ");
+	clicked := false;
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT);
-	draw_last_status_message(0.f, h + list_h, w);
-	if clicked { commit(); }
+	search_list_begin(.{}); {
+
+		draw_search_command_editor(.{
+				title = "Search file...",
+			});
+
+		clicked = draw_search_simple_list();
+
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "open"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+			});
+
+	} search_list_end();
+
+	if clicked then commit();
 }
 
 //

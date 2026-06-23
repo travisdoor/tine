@@ -22,18 +22,12 @@ search_in_project_mode_init :: fn () {
 		select_all(editor, buf);
 	}
 
+	warn_if_no_project_open();
+
 	print_log("Search for: '%'", subject);
 	err :: list_async_search(subject, true);
 	if err {
 		print_err(err);
-	} else if settings.show_hints {
-		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
-		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
-		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
-		cancel_binding           :: get_keybinding_for_command(Command.CANCEL_MODE);
-
-		hint :: tprint("[%] next match\t[%] prev match\t[%] show results in buffer\t[%] cancel", next_binding, prev_binding, result_to_buffer_binding, cancel_binding);
-		print_info(hint);
 	}
 }
 
@@ -51,21 +45,42 @@ draw_search_in_project_mode :: fn () {
 		return;
 	}
 
-	w, h :: get_command_editor_size();
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search in %: ", project.name));
+	clicked := false;
 
-	is_running, progress :: get_async_search_progress();
-	if is_running {
-		using draw;
-		set_shader_color();
-		rect(0.f, h-2.f, w * progress, 2.f, colors.warning_color);
-		redraw();
-	}
+	_, progress_t :: get_async_search_progress();
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | HINT | PREVIEW);
-	draw_last_status_message(0.f, h + list_h, w);
-	if clicked { commit(); }
+	search_list_begin(false, progress_t, 1920); {
+		draw_search_command_editor(.{
+				title = tprint("Search in '%'...", project.name),
+			});
+
+		clicked = draw_search_simple_list();
+
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "use"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.SEARCH_TO_BUFFER),
+					info        = "to buffer",
+				},
+			});
+	} search_list_end();
+
+	if clicked then commit();
 }
 
 //

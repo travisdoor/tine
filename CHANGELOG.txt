@@ -21,6 +21,15 @@ MASTER
 - Hide Windows only commands on Linux & Mac.
 - Add `install` command for Windows and Linux to create desktop entry.
 - Change default color scheme.
+- Change application icon.
+- Improve list UI + UI tweaks in general.
+  - Remove top command editor.
+  - Use unified rounded floating lists.
+  - Show keyboard shortcuts in every list.
+  - Move search/replace to the right-bottom corner.
+  - Changed color scheme entries.
+- Add wider support for unicode characters.
+- Allow running the shell command in the background.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------

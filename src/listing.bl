@@ -1,5 +1,7 @@
 ListItem :: struct {
-	score:   s32;
+	score:      s32;
+	base_score: s32;
+
 	icon:    string_view;
 	title:   string_view;
 	preview: string_view;
@@ -39,44 +41,432 @@ listing_terminate :: fn () {
 	mutex_terminate(&visible_list_mutex);
 }
 
-DrawListCols :: enum #flags {
-	NO_COLS = 0;
-	ICON;
-	TITLE;
-	HINT;
-	PREVIEW;
-}
+// @Duplicate 2026-06-20: compute_list_height
+get_list_height :: fn (double_line := false, max_item_count := math.S32_MAX) (h: f32, visible_lines: s32) {
+	line_height     :: if double_line then metrics.line_height * 2.f else metrics.line_height;
+	text_padding    :: metrics.text_padding;
 
-ListerMode :: enum { TOP_DOWN; FLOATING }
-
-get_list_height :: fn () (h: f32, visible_lines: s32) {
-	using Metric;
-	line_height     :: metrics[auto LINE_HEIGHT    ];
-	text_padding    :: metrics[auto TEXT_PADDING   ];
-
-	visible_lines := cast(s32) ((cast(f32) WINDOW_HEIGHT * 0.3f) / line_height);
+	visible_lines := math.min(cast(s32) (cast(f32) WINDOW_HEIGHT / line_height), max_item_count);
 	visible_lines = math.min(visible_lines, auto list[visible_list_index].len);
 
 	return text_padding * 2.f + line_height * auto visible_lines, visible_lines;
 }
 
-draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.TOP_DOWN, loc := #call_location) (w: f32, h: f32, clicked: bool) {
+#scope_private
+list_ui_ctx: struct {
+	x: f32; y: f32;
+	w: f32; h: f32;
+
+	// command editor
+	cmd_y: f32;
+	cmd_h: f32;
+
+	// list
+	list_y: f32;
+	list_h: f32;
+	item_height:   f32;
+	visible_items: s32;
+
+	// hints
+	hints_y: f32;
+	hints_h: f32;
+
+
+	is_active: bool;
+};
+#scope_public
+
+search_list_begin :: fn (two_row_item := false, progress_t := 0.f, prefer_width := 0) {
+
+	compute_list_height :: fn (item_h: f32, list_max_h: f32) (height: f32, visible_items: s32) #inline {
+		text_padding :: metrics.text_padding;
+
+		list_h :: math.min(item_h * cast(f32) list[visible_list_index].len, list_max_h-text_padding*2.f);
+		visible_items :: cast(s32) (list_h/item_h);
+		return item_h * cast(f32) visible_items, visible_items;
+	};
+
+	mutex_lock(&visible_list_mutex);
+	x, y, w, h, list_y, list_max_h := compute_command_panel_layout(prefer_width);
+
+	item_h :: if two_row_item then math.ceil(metrics.line_item_height*2.5f) else metrics.line_item_height;
+	cmd_h  :: math.max(list_y - y, 0.f);
+
+	list_h, visible_items :: compute_list_height(item_h, list_max_h);
+	h += list_h;
+
+	draw_command_editor_panel(x, y, w, h, progress_t);
+
+	list_ui_ctx = .{
+		x, y,
+		w, h,
+
+		// command editor
+		y,
+		cmd_h,
+
+		// list
+		list_y,
+		list_h,
+		item_h,
+		visible_items,
+
+		// hints
+		y+h-cmd_h,
+		cmd_h,
+
+		is_active = true
+	};
+}
+
+search_list_end :: fn () {
+	mutex_unlock(&visible_list_mutex);
+	list_ui_ctx = .{};
+}
+
+draw_search_command_editor :: fn (cmd_params: DrawCommandEditorParams) {
+	assert(list_ui_ctx.is_active);
+
+	x :: list_ui_ctx.x;
+	y :: list_ui_ctx.cmd_y;
+	w :: list_ui_ctx.w;
+	h :: list_ui_ctx.cmd_h;
+
+	assert(active_editor == command_editor);
+	draw_command_editor(command_editor, x, y, w, h, cmd_params);
+}
+
+draw_search_hints :: fn (hints: []PanelHint) #inline {
+	assert(list_ui_ctx.is_active);
+
+	x :: list_ui_ctx.x;
+	y :: list_ui_ctx.hints_y;
+	w :: list_ui_ctx.w;
+	h :: list_ui_ctx.hints_h;
+
+	draw_command_panel_hints(x, y, w, h, hints, metrics.command_panel_hints_alpha);
+}
+
+draw_search_command_list :: fn (loc := #call_location) bool {
 	using draw;
-	using Metric;
-	using DrawListCols;
+	allocator :: application_context.temporary_allocator;
+
+	ctx :: &list_ui_ctx;
+	assert(ctx.is_active);
+
+	if ctx.visible_items == 0 then return false;
+
+	text_padding    :: metrics.text_padding;
+	item_spacing    :: metrics.item_spacing;
+	rounding        :: metrics.corner_rounding;
+
+	item_h :: ctx.item_height;
+
+	// scrolling
+	if top_index + ctx.visible_items >= list[visible_list_index].len {
+		top_index = math.max(list[visible_list_index].len - ctx.visible_items, 0);
+	}
+
+	if last_selected_index != selected_index {
+		if selected_index >= top_index + ctx.visible_items {
+			top_index = selected_index - ctx.visible_items + 1;
+		}
+		if selected_index < top_index {
+			top_index = selected_index;
+		}
+	}
+	start_index = top_index;
+
+	end_index :: start_index + ctx.visible_items;
+
+	tx := ctx.x + text_padding;
+	ty :: ctx.list_y;
+
+	hover_index : s64 = -1;
+	{ // Selected line
+		set_shader_color();
+
+		if selected_index >= start_index && selected_index < start_index + ctx.visible_items {
+			selected_y :: ty + item_h * auto (selected_index - start_index);
+			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select, colors.command_select);
+		}
+
+		if mouse.last_hover_elem_id == loc.hash {
+			ly := ty;
+			loop i := start_index; i < end_index; i += 1 {
+				if is_point_in_rect(ctx.x, ly, ctx.w, item_h, mouse.position.x, mouse.position.y) {
+					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background, colors.selection_background);
+					hover_index = i;
+					break;
+				}
+				ly += item_h;
+			}
+		}
+	}
+
+	item_y := ty;
+	loop i := start_index; i < end_index; i += 1 {
+		item :: &list[visible_list_index][i];
+		item_x := tx;
+
+		available_w := ctx.w - text_padding * 2.f;
+
+		{ // Separator
+			set_shader_color();
+			border_line_width :: metrics.border_line_width;
+			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.panel_outline);
+		}
+
+
+		{ // Icon
+			set_shader_font(&icons);
+
+			ly :: item_y + (item_h * 0.5f - icons.height * 0.5f);
+			item :: &list[visible_list_index][i];
+			color := colors.foreground;
+			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
+				color = colors.modification_indicator;
+			}
+			text(item_x, ly, item.icon, color);
+
+			item_x     += item_spacing;
+			available_w -= item_spacing;
+		}
+
+		{ // Keymap
+			key_mapping :: str_split_by(item.hint, '\0', allocator);
+
+			hw :: calculate_keybind_cell_width(key_mapping);
+			hx := ctx.x + ctx.w - hw;
+			available_w -= hw;
+
+			draw_keybind_cells(hx, item_y, item_h, key_mapping);
+		}
+
+		{ // Commands
+			set_shader_font(&font_ui);
+
+			title_w := available_w;
+			title_w  = math.clamp(title_w, 0.f, available_w);
+			set_scissor(item_x, ctx.list_y, title_w, ctx.h);
+			defer clear_scissor();
+			defer flush();
+
+			help_color := colors.foreground;
+			help_color.w = 0.4f;
+
+			ly :: item_y + (item_h * 0.5f - font_ui.height * 0.5f);
+
+			item_row_h :: item_h / 5.f;
+
+			item :: &list[visible_list_index][i];
+			text(item_x, ly-item_row_h, item.title, colors.foreground);
+			text(item_x, ly+item_row_h, item.preview, help_color);
+		}
+
+		item_y += item_h;
+	}
+
+	// Mouse input
+	if is_point_in_rect(ctx.x, ctx.list_y, ctx.w, ctx.h, mouse.position.x, mouse.position.y) {
+		mouse.hover_elem_id = loc.hash;
+	}
+
+	clicked := false;
+	if mouse.last_hover_elem_id == loc.hash {
+		set_cursor();
+		if is_lmb_press() && hover_index != -1 {
+			clicked        = true;
+			selected_index = hover_index;
+		}
+		if math.abs(mouse.scroll) > 0.f {
+			top_index -= auto (mouse.scroll * 3.f);
+			if top_index < 0 {
+				top_index = 0;
+			}
+			else if top_index >= list[visible_list_index].len {
+				top_index = list[visible_list_index].len - 1;
+			}
+		}
+	}
+
+	last_selected_index = selected_index;
+	return clicked;
+}
+
+draw_search_simple_list :: fn (loc := #call_location) bool {
+	using draw;
+
+	ctx :: &list_ui_ctx;
+	assert(ctx.is_active);
+
+	if ctx.visible_items == 0 then return false;
+
+	text_padding    :: metrics.text_padding;
+	item_spacing    :: metrics.item_spacing;
+	rounding        :: metrics.corner_rounding;
+
+	item_h :: ctx.item_height;
+
+	// scrolling
+	if top_index + ctx.visible_items >= list[visible_list_index].len {
+		top_index = math.max(list[visible_list_index].len - ctx.visible_items, 0);
+	}
+
+	if last_selected_index != selected_index {
+		if selected_index >= top_index + ctx.visible_items {
+			top_index = selected_index - ctx.visible_items + 1;
+		}
+		if selected_index < top_index {
+			top_index = selected_index;
+		}
+	}
+	start_index = top_index;
+
+	end_index :: start_index + ctx.visible_items;
+
+	tx := ctx.x + text_padding;
+	ty :: ctx.list_y;
+
+	hover_index : s64 = -1;
+	{ // Selected line
+		set_shader_color();
+
+		if selected_index >= start_index && selected_index < start_index + ctx.visible_items {
+			selected_y :: ty + item_h * auto (selected_index - start_index);
+			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select, colors.command_select);
+		}
+
+		if mouse.last_hover_elem_id == loc.hash {
+			ly := ty;
+			loop i := start_index; i < end_index; i += 1 {
+				if is_point_in_rect(ctx.x, ly, ctx.w, item_h, mouse.position.x, mouse.position.y) {
+					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background, colors.selection_background);
+					hover_index = i;
+					break;
+				}
+				ly += item_h;
+			}
+		}
+	}
+
+	content_w :: ctx.w - text_padding * 2.f;
+	item_y := ty;
+	loop i := start_index; i < end_index; i += 1 {
+		item :: &list[visible_list_index][i];
+		item_x := tx;
+
+		{ // Separator
+			set_shader_color();
+			border_line_width :: metrics.border_line_width;
+			rect(ctx.x+border_line_width, item_y, ctx.w-border_line_width*2.f, border_line_width, colors.panel_outline);
+		}
+
+		icon_y :: item_y + (item_h * 0.5f - icons.height * 0.5f);
+
+		{ // Icon
+			set_shader_font(&icons);
+
+			item :: &list[visible_list_index][i];
+			color := colors.foreground;
+			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
+				color = colors.modification_indicator;
+			}
+			text(item_x, icon_y, item.icon, color);
+
+			item_x += item_spacing;
+		}
+
+		show_preview :: item.preview.len > 0;
+
+		{ // Commands
+
+			PREVIEW_FACTOR :: 0.25f;
+
+			// set_shader_color();
+			// rect(ctx.x, item_y, title_w, item_h, v4.{ x = 1.f, w = 0.2f });
+
+			set_scissor(ctx.x, item_y, if show_preview then content_w * PREVIEW_FACTOR - item_spacing else content_w, item_h);
+			set_shader_font(&font_ui);
+
+			text(item_x, icon_y, item.title, colors.foreground);
+			if item.hint.len > 0 {
+				item_x += text_size(item.title, &font_ui).width + text_padding;
+
+				hint_color := colors.foreground;
+				hint_color.w = 0.4f;
+
+				set_shader_font(&icons);
+				text(item_x, icon_y, icon(ICON_ARROW_EAST), hint_color);
+				item_x += text_size(icon(ICON_ARROW_EAST), &icons).width + text_padding;
+
+				set_shader_font(&font_ui);
+				text(item_x, icon_y, item.hint, hint_color);
+
+			}
+			flush();
+
+			if show_preview {
+
+				// set_shader_color();
+				// rect(0.f, item_y, preview_w, item_h, v4.{ y = 1.f, w = 0.2f });
+
+				set_scissor(ctx.x, item_y, content_w, item_h); {
+					set_shader_font(&font);
+					item_x = ctx.x + content_w * PREVIEW_FACTOR;
+
+					preview_color :: colors.foreground;
+					text(item_x, icon_y, item.preview, preview_color);
+				}
+				flush();
+			}
+
+			clear_scissor();
+		}
+
+		item_y += item_h;
+	}
+
+	// Mouse input
+	if is_point_in_rect(ctx.x, ctx.list_y, ctx.w, ctx.h, mouse.position.x, mouse.position.y) {
+		mouse.hover_elem_id = loc.hash;
+	}
+
+	clicked := false;
+	if mouse.last_hover_elem_id == loc.hash {
+		set_cursor();
+		if is_lmb_press() && hover_index != -1 {
+			clicked        = true;
+			selected_index = hover_index;
+		}
+		if math.abs(mouse.scroll) > 0.f {
+			top_index -= auto (mouse.scroll * 3.f);
+			if top_index < 0 {
+				top_index = 0;
+			}
+			else if top_index >= list[visible_list_index].len {
+				top_index = list[visible_list_index].len - 1;
+			}
+		}
+	}
+
+	last_selected_index = selected_index;
+	return clicked;
+}
+
+draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, max_item_count: s32, loc := #call_location) bool {
+	using draw;
 
 	mutex_lock(&visible_list_mutex);
 	defer mutex_unlock(&visible_list_mutex);
+	if list[visible_list_index].len == 0 then return false;
 
-	if list[visible_list_index].len == 0 { return 0.f, 0.f, false; }
+	line_height     :: metrics.line_height;
+	text_padding    :: metrics.text_padding;
+	item_spacing    :: metrics.item_spacing;
+	rounding        :: metrics.corner_rounding;
 
-	line_height     :: metrics[auto LINE_HEIGHT    ];
-	text_padding    :: metrics[auto TEXT_PADDING   ];
-	title_max_size  :: metrics[auto TITLE_MAX_SIZE ];
-	item_spacing    :: metrics[auto ITEM_SPACING   ];
-	rounding        :: metrics[auto CORNER_ROUNDING];
-
-	h, visible_lines :: get_list_height();
+	h, visible_lines :: get_list_height(false, max_item_count);
 	list_w := w;
 
 	// scrolling
@@ -99,32 +489,20 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	tx := x + text_padding;
 	ty :: y + text_padding;
 
-	if mode == ListerMode.FLOATING {
-		loop i := start_index; i < end_index; i += 1 {
-			item :: &list[visible_list_index][i];
-			preview_w :: text_size(item.preview, &font);
-			list_w = math.max(list_w, preview_w + item_spacing*2.f);
-		}
+	loop i := start_index; i < end_index; i += 1 {
+		item :: &list[visible_list_index][i];
+		preview_w :: text_size(item.preview, &font);
+		list_w = math.max(list_w, preview_w + item_spacing*2.f);
 	}
 
-	aval_width := list_w - text_padding * 2.f;
+	available_w := list_w - text_padding * 2.f;
 
-	// Draw background
-	set_shader_color();
-	if mode == ListerMode.TOP_DOWN {
-		draw_shadow(x, y, list_w, h, ShadowMode.BOTTOM);
-		rect(x, y, list_w, h, colors.command_list_background_color);
-	} else {
-		draw_shadow(x, y, list_w, h, ShadowMode.ALL);
-		r :: metrics[auto Metric.CORNER_ROUNDING];
-		c :: colors.command_list_background_color;
-		rect_rounded(x, y, list_w, h, r, c, c);
-	}
+	draw_panel_body(x, y, list_w, h, rounding);
 
 	// Selected line
 	if selected_index >= start_index && selected_index < start_index + visible_lines {
 		selected_y :: ty + line_height * auto (selected_index - start_index);
-		rect_rounded(x, selected_y, list_w, line_height, rounding, colors.command_select_color, colors.command_select_color);
+		rect_rounded(x, selected_y, list_w, line_height, rounding, colors.command_select, colors.command_select);
 	}
 
 	hover_index : s64 = -1;
@@ -132,7 +510,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		ly := ty;
 		loop i := start_index; i < end_index; i += 1 {
 			if is_point_in_rect(x, ly, list_w, line_height, mouse.position.x, mouse.position.y) {
-				rect_rounded(x, ly, list_w, line_height, rounding, colors.selection_background_color, colors.selection_background_color);
+				rect_rounded(x, ly, list_w, line_height, rounding, colors.selection_background, colors.selection_background);
 				hover_index = i;
 				break;
 			}
@@ -140,76 +518,28 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		}
 	}
 
-	// draw icons
-	if (cols & ICON) == ICON {
+	{ // Icon
 		set_shader_font(&icons);
 		line_base_y := ty;
 		loop i := start_index; i < end_index; i += 1 {
 			ly :: line_base_y + (line_height * 0.5f - icons.height * 0.5f);
 			item :: &list[visible_list_index][i];
-			color := colors.foreground_color;
+			color := colors.foreground;
 			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
-				color = colors.modification_indicator_color;
+				color = colors.modification_indicator;
 			}
 			text(tx, ly, item.icon, color);
 			line_base_y += line_height;
 		}
 		tx         += item_spacing;
-		aval_width -= item_spacing;
+		available_w -= item_spacing;
 	}
 
-	set_shader_font(&font_ui);
 
-	if (cols & TITLE) == TITLE {
-		title_w := aval_width;
-		if (cols & (HINT | PREVIEW)) != NO_COLS {
-			title_w = math.min(title_max_size, aval_width*0.2f);
-		}
-		title_w -= item_spacing;
-		title_w  = math.clamp(title_w, 0.f, aval_width);
-		set_scissor(tx, y, title_w, h);
-		defer clear_scissor();
-		defer flush();
+	{ // Text
+		set_shader_font(&font);
 
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
-
-			item :: &list[visible_list_index][i];
-			text(tx, ly, item.title, colors.foreground_color);
-			line_base_y += line_height;
-		}
-		tx         += title_w + item_spacing;
-		aval_width -= title_w;
-	}
-
-	if (cols & HINT) == HINT {
-		hint_w := aval_width;
-		if (cols & PREVIEW) != NO_COLS {
-			hint_w = aval_width * 0.2f;
-		}
-		hint_w -= item_spacing;
-		hint_w  = math.clamp(hint_w, 0.f, aval_width);
-		set_scissor(tx, y, hint_w, h);
-		defer clear_scissor();
-		defer flush();
-
-		line_base_y := ty;
-		loop i := start_index; i < end_index; i += 1 {
-			ly :: line_base_y + (line_height * 0.5f - font_ui.height * 0.5f);
-
-			item :: &list[visible_list_index][i];
-			text(tx, ly, item.hint, colors.code_comment);
-			line_base_y += line_height;
-		}
-		tx         += hint_w + item_spacing;
-		aval_width -= hint_w;
-	}
-
-	set_shader_font(&font);
-
-	if (cols & PREVIEW) == PREVIEW {
-		set_scissor(tx, y, aval_width, h);
+		set_scissor(tx, y, available_w, h);
 		defer clear_scissor();
 		defer flush();
 
@@ -217,7 +547,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 		loop i := start_index; i < end_index; i += 1 {
 			ly :: line_base_y + (line_height * 0.5f - font.height * 0.5f);
 			item :: &list[visible_list_index][i];
-			text(tx, ly, item.preview, colors.foreground_color);
+			text(tx, ly, item.preview, colors.foreground);
 			line_base_y += line_height;
 		}
 	}
@@ -246,7 +576,7 @@ draw_list :: fn (x: f32, y: f32, w: f32, cols: DrawListCols, mode := ListerMode.
 	}
 
 	last_selected_index = selected_index;
-	return list_w, h, clicked;
+	return clicked;
 }
 
 list_completion :: fn (strs: []string, ids: []s32, subject: string_view = "") {
@@ -269,7 +599,9 @@ list_commands :: fn (repeatable_only := false) {
 
 	skip := false;
 	loop i := 0; i < COMMAND_NAMES.len; i += 1 {
-		if i <= auto Command._PUBLIC then continue;
+		if i == auto Command.UNKNOWN then continue;
+
+		if !IS_DEBUG && i <= auto Command._PUBLIC then continue;
 		if (i == auto Command._WINDOWS_BEGIN) {
 			skip = PLATFORM != Platform.WINDOWS;
 			continue;
@@ -281,6 +613,7 @@ list_commands :: fn (repeatable_only := false) {
 		if skip then continue;
 
 		command_name : string_view : COMMAND_NAMES[i];
+		if command_name[0] == '_' then continue;
 		title :: str_make(command_name, &string_cache[DEFAULT_CACHE_INDEX]);
 		hint  :: str_make(&string_cache[DEFAULT_CACHE_INDEX]);
 
@@ -289,7 +622,7 @@ list_commands :: fn (repeatable_only := false) {
 			if keymap_index == -1 { break; }
 
 			if hint.len > 0 {
-				str_append(&hint, " | ");
+				str_append(&hint, "\0");
 			}
 			str_append(&hint, keymap_entry_to_string(keymap_index));
 		}
@@ -299,6 +632,7 @@ list_commands :: fn (repeatable_only := false) {
 				hint    = hint,
 				preview = COMMAND_HELP[i],
 				index   = i,
+				icon    = icon(ICON_COMMAND),
 			});
 	}
 
@@ -470,6 +804,7 @@ list_buffers :: fn () {
 			index = buf.index,
 			flags = ItemFlags.HIGHLIGHT,
 			score = buf.last_focus_index,
+			base_score = 100,
 		});
 	}
 
@@ -522,7 +857,7 @@ filter_list :: fn (filter: string_view) {
 			search_for = tail;
 		}
 
-		item.score = fuzzy_cmp(search_for, filter);
+		item.score = fuzzy_cmp(search_for, filter) + item.base_score;
 		if item.score >= 0 {
 			// Copy valid item into filtered list.
 			array_push(&list[FILTER_LIST_INDEX], @item);

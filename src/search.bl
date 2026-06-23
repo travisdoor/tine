@@ -35,25 +35,22 @@ search_mode_init :: fn () {
 		insert_string(buf, 0, initial_subject);
 		select_all(editor, buf);
 	}
-
-	if settings.show_hints {
-		replace_binding          :: get_keybinding_for_command(Command.SEARCH_REPLACE);
-		result_to_buffer_binding :: get_keybinding_for_command(Command.SEARCH_TO_BUFFER);
-		next_binding             :: get_keybinding_for_command(Command.MOVE_DOWN);
-		prev_binding             :: get_keybinding_for_command(Command.MOVE_UP);
-		cancel_binding           :: get_keybinding_for_command(Command.CANCEL_MODE);
-
-		hint :: tprint("[%] next match\t[%] prev match\t[%] replace\t[%] show results in buffer\t[%] cancel", next_binding, prev_binding, replace_binding, result_to_buffer_binding, cancel_binding);
-		print_info(hint);
-	}
 }
 
 search_mode_terminate :: fn () {}
 
-draw_search_mode :: fn () {
-	assert(active_editor == command_editor);
-	w, h :: get_command_editor_size();
+search_panel_width :: fn (active_editor_w: f32) f32 #inline {
+	text_padding :: metrics.text_padding;
 
+	w := 650.f * WINDOW_SCALE;
+	w  = math.min(w, cast(f32) WINDOW_WIDTH - text_padding * 2.f);
+	w  = math.min(w, active_editor_w - text_padding * 2.f);
+
+	return w;
+}
+
+draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
+	assert(active_editor == command_editor);
 	target_buf :: get_last_active_buffer_and_editor();
 
 	hint: string_view;
@@ -65,8 +62,49 @@ draw_search_mode :: fn () {
 		}
 	}
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("% in '%': ", if auto_commit then "Quick search" else "Search", target_buf.name), hint);
-	draw_last_status_message(0.f, h, w);
+	text_padding     :: metrics.text_padding;
+	title_bar_height :: metrics.title_bar_height;
+
+	_, _, _, h :: compute_command_panel_layout();
+	w :: search_panel_width(active_editor_w);
+	x :: active_editor_x + active_editor_w - text_padding - w;
+	y :: active_editor_y + active_editor_h - text_padding - h - title_bar_height;
+	draw_command_editor_panel(x, y, w, h);
+
+	cmd_h :: h/2.f;
+
+	assert(active_editor == command_editor);
+	draw_command_editor(command_editor, x, y, w, cmd_h, .{
+			title = tprint("% in '%': ", if auto_commit then "Quick search" else "Search", target_buf.name),
+			hint = hint
+		});
+
+	draw_command_panel_hints(x, y+cmd_h, w, cmd_h, [_]PanelHint.{
+			.{
+				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+				info        = "use"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+				info        = "cancel"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+				info        = "next match",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.MOVE_UP),
+				info        = "prev match",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.SEARCH_REPLACE),
+				info        = "replace",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.SEARCH_TO_BUFFER),
+				info        = "to buffer",
+			},
+		}, metrics.command_panel_hints_alpha);
 }
 
 //
@@ -142,7 +180,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 				return false;
 			}
 			if search.results.len == 0 {
-				print_warn("No match to be replaced!");
+				print_warn("No matches to replace!");
 				return false;
 			}
 			set_mode(Mode.REPLACE);

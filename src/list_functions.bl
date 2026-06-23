@@ -11,16 +11,6 @@ list_functions_mode_init :: fn () {
 	clear_buffer(command_buf);
 	input_mode = InputMode.TEXT;
 	notify_changes_to_buffer = command_buf.index;
-
-	if settings.show_hints {
-		next_binding   :: get_keybinding_for_command(Command.MOVE_DOWN);
-		prev_binding   :: get_keybinding_for_command(Command.MOVE_UP);
-		commit_binding :: get_keybinding_for_command(Command.INSERT_NEW_LINE);
-		cancel_binding :: get_keybinding_for_command(Command.CANCEL_MODE);
-
-		hint :: tprint("[%] next function\t[%] prev function\t[%] jump to the function\t[%] cancel", next_binding, prev_binding, commit_binding, cancel_binding);
-		print_info(hint);
-	}
 }
 
 list_functions_mode_terminate :: fn () {
@@ -28,15 +18,37 @@ list_functions_mode_terminate :: fn () {
 
 draw_list_functions_mode :: fn () {
 	assert(active_editor == command_editor);
-
 	target_buf :: get_last_active_buffer_and_editor();
 
-	w, h :: get_command_editor_size();
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Search function in '%': ", target_buf.name));
+	clicked := false;
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, ICON | TITLE | PREVIEW);
-	draw_last_status_message(0.f, h + list_h, w);
+	search_list_begin(.{}); {
+		draw_search_command_editor(.{
+				title = tprint("Search function in '%'...", target_buf.name),
+			});
+
+		clicked = draw_search_simple_list();
+		
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "use"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+			});
+	} search_list_end();
+
 	if clicked then commit();
 }
 

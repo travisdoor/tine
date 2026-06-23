@@ -22,13 +22,36 @@ shell_run_mode_on_exit :: fn () {
 
 draw_shell_run_mode :: fn () {
 	assert(active_editor == command_editor);
-	w, h :: get_command_editor_size();
+	clicked := false;
 
-	draw_command_editor(command_editor, 0.f, 0.f, w, h, "Shell: ");
+	search_list_begin(); {
+		draw_search_command_editor(.{
+				title = "Run shell command...",
+				icon  = icon(ICON_SHELL),
+			});
 
-	using DrawListCols;
-	_, list_h, clicked :: draw_list(0.f, h, w, TITLE);
-	draw_last_status_message(0.f, h + list_h, w);
+		clicked = draw_search_simple_list();
+
+		draw_search_hints([_]PanelHint.{
+				.{
+					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+					info        = "run"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+					info        = "cancel"
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+					info        = "next",
+				},
+				.{
+					key_mapping = get_keybinding_for_command(.MOVE_UP),
+					info        = "prev",
+				},
+			});
+	} search_list_end();
+
 	if clicked {
 		set_current_item_as_caption();
 		commit();

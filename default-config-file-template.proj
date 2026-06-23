@@ -9,7 +9,7 @@
 #----------------------------------------------------------------------------------------------------
 # List of directories included into the project. The first one is supposed to be a project root and
 # is used as a current working directory.
-# Each directory path entry is supposed to be on a separate line and may contains spaces.
+# Each directory path entry is supposed to be on a separate line and may contain spaces.
 #
 # Example:
 #   C:/my/project/root
@@ -17,7 +17,7 @@
 #----------------------------------------------------------------------------------------------------
 ;exclude
 #----------------------------------------------------------------------------------------------------
-# List of directories exluded from the project.
+# List of directories excluded from the project.
 # Each directory path entry is supposed to be on a separate line and may contains spaces.
 .svn
 .git
@@ -114,6 +114,7 @@ show_lsp_inline_diagnostics            true
 # shell                                  CMD.exe /Q /K prompt $
 # shell                                  C:/Program\ Files/Git/bin/bash.exe
 # shell                                  /bin/fish
+# shell                                  /bin/bash --login
 
 # Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
 # locations parsed from the output are available later in error list for quick navigation (used with
@@ -123,7 +124,7 @@ shell_parse_error_locations            true
 # Enable ANSI color codes in shell output.
 shell_enable_ansi_colors               true
 
-# Enable additional error or warning highlight in the shell output. This feature require
+# Enable additional error or warning highlight in the shell output. This feature requires
 # shell_parse_error_locations enabled.
 shell_enable_error_location_colors     false
 
@@ -174,9 +175,9 @@ block_caret                            true
 change_caret_on_selection              true
 maximize_on_start                      false
 save_all_before_build                  true
-
-# Show special command binding in some modes.
-show_hints                             true
+# Focus the shell buffer automatically when build command is invoked. Otherwise compilation
+# runs in background.
+focus_shell_on_build                   false
 
 # Enable smooth animated navigation.
 smooth_movement                        true
@@ -191,13 +192,13 @@ show_line_numbers                      false
 # deactivated. This enables quick selection from the current cursor position to a desired character.
 enable_quick_search                    true
 
-# Recognize following file extenstions as source files of given type.
+# Recognize following file extensions as source files of given type.
 c_extensions                           .c .cpp .h .hpp .cc
 glsl_extensions                        .glsl
 asm_extensions                         .asm
 
-# Folowing regular expressions are used in various buffers to parse out file links which can
-# be directly openned in the editor.
+# Following regular expressions are used in various buffers to parse out file links which can
+# be directly opened in the editor.
 #
 # Expected format is 'filepath[:line[:column]]'.
 #
@@ -303,12 +304,15 @@ new-buffer           Ctrl+Alt+N
 open-file            Ctrl+O
 open-project         Ctrl+Shift+O
 
+open-messages
+open-shell           Ctrl+`
+
 quick-open           Ctrl+P F3
 save-as              # No mapping
 save-all             # No mapping
 goto-line            Alt+G
 run-command          Alt+X
-cancel-mode          Escape Ctrl+Q
+cancel-mode          Escape
 
 search-file          Ctrl+S
 search-in-project    Ctrl+Alt+S
@@ -371,78 +375,32 @@ quit
 
 # dark colors
 #----------------------------------------------------------------------------------------------------
-# background_color                    1B2A2F
-# foreground_color                    B0B0B0
-# cursor_background_color             FFFF00
-# cursor_foreground_color             1B2A2F
-# current_line_background_color       172429
-# search_result_background_color      735E00
-# title_bar_color                     1A2527
-# title_bar_active                    356D6B
-# title_bar_text_color                D1D8D9
-# command_background_color            101010
-# command_foreground_color            D1D8D9
-# command_title_color                 1A9A7B
-# command_select_color                264F4E
-# command_list_background_color       1A2527
-# modification_indicator_color        FFFF00
-# selection_background_color          264F4E
-# selection_background_inactive_color 2A3F3C
-# message_color                       3B8D6E
-# warning_color                       E5C700
-# error_color                         FF4B4B
-# inline_error_background_color       5A2B2B
-# inline_warning_background_color     5C5C0B
-# macro_record_icon_color             FF4B4B
-# background_line_numbers_color       253738
-# foreground_line_numbers_color       5F7371
-
-# code_comment                        00AA00
-# code_keyword                        D1C25B
-# code_directive                      D69C58
-# code_string                         9EE3C1
-# code_number                         E4B77D
-# code_invalid                        FF4B4B
-# code_warning                        E5C700
-# code_error                          FF4B4B
-# code_function                       FFFFFF
-
-# ansi_black                          2E3C3A
-# ansi_red                            FF4B4B
-# ansi_green                          9EE3C1
-# ansi_yellow                         E5C700
-# ansi_blue                           188275
-# ansi_magenta                        D172A4
-# ansi_cyan                           66C7A5
-# ansi_white                          D1D8D9
-
-# dark colors
-#----------------------------------------------------------------------------------------------------
-background_color                    1C1A17
-foreground_color                    D6C7A1
-cursor_background_color             C27A2C
-cursor_foreground_color             1C1A17
-current_line_background_color       26231E
-search_result_background_color      4A3F2A
-title_bar_color                     1A1815
+background                          1C1A17
+foreground                          D6C7A1
+cursor_background                   C27A2C
+cursor_foreground                   1C1A17
+current_line_background             26231E
+search_result_background            6B5A35
+title_bar                           1A1815
 title_bar_active                    3A3326
-title_bar_text_color                D6C7A1
-command_background_color            211F1B
-command_foreground_color            CFC2A0
-command_title_color                 B07A3A
-command_select_color                3F3728
-command_list_background_color       2A2722
-modification_indicator_color        C28B3C
-selection_background_color          3A3326
-selection_background_inactive_color 2C2924
-message_color                       7FA36B
-warning_color                       C2A23A
-error_color                         C2553A
-inline_error_background_color       3A2623
-inline_warning_background_color     3A3322
-macro_record_icon_color             C2553A
-background_line_numbers_color       2A2722
-foreground_line_numbers_color       7A7468
+title_bar_text                      D6C7A1
+command_select                      3F3728
+panel_outline                       2A2722
+modification_indicator              C28B3C
+selection_background                4F4535
+selection_background_inactive       3A342C
+selection_background_inactive       2C2924
+message                             658255
+warning                             B8860B
+error                               881b1b
+inline_error_background             400000
+inline_error_foreground             CC0000
+inline_warning_background           6D6C1B
+inline_warning_foreground           FFFF00
+macro_record_icon                   C2553A
+background_line_numbers             2A2722
+foreground_line_numbers             7A7468
+progress_bar                        99E2FF
 
 code_comment                        7A8F6B
 code_keyword                        C2A23A
@@ -463,284 +421,49 @@ ansi_magenta                        B07A8C
 ansi_cyan                           6F9C9C
 ansi_white                          D6C7A1
 
-# dark colors
-#----------------------------------------------------------------------------------------------------
-# background_color                    1C1A17
-# foreground_color                    D6C7A1
-# cursor_background_color             C27A2C
-# cursor_foreground_color             1C1A17
-# current_line_background_color       26231E
-# search_result_background_color      4A3F2A
-# title_bar_color                     1A1815
-# title_bar_active                    3A3326
-# title_bar_text_color                D6C7A1
-# command_background_color            211F1B
-# command_foreground_color            CFC2A0
-# command_title_color                 B07A3A
-# command_select_color                3F3728
-# command_list_background_color       2A2722
-# modification_indicator_color        C28B3C
-# selection_background_color          3A3326
-# selection_background_inactive_color 2C2924
-# message_color                       7FA36B
-# warning_color                       C2A23A
-# error_color                         C2553A
-# inline_error_background_color       3A2623
-# inline_warning_background_color     3A3322
-# macro_record_icon_color             C2553A
-# background_line_numbers_color       2A2722
-# foreground_line_numbers_color       7A7468
-
-# code_comment                        7A8F6B
-# code_keyword                        C2A23A
-# code_directive                      B07A8C
-# code_string                         A3B86C
-# code_number                         D1A45A
-# code_invalid                        C2553A
-# code_warning                        C2A23A
-# code_error                          C2553A
-# code_function                       D6C7A1
-
-# ansi_black                          3A3834
-# ansi_red                            C2553A
-# ansi_green                          7FA36B
-# ansi_yellow                         C2A23A
-# ansi_blue                           6A7A8C
-# ansi_magenta                        B07A8C
-# ansi_cyan                           6F9C9C
-# ansi_white                          D6C7A1
-
-# dark colors zenburn-like
-#----------------------------------------------------------------------------------------------------
-# background_color                    3F3F3F
-# foreground_color                    DCDCCC
-# cursor_background_color             00FF00
-# cursor_foreground_color             303030
-# current_line_background_color       303030
-# search_result_background_color      01574C
-# title_bar_color                     383838
-# title_bar_active                    3D5A5C
-# title_bar_text_color                F0DFAF
-# command_background_color            3F3F3F
-# command_foreground_color            D4B79C
-# command_title_color                 7CB8BB
-# command_select_color                3D5A5C
-# command_list_background_color       383838
-# modification_indicator_color        FFFF00
-# selection_background_color          47696B
-# selection_background_inactive_color 293C3D
-# message_color                       09975A
-# warning_color                       DCC80B
-# error_color                         E92204
-# inline_error_background_color       400809
-# inline_warning_background_color     4F4F2D
-# macro_record_icon_color             E92204
-# background_line_numbers_color       545454
-# foreground_line_numbers_color       202020
-
-# code_comment                        7F9F7F
-# code_keyword                        F0DFAF
-# code_directive                      94BFF3
-# code_string                         CC9393
-# code_number                         DFAF8F
-# code_invalid                        FF0000
-# code_warning                        DCC80B
-# code_error                          E92204
-# code_function                       93E0E3
-
-# ansi_black                          5E5E5E
-# ansi_red                            D75F5F
-# ansi_green                          A8B56D
-# ansi_yellow                         F0E68C
-# ansi_blue                           5F87D7
-# ansi_magenta                        D787AF
-# ansi_cyan                           5FD7D7
-# ansi_white                          D0D0D0
-
-# dark colors casey style
-#----------------------------------------------------------------------------------------------------
-# background_color                    161616
-# foreground_color                    CDAA7D
-# cursor_background_color             00FF00
-# cursor_foreground_color             303030
-# current_line_background_color       303030
-# search_result_background_color      693D6E
-# title_bar_color                     202020
-# title_bar_active                    1E4747
-# title_bar_text_color                E4E4EF
-# command_background_color            161616
-# command_foreground_color            CDAA7D
-# command_title_color                 00FF00
-# command_select_color                1E4747
-# command_list_background_color       202020
-# modification_indicator_color        FFFF00
-# selection_background_color          1A3D3D
-# selection_background_inactive_color 0F2424
-# message_color                       09975A
-# warning_color                       DCC80B
-# error_color                         E92204
-# inline_error_background_color       400809
-# inline_warning_background_color     4F4F2D
-# macro_record_icon_color             E92204
-# background_line_numbers_color       292621
-# foreground_line_numbers_color       786349
-
-# code_comment                        7F7F7F
-# code_keyword                        B8860B
-# code_directive                      E67D74
-# code_string                         6B8E23
-# code_number                         6B8E23
-# code_invalid                        FF0000
-# code_warning                        DCC80B
-# code_error                          E92204
-# code_function                       BFC9DB
-
-# ansi_black                          5E5E5E
-# ansi_red                            D75F5F
-# ansi_green                          A8B56D
-# ansi_yellow                         F0E68C
-# ansi_blue                           5F87D7
-# ansi_magenta                        D787AF
-# ansi_cyan                           5FD7D7
-# ansi_white                          D0D0D0
-
-# solarized dark
-#----------------------------------------------------------------------------------------------------
-# background_color                    002B36
-# foreground_color                    839496
-# cursor_background_color             B58900
-# cursor_foreground_color             002B36
-# current_line_background_color       073642
-# search_result_background_color      614900
-# title_bar_color                     002B36
-# title_bar_active                    1a6660
-# title_bar_text_color                FFFFFF
-# command_background_color            00212B
-# command_foreground_color            93A1A1
-# command_title_color                 2AA198
-# command_select_color                073642
-# command_list_background_color       002B36
-# modification_indicator_color        B58900
-# selection_background_color          094959
-# selection_background_inactive_color 073642
-# message_color                       2AA198
-# warning_color                       B58900
-# error_color                         DC322F
-# inline_error_background_color       3F1F1E
-# inline_warning_background_color     3B3A1A
-# macro_record_icon_color             DC322F
-# background_line_numbers_color       073642
-# foreground_line_numbers_color       586E75
-
-# code_comment                        586E75
-# code_keyword                        859900
-# code_directive                      CB4B16
-# code_string                         2AA198
-# code_number                         B58900
-# code_invalid                        DC322F
-# code_warning                        B58900
-# code_error                          DC322F
-# code_function                       268BD2
-
-# ansi_black                          073642
-# ansi_red                            DC322F
-# ansi_green                          859900
-# ansi_yellow                         B58900
-# ansi_blue                           268BD2
-# ansi_magenta                        D33682
-# ansi_cyan                           2AA198
-# ansi_white                          EEE8D5
-
 # light colors
-#----------------------------------------------------------------------------------------------------
-# background_color                    FFFFFF
-# foreground_color                    000000
-# cursor_background_color             0000FF
-# cursor_foreground_color             F7F7F7
-# current_line_background_color       EEEEEE
-# search_result_background_color      E8E4A7
-# title_bar_color                     EBEBED
-# title_bar_active                    C0D8F4
-# title_bar_text_color                000000
-# command_background_color            F7F7F7
-# command_foreground_color            373A3F
-# command_title_color                 984EA5
-# command_select_color                C0D8F4
-# command_list_background_color       DCDCDE
-# modification_indicator_color        984EA5
-# selection_background_color          C0D8F4
-# selection_background_inactive_color E9F4FF
-# message_color                       22B14C
-# warning_color                       C2990B
-# error_color                         ED1C24
-# inline_error_background_color       EDCFD0
-# inline_warning_background_color     FFF8C8
-# macro_record_icon_color             ED1C24
-# background_line_numbers_color       DDE8F2
-# foreground_line_numbers_color       505050
+#-------------------------------------------
+# background                          F6F0E6
+# foreground                          2E241A
+# cursor_background                   6B4E2E
+# cursor_foreground                   F6F0E6
+# current_line_background             E9E0D2
+# search_result_background            D8C8A4
+# title_bar                           E8DEC9
+# title_bar_active                    D7C2A1
+# title_bar_text                      2E241A
+# command_select                      D7C2A1
+# panel_outline                       E2D6C2
+# modification_indicator              7A5A3A
+# selection_background                D7C2A1
+# selection_background_inactive       EDE3D3
+# message                             3E6B4A
+# warning                             9A6B23
+# error                               8E2A2A
+# inline_error_background             E8C9C6
+# inline_error_foreground             FF0000
+# inline_warning_background           FFE299
+# inline_warning_foreground           9A895F
+# macro_record_icon                   8E2A2A
+# background_line_numbers             E2D6C2
+# foreground_line_numbers             6A5A46
+# progress_bar                        FF4C00
 
-# code_comment                        008000
-# code_keyword                        0000FF
-# code_directive                      FF00FF
-# code_string                         A349A4
-# code_number                         A349A4
-# code_invalid                        FF0000
-# code_warning                        948C00
-# code_error                          ED1C24
-# code_function                       009999
+# code_comment                        5E6B57
+# code_keyword                        2E4A7D
+# code_directive                      6A3FA0
+# code_string                         8B3A2B
+# code_number                         6B4E2E
+# code_invalid                        B00020
+# code_warning                        8A6A00
+# code_error                          9B1C1C
+# code_function                       0F6B6B
 
-# ansi_black                          4C4C4C
-# ansi_red                            D00000
-# ansi_green                          008000
-# ansi_yellow                         E65100
-# ansi_blue                           005FFF
-# ansi_magenta                        FF00FF
-# ansi_cyan                           00AFAF
-# ansi_white                          BFBFBF
-
-# light colors
-#----------------------------------------------------------------------------------------------------
-# background_color                    FBF1C7
-# foreground_color                    3C3836
-# cursor_background_color             3C3836
-# cursor_foreground_color             FBF1C7
-# current_line_background_color       F2E5BC
-# search_result_background_color      FEF37A
-# title_bar_color                     EBDBB2
-# title_bar_active                    D79921
-# title_bar_text_color                3C3836
-# command_background_color            FBF1C7
-# command_foreground_color            3C3836
-# command_title_color                 076678
-# command_select_color                D5C4A1
-# command_list_background_color       F2E5BC
-# modification_indicator_color        CC241D
-# selection_background_color          D5C4A1
-# selection_background_inactive_color EADDB5
-# message_color                       79740E
-# warning_color                       D79921
-# error_color                         CC241D
-# inline_error_background_color       FB4934
-# inline_warning_background_color     FE8019
-# macro_record_icon_color             CC241D
-# background_line_numbers_color       F2E5BC
-# foreground_line_numbers_color       928374
-
-# code_comment                        928374
-# code_keyword                        9D0006
-# code_directive                      AF3A03
-# code_string                         79740E
-# code_number                         458588
-# code_invalid                        CC241D
-# code_warning                        D79921
-# code_error                          CC241D
-# code_function                       076678
-
-# ansi_black                          3C3836
-# ansi_red                            CC241D
-# ansi_green                          98971A
-# ansi_yellow                         D79921
-# ansi_blue                           458588
-# ansi_magenta                        B16286
-# ansi_cyan                           689D6A
-# ansi_white                          A89984
+# ansi_black                          3A2E22
+# ansi_red                            8E2A2A
+# ansi_green                          3E6B4A
+# ansi_yellow                         9A6B23
+# ansi_blue                           4A5563
+# ansi_magenta                        6B4B5B
+# ansi_cyan                           3F6B6B
+# ansi_white                          D8CFBF

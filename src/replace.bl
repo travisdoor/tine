@@ -20,16 +20,6 @@ replace_mode_init :: fn () {
 	if !focus_current_search_result() {
 		closest_match(target_buf, target_editor);
 	}
-
-	if settings.show_hints {
-		using Command;
-		replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
-		next_binding    :: get_keybinding_for_command(MOVE_DOWN);
-		prev_binding    :: get_keybinding_for_command(MOVE_UP);
-		all_binding     :: get_keybinding_for_command(SELECT_ALL);
-		hint :: tprint("[%] next match\t[%] prev match\t[%] commit replacement\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
-		print_info(hint);
-	}
 }
 
 replace_mode_terminate :: fn () {
@@ -39,34 +29,74 @@ replace_mode_terminate :: fn () {
 	}
 }
 
-draw_replace_mode :: fn () {
+draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
 	assert(active_editor == command_editor);
 	assert(search.last_subject.len > 0);
-	w, h :: get_command_editor_size();
 	target_buf :: get_last_active_buffer_and_editor();
+
+	text_padding     :: metrics.text_padding;
+	title_bar_height :: metrics.title_bar_height;
+
+	_, _, _, h :: compute_command_panel_layout();
+	w :: search_panel_width(active_editor_w);
+	x :: active_editor_x + active_editor_w - text_padding - w;
+	y :: active_editor_y + active_editor_h - text_padding - h - title_bar_height;
+	draw_command_editor_panel(x, y, w, h);
+
+	cmd_h :: h/2.f;
 
 	if is_replacing {
 		using draw;
-		using Metric;
-
-		line_height  :: metrics[auto LINE_HEIGHT ];
-		text_padding :: metrics[auto TEXT_PADDING];
-
-		set_shader_color();
-		draw_shadow(0.f, 0.f, w, h, ShadowMode.BOTTOM);
-		rect(0.f, 0.f, w, h, colors.command_background_color);
-
-		title_x :: text_padding;
-		title_y :: text_padding + (line_height * 0.5f - font.height * 0.5f);
 
 		title :: tprint("Replacing '%' with '%'.", search.last_subject, search.last_replacement);
 
-		set_shader_font(&font);
-		text(title_x, title_y, title, colors.command_title_color);
+		line_height  :: metrics.line_height;
+		text_padding :: metrics.text_padding;
+		item_spacing :: metrics.item_spacing;
+
+		title_x := x + text_padding;
+		title_y :: y + text_padding + (line_height * 0.5f - font_ui.height * 0.5f);
+		icon_y  :: y + text_padding + (line_height * 0.5f - icons.height * 0.5f);
+
+		set_shader_font(&icons);
+		text(title_x, icon_y, icon(ICON_REPLACE), colors.foreground);
+
+		title_x += item_spacing;
+
+		set_shader_font(&font_ui);
+		text(title_x, title_y, title, colors.foreground);
 	} else {
-		draw_command_editor(command_editor, 0.f, 0.f, w, h, tprint("Replace '%' in '%' with: ", search.last_subject, target_buf.name));
+		title :: tprint("Replace '%' in '%' with...", search.last_subject, target_buf.name);
+
+		assert(active_editor == command_editor);
+		draw_command_editor(command_editor, x, y, w, cmd_h, .{
+				title = title,
+				icon  = icon(ICON_REPLACE),
+			});
 	}
-	draw_last_status_message(0.f, h, w);
+
+	draw_command_panel_hints(x, y+cmd_h, w, cmd_h, [_]PanelHint.{
+			.{
+				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
+				info        = "replace"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
+				info        = "cancel"
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.MOVE_DOWN),
+				info        = "next match",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.MOVE_UP),
+				info        = "prev match",
+			},
+			.{
+				key_mapping = get_keybinding_for_command(.SELECT_ALL),
+				info        = "all",
+			},
+		}, metrics.command_panel_hints_alpha);
 }
 
 invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
@@ -121,16 +151,6 @@ invoke_command_replace_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) boo
 			} else {
 				commit_current_replacement();
 				is_replacing = true;
-
-				if settings.show_hints {
-					using Command;
-					replace_binding :: get_keybinding_for_command(INSERT_NEW_LINE);
-					next_binding    :: get_keybinding_for_command(MOVE_DOWN);
-					prev_binding    :: get_keybinding_for_command(MOVE_UP);
-					all_binding     :: get_keybinding_for_command(SELECT_ALL);
-					hint :: tprint("[%] next match\t[%] prev match\t[%] replace\t[%] replace all", next_binding, prev_binding, replace_binding, all_binding);
-					print_info(hint);
-				}
 			}
 		}
 

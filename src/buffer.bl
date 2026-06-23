@@ -719,7 +719,7 @@ count_visual_cols_to_position :: fn (buf: *Buffer, position: s64) s32 {
 
 trim_trailing_whitespace :: fn (buf: *Buffer) {
 	if buf.bytes.len == 0 {
-		print_info("No traling whitespace in '%'.", buf.name);
+		print_info("No trailing whitespace in '%'.", buf.name);
 		return;
 	}
 
@@ -749,12 +749,12 @@ trim_trailing_whitespace :: fn (buf: *Buffer) {
 	}
 
 	if !changed {
-		print_info("No traling whitespace in '%'.", buf.name);
+		print_info("No trailing whitespace in '%'.", buf.name);
 		return;
 	}
 
 	change_content(buf, content);
-	print_info("Traling whitespace removed in '%'.", buf.name);
+	print_info("Trailing whitespace removed in '%'.", buf.name);
 }
 
 get_last_position_in_buffer :: fn (buf: *Buffer) s64 {

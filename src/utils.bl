@@ -282,7 +282,7 @@ get_enum_variants_as_redable_list :: fn (TEnum: type #comptime, replace_undersco
 	loop i := 0; i < tmp.len; i += 1 {
 		name :: str_make(info.variants[i].name);
 		str_lower(&name);
-		if replace_underscore {
+		if replace_underscore && name[0] != '_' {
 			str_replace_all(&name, '_', '-');
 		}
 
@@ -655,33 +655,175 @@ get_file_hash :: fn (filepath: string_view) u32 {
 	return str_hash(tmp);
 }
 
-ShadowMode :: enum {
-	NONE;
-	ALL;
-	TOP;
-	BOTTOM;
-}
-
-draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32, mode := ShadowMode.ALL) {
+draw_shadow :: fn (x: f32, y: f32, w: f32, h: f32) {
 	using draw;
-	r :: metrics[auto Metric.CORNER_ROUNDING];
-	s :: metrics[auto Metric.SHADOW_SIZE];
+	s := metrics.shadow_size;
 
 	set_shader_color();
-	inner_color :: rgba(0x00000060);
+	inner_color :: rgba(0x00000040);
 	outer_color :: rgba(0x0);
-	using ShadowMode;
-	switch mode {
-		NONE { return; }
-		ALL {
-			rect_rounded(x - s + r, y - s + r, w + s * 2.f - r * 2.f, h + s * 2.f - r * 2.f, s, inner_color, outer_color);
-		}
-		TOP {
-			rect_rounded(x - s, y - s, w + s * 2.f, h + s, s, inner_color, outer_color);
-		}
-		BOTTOM {
-			rect_rounded(x - s, y, w + s * 2.f, h + s, s, inner_color, outer_color);
-		}
+
+	rect_rounded(x - s, y - s, w + 2.f * s, h + 2.f * s, s*2.f, inner_color, outer_color);
+}
+
+compute_command_panel_layout :: fn (prefer_width: s32 = 0) (x: f32, y: f32, w: f32, h: f32, content_start_y: f32, content_max_h: f32) {
+	window_h := cast(f32) WINDOW_HEIGHT;
+	window_w := cast(f32) WINDOW_WIDTH;
+
+	panel_offset_y :: metrics.command_panel_offset_y;
+	max_w          :: if prefer_width > 0 then cast(f32) prefer_width else metrics.list_panel_max_width;
+	f              :: metrics.list_panel_factor;
+	max_h          :: math.max(math.ceil(window_h - panel_offset_y * 2.f), 0.f);
+
+	_, command_editor_h :: get_command_editor_size();
+	notif_area_h        :: command_editor_h;
+
+	w               :: math.ceil(math.min(window_w * f, max_w));
+	h               :: command_editor_h + notif_area_h;
+	x               :: math.ceil(window_w/2.f - w/2.f);
+	y               :: panel_offset_y;
+	content_start_y :: y + command_editor_h;
+	content_max_h   :: math.clamp(max_h - h, 0.f, max_h);
+
+	return x, y, w, h, content_start_y, content_max_h;
+}
+
+draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams, hints: []PanelHint = .{}) #inline {
+	x, y, w, h, content_start_y :: compute_command_panel_layout();
+	draw_command_editor_panel(x, y, w, h);
+
+	cmd_h :: y+h-content_start_y;
+
+	assert(active_editor == command_editor);
+	draw_command_editor(command_editor, x, y, w, cmd_h, cmd_params);
+	draw_command_panel_hints(x, y+h-cmd_h, w, cmd_h, hints, metrics.command_panel_hints_alpha);
+}
+
+draw_panel_body :: fn (x: f32, y: f32, w: f32, h: f32, rounding: f32) {
+	using draw;
+	border_line_width   :: metrics.border_line_width;
+	fg_color            :: colors.panel_outline;
+	bg_color            :: colors.background;
+
+	draw_shadow(x, y, w, h);
+
+	set_shader_color();
+	rect_rounded(x, y, w, h, rounding, fg_color, fg_color);
+	rect_rounded(x+border_line_width, y+border_line_width, w-border_line_width*2.f, h-border_line_width*2.f, rounding, bg_color, bg_color);
+}
+
+draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0.f) {
+	using draw;
+
+	_, command_editor_h :: get_command_editor_size();
+	notif_area_h        :: command_editor_h;
+	border_line_width   :: metrics.border_line_width;
+	rounding            :: metrics.corner_rounding_panel;
+	fg_color            :: colors.panel_outline;
+
+	draw_panel_body(x, y, w, h, rounding);
+
+	set_shader_color();
+	// Separator
+	elem_y := y + command_editor_h;
+	rect(x, elem_y, w, border_line_width, fg_color);
+
+	if progress_t > 0.f { // Progress
+		progress_bar_color :: colors.progress_bar;
+		progress_w :: w * progress_t;
+		rect(x+border_line_width, elem_y-border_line_width, progress_w-border_line_width, border_line_width, progress_bar_color);
+
+		redraw();
+	}
+
+	elem_y = y + h - notif_area_h;
+	rect(x, elem_y, w, border_line_width, fg_color);
+}
+
+calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
+	using draw;
+	text_padding    :: metrics.text_padding;
+
+	total_w := 0.f;
+	loop i := 0; i < key_mapping.len; i += 1 {
+		text_w :: text_size(key_mapping[i], &font_ui_small);
+		cell_w :: text_w + text_padding*2.f;
+
+		total_w += cell_w + text_padding;
+	}
+	return total_w;
+}
+
+draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_view, base_alpha := 1.f) f32 {
+	using draw;
+
+	text_padding    :: metrics.text_padding;
+	rounding        :: metrics.corner_rounding;
+	hint_height   :: metrics.line_height * 1.2f;
+
+	hx := x;
+	total_w := 0.f;
+	loop i := 0; i < key_mapping.len; i += 1 {
+		text_w, text_h :: text_size(key_mapping[i], &font_ui_small);
+		cell_w         :: text_w + text_padding*2.f;
+
+		offset_x :: cell_w + text_padding*0.5f;
+
+		box_offset_y  :: item_h / 2.f - hint_height / 2.f;
+		text_offset_y :: item_h / 2.f - text_h / 2.f;
+
+		body_color := colors.foreground;
+		text_color := colors.foreground;
+		body_color.w = math.max(base_alpha - 0.8f, 0.1f);
+		text_color.w = math.max(base_alpha, 0.2f);
+
+		set_shader_color();
+		rect_rounded(hx, y + box_offset_y, cell_w, hint_height, rounding, body_color, body_color);
+
+		set_shader_font(&font_ui_small);
+		text(hx + text_padding, y + text_offset_y, key_mapping[i], text_color);
+
+		hx += offset_x;
+		total_w += offset_x;
+	}
+
+	return total_w;
+}
+
+PanelHint :: struct {
+	key_mapping: string_view;
+	info:        string_view;
+}
+
+draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHint, base_alpha := 1.f) {
+	using draw;
+
+	text_padding :: metrics.text_padding;
+
+	color   := colors.foreground;
+	color.w = 0.4f;
+
+	set_scissor(x+text_padding, y, w-text_padding*2.f, h);
+	defer clear_scissor();
+	defer flush();
+
+	hx := x + text_padding;
+	loop i := 0; i < hints.len; i += 1 {
+		hint :: &hints[i];
+
+		// Use primary only to save some space.
+		key_mapping := "";
+		str_split_by_first(hint.key_mapping, '\0', &key_mapping);
+
+		cells_w :: draw_keybind_cells(hx, y, h, [_]string_view.{ key_mapping }, base_alpha);
+		hx += cells_w;
+
+		set_shader_font(&font_ui_small);
+		tw, th        :: text_size(hints[i].info, &font_ui_small);
+		text_offset_y :: h / 2.f - th / 2.f;
+
+		text(hx, y + text_offset_y, hints[i].info, color);
+		hx += tw + text_padding * 2.f;
 	}
 }
 
@@ -811,7 +953,7 @@ get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") strin
 		keymap_index = lookup_command_keymap_index(cmd, keymap_index);
 		if keymap_index == -1 then break;
 
-		if tmp.len > 0 then str_append(&tmp, " | ");
+		if tmp.len > 0 then str_append(&tmp, "\0");
 		str_append(&tmp, keymap_entry_to_string(keymap_index));
 	}
 
@@ -916,4 +1058,13 @@ count_visual_cols_to_position_str :: fn (line: string_view, position: s64) s32 {
 		i += char_len;
 	}
 	return count;
+}
+
+warn_if_no_project_open :: fn () bool {
+	if project.filepath.len == 0 || project.is_default {
+		print_warn("No project is open. Use 'open-project' command first to open one.");
+		return true;
+	}
+	
+	return false;
 }

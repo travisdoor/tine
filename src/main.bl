@@ -4,21 +4,22 @@ io         :: #import "std/io";
 C          :: #import "libc";
 type_utils :: #import "std/type_utils";
 
+#import "experimental/variant"
+#import "extra/filewatch"
+#import "extra/glm"
+#import "pcre"
+#import "std/array"
 #import "std/async"
+#import "std/bucket_array"
 #import "std/debug_allocator"
 #import "std/fs"
 #import "std/pool"
-#import "std/string"
 #import "std/print"
-#import "std/array"
+#import "std/static_array"
+#import "std/string"
+#import "std/sync"
 #import "std/table"
 #import "std/thread"
-#import "std/sync"
-#import "std/static_array"
-#import "extra/glm"
-#import "extra/filewatch"
-#import "experimental/variant"
-#import "pcre"
 
 #load "buffer.bl"
 #load "clang_format.bl"
@@ -76,8 +77,7 @@ ANSI_COLOR_MAGENTA_INDEX   : u8 : 17;
 ANSI_COLOR_CYAN_INDEX      : u8 : 18;
 ANSI_COLOR_WHITE_INDEX     : u8 : 19;
 
-DEFAULT_FONT_SIZE              :: 20;
-MAX_FONT_SIZE                  :: 64;
+MAX_FONT_SIZE                  :: 48; // @Incomplete 2026-06-21: Bigger font is not loaded correctly for some reason, might be due to way the rasterization into the texture works, where we simly render all glypsh into one row instead of making NxN atlas.
 MIN_FONT_SIZE                  :: 4;
 BOTTOM_SCROLL_TRIGGER          :: 5;
 
@@ -118,6 +118,9 @@ ICON_CODE_MODULE      : u32 : 0xF466;
 ICON_CODE_KEYWORD     : u32 : 0xF02C;
 ICON_CODE_OPERATOR    : u32 : 0xF52C;
 ICON_CIRCLE           : u32 : 0x25CF;
+ICON_SEARCH           : u32 : 0xF002;
+ICON_ARROW_EAST       : u32 : 0x203A;
+ICON_REPLACE          : u32 : 0xF363;
 
 ICON_SHELL    : u32 : 0xF120;
 ICON_MESSAGES : u32 : 0x2709;
@@ -148,10 +151,11 @@ MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
 PROJECT_IS_INDEXING_MESSAGE :: "Project indexing in progress, please wait.";
 
-font:      draw.Font;
-font_ui:   draw.Font;
-font_ui_b: draw.Font;
-icons:     draw.Font;
+font:          draw.Font;
+font_ui:       draw.Font;
+font_ui_b:     draw.Font;
+font_ui_small: draw.Font;
+icons:         draw.Font;
 
 current_font_hash: u32;
 
@@ -198,17 +202,22 @@ Split :: enum { FLOATING; LEFT; RIGHT; }
 left:  s32 = -1;
 right: s32 = -1;
 
-Metric :: enum s64 {
-	LINE_HEIGHT;
-	TITLE_BAR_HEIGHT;
-	ITEM_SPACING;
-	TEXT_PADDING;
-	TITLE_MAX_SIZE;
-	SHADOW_SIZE;
-	CORNER_ROUNDING;
-}
-
-metrics: [type_utils.enum_variant_count(Metric)]f32;
+metrics: struct {
+	line_height: f32;
+	title_bar_height: f32;
+	item_spacing: f32;
+	text_padding: f32;
+	title_max_size: f32;
+	shadow_size: f32;
+	corner_rounding: f32;
+	corner_rounding_panel: f32;
+	list_panel_max_width: f32;
+	list_panel_factor: f32;
+	line_item_height: f32;
+	command_panel_hints_alpha: f32;
+	command_panel_offset_y: f32;
+	border_line_width: f32;
+};
 
 InputMode :: enum {
 	TEXT;
@@ -394,7 +403,8 @@ Settings :: struct {
 	change_caret_on_selection:              bool;
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
-	show_hints:                             bool;
+	focus_shell_on_build:                   bool;
+	show_hints:                             bool; // deprecated
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
 	line_numbers_relative:                  bool; // deprecated
@@ -420,31 +430,35 @@ Settings :: struct {
 settings: Settings;
 
 Colors :: struct {
-	background_color                    : v4;
-	foreground_color                    : v4;
-	cursor_background_color             : v4;
-	cursor_foreground_color             : v4;
-	current_line_background_color       : v4;
-	search_result_background_color      : v4;
-	title_bar_color                     : v4;
-	title_bar_active                    : v4;
-	title_bar_text_color                : v4;
-	command_background_color            : v4;
-	command_foreground_color            : v4;
-	command_title_color                 : v4;
-	command_select_color                : v4;
-	command_list_background_color       : v4;
-	modification_indicator_color        : v4;
-	selection_background_color          : v4;
-	selection_background_inactive_color : v4;
-	message_color                       : v4;
-	warning_color                       : v4;
-	error_color                         : v4;
-	inline_error_background_color       : v4;
-	inline_warning_background_color     : v4;
-	macro_record_icon_color             : v4;
-	background_line_numbers_color       : v4;
-	foreground_line_numbers_color       : v4;
+	background                    : v4;
+	foreground                    : v4;
+	cursor_background             : v4;
+	cursor_foreground             : v4;
+	current_line_background       : v4;
+	search_result_background      : v4;
+	title_bar                     : v4;
+	title_bar_active              : v4;
+	title_bar_text                : v4;
+	command_background            : v4;
+	command_foreground            : v4; // Deprecated
+	command_title                 : v4; // Deprecated
+	command_select                : v4;
+	command_list_background       : v4; // Deprecated
+	panel_outline                 : v4;
+	modification_indicator        : v4;
+	selection_background          : v4;
+	selection_background_inactive : v4;
+	message                       : v4;
+	warning                       : v4;
+	error                         : v4;
+	inline_error_background       : v4;
+	inline_error_foreground       : v4;
+	inline_warning_background     : v4;
+	inline_warning_foreground     : v4;
+	macro_record_icon             : v4;
+	background_line_numbers       : v4;
+	foreground_line_numbers       : v4;
+	progress_bar                  : v4;
 
 	// code
 	code_comment   : v4;
@@ -495,6 +509,18 @@ clear_error_list :: fn () {
 	error_marker_visible = false;
 
 	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+}
+
+get_error_and_warning_count :: fn () (errors: s32, warnings: s32) {
+	ec, wc := 0;
+	loop i := 0; i < error_list.len; i += 1 {
+		if error_list[i].kind == .ERROR {
+			ec += 1;
+		} else {
+			wc += 1;
+		}
+	}
+	return ec, wc;
 }
 
 // Compilation errors are in the list and shown only if the line with error is focused and not changed.
@@ -829,6 +855,7 @@ main :: fn () s32 {
 	defer draw.font_terminate(&font);
 	defer draw.font_terminate(&font_ui);
 	defer draw.font_terminate(&font_ui_b);
+	defer draw.font_terminate(&font_ui_small);
 	defer draw.font_terminate(&icons);
 
 	listing_init();
@@ -1053,15 +1080,41 @@ rebuild_fonts :: fn (force := false) Error {
 	draw.font_terminate(&font);
 	draw.font_terminate(&font_ui);
 	draw.font_terminate(&font_ui_b);
+	draw.font_terminate(&font_ui_small);
 	draw.font_terminate(&icons);
+
+	ui_char_set: [..]u32;
+	defer array_terminate(&ui_char_set);
+	array_push_all(&ui_char_set, draw.font_default_char_set());
+	draw.font_generate_char_set(
+		// Your original string:
+		"áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü"
+		// Unique Extended Latin additions (French, Spanish, Nordic):
+		"çàâèêëîïôùûÿæœÇÀÂÈÊËÎÏÔÙÛŸÆŒñ¿¡ÑåøÅØ"
+		// Cyrillic (Azbuka) for Slavic languages:
+		"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюяІіЇїЄєҐґЎўЂђЈјЉљЊњЋћЏџЃѓЅѕЌќ"
+		// Unique Typographical & Currency:
+		"‘’“”«»…•¶¬€£¥¢",
+		&ui_char_set
+	);
 
 	char_set: [..]u32;
 	defer array_terminate(&char_set);
-	array_push_all(&char_set, draw.font_default_char_set());
-	draw.font_generate_char_set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü‘’┬┌│─├└┘┤┐┴┼﻿", &char_set);
-	array_push(&char_set, 0x00A9);
-	array_push(&char_set, 0x00AE);
-	array_push(&char_set, 0x00A7);
+	array_push_all(&char_set, ui_char_set);
+	draw.font_generate_char_set(
+		// Unique Math, Greek, & Arrows (↵ removed):
+		"±×÷≈≠≤≥∞√µπ°∀∃∈∉λ←↑→↓↔⇒⇐⇔"
+		// Unique Extended Box Drawing & Blocks:
+		"┬┌│─├└┘┤┐┴┼—╔╗╚╝╠╣╦╩╬═║╭╮╯╰█▓▒░▄▀▌▐■□▪▫",
+		&char_set
+	);
+
+	array_push(&char_set, 0x00A9); // ©
+	array_push(&char_set, 0x00AE); // ®
+	array_push(&char_set, 0x00A7); // §
+	array_push(&char_set, 0xFEFF); // BOM
+	array_push(&char_set, 0x2122); // ™ Trademark
+	array_push(&char_set, 0x00B7); // · Middle dot (for visible spaces)
 
 	err: Error;
 
@@ -1084,11 +1137,15 @@ rebuild_fonts :: fn (force := false) Error {
 		current_font_hash = 0;
 	}
 
-	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2);
+	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2, ui_char_set);
 	if err { panic(err); }
 
-	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2);
+	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2, ui_char_set);
 	if err { panic(err); }
+
+	err = draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, scaled_size - 2, ui_char_set);
+	if err { panic(err); }
+
 
 	// Set tab size!
 	font.tab_size = settings.tab_size;
@@ -1104,7 +1161,8 @@ rebuild_fonts :: fn (force := false) Error {
 		ICON_WARNING, ICON_ERROR, ICON_SHELL, ICON_MESSAGES,
 		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
 		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
-		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD
+		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD,
+		ICON_SEARCH, ICON_ARROW_EAST, ICON_REPLACE
 	};
 
 	array_push_all(&icon_set, ICONS);
@@ -1203,9 +1261,8 @@ set_default_mode :: fn () bool #inline {
 }
 
 get_command_editor_size :: fn () (w: f32, h: f32) #inline {
-	using Metric;
-	line_height  :: metrics[auto LINE_HEIGHT];
-	text_padding :: metrics[auto TEXT_PADDING];
+	line_height  :: metrics.line_height;
+	text_padding :: metrics.text_padding;
 	return cast(f32) WINDOW_WIDTH, line_height + text_padding * 2.f;
 }
 
@@ -1475,14 +1532,7 @@ find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
 	}
 	assert(editor_index > -1);
 
-	using Split;
-	switch split {
-		LEFT    { left  = editor_index; }
-		RIGHT   { right = editor_index; }
-		default { panic();              }
-	}
-
-	active_editor = editor_index;
+	activate_editor(editor_index);
 	return editor_index;
 }
 
@@ -1494,7 +1544,6 @@ find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buff
 		if @buffer_index == -1 {
 			@buffer_index = add_builtin_buffer(buffer_name, BufferFlags.PARSE_FILE_LINKS);
 		}
-		buf = &buffers[@buffer_index];
 		return find_or_create_editor_in_split(get_other_split(), @buffer_index);
 	}
 	return editor.index;
@@ -1582,8 +1631,8 @@ JobContext :: struct {
 	stdout: IoStream;
 	stderr: IoStream; // Most of the time mirrored to stdout.
 
-	pending:  StaticArray(Request,  MAX_REQUEST_COUNT);
-	complete: StaticArray(Response, MAX_REQUEST_COUNT);
+	pending:  [..]Request;
+	complete: [..]Response;
 	mutex:    Mutex;
 
 	kill: bool;
@@ -1591,11 +1640,6 @@ JobContext :: struct {
 
 	exit_code: s32;
 	show_progress: bool;
-
-	request_pools:            StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
-	response_pools:           StaticArray(PoolAllocator,  MAX_REQUEST_COUNT);
-	available_request_pools:  StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
-	available_response_pools: StaticArray(*PoolAllocator, MAX_REQUEST_COUNT);
 }
 
 Request :: struct {
@@ -1628,17 +1672,33 @@ JobKind :: enum {
 }
 
 Job :: Async2(JobContext, s32);
+
 jobs: [..]Job;
+jobs_pools: struct {
+	pools:          BucketArray(PoolAllocator);
+	available: [..]*Allocator;
+	mutex:          Mutex;
+};
 
 background_job_indicator: struct {
 	active_last_frame: bool;
 	t: f32;
 };
 
-jobs_init :: fn () {}
+jobs_init :: fn () {
+	mutex_init(&jobs_pools.mutex);
+}
 
 jobs_terminate :: fn () {
 	kill_async_jobs();
+
+	loop it := bucket_array_begin(&jobs_pools.pools); it; it = bucket_array_iter_next(&jobs_pools.pools, it) {
+		release_allocator(&it.value);
+	}
+
+	bucket_array_terminate(&jobs_pools.pools);
+	array_terminate(&jobs_pools.available);
+	mutex_terminate(&jobs_pools.mutex);
 }
 
 start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobContext) s32) s32 {
@@ -1680,29 +1740,38 @@ remove_async_job :: fn (index: s32) {
 	ctx.kill = true;
 	async_wait(job);
 
+	consume_job_results(job, true);
+
+	if ctx.kind == .SHELL {
+		shell.job_index = -1;
+		if shell.buffer_index != -1 && !buffers[shell.buffer_index].is_removed {
+			// @Hack 2026-06-20: We need this in case build output is not automatically focused to parse compilation errors.
+			rebuild_coloring_and_indentation_info(&buffers[shell.buffer_index]);
+		}
+	} else if ctx.kind == .LSP {
+		remove_all_buffers_from_lsp();
+		lsp.job_index = -1;
+	}
+
 	switch ctx.state {
-		DONE   { print_info("Job '%' finished.", ctx.name); }
+		DONE   {
+			ec, wc :: get_error_and_warning_count();
+			if ec > 0 {
+				print_err("Job '%' finished with % error%.", ctx.name, ec, if ec > 1 then "s" else "");
+			} else if wc > 0 {
+				print_warn("Job '%' finished with % warning%.", ctx.name, wc, if wc > 1 then "s" else "");
+			} else {
+				print_info("Job '%' finished with exit code: %.", ctx.name, ctx.exit_code);
+			}
+		}
 		KILLED { print_warn("Job '%' killed.", ctx.name); }
 		FAILED;
 
 		default { panic(); }
 	}
 
-	consume_job_results(job, true);
-
-	if ctx.kind == JobKind.SHELL {
-		shell.job_index = -1;
-	} else if ctx.kind == JobKind.LSP {
-		remove_all_buffers_from_lsp();
-		lsp.job_index = -1;
-	}
-
-	loop i := 0; i < ctx.request_pools.len; i += 1 {
-		release_allocator(&ctx.request_pools.data[i]);
-	}
-	loop i := 0; i < ctx.response_pools.len; i += 1 {
-		release_allocator(&ctx.response_pools.data[i]);
-	}
+	array_terminate(&ctx.pending);
+	array_terminate(&ctx.complete);
 
 	mutex_terminate(&ctx.mutex);
 	ctx.is_removed = true;
@@ -1720,7 +1789,7 @@ kill_async_jobs :: fn () {
 	zeroinit(&jobs);
 }
 
-consume_job_results :: fn (job: *Job, required := false) {
+consume_job_results :: fn (job: *Job, is_blocking := false) {
 	using JobContext.state;
 	using JobKind;
 
@@ -1728,33 +1797,33 @@ consume_job_results :: fn (job: *Job, required := false) {
 	assert(!ctx.is_removed);
 
 	locked := false;
-	if required {
+	if is_blocking {
 		locked = true;
 		mutex_lock(&ctx.mutex);
 	} else {
-		l, err :: mutex_try_lock(&ctx.mutex);
-		if err then print_err(err) else locked = l;
+		locked = mutex_try_lock(&ctx.mutex) catch {
+			print_err($);
+		};
 	}
 
-	if locked {
-		defer mutex_unlock(&ctx.mutex);
+	if !locked then return;
+	defer mutex_unlock(&ctx.mutex);
 
-		response: Response #noinit;
-		loop pop_response(ctx, &response) {
-			assert(response.job_kind == ctx.kind);
-			err: Error;
-			switch ctx.kind {
-				CLANG_FORMAT { err = apply_format(ctx.state, &response);        }
-				SHELL        { err = apply_shell(ctx.state, &response);         }
-				LSP          { err = apply_lsp(ctx.state, &response);           }
-				default { panic(); }
-			}
-
-			if err then print_err("LSP: %", err);
-
-			terminate_response(ctx, &response);
-			redraw();
+	response: Response #noinit;
+	loop pop_response(ctx, &response) {
+		assert(response.job_kind == ctx.kind);
+		err: Error;
+		switch ctx.kind {
+			CLANG_FORMAT { err = apply_format(ctx.state, &response);        }
+			SHELL        { err = apply_shell(ctx.state, &response);         }
+			LSP          { err = apply_lsp(ctx.state, &response);           }
+			default { panic(); }
 		}
+
+		if err then print_err(err);
+
+		terminate_response(&response);
+		redraw();
 	}
 }
 
@@ -1781,36 +1850,32 @@ get_job_context :: fn (index: s32) *JobContext #inline {
 }
 
 #scope_private
-get_allocator :: fn (ctx: *JobContext, pools: *?TPool, available: *?TAvailable) *Allocator #inline {
-	assert(ctx);
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
+get_allocator :: fn () *Allocator #inline {
+	mutex_lock(&jobs_pools.mutex);
+	defer mutex_unlock(&jobs_pools.mutex);
 
-	allocator: *PoolAllocator;
-	if !sarray_pop(available, &allocator) {
-		if pools.len+1 > pools.data.len then return null;
-
+	allocator: *Allocator;
+	if !array_pop(&jobs_pools.available, &allocator) {
 		pool :: pool_make();
-		allocator = sarray_push(pools, pool);
+		allocator = bucket_array_push(&jobs_pools.pools, pool);
 	}
 	assert(allocator);
 	return allocator;
 }
 
-put_allocator :: fn (ctx: *JobContext, available: *?TAvailable, allocator: *Allocator)  #inline {
-	assert(ctx);
+put_allocator :: fn (allocator: *Allocator)  #inline {
 	assert(allocator);
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
+	mutex_lock(&jobs_pools.mutex);
+	defer mutex_unlock(&jobs_pools.mutex);
 
 	reset_allocator(allocator);
-	sarray_push(available, auto allocator);
+	array_push(&jobs_pools.available, auto allocator);
 }
 #scope_public
 
 make_request :: fn (ctx: *JobContext) (request: Request, err: Error) {
 	assert(ctx);
-	allocator : *Allocator : get_allocator(ctx, &ctx.request_pools, &ctx.available_request_pools);
+	allocator :: get_allocator();
 	if !allocator then return .{}, error("Cannot create request, queue is full, restart LSP server or try again later.");
 
 	return .{
@@ -1823,9 +1888,8 @@ push_request :: fn (ctx: *JobContext, request: *Request) {
 	assert(request.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	assert(ctx.pending.len < ctx.pending.data.len);
 
-	r :: sarray_push(&ctx.pending);
+	r :: array_push(&ctx.pending);
 	memcpy(auto r, auto request, sizeof(@request));
 	r.is_pending = true;
 }
@@ -1833,7 +1897,7 @@ push_request :: fn (ctx: *JobContext, request: *Request) {
 pop_request :: fn (ctx: *JobContext, request: *Request) bool {
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	if sarray_pop_first(&ctx.pending, request) {
+	if array_pop_first(&ctx.pending, request) {
 		assert(request.job_kind == ctx.kind);
 		return true;
 	}
@@ -1848,7 +1912,7 @@ has_pending_request :: fn (ctx: *JobContext) bool #inline {
 
 make_response :: fn (ctx: *JobContext) (response: Response, err: Error) {
 	assert(ctx);
-	allocator : *Allocator : get_allocator(ctx, &ctx.response_pools, &ctx.available_response_pools);
+	allocator :: get_allocator();
 	if !allocator then return .{}, error("Cannot create response, queue is full, restart LSP server or try again later.");
 
 	return .{
@@ -1863,16 +1927,15 @@ push_response :: fn (ctx: *JobContext, response: *Response) {
 	assert(response.job_kind == ctx.kind);
 	mutex_lock(&ctx.mutex);
 	defer mutex_unlock(&ctx.mutex);
-	assert(ctx.complete.len < ctx.complete.data.len);
 
-	r :: sarray_push(&ctx.complete);
+	r :: array_push(&ctx.complete);
 	memcpy(auto r, auto response, sizeof(@response));
 	zeroinit(&response.as);
 }
 
 // ctx.mutex should be locked before this is called
 pop_response :: fn (ctx: *JobContext, response: *Response) bool {
-	if sarray_pop_first(&ctx.complete, response) {
+	if array_pop_first(&ctx.complete, response) {
 		assert(response.job_kind == ctx.kind);
 		return true;
 	}
@@ -1886,13 +1949,13 @@ set_job_progress_indicator :: fn (ctx: *JobContext, v: bool) #inline {
 	ctx.show_progress = v;
 }
 
-terminate_request :: fn (ctx: *JobContext, request: *Request) {
-	put_allocator(ctx, &ctx.available_request_pools, request.allocator);
+terminate_request :: fn (request: *Request) {
+	put_allocator(request.allocator);
 	zeroinit(request);
 }
 
-terminate_response :: fn (ctx: *JobContext, response: *Response) {
-	put_allocator(ctx, &ctx.available_response_pools, response.allocator);
+terminate_response :: fn (response: *Response) {
+	put_allocator(response.allocator);
 	zeroinit(response);
 }
 
@@ -2025,23 +2088,15 @@ draw_frame :: fn () {
 	begin_frame();
 	defer end_frame();
 
-	clear_color(colors.foreground_color);
+	clear_color(colors.panel_outline);
 
 	{
-		active_x: f32;
+		active_x, last_active_x: f32;
 		x :: 0.f;
 		y := 0.f;
 
 		h := cast(f32) WINDOW_HEIGHT;
 		w := cast(f32) WINDOW_WIDTH;
-
-		// This is probably temporary solution fixing the issue when we cannot see the search hit
-		// on the first line which is covered by the command buffer line.
-		if active_editor == command_editor && (mode == Mode.SEARCH_FILE || mode == Mode.REPLACE) {
-			_, ch :: get_command_editor_size();
-			y += ch;
-			h -= ch;
-		}
 
 		assert(left != -1);
 		if right != -1 {
@@ -2059,28 +2114,34 @@ draw_frame :: fn () {
 			} else if active_editor == right {
 				active_x = rx;
 			}
+
+			if last_active_text_editor == left {
+				last_active_x = lx;
+			} else if last_active_text_editor == right {
+				last_active_x = rx;
+			}
 		} else {
 			draw_text_editor(left, x, y, w, h);
 		}
 
-		PROGRESS_BAR_HEIGHT :: 2.f;
+		PROGRESS_BAR_HEIGHT :: 3.f;
 		draw_background_progress_bar(0.f, h - PROGRESS_BAR_HEIGHT, auto WINDOW_WIDTH, PROGRESS_BAR_HEIGHT);
 
 		using Mode;
 		switch mode {
 			TEXT_EDIT;
-			GOTO_LINE         { draw_goto_mode();              }
-			REPEAT            { draw_repeat_mode();            }
-			OPEN_FROM_DRIVE   { draw_open_from_drive_mode();   }
-			QUICK_OPEN        { draw_quick_open_mode();        }
-			SAVE_TO_DRIVE     { draw_save_to_drive_mode();     }
-			RUN_COMMAND       { draw_run_command_mode();       }
-			SEARCH_FILE       { draw_search_mode();            }
-			OPEN_PROJECT      { draw_open_project_mode();      }
-			SEARCH_IN_PROJECT { draw_search_in_project_mode(); }
-			REPLACE           { draw_replace_mode();           }
-			LIST_FUNCTIONS    { draw_list_functions_mode();    }
-			SHELL_RUN         { draw_shell_run_mode();         }
+			GOTO_LINE         { draw_goto_mode();                          }
+			REPEAT            { draw_repeat_mode();                        }
+			OPEN_FROM_DRIVE   { draw_open_from_drive_mode();               }
+			QUICK_OPEN        { draw_quick_open_mode();                    }
+			SAVE_TO_DRIVE     { draw_save_to_drive_mode();                 }
+			RUN_COMMAND       { draw_run_command_mode();                   }
+			SEARCH_FILE       { draw_search_mode(last_active_x, y, w, h);  }
+			OPEN_PROJECT      { draw_open_project_mode();                  }
+			SEARCH_IN_PROJECT { draw_search_in_project_mode();             }
+			REPLACE           { draw_replace_mode(last_active_x, y, w, h); }
+			LIST_FUNCTIONS    { draw_list_functions_mode();                }
+			SHELL_RUN         { draw_shell_run_mode();                     }
 			PEEK_ERROR        {
 				draw_peek_error_mode(active_x, y, w, h);
 			}
@@ -2096,17 +2157,22 @@ draw_frame :: fn () {
 }
 
 recalculate_metrics :: fn () {
-	using Metric;
-
 	line_spacing :: math.min(math.max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
 
-	metrics[auto TITLE_BAR_HEIGHT] = font_ui.height  * 1.6f;
-	metrics[auto LINE_HEIGHT     ] = font.height  * line_spacing;
-	metrics[auto ITEM_SPACING    ] = icons.height * 1.3f;
-	metrics[auto TEXT_PADDING    ] = font.height  * 0.5f;
-	metrics[auto TITLE_MAX_SIZE  ] = font.height  * 25.f;
-	metrics[auto SHADOW_SIZE     ] = WINDOW_SCALE * 10.f;
-	metrics[auto CORNER_ROUNDING ] = WINDOW_SCALE * 4.f;
+	metrics.title_bar_height          = font_ui.height  * 1.6f;
+	metrics.line_height               = font.height  * line_spacing;
+	metrics.item_spacing              = icons.height * 1.3f;
+	metrics.text_padding              = font.height  * 0.5f;
+	metrics.title_max_size            = font.height  * 25.f;
+	metrics.shadow_size               = WINDOW_SCALE * 8.f;
+	metrics.corner_rounding           = WINDOW_SCALE * 4.f;
+	metrics.corner_rounding_panel     = WINDOW_SCALE * 10.f;
+	metrics.list_panel_max_width      = math.floor(WINDOW_SCALE * 1024.f);
+	metrics.list_panel_factor         = 0.8f;
+	metrics.line_item_height          = font.height * 1.4f;
+	metrics.command_panel_hints_alpha = 0.5f;
+	metrics.command_panel_offset_y    = 50.f;
+	metrics.border_line_width         = 2.f;
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {
@@ -2255,7 +2321,8 @@ draw_background_progress_bar :: fn (x: f32, y: f32, w: f32, h: f32) {
 	}
 
 	set_shader_color();
-	rect(x + w * background_job_indicator.t * 0.0005f, y, w * 0.1f, h, colors.warning_color);
+	progress_bar_color :: colors.progress_bar;
+	rect(x + w * background_job_indicator.t * 0.0005f, y, w * 0.1f, h, progress_bar_color);
 	redraw();
 
 	background_job_indicator.active_last_frame = true;

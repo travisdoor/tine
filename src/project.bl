@@ -196,7 +196,7 @@ cancel_indexing :: fn () {
 }
 
 index_worker :: fn (ctx: *IndexWorkerContext) s32 {
-	print_info("Indexing started...");
+	print_log("Indexing started...");
 
 	// List all project files first.
 	file_visitor :: fn (info: *FileVisitInfo) Error {
@@ -235,7 +235,7 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 	}
 
 	project.is_indexing = false;
-	print_info("Indexing DONE (indexed % files).", project.indexed_files.len);
+	print_log("Indexing DONE (indexed % files).", project.indexed_files.len);
 	return 0;
 };
 
@@ -279,8 +279,8 @@ do_the_stuff_after_project_load :: fn () {
 	if settings.search_size_limit_bytes < 1 then settings.search_size_limit_bytes = -1;
 
 	// map color codes for source code syntax
-	code_color_table[auto CODE_COLOR_DEFAULT_INDEX  ] = colors.foreground_color;
-	code_color_table[auto CODE_COLOR_CURSOR_INDEX   ] = colors.cursor_foreground_color;
+	code_color_table[auto CODE_COLOR_DEFAULT_INDEX  ] = colors.foreground;
+	code_color_table[auto CODE_COLOR_CURSOR_INDEX   ] = colors.cursor_foreground;
 	code_color_table[auto CODE_COLOR_KEYWORD_INDEX  ] = colors.code_keyword;
 	code_color_table[auto CODE_COLOR_COMMENT_INDEX  ] = colors.code_comment;
 	code_color_table[auto CODE_COLOR_DIRECTIVE_INDEX] = colors.code_directive;
@@ -578,7 +578,7 @@ map_key_binding :: fn (ctx: *Tokenizer, command_id: Command, key: u32, mods: u32
 unmap_binding_for_command :: fn (command_id: Command) {
 	loop i := 0; i < key_binding.len; {
 		if key_binding[i].cmd == command_id {
-			array_erase(&key_binding, i);
+			array_erase_keep_order(&key_binding, i);
 			continue;
 		}
 		i += 1;
