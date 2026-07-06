@@ -229,7 +229,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 
 	help[auto BREAK_IN_REMEDYBG]                = "Set current file location as breakpoint in RemedyBG.";
 	help[auto BREAK_IN_RADDBG]                  = "Set current file location as breakpoint in RAD Debugger.";
-	help[auto BUILD]                            = "Try to execute `build.bat` script if found in current project root directory and output in the 'build' buffer.";
+	help[auto BUILD]                            = "Execute `build_command`.";
 	help[auto SHELL_KILL]                       = "Try to kill running shell command.";
 	help[auto CLEAR_MESSAGES]                   = "Clear 'messages' buffer.";
 	help[auto DEBUG_IN_REMEDYBG]                = "Start debugging in running RemedyBG instance.";
