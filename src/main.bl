@@ -77,7 +77,7 @@ ANSI_COLOR_MAGENTA_INDEX   : u8 : 17;
 ANSI_COLOR_CYAN_INDEX      : u8 : 18;
 ANSI_COLOR_WHITE_INDEX     : u8 : 19;
 
-MAX_FONT_SIZE                  :: 48; // @Incomplete 2026-06-21: Bigger font is not loaded correctly for some reason, might be due to way the rasterization into the texture works, where we simly render all glypsh into one row instead of making NxN atlas.
+MAX_FONT_SIZE                  :: 100;
 MIN_FONT_SIZE                  :: 4;
 BOTTOM_SCROLL_TRIGGER          :: 5;
 
@@ -94,46 +94,45 @@ draw_next_frame := true;
 // Limits
 MAX_FILE_SYNTAX_HIGHLIGHT_BYTES :: 1024*1024*16; // 8MB
 MAX_INDENTATION_RANGE_BYTES     :: 1024*1024; // 1MB
+MAX_WRAPPING_BYTES              :: 1024*1024; // 1MB
 
 // Unicode awesome font codes.
-ICON_BELL             : u32 : 0xF0A2;
-ICON_FILE             : u32 : 0xF1C9;
-ICON_CHANGES          : u32 : 0xF044;
-ICON_FOLDER           : u32 : 0xF07B;
-ICON_DRIVE            : u32 : 0xF0A0;
-ICON_COMMAND          : u32 : 0x26A1;
-ICON_PROJECT          : u32 : 0xF6D1;
-ICON_READONLY         : u32 : 0xF023;
-ICON_WARNING          : u32 : 0x26A0;
-ICON_ERROR            : u32 : 0xF06A;
-ICON_BL               : u32 : 0xF564;
-ICON_CODE_FUNCTION    : u32 : auto 'F';
-ICON_CODE_CLASS       : u32 : auto 'C';
-ICON_CODE_INTERFACE   : u32 : auto 'I';
-ICON_CODE_TEXT        : u32 : 0xF080;
-ICON_CODE_TYPE        : u32 : auto 'T';
-ICON_CODE_VARIABLE    : u32 : auto 'V';
-ICON_CODE_ENUM        : u32 : auto 'E';
-ICON_CODE_MODULE      : u32 : 0xF466;
-ICON_CODE_KEYWORD     : u32 : 0xF02C;
-ICON_CODE_OPERATOR    : u32 : 0xF52C;
-ICON_CIRCLE           : u32 : 0x25CF;
-ICON_SEARCH           : u32 : 0xF002;
-ICON_ARROW_EAST       : u32 : 0x203A;
-ICON_REPLACE          : u32 : 0xF363;
+ICON_BELL             : u32 : 0xEAA2;
+ICON_FILE             : u32 : 0xEC5E;
+ICON_FILE_CODE        : u32 : 0xEAE9;
+ICON_FOLDER           : u32 : 0xEA83;
+ICON_DRIVE            : u32 : 0xEB4B;
+ICON_COMMAND          : u32 : 0xEA86;
+ICON_PROJECT          : u32 : 0xEA62;
+ICON_READONLY         : u32 : 0xEA75;
+ICON_WARNING          : u32 : 0xEA6C;
+ICON_ERROR            : u32 : 0xEA87;
+ICON_CODE_FUNCTION    : u32 : 0xEA8C;
+ICON_CODE_CLASS       : u32 : 0xEB5B;
+ICON_CODE_INTERFACE   : u32 : 0xEB61;
+ICON_CODE_TEXT        : u32 : 0xEA93;
+ICON_CODE_TYPE        : u32 : 0xEA91;
+ICON_CODE_VARIABLE    : u32 : 0xEA88;
+ICON_CODE_ENUM        : u32 : 0xEB5E;
+ICON_CODE_MODULE      : u32 : 0xEB29;
+ICON_CODE_KEYWORD     : u32 : 0xEB62;
+ICON_CODE_OPERATOR    : u32 : 0xEB64;
+ICON_CIRCLE           : u32 : 0xEBA7;
+ICON_SEARCH           : u32 : 0xEA6D;
+ICON_ARROW_EAST       : u32 : 0xEAB6;
+ICON_REPLACE          : u32 : 0xEB3D;
 
-ICON_SHELL    : u32 : 0xF120;
-ICON_MESSAGES : u32 : 0x2709;
-ICON_HELP     : u32 : 0x003F;
+ICON_SHELL    : u32 : 0xEA85;
+ICON_MESSAGES : u32 : 0xEB1C;
+ICON_HELP     : u32 : 0xEB32;
 
 // Static assets loaded directly into the executable data segment.
-// FONT                          :: "FiraCode-Regular.ttf";
-FONT                          :: "JetBrainsMono-Regular.ttf";
-// FONT                          :: "GeistMono-Regular.ttf";
-FONT_UI                       :: "SourceSans3-Regular.ttf";
-FONT_UI_B                     :: "SourceSans3-Bold.ttf";
+FONT                          :: "FiraCode-Retina.ttf";
+FONT_UI                       :: "NotoSans-Regular.ttf";
+FONT_UI_B                     :: "NotoSans-Bold.ttf";
 
-ICONS                         :: "fa-solid-900.ttf";
+// ICONS                         :: "fa-solid-900.ttf";
+ICONS                         :: "codicon.ttf";
 APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
 APP_ICON                      :: "icon/icon_256x256.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
@@ -156,6 +155,7 @@ font:          draw.Font;
 font_ui:       draw.Font;
 font_ui_b:     draw.Font;
 font_ui_small: draw.Font;
+font_ui_mono:  draw.Font;
 icons:         draw.Font;
 
 current_font_hash: u32;
@@ -169,9 +169,6 @@ frame_delta_time: f32;
 
 editor_start_time: s64;
 
-active_editor  : s32 = -1;
-command_editor : s32 = -1;
-
 notify_changes_to_buffer: s32 = -1;
 
 // Used for logs/errors/warnings etc.
@@ -179,6 +176,7 @@ messages_buffer_index := -1;
 help_buffer_index     := -1;
 search_buffer_index   := -1;
 conf_buffer_index     := -1;
+scratch_buffer_index  := -1;
 
 SearchLocation :: struct {
 	start: s32;
@@ -194,20 +192,13 @@ search: struct {
 	result_index:     s64;
 }
 
-// Points to previous active text editor, this might be used in interactive modes where we need the text buffer
-// as context (e.g. search mode).
-last_active_text_editor : s32 = -1;
-
-Split :: enum { FLOATING; LEFT; RIGHT; }
-
-left:  s32 = -1;
-right: s32 = -1;
-
 metrics: struct {
 	line_height: f32;
+	line_ui_height: f32;
 	title_bar_height: f32;
 	item_spacing: f32;
 	text_padding: f32;
+	text_ui_padding: f32;
 	title_max_size: f32;
 	shadow_size: f32;
 	corner_rounding: f32;
@@ -218,6 +209,7 @@ metrics: struct {
 	command_panel_hints_alpha: f32;
 	command_panel_offset_y: f32;
 	border_line_width: f32;
+	completion_list_width: f32;
 };
 
 InputMode :: enum {
@@ -372,6 +364,7 @@ project: struct {
 // Global application settings loaded from the configuraiton file. These might be overriden by local project settings.
 Settings :: struct {
 	font_size:    s32;
+	font_ui_size: s32;
 	tab_size:     s32;
 	line_spacing: s32;
 	word_wrap:    bool;
@@ -446,7 +439,8 @@ Colors :: struct {
 	command_select                : v4;
 	command_list_background       : v4; // Deprecated
 	panel_outline                 : v4;
-	modification_indicator        : v4;
+	modification_indicator        : v4; // Deprecated
+	open_indicator                : v4;
 	selection_background          : v4;
 	selection_background_inactive : v4;
 	message                       : v4;
@@ -460,6 +454,7 @@ Colors :: struct {
 	background_line_numbers       : v4;
 	foreground_line_numbers       : v4;
 	progress_bar                  : v4;
+	link_background               : v4;
 
 	// code
 	code_comment   : v4;
@@ -606,7 +601,7 @@ erase_all_locations_for_editor :: fn (editor: *Editor) {
 jump_to_previous_location :: fn () bool {
 	rl  :: &recent_locations;
 	if rl.index < 1 { return false; }
-	assert(active_editor != command_editor);
+	assert(workspace.active_editor != workspace.command_editor);
 
 	rl.index -= 1;
 	activate_editor(rl.stack[rl.index]);
@@ -618,7 +613,7 @@ jump_to_previous_location :: fn () bool {
 jump_to_next_location :: fn () bool {
 	rl  :: &recent_locations;
 	if rl.index+1 >= rl.stack.len { return false; }
-	assert(active_editor != command_editor);
+	assert(workspace.active_editor != workspace.command_editor);
 
 	rl.index += 1;
 	activate_editor(rl.stack[rl.index]);
@@ -742,12 +737,15 @@ main :: fn () s32 {
 	defer mutex_terminate(&message.mutex);
 	defer str_terminate(&message.text);
 
+	init_workspace();
+	defer terminate_workspace();
+
 	// Recent location
 	recent_locations.index = -1;
 	defer array_terminate(&recent_locations.stack);
 
 	// Create command editor.
-	command_editor = add_editor(add_command_buffer());
+	workspace.command_editor = add_editor(add_command_buffer());
 	// Messages buffer
 	messages_buffer_index = add_builtin_buffer("messages");
 
@@ -758,7 +756,6 @@ main :: fn () s32 {
 
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
-
 
 	// Resolve editor executable path.
 	EXEC_PATH = os_get_exec_path();
@@ -776,18 +773,25 @@ main :: fn () s32 {
 		print_log("Editor executable directory: '%'", exec_dir);
 	}
 
-	#if PLATFORM == Platform.WINDOWS {
+	#if PLATFORM == .WINDOWS {
 		data_dir = str_make(exec_dir);
+	} else if PLATFORM == .LINUX {
+		data_dir = get_home();
+		if file_exist(tprint("%/.config", data_dir)) {
+			str_append(&data_dir, "/.config/tine");
+		} else {
+			str_append(&data_dir, "/.tine");
+		}
+		if !file_exist(data_dir) {
+			create_dir(data_dir) catch panic("Cannot create config directory at '%' with error: %", data_dir, $);
+			print_log("Tine directory created at '%'.", data_dir);
+		}
 	} else {
 		data_dir = get_home();
 		str_append(&data_dir, "/.tine");
 		if !file_exist(data_dir) {
-			err :: create_dir(data_dir);
-			if err {
-				panic(err);
-			} else {
-				print_log("Tine directory created at '%'.", data_dir);
-			}
+			create_dir(data_dir) catch panic("Cannot create config directory at '%' with error: %", data_dir, $);
+			print_log("Tine directory created at '%'.", data_dir);
 		}
 	}
 
@@ -857,6 +861,7 @@ main :: fn () s32 {
 	defer draw.font_terminate(&font_ui);
 	defer draw.font_terminate(&font_ui_b);
 	defer draw.font_terminate(&font_ui_small);
+	defer draw.font_terminate(&font_ui_mono);
 	defer draw.font_terminate(&icons);
 
 	listing_init();
@@ -889,13 +894,12 @@ main :: fn () s32 {
 		}
 	}
 
-	if active_editor == -1 {
-		active_editor = add_editor(add_buffer(), true, Split.LEFT);
-		left          = active_editor;
+	if workspace.active_editor == -1 {
+		activate_editor(add_scratch());
 	}
 
-	assert(left != -1);
-	assert(active_editor != -1);
+	assert(workspace.left != -1);
+	assert(workspace.active_editor != -1);
 
 	prev_time := get_ticks();
 	prev_frame_delta := -1.f #maybe_unused;
@@ -976,8 +980,8 @@ main :: fn () s32 {
 		update_jobs(); // Also process all responses...
 
 		buf, editor :: get_active_buffer_and_editor();
-		if prev_active_editor != active_editor {
-			prev_active_editor = active_editor;
+		if prev_active_editor != workspace.active_editor {
+			prev_active_editor = workspace.active_editor;
 			buf.last_focus_index = last_focus_index;
 			last_focus_index += 1;
 
@@ -1053,129 +1057,64 @@ lookup_font :: fn (font_name: string_view) string_view {
 	return "";
 }
 
-rebuild_fonts :: fn (force := false) Error {
-	size := settings.font_size;
+rebuild_fonts :: fn () Error {
 	custom_font_path := "";
-	font_hash: u32 = 0;
 
 	if settings.font.len > 0 {
 		custom_font_path = lookup_font(settings.font);
 		if custom_font_path.len == 0 {
-			print_err("Custom font '%' not found. Default expected font file location"
-				" is %. Note that the full path can be used too.",
-				settings.font,
-				FONT_DIRECTORY
-			);
-		} else {
-			font_hash = str_hash(custom_font_path);
+			print_err("Custom font '%' not found. Default expected font file location is %. Note that the full path can be used too.", settings.font, FONT_DIRECTORY);
 		}
 	}
 
-	assert(size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE);
-	if !force && (size == auto font.size) && (current_font_hash == font_hash) {
-		return OK;
-	}
-
-	scaled_size :: cast(s32) math.round(WINDOW_SCALE * auto size);
+	assert(settings.font_size    >= MIN_FONT_SIZE && settings.font_size    <= MAX_FONT_SIZE);
+	assert(settings.font_ui_size >= MIN_FONT_SIZE && settings.font_ui_size <= MAX_FONT_SIZE);
+	size    :: cast(s32) math.round(WINDOW_SCALE * auto settings.font_size);
+	ui_size :: cast(s32) math.round(WINDOW_SCALE * auto settings.font_ui_size);
 
 	draw.font_terminate(&font);
 	draw.font_terminate(&font_ui);
 	draw.font_terminate(&font_ui_b);
 	draw.font_terminate(&font_ui_small);
+	draw.font_terminate(&font_ui_mono);
 	draw.font_terminate(&icons);
-
-	ui_char_set: [..]u32;
-	defer array_terminate(&ui_char_set);
-	array_push_all(&ui_char_set, draw.font_default_char_set());
-	draw.font_generate_char_set(
-		// Your original string:
-		"áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽÄÖÜßäöü"
-		// Unique Extended Latin additions (French, Spanish, Nordic):
-		"çàâèêëîïôùûÿæœÇÀÂÈÊËÎÏÔÙÛŸÆŒñ¿¡ÑåøÅØ"
-		// Cyrillic (Azbuka) for Slavic languages:
-		"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюяІіЇїЄєҐґЎўЂђЈјЉљЊњЋћЏџЃѓЅѕЌќ"
-		// Unique Typographical & Currency:
-		"‘’“”«»…•¶¬€£¥¢",
-		&ui_char_set
-	);
-
-	char_set: [..]u32;
-	defer array_terminate(&char_set);
-	array_push_all(&char_set, ui_char_set);
-	draw.font_generate_char_set(
-		// Unique Math, Greek, & Arrows (↵ removed):
-		"±×÷≈≠≤≥∞√µπ°∀∃∈∉λ←↑→↓↔⇒⇐⇔"
-		// Unique Extended Box Drawing & Blocks:
-		"┬┌│─├└┘┤┐┴┼—╔╗╚╝╠╣╦╩╬═║╭╮╯╰█▓▒░▄▀▌▐■□▪▫",
-		&char_set
-	);
-
-	array_push(&char_set, 0x00A9); // ©
-	array_push(&char_set, 0x00AE); // ®
-	array_push(&char_set, 0x00A7); // §
-	array_push(&char_set, 0xFEFF); // BOM
-	array_push(&char_set, 0x2122); // ™ Trademark
-	array_push(&char_set, 0x00B7); // · Middle dot (for visible spaces)
-
-	err: Error;
 
 	// main font
 	use_custom_font := custom_font_path.len > 0;
 	if use_custom_font {
 		print_log("Using custom font: %", custom_font_path);
-		err = draw.font_init_at_size(&font, "", custom_font_path, scaled_size, char_set);
+		err := draw.font_init_at_size(&font, "", custom_font_path, size);
+		if !err {
+			err = draw.font_init_at_size(&font_ui_mono, "", custom_font_path, ui_size);
+		}
 		if err {
 			print_err(err);
 			use_custom_font = false;
-		} else {
-			current_font_hash = font_hash;
 		}
 	}
 
 	if !use_custom_font {
 		// Load defautl bundled font.
-		draw.font_init_at_size_from_memory(&font, FONT_DATA, scaled_size, char_set) catch panic($);
+		draw.font_init_at_size_from_memory(&font, FONT_DATA, size) catch panic($);
+		draw.font_init_at_size_from_memory(&font_ui_mono, FONT_DATA, ui_size) catch panic($);
 		current_font_hash = 0;
 	}
 
-	err = draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, scaled_size + 2, ui_char_set);
-	if err { panic(err); }
-
-	err = draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, scaled_size + 2, ui_char_set);
-	if err { panic(err); }
-
-	err = draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, scaled_size - 2, ui_char_set);
-	if err { panic(err); }
-
+	draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, ui_size) catch panic($);
+	draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, ui_size) catch panic($);
+	draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, ui_size - 6) catch panic($);
 
 	// Set tab size!
 	font.tab_size = settings.tab_size;
 
-	icon_set: [..]u32;
-	defer array_terminate(&icon_set);
-
-	draw.font_generate_char_set("X", &icon_set);
-
-	ICONS :: [_]u32.{
-		ICON_BELL, ICON_FILE, ICON_CHANGES, ICON_FOLDER,
-		ICON_DRIVE, ICON_COMMAND, ICON_PROJECT, ICON_READONLY,
-		ICON_WARNING, ICON_ERROR, ICON_SHELL, ICON_MESSAGES,
-		ICON_BL, ICON_CODE_FUNCTION, ICON_CODE_CLASS, ICON_CODE_INTERFACE,
-		ICON_CODE_TEXT, ICON_CODE_TYPE, ICON_CODE_VARIABLE, ICON_CODE_ENUM,
-		ICON_CODE_MODULE, ICON_CIRCLE, ICON_CODE_OPERATOR, ICON_CODE_KEYWORD,
-		ICON_SEARCH, ICON_ARROW_EAST, ICON_REPLACE, ICON_HELP
-	};
-
-	array_push_all(&icon_set, ICONS);
-
-	err = draw.font_init_at_size_from_memory(&icons, ICON_DATA, scaled_size, icon_set);
-	if err { panic(err); }
+	draw.font_init_at_size_from_memory(&icons, ICON_DATA, ui_size+2, .{}, 0xEB32) catch panic($);
+	icons.centering_offset_y = auto (cast(f32)(ui_size + 2) * 0.5f);
 
 	return OK;
 }
 
 get_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
-	editor :: &editors[active_editor];
+	editor :: &editors[workspace.active_editor];
 	assert(editor.buffer_index != -1);
 	buf :: &buffers[editor.buffer_index];
 	assert(!buf.is_removed);
@@ -1184,8 +1123,8 @@ get_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
 }
 
 get_last_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
-	assert(last_active_text_editor != -1);
-	editor :: &editors[last_active_text_editor];
+	assert(workspace.last_active_text_editor != -1);
+	editor :: &editors[workspace.last_active_text_editor];
 	assert(editor.buffer_index != -1);
 	buf :: &buffers[editor.buffer_index];
 	assert(!buf.is_removed);
@@ -1202,7 +1141,7 @@ set_mode :: fn (m: Mode) bool #inline {
 
 	switch mode {
 		GOTO_LINE;
-		TEXT_EDIT         { last_active_text_editor = active_editor; }
+		TEXT_EDIT         { workspace.last_active_text_editor = workspace.active_editor; }
 		OPEN_FROM_DRIVE   { open_from_drive_mode_terminate();        }
 		QUICK_OPEN        { quick_open_mode_terminate();             }
 		SAVE_TO_DRIVE     { save_to_drive_mode_terminate();          }
@@ -1223,12 +1162,12 @@ set_mode :: fn (m: Mode) bool #inline {
 
 	switch m {
 		TEXT_EDIT {
-			assert(last_active_text_editor != -1);
-			assert(last_active_text_editor != command_editor);
-			active_editor = last_active_text_editor;
+			assert(workspace.last_active_text_editor != -1);
+			assert(workspace.last_active_text_editor != workspace.command_editor);
+			workspace.active_editor = workspace.last_active_text_editor;
 			input_mode = InputMode.TEXT;
 
-			assert(active_editor >= 0 && active_editor < editors.len);
+			assert(workspace.active_editor >= 0 && workspace.active_editor < editors.len);
 		}
 		GOTO_LINE         { goto_mode_init();              }
 		REPEAT            { repeat_mode_init();            }
@@ -1262,8 +1201,8 @@ set_default_mode :: fn () bool #inline {
 }
 
 get_command_editor_size :: fn () (w: f32, h: f32) #inline {
-	line_height  :: metrics.line_height;
-	text_padding :: metrics.text_padding;
+	line_height  :: metrics.line_ui_height;
+	text_padding :: metrics.text_ui_padding;
 	return cast(f32) WINDOW_WIDTH, line_height + text_padding * 2.f;
 }
 
@@ -1284,28 +1223,83 @@ clear_message :: fn () {
 	message.text.len = 0;
 }
 
-// Find any other editor open in the split.
-find_next_in_the_split :: fn (split: Split) s32 {
-	loop i := 0; i < editors.len; i += 1 {
-		e :: &editors[i];
-		if e.is_removed { continue; }
-		if e.split == split { return e.index; }
+close_editor :: fn (editor_index: s32) {
+	split, split_index :: find_editor_split(editor_index);
+	assert(split != .FLOATING, "Cannot close floating editor.");
+	assert(split_index != -1, "Cannot close edditor not existing in any split.");
+
+	split_editors :: get_split_editors(split);
+	array_erase_keep_order(split_editors, split_index);
+
+	// should_activate := workspace.active_editor == editor_index;
+	activate_editor_index := -1;
+
+	if split_editors.len == 0 {
+		// Last editor in the split.
+		switch split {
+			.LEFT  {
+				swap(&workspace.left_editors, &workspace.right_editors);
+				activate_editor_index = workspace.right;
+				workspace.right = -1;
+			}
+
+			.RIGHT {
+				activate_editor_index = workspace.left;
+				workspace.right = -1;
+			}
+
+			default;
+		}
+	} else {
+		prev_split_index :: (split_index - 1) % split_editors.len;
+		activate_editor_index = (@split_editors)[prev_split_index];
 	}
-	return -1;
+
+	assert(activate_editor_index != editor_index);
+
+	remove_editor(editor_index);
+	if activate_editor_index == -1 {
+		// When we end up without any editor, create or reuse scratch.
+		assert(workspace.left_editors.len == 0);
+		activate_editor_index = add_scratch();
+		// should_activate = true;
+	}
+
+	assert(activate_editor_index != -1);
+
+	// if should_activate {
+		activate_editor(activate_editor_index);
+// 	} else {
+// 		switch split {
+// 			.LEFT  {
+// 				workspace.left = activate_editor_index;
+// 			}
+// 			.RIGHT {
+// 				workspace.right = activate_editor_index;
+// 			}
+
+// 			default;
+// 		}
+// 	}
 }
 
-close_buffer :: fn (buffer_index: s32) {
-	using Split;
+// Close the split and leaves the other always as the left one (if we close LEFT all editors
+// from left are removed and RIGHT split is used as left one -> right one is left empty).
+close_all_in_split :: fn (split: Split) {
+	// @Note 2026-06-29: close_editor will modify split editors, so we duplicate.
+	allocator :: application_context.temporary_allocator;
+	split_editors :: duplicate_slice(get_split_editors_slice(split), allocator) catch {
+		panic($);
+	};
+	loop i := 0; i < split_editors.len; i += 1 {
+		close_editor(split_editors[i]);
+	}
+}
+
+close_buffer :: fn (buffer_index: s32) bool {
 	assert(buffer_index >= 0 && buffer_index < buffers.len);
 	assert(!buffers[buffer_index].is_removed);
-
-	loop i := 0; i < editors.len; i += 1 {
-		e :: &editors[i];
-		if e.is_removed { continue; }
-		if e.buffer_index == buffer_index {
-			remove_editor(e.index);
-		}
-	}
+	assert(buffer_index != editors[workspace.command_editor].buffer_index);
 
 	if buffer_index == shell.buffer_index {
 		shell.buffer_index = -1;
@@ -1317,49 +1311,27 @@ close_buffer :: fn (buffer_index: s32) {
 		conf_buffer_index = -1;
 	} else if buffer_index == search_buffer_index {
 		search_buffer_index = -1;
+	} else if buffer_index == scratch_buffer_index {
+		scratch_buffer_index = -1;
+	}
+
+	loop i := 0; i < editors.len; i += 1 {
+		e :: &editors[i];
+		if e.is_removed then continue;
+		if e.buffer_index == buffer_index {
+			close_editor(e.index);
+		}
 	}
 
 	// We should not remove buffer for messages.
-	if buffer_index != messages_buffer_index {
-		buf :: &buffers[buffer_index];
-		if buf.lsp.version > 0 {
-			lsp_close_document(buf) catch print_err("LSP: %", $);
-		}
-		remove_buffer(buffer_index);
-	}
+	if buffer_index == messages_buffer_index then return false;
 
-	activate_split: Split;
-	if right != -1 && editors[right].is_removed {
-		// We've closed buffer shown in the right split.
-		if active_editor == right { activate_split = RIGHT; }
-		right = find_next_in_the_split(Split.RIGHT);
+	buf :: &buffers[buffer_index];
+	if buf.lsp.version > 0 {
+		lsp_close_document(buf) catch print_err("LSP: %", $);
 	}
-
-	assert(left != -1);
-	if editors[left].is_removed {
-		// We've closed buffer shown in the left split.
-		if active_editor == left { activate_split = LEFT; }
-		left = find_next_in_the_split(Split.LEFT);
-	}
-
-	// We should have one editor open at least...
-	if left == -1 {
-		left = find_or_create_editor_in_split(Split.LEFT, add_buffer());
-		active_editor = left;
-	}
-
-	assert(left != -1);
-	// Note that no editor might not be activated. (We're deleting buffer which is not in any active editor.)
-	if activate_split == RIGHT {
-		active_editor = right;
-	} else if activate_split == LEFT {
-		active_editor = left;
-	}
-
-	if active_editor == -1 {
-		active_editor = left;
-	}
-	assert(active_editor != -1);
+	remove_buffer(buffer_index);
+	return true;
 }
 
 // Path must be normalized!
@@ -1407,7 +1379,7 @@ open :: fn (filepath: string_view, open_in_other_split := false) Error {
 		split = get_active_split();
 	}
 	editor_index :: find_or_create_editor_in_split(split, buf.index);
-	active_editor = editor_index;
+	activate_editor(editor_index);
 
 	return OK;
 }
@@ -1469,103 +1441,6 @@ open_project :: fn (directory: string_view, filepath: string_view) Error {
 	return OK;
 }
 
-get_active_split :: fn () Split #inline {
-	using Split;
-	if active_editor == -1 { return LEFT; }
-	if left  == active_editor { return LEFT;  }
-	if right == active_editor { return RIGHT; }
-	assert(editors[active_editor].split == FLOATING);
-	return FLOATING;
-}
-
-get_other_split :: fn () Split #inline {
-	using Split;
-	if get_active_split() == LEFT {
-		return RIGHT;
-	}
-	return LEFT;
-}
-
-// Close the split and leaves the other always as the left one (if we close LEFT all editors
-// from left are removed and RIGHT split is used as left one -> right one is left empty).
-close_all_in_split :: fn (split: Split) {
-	using Split;
-	loop i := 0; i < editors.len; i += 1 {
-		e :: &editors[i];
-		if e.is_removed { continue; }
-		if e.split == split {
-			remove_editor(e.index);
-		} else if e.split == RIGHT && split == LEFT {
-			// If we're closing left split, we have to move all right editor to the left.
-			e.split = LEFT;
-		}
-	}
-
-	switch split {
-		LEFT    { left  = right; right = -1; }
-		RIGHT   { right = -1; }
-		default { panic();    }
-	}
-
-	assert(left != -1);
-	active_editor = left;
-}
-
-// Show given buffer in the split, in case any editor in the split already serves this buffer, it's activated;
-// otherwise a new editor is created for the buffer. Returns index of used editor.
-find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
-	assert(buffer_index != -1);
-
-	editor_index : s32 = -1;
-
-	// Lookup existing editor first.
-	loop i := 0; i < editors.len; i += 1 {
-		e :: &editors[i];
-		if e.is_removed { continue; }
-		if e.buffer_index == buffer_index && e.split == split {
-			editor_index = e.index;
-			break;
-		}
-	}
-
-	if editor_index == -1 {
-		editor_index = add_editor(buffer_index, true, split);
-	}
-	assert(editor_index > -1);
-
-	activate_editor(editor_index);
-	return editor_index;
-}
-
-// Open or create editor for the buffer_index in the other split, in case the buffer_index is -1 new buffer
-// with name buffer_name is created. Returns id of editor.
-find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buffer_name: string_view) s32 {
-	buf, editor := get_active_buffer_and_editor();
-	if buf.index != @buffer_index {
-		if @buffer_index == -1 {
-			@buffer_index = add_builtin_buffer(buffer_name, BufferFlags.PARSE_FILE_LINKS);
-		}
-		return find_or_create_editor_in_split(get_other_split(), @buffer_index);
-	}
-	return editor.index;
-}
-
-// Activate existing editor it it's split.
-activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
-	assert(editor_index >= 0 && editor_index < editors.len);
-	editor :: &editors[editor_index];
-	assert(!editor.is_removed);
-
-	using Split;
-	switch editor.split {
-		LEFT    { left  = editor_index; }
-		RIGHT   { right = editor_index; }
-		default { panic(); }
-	}
-	active_editor = editor_index;
-	return &buffers[editor.buffer_index], editor;
-}
-
 detect_filetype :: fn (filename: string_view) FileType {
 	using FileType;
 	_, ext :: path_splitext(filename);
@@ -1604,8 +1479,12 @@ detect_filetype :: fn (filename: string_view) FileType {
 get_icon_for_file_type :: fn (file_type: FileType) string_view {
 	using FileType;
 	switch file_type {
-		PROJ { return icon(ICON_PROJECT); }
-		BL   { return icon(ICON_BL);      }
+		PROJ {
+			return icon(ICON_PROJECT);
+		}
+		C, CSHARP, BL, BLM {
+			return icon(ICON_FILE_CODE);
+		}
 		default;
 	}
 	return icon(ICON_FILE);
@@ -1614,8 +1493,6 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 //
 // Jobs
 //
-
-MAX_REQUEST_COUNT :: 32;
 
 JobContext :: struct {
 	state: enum { RUNNING; DONE; FAILED; KILLED; };
@@ -1756,7 +1633,11 @@ remove_async_job :: fn (index: s32) {
 
 	switch ctx.state {
 		DONE   {
-			ec, wc :: get_error_and_warning_count();
+			ec, wc: s32;
+			if ctx.kind == .SHELL {
+				ec, wc = get_error_and_warning_count();
+			}
+
 			if ec > 0 {
 				print_err("Job '%' finished with % error%.", ctx.name, ec, if ec > 1 then "s" else "");
 			} else if wc > 0 {
@@ -2099,30 +1980,30 @@ draw_frame :: fn () {
 		h := cast(f32) WINDOW_HEIGHT;
 		w := cast(f32) WINDOW_WIDTH;
 
-		assert(left != -1);
-		if right != -1 {
+		assert(workspace.left != -1);
+		if workspace.right != -1 {
 			gap :: 2.f;
 			w = (0.5f * cast(f32) WINDOW_WIDTH) - gap * 0.5f;
 
 			lx :: x;
 			rx :: w + gap;
 
-			draw_text_editor(left,  lx, y, w, h);
-			draw_text_editor(right, rx, y, w, h);
+			draw_text_editor(workspace.left,  lx, y, w, h);
+			draw_text_editor(workspace.right, rx, y, w, h);
 
-			if active_editor == left {
+			if workspace.active_editor == workspace.left {
 				active_x = lx;
-			} else if active_editor == right {
+			} else if workspace.active_editor == workspace.right {
 				active_x = rx;
 			}
 
-			if last_active_text_editor == left {
+			if workspace.last_active_text_editor == workspace.left {
 				last_active_x = lx;
-			} else if last_active_text_editor == right {
+			} else if workspace.last_active_text_editor == workspace.right {
 				last_active_x = rx;
 			}
 		} else {
-			draw_text_editor(left, x, y, w, h);
+			draw_text_editor(workspace.left, x, y, w, h);
 		}
 
 		PROGRESS_BAR_HEIGHT :: 3.f;
@@ -2158,22 +2039,26 @@ draw_frame :: fn () {
 }
 
 recalculate_metrics :: fn () {
-	line_spacing :: math.min(math.max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
+	using math;
+	line_spacing :: min(max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
 
-	metrics.title_bar_height          = font_ui.height  * 1.6f;
-	metrics.line_height               = font.height  * line_spacing;
-	metrics.item_spacing              = icons.height * 1.3f;
-	metrics.text_padding              = font.height  * 0.5f;
-	metrics.title_max_size            = font.height  * 25.f;
-	metrics.shadow_size               = WINDOW_SCALE * 8.f;
-	metrics.corner_rounding           = WINDOW_SCALE * 4.f;
-	metrics.corner_rounding_panel     = WINDOW_SCALE * 10.f;
-	metrics.list_panel_max_width      = math.floor(WINDOW_SCALE * 1024.f);
+	metrics.title_bar_height          = round(font_ui.height * 1.7f);
+	metrics.line_height               = round(font.height  * line_spacing);
+	metrics.line_ui_height            = round(font_ui.height * 1.4f);
+	metrics.item_spacing              = round(icons.height * 1.3f);
+	metrics.text_padding              = round(font.height  * 0.5f);
+	metrics.text_ui_padding           = round(font_ui.height  * 0.5f);
+	metrics.title_max_size            = round(font.height  * 25.f);
+	metrics.shadow_size               = round(WINDOW_SCALE * 8.f);
+	metrics.corner_rounding           = round(WINDOW_SCALE * 4.f);
+	metrics.corner_rounding_panel     = round(WINDOW_SCALE * 10.f);
+	metrics.list_panel_max_width      = round(WINDOW_SCALE * 1024.f);
 	metrics.list_panel_factor         = 0.8f;
-	metrics.line_item_height          = font.height * 1.4f;
+	metrics.line_item_height          = round(font_ui.height * 1.4f);
 	metrics.command_panel_hints_alpha = 0.5f;
 	metrics.command_panel_offset_y    = 50.f;
 	metrics.border_line_width         = 2.f;
+	metrics.completion_list_width     = round(WINDOW_SCALE * 300.f);
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {
@@ -2328,3 +2213,203 @@ draw_background_progress_bar :: fn (x: f32, y: f32, w: f32, h: f32) {
 
 	background_job_indicator.active_last_frame = true;
 }
+
+//
+// Workspace
+//
+
+#scope_public
+
+Split :: enum { LEFT; RIGHT; FLOATING; }
+
+workspace: struct {
+	left_editors:  [..]s32;
+	right_editors: [..]s32;
+
+	left:  s32;
+	right: s32;
+
+	active_editor:  s32;
+	command_editor: s32;
+
+	// Points to previous active text editor, this might be used in interactive modes where we need the text buffer
+	// as context (e.g. search mode).
+	last_active_text_editor: s32;
+};
+
+#scope_private
+init_workspace :: fn () {
+	workspace.left                    = -1;
+	workspace.right                   = -1;
+	workspace.active_editor           = -1;
+	workspace.command_editor          = -1;
+	workspace.last_active_text_editor = -1;
+}
+
+terminate_workspace :: fn () {
+	array_terminate(&workspace.left_editors);
+	array_terminate(&workspace.right_editors);
+}
+#scope_public
+
+get_split_editors_slice :: fn (split: Split) []s32 #inline {
+	switch split {
+		.LEFT  { return workspace.left_editors;  }
+		.RIGHT { return workspace.right_editors; }
+		default;
+	}
+
+	unreachable;
+	return .{};
+}
+
+get_split_editors :: fn (split: Split) *[..]s32 #inline {
+	switch split {
+		.LEFT  { return &workspace.left_editors;  }
+		.RIGHT { return &workspace.right_editors; }
+		default;
+	}
+
+	unreachable;
+	return .{};
+}
+
+find_editor_in_split :: fn (split: Split, editor_index: s32) s32 {
+	split_editors :: get_split_editors_slice(split);
+	loop i := 0; i < split_editors.len; i += 1 {
+		if split_editors[i] == editor_index then return i;
+	}
+
+	return -1;
+}
+
+find_editor_for_buffer_in_split :: fn (split: Split, buffer_index: s32) s32 {
+	assert(buffer_index != -1);
+	split_editors :: get_split_editors_slice(split);
+	loop i := 0; i < split_editors.len; i += 1 {
+		editor_index :: split_editors[i];
+		assert(editor_index >= 0 && editor_index < editors.len);
+		editor :: &editors[editor_index];
+		assert(!editor.is_removed);
+		if editor.buffer_index == buffer_index then return editor_index;
+	}
+
+	return -1;
+}
+
+add_editor_to_split :: fn (split: Split, editor_index: s32) s32 {
+	assert(find_editor_in_split(split, editor_index) == -1);
+	editors :: get_split_editors(split);
+	array_push(editors, editor_index);
+	return editor_index;
+}
+
+find_editor_split :: fn (editor_index: s32) (split: Split, index: s32) #inline {
+	index := find_editor_in_split(.LEFT, editor_index);
+	if index != -1 then return .LEFT, index;
+	index = find_editor_in_split(.RIGHT, editor_index);
+	if index != -1 then return .RIGHT, index;
+
+	return .FLOATING, -1;
+}
+
+find_editor_for_buffer :: fn (buffer_index: s32) s32 {
+	loop i := 0; i < editors.len; i += 1 {
+		editor :: &editors[i];
+		if editor.is_removed then continue;
+		if editor.buffer_index == buffer_index then return i;
+	}
+	return -1;
+}
+
+has_split :: fn () bool #inline {
+	assert(workspace.left != -1);
+	return workspace.right != -1;
+}
+
+get_active_split :: fn () Split #inline {
+	assert(workspace.active_editor != -1);
+	if workspace.left == workspace.active_editor {
+		return .LEFT;
+	} else if workspace.right == workspace.active_editor {
+		return .RIGHT;
+	}
+	assert(false);
+	return .FLOATING;
+}
+
+get_other_split :: fn () Split #inline {
+	if get_active_split() == .LEFT {
+		return .RIGHT;
+	}
+	return .LEFT;
+}
+
+
+// Show given buffer in the split, in case any editor in the split already serves this buffer, it's activated;
+// otherwise a new editor is created for the buffer. Returns index of used editor.
+find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
+	assert(buffer_index != -1);
+
+	editor_index := find_editor_for_buffer_in_split(split, buffer_index);
+	if editor_index == -1 {
+		editor_index = add_editor_to_split(split, add_editor(buffer_index, true));
+	}
+	assert(editor_index > -1);
+
+	activate_editor(editor_index);
+	return editor_index;
+}
+
+// Open or create editor for the buffer_index in the other split, in case the buffer_index is -1 new buffer
+// with name buffer_name is created. Returns id of editor.
+find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buffer_name: string_view) s32 { // @Incomplete 2026-06-27: Take split directly.
+	buf, editor := get_active_buffer_and_editor();
+	if buf.index != @buffer_index {
+		if @buffer_index == -1 {
+			@buffer_index = add_builtin_buffer(buffer_name, BufferFlags.PARSE_FILE_LINKS);
+		}
+		return find_or_create_editor_in_split(get_other_split(), @buffer_index);
+	}
+	return editor.index;
+}
+
+// Activate existing editor it it's split.
+activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
+	assert(editor_index >= 0 && editor_index < editors.len);
+
+	editor :: &editors[editor_index];
+	assert(!editor.is_removed);
+
+	buf :: &buffers[editor.buffer_index];
+
+	if workspace.active_editor == editor_index {
+		return buf, editor;
+	}
+
+	split :: find_editor_split(editor_index);
+	switch split {
+		.LEFT    { workspace.left  = editor_index; }
+		.RIGHT   { workspace.right = editor_index; }
+		default;
+	}
+
+	// @Incomplete 2026-06-27: Set last active editor here?
+	workspace.active_editor = editor_index;
+	return buf, editor;
+}
+
+activate_command_editor :: fn () (*Buffer, *Editor) #inline {
+	return activate_editor(workspace.command_editor);
+}
+
+// Returns editor index.
+add_scratch :: fn () s32 {
+	if scratch_buffer_index == -1 {
+		scratch_buffer_index = add_buffer();
+	}
+
+	return add_editor_to_split(.LEFT, add_editor(scratch_buffer_index, true));
+}
+
+#scope_private

@@ -1,5 +1,6 @@
 run_command_mode_init :: fn () {
-	active_editor = command_editor;
+	activate_command_editor();
+
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
@@ -15,22 +16,20 @@ run_command_mode_init :: fn () {
 run_command_mode_terminate :: fn () {}
 
 draw_run_command_mode :: fn () {
-	assert(active_editor == command_editor);
-
 	title := "Search command...";
 	if repeat_command_count > 1 then title = tprint("Run [%x]", repeat_command_count);
 
 	clicked := false;
 
 	search_list_begin(true); {
-		
+
 		draw_search_command_editor(.{
 				title = title,
 			});
 
-		
+
 		clicked = draw_search_command_list();
-		
+
 		draw_search_hints([_]PanelHint.{
 				.{
 					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
@@ -60,8 +59,8 @@ draw_run_command_mode :: fn () {
 //
 
 invoke_command_run_command_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
-	assert(active_editor == command_editor);
-	assert(editors[active_editor].buffer_index == buf.index);
+	assert(workspace.active_editor == workspace.command_editor);
+	assert(editors[workspace.active_editor].buffer_index == buf.index);
 
 	using Command;
 

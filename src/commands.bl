@@ -66,8 +66,11 @@ Command :: enum {
 	CLOSE_SPLIT;
 	CLOSE_OTHER_SPLIT;
 
-	// Buffers
+	// Buffers && Editors
 	CLOSE_BUFFER;
+	CLOSE_EDITOR;
+	CLOSE_BUFFERS_WITHOUT_EDITOR;
+	CLOSE_ALL_BUFFERS;
 	FORCE_CLOSE_BUFFER;
 	SAVE;
 	SAVE_ALL;
@@ -131,7 +134,7 @@ Command :: enum {
 	TOGGLE_LINE_NUMBERS;
 
 	INSTALL;
-	SUPPORT_ME;
+	SUPPORT;
 	QUIT;
 }
 
@@ -200,7 +203,10 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto CLOSE_SPLIT]                      = "Close focused split.";
 	help[auto CLOSE_OTHER_SPLIT]                = "Close non-focused split.";
 
-	help[auto CLOSE_BUFFER]                     = "Close currnet buffer and check if it was saved.";
+	help[auto CLOSE_BUFFER]                     = "Close current buffer and check if it was saved.";
+	help[auto CLOSE_EDITOR]                     = "Close current focused editor but keep buffer open.";
+	help[auto CLOSE_BUFFERS_WITHOUT_EDITOR]     = "Close all buffers without active editor open.";
+	help[auto CLOSE_ALL_BUFFERS]                = "Close all buffers.";
 	help[auto FORCE_CLOSE_BUFFER]               = "Close current buffer without saving.";
 	help[auto SAVE]                             = "Save current buffer.";
 	help[auto SAVE_ALL]                         = "Save all open buffers.";
@@ -252,7 +258,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto OPEN_FILE_LOCATION]               = "Open current file location in default system file manager.";
 	help[auto DATE]                             = "Inserts current system date into focused buffer.";
 
-	help[auto SUPPORT_ME]                       = "Consider supporting this project via PayPal.";
+	help[auto SUPPORT]                     = "Consider supporting this project via PayPal.";
 	help[auto INSTALL]                          = "Add application menu entry.";
 
 	help[auto TOGGLE_MACRO_RECORDING]           = "Start/Stop macro sequence recording.";
@@ -462,7 +468,7 @@ paste :: fn (editor: *Editor, buf: *Buffer, record_as_single_undo_action := true
 
 	text_first_row: string_view;
 	is_multiline_text := is_multiline(text, &text_first_row);
-	if editor.index == command_editor {
+	if editor.index == workspace.command_editor {
 		// Pasted string might be multiline, this is not allowed for the single line command editor.
 		text = text_first_row;
 	}
@@ -637,14 +643,14 @@ help :: fn () {
 	if help_buffer_index == -1 {
 		help_buffer_index = add_implicit_file_buffer("help", HELP_FILE_DATA, .MD);
 	}
-	active_editor = find_or_create_editor_in_split(get_active_split(), help_buffer_index);
+	activate_editor(find_or_create_editor_in_split(get_active_split(), help_buffer_index));
 }
 
 open_config_template :: fn () {
 	if conf_buffer_index == -1 {
 		conf_buffer_index = add_implicit_file_buffer("Default Config Template", DEFAULT_PROJECT_FILE_TEMPLATE_DATA, .PROJ);
 	}
-	active_editor = find_or_create_editor_in_split(get_active_split(), conf_buffer_index);
+	activate_editor(find_or_create_editor_in_split(get_active_split(), conf_buffer_index));
 }
 
 is_command_valid_for_repeating :: fn (cmd: Command) bool {
@@ -756,6 +762,9 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		CLOSE_SPLIT                   { close_split(); }
 		CLOSE_OTHER_SPLIT             { close_other_split(); }
 		CLOSE_BUFFER                  { close_buffer_command(buf); }
+		CLOSE_EDITOR                  { close_editor_command(editor); }
+		CLOSE_BUFFERS_WITHOUT_EDITOR  { close_buffers_without_editor(); }
+		CLOSE_ALL_BUFFERS             { close_all_buffers(); }
 		FORCE_CLOSE_BUFFER            { force_close_buffer(buf); }
 
 		SAVE                          { save_command(buf); }
@@ -823,7 +832,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		}
 
 		TRIM_TRAILING_WHITESPACE      { trim_trailing_whitespace(buf); }
-		SUPPORT_ME                    { support_me(); }
+		SUPPORT                       { suport(); }
 		INSTALL                       { install(); }
 		QUIT                          { schedule_exit(); }
 
@@ -1072,7 +1081,7 @@ redo :: fn (editor: *Editor, buf: *Buffer) bool {
 delete_left :: fn (editor: *Editor, buf: *Buffer) {
 	if maybe_report_readonly(buf) { return; }
 	if has_selection(buf, editor.cursor_index) {
-		if editor.index == command_editor {
+		if editor.index == workspace.command_editor {
 			start, end :: get_selection_range(buf, editor.cursor_index);
 			delete_range(buf, start, end);
 			clear_selection(buf);
@@ -1091,7 +1100,7 @@ delete_left :: fn (editor: *Editor, buf: *Buffer) {
 delete_right :: fn (editor: *Editor, buf: *Buffer) {
 	if maybe_report_readonly(buf) { return; }
 	if has_selection(buf, editor.cursor_index) {
-		if editor.index == command_editor {
+		if editor.index == workspace.command_editor {
 			start, end :: get_selection_range(buf, editor.cursor_index);
 			delete_range(buf, start, end);
 			clear_selection(buf);
@@ -1551,25 +1560,17 @@ decrease_font_size :: fn () bool {
 	return true;
 }
 
-// Switch to other split or create one by duplicating current active editor and swith.
+// Switch to other split or create one by duplicating current active editor and switch.
 other_split :: fn (buf: *Buffer) bool {
-	using Split;
-
-	assert(left != -1);
-	if right == -1 {
-		// no right editor, create one!
-		find_or_create_editor_in_split(RIGHT, buf.index);
+	if !has_split() {
+		find_or_create_editor_in_split(.RIGHT, buf.index);
 		return true;
 	}
-
-	active_split :: get_active_split();
-	switch active_split {
-		LEFT    { active_editor = right; }
-		RIGHT   { active_editor = left;  }
-		default { panic();               }
+	switch get_other_split() {
+		.LEFT  { activate_editor(workspace.left);  }
+		.RIGHT { activate_editor(workspace.right); }
+		default;
 	}
-	assert(active_editor != -1);
-	assert(active_editor != command_editor);
 	return true;
 }
 
@@ -1577,37 +1578,95 @@ other_split :: fn (buf: *Buffer) bool {
 // intended for closing buffers (files). All opened buffers stays open, also we must have
 // a split active.
 close_split :: fn () bool {
-	if left != -1 && right != -1 {
+	if has_split() {
 		close_all_in_split(get_active_split());
 		return true;
 	}
+
 	print_warn("No split active.");
 	return false;
 }
 
 close_other_split :: fn () bool {
 	using Split;
-	if left != -1 && right != -1 {
+	if has_split() {
 		active_split :: get_active_split();
 		close_split := RIGHT;
 		if active_split == RIGHT { close_split = LEFT; }
 		close_all_in_split(close_split);
 		return true;
 	}
+
 	print_warn("No split active.");
 	return true;
 }
 
 close_buffer_command :: fn (buf: *Buffer) bool {
 	buffer_name :: tprint("%", buf.name); // make copy because we'll delete it later
-	if buf.saved_top != buf.undo_top {
-		print_warn("Buffer contains unsaved changes. Use `%` command to ignore it.", COMMAND_NAMES[auto Command.FORCE_CLOSE_BUFFER]);
+	if warn_if_modifications_needs_to_be_saved(buf) {
 		return false;
 	}
 	close_buffer(buf.index);
 
 	print_info("Buffer '%' closed.", buffer_name);
 	return true;
+}
+
+close_editor_command :: fn (editor: *Editor) {
+	name : string_view : buffers[editor.buffer_index].name;
+	close_editor(editor.index);
+	print_info("Editor for buffer '%' closed.", name);
+}
+
+close_buffers_without_editor :: fn (check_unsaved_modifications := true) {
+	closed_num := 0;
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed then continue;
+		if find_editor_for_buffer(buf.index) == -1 {
+			if check_unsaved_modifications && warn_if_modifications_needs_to_be_saved(buf) {
+				find_or_create_editor_in_split(get_active_split(), buf.index);
+				return;
+			}
+			if close_buffer(buf.index) {
+				closed_num += 1;
+			}
+		}
+	}
+
+	if closed_num == 0 {
+		print_warn("No buffers closed.");
+		return;
+	}
+
+	print_info("Closed % buffer%.", closed_num, if closed_num > 1 then "s" else "");
+}
+
+close_all_buffers :: fn (check_unsaved_modifications := true) {
+	closed_num := 0;
+	loop i := 0; i < buffers.len; i += 1 {
+		buf :: &buffers[i];
+		if buf.is_removed then continue;
+		if buf.index == editors[workspace.command_editor].buffer_index then continue;
+		if buf.index == scratch_buffer_index then continue;
+		if buf.index == messages_buffer_index then continue;
+
+		if check_unsaved_modifications && warn_if_modifications_needs_to_be_saved(buf) {
+			find_or_create_editor_in_split(get_active_split(), buf.index);
+			return;
+		}
+
+		if close_buffer(buf.index) {
+			closed_num += 1;
+		}
+	}
+
+	if closed_num == 0 {
+		print_warn("No buffers closed.");
+		return;
+	}
+
+	print_info("Closed % buffer%.", closed_num, if closed_num > 1 then "s" else "");
 }
 
 force_close_buffer :: fn (buf: *Buffer) bool {
@@ -1718,7 +1777,7 @@ open_default_config :: fn () {
 }
 
 open_messages :: fn () {
-	active_editor = find_or_create_editor_in_split(get_active_split(), messages_buffer_index);
+	activate_editor(find_or_create_editor_in_split(get_active_split(), messages_buffer_index));
 }
 
 open_shell :: fn () {
@@ -1727,7 +1786,13 @@ open_shell :: fn () {
 		return;
 	}
 
-	active_editor = find_or_create_editor_in_split(get_active_split(), shell.buffer_index);
+	existing_editor_index :: find_editor_for_buffer(shell.buffer_index);
+	if existing_editor_index != -1 {
+		activate_editor(existing_editor_index);
+		return;
+	}
+
+	activate_editor(find_or_create_editor_in_split(get_active_split(), shell.buffer_index));
 }
 
 ToUpperOrLower :: enum {
@@ -2173,7 +2238,7 @@ clear_messages :: fn () {
 	clear_buffer(buf);
 }
 
-support_me :: fn () {
+suport :: fn () {
 	open_path("https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6");
 }
 

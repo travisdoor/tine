@@ -454,6 +454,11 @@ parse_settings_entry :: fn (ctx: *Tokenizer) Error {
 					return report(ctx, "Font size is expected to be in range <%, %>.", MIN_FONT_SIZE, MAX_FONT_SIZE);
 				}
 			}
+			lit_hash("font_ui_size") {
+				if n < MIN_FONT_SIZE || n > MAX_FONT_SIZE {
+					return report(ctx, "Font size is expected to be in range <%, %>.", MIN_FONT_SIZE, MAX_FONT_SIZE);
+				}
+			}
 			lit_hash("tab_size") {
 				if n < 1 {
 					return report(ctx, "Tab size is expected to be greater than 0.");

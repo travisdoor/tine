@@ -139,7 +139,7 @@ handle_window_event_loop :: fn () {
 
 				if /*event.type == EVENT_WINDOW_PIXEL_SIZE_CHANGED || */event.type == EVENT_WINDOW_DISPLAY_SCALE_CHANGED {
 					WINDOW_SCALE = GetWindowDisplayScale(window);
-					rebuild_fonts(true);
+					rebuild_fonts();
 				}
 
 				// Hide any possible completion popup.
@@ -312,7 +312,7 @@ handle_text_input :: fn (text: string_view) {
 	buf, editor :: get_active_buffer_and_editor();
 	if maybe_report_readonly(buf) then return;
 
-	cut_selection(editor, buf, editor.index != command_editor);
+	cut_selection(editor, buf, editor.index != workspace.command_editor);
 
 	position := get_cursor_position(buf, editor.cursor_index);
 	if has_indentation_info(buf) && is_row_empty(buf, position) {

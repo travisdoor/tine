@@ -1,5 +1,5 @@
 search_mode_init :: fn () {
-	active_editor = command_editor;
+	activate_command_editor();
 	buf, editor :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
@@ -50,7 +50,7 @@ search_panel_width :: fn (active_editor_w: f32) f32 #inline {
 }
 
 draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_editor_w: f32, active_editor_h: f32) {
-	assert(active_editor == command_editor);
+	assert(workspace.active_editor == workspace.command_editor);
 	target_buf :: get_last_active_buffer_and_editor();
 
 	hint: string_view;
@@ -73,8 +73,8 @@ draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edito
 
 	cmd_h :: h/2.f;
 
-	assert(active_editor == command_editor);
-	draw_command_editor(command_editor, x, y, w, cmd_h, .{
+	assert(workspace.active_editor == workspace.command_editor);
+	draw_command_editor(workspace.command_editor, x, y, w, cmd_h, .{
 			title = tprint("% in '%': ", if auto_commit then "Quick search" else "Search", target_buf.name),
 			hint = hint
 		});
@@ -112,8 +112,8 @@ draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edito
 //
 
 invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
-	assert(active_editor == command_editor);
-	assert(editors[active_editor].buffer_index == buf.index);
+	assert(workspace.active_editor == workspace.command_editor);
+	assert(editors[workspace.active_editor].buffer_index == buf.index);
 
 	target_buf, target_editor :: get_last_active_buffer_and_editor();
 

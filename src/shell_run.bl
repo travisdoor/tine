@@ -1,5 +1,6 @@
 shell_run_mode_init :: fn () {
-	active_editor = command_editor;
+	activate_command_editor();
+
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
@@ -21,7 +22,6 @@ shell_run_mode_on_exit :: fn () {
 }
 
 draw_shell_run_mode :: fn () {
-	assert(active_editor == command_editor);
 	clicked := false;
 
 	search_list_begin(); {
@@ -63,8 +63,8 @@ draw_shell_run_mode :: fn () {
 //
 
 invoke_command_shell_run_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
-	assert(active_editor == command_editor);
-	assert(editors[active_editor].buffer_index == buf.index);
+	assert(workspace.active_editor == workspace.command_editor);
+	assert(editors[workspace.active_editor].buffer_index == buf.index);
 
 	using Command;
 

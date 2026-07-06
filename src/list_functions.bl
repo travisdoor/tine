@@ -6,8 +6,7 @@ list_functions_mode_init :: fn () {
 		return;
 	}
 
-	active_editor = command_editor;
-	command_buf :: get_active_buffer_and_editor();
+	command_buf :: activate_command_editor();
 	clear_buffer(command_buf);
 	input_mode = InputMode.TEXT;
 	notify_changes_to_buffer = command_buf.index;
@@ -17,7 +16,6 @@ list_functions_mode_terminate :: fn () {
 }
 
 draw_list_functions_mode :: fn () {
-	assert(active_editor == command_editor);
 	target_buf :: get_last_active_buffer_and_editor();
 
 	clicked := false;
@@ -57,8 +55,8 @@ draw_list_functions_mode :: fn () {
 //
 
 invoke_command_list_functions_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool {
-	assert(active_editor == command_editor);
-	assert(editors[active_editor].buffer_index == buf.index);
+	assert(workspace.active_editor == workspace.command_editor);
+	assert(editors[workspace.active_editor].buffer_index == buf.index);
 
 	using Command;
 

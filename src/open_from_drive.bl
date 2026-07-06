@@ -1,6 +1,6 @@
 open_from_drive_mode_init :: fn () {
-	// Activate command buffer.
-	active_editor = command_editor;
+	activate_command_editor();
+
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
@@ -15,7 +15,7 @@ open_from_drive_mode_init :: fn () {
 }
 
 open_from_drive_mode_terminate :: fn () {
-	active_editor = command_editor;
+	activate_command_editor();
 	str_terminate(&base_path);
 }
 
@@ -30,8 +30,6 @@ draw_open_from_drive_mode :: fn () {
 
 		return tprint("%/", base_path);
 	};
-
-	assert(active_editor == command_editor);
 
 	clicked := false;
 
@@ -72,9 +70,9 @@ draw_open_from_drive_mode :: fn () {
 //
 
 invoke_command_open_from_drive_mode :: fn (buf: *Buffer, cmd: Command) bool {
-	assert(active_editor == command_editor);
-	assert(editors[active_editor].buffer_index == buf.index);
-	editor :: &editors[active_editor];
+	assert(workspace.active_editor == workspace.command_editor);
+	assert(editors[workspace.active_editor].buffer_index == buf.index);
+	editor :: &editors[workspace.active_editor];
 
 	using Command;
 

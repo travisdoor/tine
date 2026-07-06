@@ -694,8 +694,8 @@ draw_simple_command_editor_panel :: fn (cmd_params: DrawCommandEditorParams, hin
 
 	cmd_h :: y+h-content_start_y;
 
-	assert(active_editor == command_editor);
-	draw_command_editor(command_editor, x, y, w, cmd_h, cmd_params);
+	assert(workspace.active_editor == workspace.command_editor);
+	draw_command_editor(workspace.command_editor, x, y, w, cmd_h, cmd_params);
 	draw_command_panel_hints(x, y+h-cmd_h, w, cmd_h, hints, metrics.command_panel_hints_alpha);
 }
 
@@ -742,7 +742,7 @@ draw_command_editor_panel :: fn (x: f32, y: f32, w: f32, h: f32, progress_t := 0
 
 calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
 	using draw;
-	text_padding    :: metrics.text_padding;
+	text_padding :: metrics.text_ui_padding;
 
 	total_w := 0.f;
 	loop i := 0; i < key_mapping.len; i += 1 {
@@ -757,20 +757,20 @@ calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
 draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_view, base_alpha := 1.f) f32 {
 	using draw;
 
-	text_padding    :: metrics.text_padding;
-	rounding        :: metrics.corner_rounding;
-	hint_height   :: metrics.line_height * 1.2f;
+	text_padding :: metrics.text_ui_padding;
+	rounding     :: metrics.corner_rounding;
+	hint_height  :: metrics.line_ui_height * 1.2f;
 
 	hx := x;
 	total_w := 0.f;
 	loop i := 0; i < key_mapping.len; i += 1 {
-		text_w, text_h :: text_size(key_mapping[i], &font_ui_small);
-		cell_w         :: text_w + text_padding*2.f;
+		text_w :: text_size(key_mapping[i], &font_ui_small);
+		cell_w :: text_w + text_padding*2.f;
 
 		offset_x :: cell_w + text_padding*0.5f;
 
 		box_offset_y  :: item_h / 2.f - hint_height / 2.f;
-		text_offset_y :: item_h / 2.f - text_h / 2.f;
+		text_offset_y :: item_h / 2.f;
 
 		body_color := colors.foreground;
 		text_color := colors.foreground;
@@ -798,7 +798,7 @@ PanelHint :: struct {
 draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHint, base_alpha := 1.f) {
 	using draw;
 
-	text_padding :: metrics.text_padding;
+	text_padding :: metrics.text_ui_padding;
 
 	color   := colors.foreground;
 	color.w = 0.4f;
@@ -819,8 +819,8 @@ draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHi
 		hx += cells_w;
 
 		set_shader_font(&font_ui_small);
-		tw, th        :: text_size(hints[i].info, &font_ui_small);
-		text_offset_y :: h / 2.f - th / 2.f;
+		tw :: text_size(hints[i].info, &font_ui_small);
+		text_offset_y :: h / 2.f;
 
 		text(hx, y + text_offset_y, hints[i].info, color);
 		hx += tw + text_padding * 2.f;
@@ -1071,4 +1071,17 @@ warn_if_no_project_open :: fn () bool {
 	}
 
 	return false;
+}
+
+warn_if_modifications_needs_to_be_saved :: fn (buf: *Buffer) bool {
+	if buf.saved_top != buf.undo_top {
+		print_warn("Buffer has unsaved changes. Force close `%`, or save `%`.", COMMAND_NAMES[auto Command.FORCE_CLOSE_BUFFER], COMMAND_NAMES[auto Command.SAVE]);
+		return true;
+	}
+
+	return false;
+}
+
+font_centered_in :: fn (h: f32, _: *draw.Font) f32 #inline {
+	return math.ceil(h * 0.5f);
 }

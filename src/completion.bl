@@ -35,30 +35,26 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 		);
 	}
 
-	buf, editor :: get_active_buffer_and_editor();
-	current_cursor :: get_virtual_cursor(editor, buf);
+	_, editor :: get_active_buffer_and_editor();
+	line_height     :: metrics.line_height;
+	text_ui_padding :: metrics.text_ui_padding;
+	lit_width       :: metrics.completion_list_width;
 
-	text_padding :: metrics.text_padding;
-	line_height  :: metrics.line_height;
-
-	x :: active_editor_x;
-	y :: active_editor_y + text_padding;
-
-	first_line_index :: editor.top;
-
-	line, start_index :: peek_virtual_row(editor, buf, current_cursor.row);
-	line_w :: draw.text_size(line, &font, auto (current_cursor.position - start_index));
-	px :: x + line_w - editor.sliding.horizontal_offset;
-	py := y * 2.f + line_height * auto (current_cursor.row - first_line_index + 1); // +1 one line down
+	base_position :: editor.last_cursor_visual_position;
+	p := base_position;
+	p.y += line_height + text_ui_padding;
 
 	MAX_COMLETION_ITEMS :: 20;
 
 	h :: get_list_height(false, MAX_COMLETION_ITEMS);
-	if py + h > auto WINDOW_HEIGHT {
-		py -= h + line_height + y * 2.f;
+	if p.y + h > auto WINDOW_HEIGHT {
+		p.y = base_position.y - h - text_ui_padding;
+	}
+	if p.x + lit_width > auto WINDOW_HEIGHT {
+		p.x = base_position.x - lit_width;
 	}
 
-	clicked :: draw_simple_floating_list(px, py, 300.f, MAX_COMLETION_ITEMS);
+	clicked :: draw_simple_floating_list(p.x, p.y, lit_width, MAX_COMLETION_ITEMS);
 	if clicked then commit();
 }
 

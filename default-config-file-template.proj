@@ -38,10 +38,11 @@
 #----------------------------------------------------------------------------------------------------
 ;settings
 #----------------------------------------------------------------------------------------------------
-font_size                              12
+font_size                              13
+font_ui_size                           13
 
 # Line spacing as a percentage of the current font size. Supported range is <80, 200>.
-line_spacing                           130
+line_spacing                           120
 
 # Customize editor font, default system font location is used for lookup of the ttf font
 # files. Full path can be used too.
@@ -296,8 +297,11 @@ other-split          Alt+`
 close-split          Alt+1
 close-other-split    Alt+2
 
-close-buffer         Alt+Q
-force-close-buffer   Alt+Shift+Q
+close-buffer         Ctrl+Q
+close-editor         Alt+Q
+force-close-buffer   Ctrl+Shift+Q
+close-all-buffers
+close-buffers-without-editor
 
 save                 Ctrl+W F2
 new-buffer           Ctrl+Alt+N
@@ -385,8 +389,8 @@ title_bar                           1A1815
 title_bar_active                    3A3326
 title_bar_text                      D6C7A1
 command_select                      3F3728
-panel_outline                       2A2722
-modification_indicator              C28B3C
+panel_outline                       4C4944
+open_indicator                      C28B3C
 selection_background                4F4535
 selection_background_inactive       3A342C
 selection_background_inactive       2C2924
@@ -401,6 +405,7 @@ macro_record_icon                   C2553A
 background_line_numbers             2A2722
 foreground_line_numbers             7A7468
 progress_bar                        99E2FF
+link_background                     16423e
 
 code_comment                        7A8F6B
 code_keyword                        C2A23A
@@ -434,7 +439,7 @@ ansi_white                          D6C7A1
 # title_bar_text                      2E241A
 # command_select                      D7C2A1
 # panel_outline                       E2D6C2
-# modification_indicator              7A5A3A
+# open_indicator                      C28B3C
 # selection_background                D7C2A1
 # selection_background_inactive       EDE3D3
 # message                             3E6B4A
@@ -448,6 +453,7 @@ ansi_white                          D6C7A1
 # background_line_numbers             E2D6C2
 # foreground_line_numbers             6A5A46
 # progress_bar                        FF4C00
+# link_background                     BCFFFA
 
 # code_comment                        5E6B57
 # code_keyword                        2E4A7D

@@ -70,6 +70,7 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view, std
 			C.setenv(strtoc("CLICOLOR"), strtoc("1"), 1);
 			C.setenv(strtoc("TERM"), strtoc("xterm-256color"), 1);
 		}
+		C.setenv(strtoc("LC_ALL"), strtoc("C.UTF-8"), 1);
 		C.execv(strtoc(executable), cargs.ptr);
 		print_err("Execution failed with error: %", os_get_last_error2());
 		C.exit(1);

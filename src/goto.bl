@@ -1,6 +1,6 @@
 goto_mode_init :: fn () {
-	// Activate command buffer.
-	active_editor = command_editor;
+	activate_command_editor();
+
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
@@ -9,8 +9,6 @@ goto_mode_init :: fn () {
 }
 
 draw_goto_mode :: fn () {
-	assert(active_editor == command_editor);
-
 	draw_simple_command_editor_panel(.{
 			title = "Goto line number...",
 		}, [_]PanelHint.{
@@ -31,8 +29,8 @@ draw_goto_mode :: fn () {
 
 invoke_command_goto_line_mode :: fn (buf: *Buffer, cmd: Command) bool {
 	using Command;
-	assert(active_editor == command_editor);
-	assert(editors[active_editor].buffer_index == buf.index);
+	assert(workspace.active_editor == workspace.command_editor);
+	assert(editors[workspace.active_editor].buffer_index == buf.index);
 
 	switch cmd {
 		INSERT_NEW_LINE { commit(buf); }

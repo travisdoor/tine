@@ -12,6 +12,7 @@
 [ ] Add function to verify line-endings consistency in files.
 [x] Allow no auto-facus on build command.
 	[x] Print number of error and warings when build is done.
+[ ] Exclude list cannot use full path, it's relative to the work dir probably.
 
 [ ] New UI
 	[x] Resize list based on available items.
@@ -25,11 +26,25 @@
 	[x] Completion list might get too long.
 
 
-[ ] Presentation
-	- Shell mode (error locations, clear output on each run, man pages).
-
-[ ] Builtin buffers can survive closing. Make them permanent.
+[x] Builtin buffers can survive closing. Make them permanent.
 [ ] Implement better recent locations.
 	[ ] Back/forth
 	[ ] Restore closed files.
 	[ ] Implicitly go to previous location when buffer is closed.
+	[ ] Serialize and load with project?
+
+[x] Organize splits as two arrays of editor indices.
+	[-] Focusing editor by pushing it to the array top.
+	[x] Close editors not buffers -> `close-editor` command
+	[x] Closing split will close all editors not buffers and remove merging of splits.
+	[ ] Option to ignore changed files on close.
+
+[ ] Welcome screen - show only if initial buffer is empty.
+
+!!! MUST FIX !!!
+[x] When shell is focused ctrl+` opens new one in other split.
+[x] Clang-format prints error result from compilation!
+
+[ ] Presentation
+	- Shell mode (error locations, clear output on each run, man pages, search).
+	- LSP C++/C#
