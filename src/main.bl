@@ -1030,7 +1030,7 @@ main :: fn () s32 {
 							print_log("Config changed!");
 							open_project(project.filepath) catch {
 								print_err($);
-							}
+							};
 						} else {
 							buf :: get_buffer_by_filepath(event.path);
 							assert(buf);
