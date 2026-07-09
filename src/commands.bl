@@ -1546,7 +1546,7 @@ increase_font_size :: fn () bool {
 	settings.font_size = math.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
 	if settings.font_size != prev_size {
 		print_log("settings.font_size = %", settings.font_size);
-		rebuild_fonts();
+		rebuild_fonts_next_frame();
 	}
 	return true;
 }
@@ -1556,7 +1556,7 @@ decrease_font_size :: fn () bool {
 	settings.font_size = math.clamp(settings.font_size - FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
 	if settings.font_size != prev_size {
 		print_log("settings.font_size = %", settings.font_size);
-		rebuild_fonts();
+		rebuild_fonts_next_frame();
 	}
 	return true;
 }
@@ -1764,10 +1764,9 @@ open_project_config :: fn () {
 	if warn_if_no_project_open() {
 		return;
 	}
-	err :: open(project.filepath);
-	if err {
-		print_err("Cannot open project file with error: %", err);
-	}
+	open(project.filepath) catch {
+		print_err("Cannot open project file with error: %.", $);
+	};
 }
 
 open_default_config :: fn () {

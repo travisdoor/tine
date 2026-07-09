@@ -143,7 +143,7 @@ handle_window_event_loop :: fn () {
 
 				if /*event.type == EVENT_WINDOW_PIXEL_SIZE_CHANGED || */event.type == EVENT_WINDOW_DISPLAY_SCALE_CHANGED {
 					WINDOW_SCALE = GetWindowDisplayScale(window);
-					rebuild_fonts();
+					rebuild_fonts_next_frame();
 				}
 
 				// Hide any possible completion popup.

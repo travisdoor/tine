@@ -52,8 +52,6 @@ LineEnding :: enum {
 	LF;
 }
 
-EXEC_PATH: string;
-
 MOUSE_DRAG_OFFSET :: 4.f;
 MOUSE_DBL_CLICK_S :: 0.5;
 
@@ -83,7 +81,10 @@ BOTTOM_SCROLL_TRIGGER          :: 5;
 
 DEFAULT_CONFIG_FILE :: "default.proj";
 PROJECTS_DIRECTORY  :: "projects";
-FONT_DIRECTORY: string;
+
+FONT_DIRECTORY:       string;
+EXEC_PATH:            string;
+DEFAULT_PROJECT_PATH: string;
 
 FONT_RESIZE_STEP :: 1;
 
@@ -159,6 +160,8 @@ font_ui_b:     draw.Font;
 font_ui_small: draw.Font;
 font_ui_mono:  draw.Font;
 icons:         draw.Font;
+
+fonts_dirty := true;
 
 current_font_hash: u32;
 
@@ -339,8 +342,7 @@ FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
 
 project: struct {
 	name:       string_view;
-	filepath:   string_view;
-	is_default: bool;
+	filepath:   string_view; // Empty when no project is loaded (only default one was applied).
 
 	included_directories: [..]string_view;
 	included_extensions:  [..]string_view;
@@ -631,7 +633,7 @@ update_recent_locations :: fn (editor: *Editor, buf: *Buffer) {
 	recent_locations.force_new_record = false;
 }
 
-clear_recent_loactions :: fn () #inline {
+clear_recent_locations :: fn () #inline {
 	recent_locations.stack.len        =  0;
 	recent_locations.index            = -1;
 	recent_locations.skip_next_update = false;
@@ -882,8 +884,10 @@ main :: fn () s32 {
 
 	print_log("Editor data directory: '%'", data_dir);
 
-	fw :: new_filewatch() catch panic($);
-	file_watch = fw; // @Cleanup 2025-03-02
+	DEFAULT_PROJECT_PATH = sprint("%/%", data_dir, DEFAULT_CONFIG_FILE);
+	defer str_terminate(&DEFAULT_PROJECT_PATH);
+
+	file_watch = new_filewatch() catch panic($);
 	defer delete_filewatch(file_watch);
 
 	init_project();
@@ -928,7 +932,7 @@ main :: fn () s32 {
 	} else {
 		// Try to load it, note that in case of fail, we use default setting implicitly (even if the file
 		// content is invalid).
-		err :: load_default_project_file();
+		err :: load_project("");
 		if err {
 			print_err(err);
 		} else {
@@ -938,8 +942,6 @@ main :: fn () s32 {
 
 	print_log("Settings: %", settings);
 
-
-	rebuild_fonts();
 	defer draw.font_terminate(&font);
 	defer draw.font_terminate(&font_ui);
 	defer draw.font_terminate(&font_ui_b);
@@ -1001,6 +1003,11 @@ main :: fn () s32 {
 		frame_delta_time = auto ((current_time - prev_time) * 1000.);
 		prev_time = current_time;
 
+		if fonts_dirty {
+			fonts_dirty = false;
+			rebuild_fonts();
+		}
+
 		recalculate_metrics();
 
 		handle_window_event_loop();
@@ -1014,33 +1021,46 @@ main :: fn () s32 {
 			loop poll_file_changes(file_watch, &event) {
 				print_log("Event: %", event);
 
+				is_config :: str_match(event.path, DEFAULT_PROJECT_PATH) || str_match(event.path, project.filepath);
+
 				using WatchEvent.kind;
 				switch event.kind {
 					FILE_CHANGED {
-						buf :: get_buffer_by_filepath(event.path);
-						assert(buf);
-						if !buf then continue;
-						buf.missing_on_disk = false;
+						if is_config {
+							print_log("Config changed!");
+							open_project(project.filepath) catch {
+								print_err($);
+							}
+						} else {
+							buf :: get_buffer_by_filepath(event.path);
+							assert(buf);
+							if !buf then continue;
+							buf.missing_on_disk = false;
 
-						if event.timestamp == buf.last_write_time then continue;
+							if event.timestamp == buf.last_write_time then continue;
 
-						print_log("Reload '%' due to content changed on disk.", buf.filepath);
-						load_buffer_from_file(buf, buf.filepath) catch {
-							print_err($);
-							continue;
-						};
+							print_log("Reload '%' due to content changed on disk.", buf.filepath);
+							load_buffer_from_file(buf, buf.filepath) catch {
+								print_err($);
+								continue;
+							};
 
-						reloaded_num += 1;
-						print_info("Buffer '%' reloaded from disk.", buf.name);
+							reloaded_num += 1;
+							print_info("Buffer '%' reloaded from disk.", buf.name);
+						}
 					}
 
 					FILE_REMOVED {
-						buf :: get_buffer_by_filepath(event.path);
-						assert(buf);
-						if !buf then continue;
-						buf.missing_on_disk = true;
-						removed_num += 1;
-						print_warn("File '%' not found on disk.", event.path);
+						if is_config {
+							print_warn("Project configuration file was removed from disk: %!", event.path);
+						} else {
+							buf :: get_buffer_by_filepath(event.path);
+							assert(buf);
+							if !buf then continue;
+							buf.missing_on_disk = true;
+							removed_num += 1;
+							print_warn("File '%' not found on disk.", event.path);
+						}
 					}
 
 					DIR_CHANGED, DIR_REMOVED {
@@ -1075,7 +1095,7 @@ main :: fn () s32 {
 		}
 
 		title: string_view;
-		if project.is_default {
+		if project.filepath.len == 0 {
 			title = buf.name;
 		} else {
 			title = tprint("% - %", project.name, buf.name);
@@ -1131,6 +1151,11 @@ lookup_font :: fn (font_name: string_view) string_view {
 		return tmp;
 	}
 	return "";
+}
+
+rebuild_fonts_next_frame :: fn () #inline {
+	if !fonts_dirty then redraw();
+	fonts_dirty = true;
 }
 
 rebuild_fonts :: fn () Error {
@@ -1496,12 +1521,11 @@ open_location :: fn (filepath: string_view, line: s32, col: s32, open_in_other_s
 	return OK;
 }
 
-open_project :: fn (directory: string_view, filepath: string_view) Error {
+open_project :: fn (filepath: string_view) Error {
 	kill_async_jobs();
 	cancel_async_search();
 
-	err :: load_project(directory, filepath);
-	if err { return err; }
+	load_project(filepath) catch return $;
 
 	// Use the first path in the included directories as a working directory since it's supposed to be
 	// a project root.
@@ -1512,8 +1536,7 @@ open_project :: fn (directory: string_view, filepath: string_view) Error {
 	print_info("Project % loaded.", project.name);
 
 	if settings.use_lsp {
-		err :: start_lsp_server();
-		if err { print_err(err); }
+		start_lsp_server() catch print_err($);
 	}
 
 	return OK;

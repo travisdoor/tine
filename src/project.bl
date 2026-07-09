@@ -22,9 +22,7 @@ terminate_project :: fn () {
 	array_terminate(&project.indexed_files);
 }
 
-load_project_file :: fn (directory: string_view, filename: string_view, is_default := false) Error {
-	filepath :: tprint("%/%", directory, filename);
-
+load_project_file :: fn (filepath: string_view, is_default := false) Error {
 	stream, err_open :: open_file(filepath, OpenFileMode.READ);
 	if err_open { return err_open; }
 	defer close_file(&stream);
@@ -45,10 +43,13 @@ load_project_file :: fn (directory: string_view, filename: string_view, is_defau
 	err :: parse(&ctx);
 	if err { return err; }
 
-	name :: path_splitext(filename);
-	project.name       = str_make(name, &project.string_cache);
-	project.filepath   = str_make(filepath, &project.string_cache);
-	project.is_default = is_default;
+	if is_default {
+		project.name = "Default";
+	} else {
+		name :: path_splitext(filepath);
+		project.name       = str_make(name, &project.string_cache);
+		project.filepath   = str_make(filepath, &project.string_cache);
+	}
 
 	return err;
 }
@@ -71,63 +72,49 @@ load_default_project_from_template :: fn () {
 		}
 	}
 
-	err :: parse(&ctx);
-	if err { panic(err); } // This is really bad! Even the template project file is broken.
-
-	project.is_default = true;
+	parse(&ctx) catch panic($); // This is really bad! Even the template project file is broken.
 }
 
 is_default_project_present :: fn () bool #inline {
-	return file_exist(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE));
+	return file_exist(DEFAULT_PROJECT_PATH);
 }
 
-load_default_project_file :: fn () Error #inline {
+load_project :: fn (filepath: string_view) Error {
 	defer do_the_stuff_after_project_load();
 
 	clear_project();
 	load_default_project_from_template();
-	err :: load_project_file(data_dir, DEFAULT_CONFIG_FILE, true);
-	if err {
+	load_project_file(DEFAULT_PROJECT_PATH, true) catch {
+		// Fallback.
 		clear_project();
 		load_default_project_from_template();
-	}
-	return err;
-}
+		return $;
+	};
 
-load_project :: fn (directory: string_view, filepath: string_view) Error {
-	defer do_the_stuff_after_project_load();
-
-	clear_project();
-
-	// Template config to get missing mapping on upgrade.
-	load_default_project_from_template();
-
-	// Default configuration.
-	err := load_default_project_file();
-	if err { return err; }
+	if filepath.len == 0 then return OK;
 
 	// Actual project file.
-	err = load_project_file(directory, filepath);
+	err :: load_project_file(filepath);
 	if err {
-		// Restore on fail...
+		// Fallback.
 		clear_project();
 		load_default_project_from_template();
 	}
 
-	clear_recent_loactions();
 
 	return err;
 }
 
 setup_after_first_run :: fn () Error {
+	defer do_the_stuff_after_project_load();
+
 	load_default_project_from_template();
-	write_entire_file(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE), DEFAULT_PROJECT_FILE_TEMPLATE_DATA) catch {
+	write_entire_file(DEFAULT_PROJECT_PATH, DEFAULT_PROJECT_FILE_TEMPLATE_DATA) catch {
 		return $;
 	};
 	write_entire_file(tprint("%/%/%", data_dir, PROJECTS_DIRECTORY, EXAMPLE_PROJECT_FILE), EXAMPLE_PROJECT_FILE_DATA) catch {
 		return $;
 	};
-	do_the_stuff_after_project_load();
 	return OK;
 }
 
@@ -243,18 +230,31 @@ clear_project :: fn () {
 
 	cancel_indexing();
 
+	if is_watched(file_watch, DEFAULT_PROJECT_PATH) {
+		unwatch_changes(file_watch, DEFAULT_PROJECT_PATH) catch {
+			print_err($);
+		};
+	}
+
+	if is_watched(file_watch, project.filepath) {
+		unwatch_changes(file_watch, project.filepath) catch {
+			print_err($);
+		};
+	}
+
 	project.name     = "";
 	project.filepath = "";
 	project.included_directories.len = 0;
 	project.included_extensions.len  = 0;
 	project.excluded_directories.len = 0;
 	project.indexed_files.len        = 0;
+
 	reset_allocator(&project.string_cache);
 }
 
 do_the_stuff_after_project_load :: fn () {
 	// Apply loaded changes, new ones or restored ones.
-	rebuild_fonts();
+	rebuild_fonts_next_frame();
 
 	if project.file_link_regex.is_valid then regex_terminate(&project.file_link_regex.expr);
 	if project.file_loc_regex.is_valid  then regex_terminate(&project.file_loc_regex.expr);
@@ -303,6 +303,20 @@ do_the_stuff_after_project_load :: fn () {
 		if is_watched(file_watch, path) then continue;
 		watch_changes(file_watch, path) catch print_err($);
 	}
+
+	if !is_watched(file_watch, DEFAULT_PROJECT_PATH) {
+		watch_changes(file_watch, DEFAULT_PROJECT_PATH) catch {
+			print_err($);
+		};
+	}
+
+	if project.filepath.len > 0 && !is_watched(file_watch, project.filepath) {
+		watch_changes(file_watch, project.filepath) catch {
+			print_err($);
+		};
+	}
+
+	clear_recent_locations();
 }
 
 add_include_directory :: fn (dir: string_view) {
