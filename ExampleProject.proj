@@ -1,0 +1,26 @@
+# Options template:        Alt+X + `open-config-template`
+# Open project:            Alt+X + `open-project`
+# Open projects directory: Alt+X + `open-projects-directory`
+
+;include
+# List of directories included into the project.
+# /path/to/project/root
+
+;include_file_extensions
+# Files with these extensions will be included into the project as editable.
+.c .cpp .h .hpp
+
+;settings
+
+# Build command used when 'build' editor command is invoked.
+# build_command make -j4
+
+# LSP setup
+# use_lsp true
+# show_lsp_inline_diagnostics true
+# lsp_executable /path/to/clangd
+# lsp_args -j=8 -background-index --log=error --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders=0
+# lsp_file_type c
+# lsp_flavor clangd
+
+# clang_format_executable /path/to/clang-format

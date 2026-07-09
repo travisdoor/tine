@@ -14,7 +14,6 @@ Editor :: struct {
 	};
 
 	prev_frame_cursor_position: s64;
-	track_recent_locations:     bool;
 
 	wrap: struct {
 		// Buffer Hash | Buffer Version. This is used to identify dirty line wrapping if enabled for buffer.
@@ -31,7 +30,7 @@ Editor :: struct {
 
 DEFAULT_ANIMATION_SPEED :: 0.02f;
 
-add_editor :: fn (buffer_index: s32, track_recent_locations := false) s32 {
+add_editor :: fn (buffer_index: s32) s32 {
 	editor: *Editor;
 	check_main_thread();
 
@@ -70,7 +69,6 @@ add_editor :: fn (buffer_index: s32, track_recent_locations := false) s32 {
 
 	editor.buffer_index           = buffer_index;
 	editor.cursor_index           = cursor_index;
-	editor.track_recent_locations = track_recent_locations;
 
 	sliding :: &editor.sliding;
 	sliding.vertical.t   = 1.f;
@@ -84,10 +82,6 @@ remove_editor :: fn (index: s32) {
 	assert(index >= 0 && index < editors.len);
 	editor :: &editors[index];
 	if editor.is_removed { return; }
-
-	if editor.track_recent_locations {
-		erase_all_locations_for_editor(editor);
-	}
 
 	buf :: get_editor_buffer(editor);
 	remove_cursor(buf, editor.cursor_index);
@@ -685,7 +679,7 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 
 #scope_private
 
-EDITOR_DEBUG :: false;
+EDITOR_DEBUG :: true;
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
@@ -1228,9 +1222,13 @@ draw_debug :: fn (editor: *Editor, buf: *Buffer, x: f32, y: f32, w: f32, _: f32)
 			color = rgb(0xff00ff);
 		}
 
-		editor_index :: rl.stack[i];
-		buf :: get_editor_buffer(&editors[editor_index]);
-		text(ux, uy, tprint("%", buf.name), color); uy += font.height;
+		entry :: &rl.stack[i];
+		name := "<unknown>";
+		buf :: &buffers[entry.buffer_index];
+		if !buf.is_removed && buf.hash == entry.hash {
+			name = buf.name;
+		}
+		text(ux, uy, tprint("%:%:%", name, entry.row, entry.col), color); uy += font.height;
 	}
 }
 

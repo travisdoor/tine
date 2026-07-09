@@ -367,6 +367,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 			CANCEL_MODE {
 				set_default_mode();
 				clear_selection(buf, editor.cursor_index);
+
 				// if !mode_changed && build.buffer_index != -1 {
 				// 	buffer_index :: build.buffer_index;
 				// 	assert(buffer_index >= 0 && buffer_index < buffers.len);
@@ -878,8 +879,6 @@ debug_report :: fn () bool {
 		}
 		print_info("\t[%] Buffer index: %", i, e.buffer_index);
 	}
-
-	print_info("\nJump history size: %B", recent_locations.stack.len * auto sizeof(s32));
 
 	return true;
 }
@@ -1415,6 +1414,7 @@ jump_begin :: fn (editor: *Editor, buf: *Buffer) bool {
 	position :: get_cursor_position(buf, editor.cursor_index);
 	if position == 0 then return false;
 	set_cursor_position(buf, editor.cursor_index, 0);
+	recent_location_force_new_record();
 	return true;
 }
 
@@ -1423,6 +1423,7 @@ jump_end :: fn (editor: *Editor, buf: *Buffer) bool {
 	end_position :: get_last_position_in_buffer(buf);
 	if position == end_position then return false;
 	set_cursor_position(buf, editor.cursor_index, end_position);
+	recent_location_force_new_record();
 	return true;
 }
 

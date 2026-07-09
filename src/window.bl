@@ -34,9 +34,11 @@ mouse: struct {
 init_window :: fn () {
 	using sdl;
 
-	#if PLATFORM == Platform.LINUX {
+	#if PLATFORM == .LINUX {
 		SetHint(strtoc(HINT_VIDEO_DRIVER), strtoc("wayland, x11"));
 		SetHint(strtoc(HINT_VIDEO_WAYLAND_PREFER_LIBDECOR), strtoc("1"));
+	} else if PLATFORM == .DARWIN {
+		SetHint(strtoc(HINT_MAC_OPTION_AS_ALT), strtoc("both"));
 	}
 
 	if !Init(INIT_VIDEO) then panic(sdl_last_error());
@@ -65,7 +67,9 @@ init_window :: fn () {
 	window = CreateWindow(strtoc(WINDOW_TITLE), WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_RESIZABLE | WINDOW_OPENGL | WINDOW_HIGH_PIXEL_DENSITY);
 	if (!window) then panic(sdl_last_error());
 
-	set_icon();
+	if PLATFORM != .DARWIN {
+		set_icon();
+	}
 
 	if !sdl.EnableScreenSaver() then print_err(sdl_last_error());
 
@@ -187,6 +191,7 @@ handle_window_event_loop :: fn () {
 					buf, editor :: get_active_buffer_and_editor();
 					clear_message();
 					if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+					update_recent_locations(editor, buf);
 					invoke_command(editor, buf, m.cmd);
 
 					if redirect_as_text_input {

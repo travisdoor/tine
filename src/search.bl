@@ -42,7 +42,7 @@ search_mode_terminate :: fn () {}
 search_panel_width :: fn (active_editor_w: f32) f32 #inline {
 	text_padding :: metrics.text_padding;
 
-	w := 650.f * WINDOW_SCALE;
+	w := 700.f * WINDOW_SCALE;
 	w  = math.min(w, cast(f32) WINDOW_WIDTH - text_padding * 2.f);
 	w  = math.min(w, active_editor_w - text_padding * 2.f);
 
@@ -164,6 +164,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 				}
 			} else {
 				set_mode(Mode.TEXT_EDIT);
+				recent_location_force_new_record();
 			}
 		}
 

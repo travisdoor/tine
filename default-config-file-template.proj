@@ -39,10 +39,10 @@
 ;settings
 #----------------------------------------------------------------------------------------------------
 font_size                              13
-font_ui_size                           13
+font_ui_size                           12
 
 # Line spacing as a percentage of the current font size. Supported range is <80, 200>.
-line_spacing                           120
+line_spacing                           100
 
 # Customize editor font, default system font location is used for lookup of the ttf font
 # files. Full path can be used too.
@@ -389,7 +389,7 @@ title_bar                           1A1815
 title_bar_active                    3A3326
 title_bar_text                      D6C7A1
 command_select                      3F3728
-panel_outline                       4C4944
+panel_outline                       2b2721
 open_indicator                      C28B3C
 selection_background                4F4535
 selection_background_inactive       3A342C

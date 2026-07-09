@@ -22,17 +22,6 @@ terminate_project :: fn () {
 	array_terminate(&project.indexed_files);
 }
 
-create_default_project_file :: fn (directory: string_view, filename: string_view) Error {
-	filepath :: tprint("%/%", directory, filename);
-
-	stream, err_open :: open_file(filepath, OpenFileMode.WRITE | OpenFileMode.CREATE);
-	if err_open { return err_open; }
-	defer close_file(&stream);
-
-	_, err_write :: io.write_string(&stream, DEFAULT_PROJECT_FILE_TEMPLATE_DATA);
-	return err_write;
-}
-
 load_project_file :: fn (directory: string_view, filename: string_view, is_default := false) Error {
 	filepath :: tprint("%/%", directory, filename);
 
@@ -125,13 +114,19 @@ load_project :: fn (directory: string_view, filepath: string_view) Error {
 		load_default_project_from_template();
 	}
 
+	clear_recent_loactions();
+
 	return err;
 }
 
 setup_after_first_run :: fn () Error {
 	load_default_project_from_template();
-	err :: create_default_project_file(data_dir, DEFAULT_CONFIG_FILE);
-	if err { return err; }
+	write_entire_file(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE), DEFAULT_PROJECT_FILE_TEMPLATE_DATA) catch {
+		return $;
+	};
+	write_entire_file(tprint("%/%/%", data_dir, PROJECTS_DIRECTORY, EXAMPLE_PROJECT_FILE), EXAMPLE_PROJECT_FILE_DATA) catch {
+		return $;
+	};
 	do_the_stuff_after_project_load();
 	return OK;
 }

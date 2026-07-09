@@ -78,7 +78,7 @@ ANSI_COLOR_CYAN_INDEX      : u8 : 18;
 ANSI_COLOR_WHITE_INDEX     : u8 : 19;
 
 MAX_FONT_SIZE                  :: 100;
-MIN_FONT_SIZE                  :: 4;
+MIN_FONT_SIZE                  :: 8;
 BOTTOM_SCROLL_TRIGGER          :: 5;
 
 DEFAULT_CONFIG_FILE :: "default.proj";
@@ -127,7 +127,7 @@ ICON_MESSAGES : u32 : 0xEB1C;
 ICON_HELP     : u32 : 0xEB32;
 
 // Static assets loaded directly into the executable data segment.
-FONT                          :: "FiraCode-Retina.ttf";
+FONT                          :: "Iosevka-Regular.ttf";
 FONT_UI                       :: "NotoSans-Regular.ttf";
 FONT_UI_B                     :: "NotoSans-Bold.ttf";
 
@@ -137,6 +137,7 @@ APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
 APP_ICON                      :: "icon/icon_256x256.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
 HELP_FILE                     :: "README.md";
+EXAMPLE_PROJECT_FILE          :: "ExampleProject.proj";
 
 FONT_DATA                          :: file_to_stack(FONT);
 FONT_UI_DATA                       :: file_to_stack(FONT_UI);
@@ -146,6 +147,7 @@ DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: file_to_stack(DEFAULT_PROJECT_FILE_TEMPLAT
 APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
 APP_ICON_DATA                      :: file_to_stack(APP_ICON);
 HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
+EXAMPLE_PROJECT_FILE_DATA          :: file_to_stack(EXAMPLE_PROJECT_FILE);
 
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
@@ -560,66 +562,147 @@ get_file_link_at_position :: fn (subject: string_view, position: s64) (FileLink,
 // Recent locations
 //
 
-recent_locations: struct {
-	stack: [..]s32;
-	index:     s32;
+RecentLocation :: struct {
+	editor_index: s32;
+	buffer_index: s32;
+	hash:         u32;
 
-	did_jump: bool;
-};
-
-add_recent_location :: fn (editor: *Editor) {
-	assert(editor.track_recent_locations);
-	rl :: &recent_locations;
-	if rl.did_jump {
-		rl.did_jump = false;
-		return;
-	}
-	if rl.index >= 0 {
-		if rl.stack[rl.index] == editor.index { return; }
-		// Drop rest of the stack here.
-		rl.stack.len = auto rl.index + 1;
-	}
-	array_push(&rl.stack, editor.index);
-	rl.index = auto (rl.stack.len-1);
+	row: s32;
+	col: s32;
 }
 
-erase_all_locations_for_editor :: fn (editor: *Editor) {
-	// Erase also current editor index.
-	assert(editor.track_recent_locations);
-	rl  :: &recent_locations;
-	loop i := 0; i < rl.stack.len; {
-		editor_index :: rl.stack[i];
-		if editor_index == editor.index {
-			array_erase_keep_order(&rl.stack, i);
-			if rl.index >= i { rl.index -= 1; }
-			continue;
-		}
-		i += 1;
+recent_locations: struct {
+	stack: [..]RecentLocation;
+	index:     s32;
+
+	skip_next_update: bool;
+	force_new_record: bool;
+};
+
+init_recent_locations :: fn () {
+	recent_locations.index = -1;
+}
+
+terminate_recent_locations :: fn () {
+	array_terminate(&recent_locations.stack);
+}
+
+recent_location_force_new_record :: fn () #inline {
+	recent_locations.force_new_record = true;
+}
+
+update_recent_locations :: fn (editor: *Editor, buf: *Buffer) {
+	if editor.index == workspace.command_editor then return;
+	if buf.index == shell.buffer_index then return;
+	if macros.is_replaying then return;
+	if recent_locations.skip_next_update {
+		recent_locations.skip_next_update = false;
+		return;
 	}
+
+	cursor :: get_cursor(buf, editor.cursor_index);
+
+	last_location: *RecentLocation;
+	if recent_locations.stack.len > 0 {
+		index :: recent_locations.stack.len-1;
+		last_location = &recent_locations.stack[index];
+
+		if last_location.editor_index != editor.index || last_location.buffer_index != buf.index || last_location.hash != buf.hash || (recent_locations.force_new_record && cursor.row != last_location.row) {
+			last_location = null;
+		}
+	}
+
+	if !last_location {
+		recent_locations.stack.len = recent_locations.index+1;
+		last_location = array_push(&recent_locations.stack, .{
+				editor_index = editor.index,
+				buffer_index = buf.index,
+				hash         = buf.hash
+			});
+
+		recent_locations.index += 1;
+	}
+
+	assert(last_location);
+
+	last_location.row = cursor.row;
+	last_location.col = cursor.col;
+
+	recent_locations.force_new_record = false;
+}
+
+clear_recent_loactions :: fn () #inline {
+	recent_locations.stack.len        =  0;
+	recent_locations.index            = -1;
+	recent_locations.skip_next_update = false;
+	recent_locations.force_new_record = false;
 }
 
 jump_to_previous_location :: fn () bool {
-	rl  :: &recent_locations;
-	if rl.index < 1 { return false; }
-	assert(workspace.active_editor != workspace.command_editor);
+	recent_locations.skip_next_update = true;
 
-	rl.index -= 1;
-	activate_editor(rl.stack[rl.index]);
-	rl.did_jump = true;
+	prev_buf, prev_editor :: get_active_buffer_and_editor();
+	prev_cursor           :: get_cursor(prev_buf, prev_editor.cursor_index);
 
-	return true;
+	loop recent_locations.index > 0 {
+		recent_locations.index -= 1;
+		loc :: &recent_locations.stack[recent_locations.index];
+		buf :: &buffers[loc.buffer_index];
+		if buf.is_removed then continue;
+		if buf.hash != loc.hash then continue;
+
+
+		editor := &editors[loc.editor_index];
+		if editor.is_removed || editor.buffer_index != loc.buffer_index {
+			loc.editor_index = find_or_create_editor_in_split(get_active_split(), loc.buffer_index);
+			editor = &editors[loc.editor_index];
+		}
+
+		if prev_buf.index == buf.index && prev_editor.index == editor.index && loc.row == prev_cursor.row {
+			continue;
+		}
+
+		activate_editor(loc.editor_index);
+		try_set_cursor_row_col(buf, editor.cursor_index, loc.row, loc.col);
+
+		return true;
+	}
+
+	print_warn("No previous location.");
+	return false;
 }
 
 jump_to_next_location :: fn () bool {
-	rl  :: &recent_locations;
-	if rl.index+1 >= rl.stack.len { return false; }
-	assert(workspace.active_editor != workspace.command_editor);
+	recent_locations.skip_next_update = true;
 
-	rl.index += 1;
-	activate_editor(rl.stack[rl.index]);
-	rl.did_jump = true;
+	prev_buf, prev_editor :: get_active_buffer_and_editor();
+	prev_cursor           :: get_cursor(prev_buf, prev_editor.cursor_index);
 
-	return true;
+	loop recent_locations.index < recent_locations.stack.len-1 {
+		recent_locations.index += 1;
+		loc :: &recent_locations.stack[recent_locations.index];
+		buf :: &buffers[loc.buffer_index];
+		if buf.is_removed then continue;
+		if buf.hash != loc.hash then continue;
+
+		editor := &editors[loc.editor_index];
+		if editor.is_removed || editor.buffer_index != loc.buffer_index {
+			loc.editor_index = find_or_create_editor_in_split(get_active_split(), loc.buffer_index);
+			editor = &editors[loc.editor_index];
+		}
+
+		if prev_buf.index == buf.index && prev_editor.index == editor.index && loc.row == prev_cursor.row {
+			continue;
+		}
+
+		activate_editor(loc.editor_index);
+		try_set_cursor_row_col(buf, editor.cursor_index, loc.row, loc.col);
+
+		return true;
+	}
+
+	print_warn("No next location.");
+	return false;
 }
 
 //
@@ -741,8 +824,8 @@ main :: fn () s32 {
 	defer terminate_workspace();
 
 	// Recent location
-	recent_locations.index = -1;
-	defer array_terminate(&recent_locations.stack);
+	init_recent_locations();
+	defer terminate_recent_locations();
 
 	// Create command editor.
 	workspace.command_editor = add_editor(add_command_buffer());
@@ -979,15 +1062,11 @@ main :: fn () s32 {
 
 		update_jobs(); // Also process all responses...
 
-		buf, editor :: get_active_buffer_and_editor();
+		buf :: get_active_buffer_and_editor();
 		if prev_active_editor != workspace.active_editor {
 			prev_active_editor = workspace.active_editor;
 			buf.last_focus_index = last_focus_index;
 			last_focus_index += 1;
-
-			if editor.track_recent_locations {
-				add_recent_location(editor);
-			}
 		}
 
 		if draw_next_frame {
@@ -1017,9 +1096,6 @@ main :: fn () s32 {
 
 	// Terminate all pending jobs. After that it's save to remove all buffers and editors.
 	jobs_terminate();
-
-	// To speed things up a bit.
-	recent_locations.stack.len = 0;
 
 	loop i := 0; i < editors.len; i += 1 { remove_editor(i); }
 	loop i := 0; i < buffers.len; i += 1 { remove_buffer(i); }
@@ -1102,7 +1178,7 @@ rebuild_fonts :: fn () Error {
 
 	draw.font_init_at_size_from_memory(&font_ui, FONT_UI_DATA, ui_size) catch panic($);
 	draw.font_init_at_size_from_memory(&font_ui_b, FONT_UI_B_DATA, ui_size) catch panic($);
-	draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, ui_size - 6) catch panic($);
+	draw.font_init_at_size_from_memory(&font_ui_small, FONT_UI_DATA, ui_size - 4) catch panic($);
 
 	// Set tab size!
 	font.tab_size = settings.tab_size;
@@ -1415,6 +1491,8 @@ open_location :: fn (filepath: string_view, line: s32, col: s32, open_in_other_s
 		jump_line_end(target_editor, target_buf);
 	}
 	// center_view(target_editor);
+
+	recent_location_force_new_record();
 	return OK;
 }
 
@@ -2043,8 +2121,8 @@ recalculate_metrics :: fn () {
 	line_spacing :: min(max(0.8f, cast(f32)settings.line_spacing / 100.f), 2.f);
 
 	metrics.title_bar_height          = round(font_ui.height * 1.7f);
-	metrics.line_height               = round(font.height  * line_spacing);
-	metrics.line_ui_height            = round(font_ui.height * 1.4f);
+	metrics.line_height               = round(font.height * line_spacing * 1.2f);
+	metrics.line_ui_height            = round(font_ui.height * 1.2f);
 	metrics.item_spacing              = round(icons.height * 1.3f);
 	metrics.text_padding              = round(font.height  * 0.5f);
 	metrics.text_ui_padding           = round(font_ui.height  * 0.5f);
@@ -2054,7 +2132,7 @@ recalculate_metrics :: fn () {
 	metrics.corner_rounding_panel     = round(WINDOW_SCALE * 10.f);
 	metrics.list_panel_max_width      = round(WINDOW_SCALE * 1024.f);
 	metrics.list_panel_factor         = 0.8f;
-	metrics.line_item_height          = round(font_ui.height * 1.4f);
+	metrics.line_item_height          = round(font_ui.height * 1.6f);
 	metrics.command_panel_hints_alpha = 0.5f;
 	metrics.command_panel_offset_y    = 50.f;
 	metrics.border_line_width         = 2.f;
@@ -2353,7 +2431,7 @@ find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
 
 	editor_index := find_editor_for_buffer_in_split(split, buffer_index);
 	if editor_index == -1 {
-		editor_index = add_editor_to_split(split, add_editor(buffer_index, true));
+		editor_index = add_editor_to_split(split, add_editor(buffer_index));
 	}
 	assert(editor_index > -1);
 
@@ -2409,7 +2487,7 @@ add_scratch :: fn () s32 {
 		scratch_buffer_index = add_buffer();
 	}
 
-	return add_editor_to_split(.LEFT, add_editor(scratch_buffer_index, true));
+	return add_editor_to_split(.LEFT, add_editor(scratch_buffer_index));
 }
 
 #scope_private

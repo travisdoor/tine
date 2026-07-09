@@ -1,6 +1,8 @@
 # Welcome to the Tine text editor.
 
 Use `Alt+X` to see a list of all available commands.
+Use `Ctrl+Shift+O` to open project.
+Use `open-project-config` to edit project configuration.
 Use `Ctrl+O` to open a file.
 
 - Author:  Martin Dorazil
@@ -28,7 +30,7 @@ Use `Ctrl+O` to open a file.
   | C++      | YES              | YES  |
   | Markdown | YES (basic)      | NO   |
   | GLSL     | YES              | NO   |
-  | C#       | YES              | YES  |
+  | CSharp   | YES              | YES  |
 
 # Feature Highlights
 
@@ -36,9 +38,9 @@ Use `Ctrl+O` to open a file.
 - Fast, keyboard-oriented navigation.
 - Project-based workspace with search-in-files support.
 - Minimalistic user interface.
-- Simple integration with RemedyBG and RAD Debugger.
+- Embedded shell execution.
 - Built-in macro system.
-- Support for relative line numbers.
+- Simple integration with RemedyBG and RAD Debugger on Windows.
 
 # Philosophy of Tine
 
