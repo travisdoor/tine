@@ -46,7 +46,7 @@ load_project_file :: fn (filepath: string_view, is_default := false) Error {
 	if is_default {
 		project.name = "Default";
 	} else {
-		name :: path_splitext(filepath);
+		name :: path_splitext(path_split(filepath).tail);
 		project.name       = str_make(name, &project.string_cache);
 		project.filepath   = str_make(filepath, &project.string_cache);
 	}
