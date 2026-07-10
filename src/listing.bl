@@ -223,9 +223,13 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 		{ // Icon
 			set_shader_font(&icons);
 
+			color := colors.foreground;
+			if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
+				color = colors.open_indicator;
+			}
+
 			ly :: item_y + font_centered_in(item_h, &icons);
-			item :: &list[visible_list_index][i];
-			text(item_x, ly, item.icon, colors.foreground);
+			text(item_x, ly, item.icon, color);
 
 			item_x     += item_spacing;
 			available_w -= item_spacing;
@@ -374,7 +378,6 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 				color = colors.warning;
 			} else if (item.flags & ItemFlags.HIGHLIGHT) == ItemFlags.HIGHLIGHT {
 				color = colors.open_indicator;
-
 			}
 			text(item_x, icon_y, ic, color);
 
@@ -622,6 +625,8 @@ list_commands :: fn (repeatable_only := false) {
 		title :: str_make(command_name, &string_cache[DEFAULT_CACHE_INDEX]);
 		hint  :: str_make(&string_cache[DEFAULT_CACHE_INDEX]);
 
+		flags: ItemFlags;
+
 		loop keymap_index := 0;; keymap_index += 1 {
 			keymap_index = lookup_command_keymap_index(auto i, keymap_index);
 			if keymap_index == -1 { break; }
@@ -630,6 +635,8 @@ list_commands :: fn (repeatable_only := false) {
 				str_append(&hint, "\0");
 			}
 			str_append(&hint, keymap_entry_to_string(keymap_index));
+
+			flags = .HIGHLIGHT;
 		}
 
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
@@ -638,6 +645,7 @@ list_commands :: fn (repeatable_only := false) {
 				preview = COMMAND_HELP[i],
 				index   = i,
 				icon    = icon(ICON_COMMAND),
+				flags   = flags,
 			});
 	}
 
