@@ -38,7 +38,6 @@ type_utils :: #import "std/type_utils";
 #load "quick_open.bl"
 #load "repeat.bl"
 #load "replace.bl"
-#load "save_to_drive.bl"
 #load "search.bl"
 #load "search_in_project.bl"
 #load "shell.bl"
@@ -122,6 +121,7 @@ ICON_CIRCLE           : u32 : 0xEBA7;
 ICON_SEARCH           : u32 : 0xEA6D;
 ICON_ARROW_EAST       : u32 : 0xEAB6;
 ICON_REPLACE          : u32 : 0xEB3D;
+ICON_SAVE_AS          : u32 : 0xEB4A;
 
 ICON_SHELL    : u32 : 0xEA85;
 ICON_MESSAGES : u32 : 0xEB1C;
@@ -1245,7 +1245,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		TEXT_EDIT         { workspace.last_active_text_editor = workspace.active_editor; }
 		OPEN_FROM_DRIVE   { open_from_drive_mode_terminate();        }
 		QUICK_OPEN        { quick_open_mode_terminate();             }
-		SAVE_TO_DRIVE     { save_to_drive_mode_terminate();          }
+		SAVE_TO_DRIVE     { open_from_drive_mode_terminate();        }
 		RUN_COMMAND       { run_command_mode_terminate();            }
 		SEARCH_FILE       { search_mode_terminate();                 }
 		OPEN_PROJECT      { open_project_mode_terminate();           }
@@ -1270,20 +1270,20 @@ set_mode :: fn (m: Mode) bool #inline {
 
 			assert(workspace.active_editor >= 0 && workspace.active_editor < editors.len);
 		}
-		GOTO_LINE         { goto_mode_init();              }
-		REPEAT            { repeat_mode_init();            }
-		OPEN_FROM_DRIVE   { open_from_drive_mode_init();   }
-		QUICK_OPEN        { quick_open_mode_init();        }
-		SAVE_TO_DRIVE     { save_to_drive_mode_init();     }
-		RUN_COMMAND       { run_command_mode_init();       }
-		SEARCH_FILE       { search_mode_init();            }
-		OPEN_PROJECT      { open_project_mode_init();      }
-		SEARCH_IN_PROJECT { search_in_project_mode_init(); }
-		COMPLETION        { completion_mode_init();        }
-		REPLACE           { replace_mode_init();           }
-		PEEK_ERROR        { peek_error_mode_init();        }
-		LIST_FUNCTIONS    { list_functions_mode_init();    }
-		SHELL_RUN         { shell_run_mode_init();         }
+		GOTO_LINE         { goto_mode_init();                }
+		REPEAT            { repeat_mode_init();              }
+		OPEN_FROM_DRIVE   { open_from_drive_mode_init();     }
+		QUICK_OPEN        { quick_open_mode_init();          }
+		SAVE_TO_DRIVE     { open_from_drive_mode_init(true); }
+		RUN_COMMAND       { run_command_mode_init();         }
+		SEARCH_FILE       { search_mode_init();              }
+		OPEN_PROJECT      { open_project_mode_init();        }
+		SEARCH_IN_PROJECT { search_in_project_mode_init();   }
+		COMPLETION        { completion_mode_init();          }
+		REPLACE           { replace_mode_init();             }
+		PEEK_ERROR        { peek_error_mode_init();          }
+		LIST_FUNCTIONS    { list_functions_mode_init();      }
+		SHELL_RUN         { shell_run_mode_init();           }
 
 		default;
 	}
@@ -2117,7 +2117,7 @@ draw_frame :: fn () {
 			REPEAT            { draw_repeat_mode();                        }
 			OPEN_FROM_DRIVE   { draw_open_from_drive_mode();               }
 			QUICK_OPEN        { draw_quick_open_mode();                    }
-			SAVE_TO_DRIVE     { draw_save_to_drive_mode();                 }
+			SAVE_TO_DRIVE     { draw_open_from_drive_mode();               }
 			RUN_COMMAND       { draw_run_command_mode();                   }
 			SEARCH_FILE       { draw_search_mode(last_active_x, y, w, h);  }
 			OPEN_PROJECT      { draw_open_project_mode();                  }

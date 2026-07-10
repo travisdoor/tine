@@ -312,7 +312,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		Mode.GOTO_LINE         { handled = invoke_command_goto_line_mode         (buf, cmd); }
 		Mode.OPEN_FROM_DRIVE   { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
 		Mode.QUICK_OPEN        { handled = invoke_command_quick_open_mode        (buf, cmd); }
-		Mode.SAVE_TO_DRIVE     { handled = invoke_command_save_to_drive_mode     (buf, cmd); }
+		Mode.SAVE_TO_DRIVE     { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
 		Mode.RUN_COMMAND       { handled = invoke_command_run_command_mode       (buf, cmd); }
 		Mode.SEARCH_FILE       { handled = invoke_command_search_mode            (buf, cmd); }
 		Mode.OPEN_PROJECT      { handled = invoke_command_open_project_mode      (buf, cmd); }

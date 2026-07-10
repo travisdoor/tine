@@ -1,22 +1,22 @@
-open_from_drive_mode_init :: fn () {
+open_from_drive_mode_init :: fn (saving := false) {
 	activate_command_editor();
+	is_saving = saving;
 
 	buf :: get_active_buffer_and_editor();
 	clear_buffer(buf);
 
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
+	may_override_file        = false;
 
 	base_path = get_cwd();
-	err :: list_directory(tprint("%/", base_path));
-	if err {
-		print_err(err);
-	}
+	list_directory(tprint("%/", base_path)) catch print_err($);
 }
 
 open_from_drive_mode_terminate :: fn () {
 	activate_command_editor();
 	str_terminate(&base_path);
+	str_terminate(&save_item_title);
 }
 
 draw_open_from_drive_mode :: fn () {
@@ -40,7 +40,7 @@ draw_open_from_drive_mode :: fn () {
 			});
 
 		clicked = draw_search_simple_list();
-		
+
 		draw_search_hints([_]PanelHint.{
 				.{
 					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
@@ -116,14 +116,12 @@ open_from_drive_cmd_changed :: fn () {
 			}
 		}
 
-		is_dir, err :: is_directory(new_base_path);
-		if err then print_err(err);
+		is_dir :: is_directory(new_base_path) catch print_err($);
 
 		if is_dir {
 			base_path.len = 0;
 			str_append(&base_path, new_base_path);
-			err :: list_directory(base_path);
-			if err then print_err(err);
+			list_directory(base_path) catch print_err($);
 
 			// 2025-02-17: Changing the buffer content will invoke change notification
 			//             invoking this function again. So filtering should be properly
@@ -139,12 +137,32 @@ open_from_drive_cmd_changed :: fn () {
 		return;
 	}
 
-	filter_list(tail);
+	save_item: *ListItem;
+	if is_saving && base_path.len > 0 && !is_directory(tail)._0 && !file_exist(tprint("%/%", base_path, tail)) {
+		save_item_title.len = 0;
+		str_clear_concat(&save_item_title, "Save as: ", tail);
+
+		save_item_tmp = .{
+			title = save_item_title,
+			icon  = icon(ICON_SAVE_AS),
+			index = SAVE_ITEM_INDEX,
+		};
+		save_item = &save_item_tmp;
+		may_override_file = false;
+	}
+
+	filter_list(tail, save_item);
 }
 
 #scope_private
 
+is_saving: bool;
 base_path: string;
+save_item_tmp: ListItem;
+save_item_title: string;
+may_override_file: bool;
+
+SAVE_ITEM_INDEX :: -1;
 
 commit :: fn () {
 	buf :: get_active_buffer_and_editor();
@@ -153,28 +171,41 @@ commit :: fn () {
 	if !item { return; }
 
 	path: string_view #noinit;
+	filename := if item.index == SAVE_ITEM_INDEX then peek_row(buf, 0).text else item.title;
+
 	if base_path.len == 0 && PLATFORM == Platform.WINDOWS {
-		path = tprint(item.title);
+		path = tprint(filename);
 	} else {
-		path = tprint("%/%", base_path, item.title);
+		path = tprint("%/%", base_path, filename);
 	}
 	clear_buffer(buf);
 
 	if (item.flags & ItemFlags.DIRECTORY) == ItemFlags.DIRECTORY {
-		err :: list_directory(tprint("%/", path));
-		if err {
-			print_err(err);
+		list_directory(tprint("%/", path)) catch {
+			print_err($);
 			return;
-		}
+		};
 
 		base_path.len = 0;
 		str_append(&base_path, path);
 
 		//set_cwd(base_path);
+	} else if is_saving {
+		if file_exist(path) && may_override_file == false {
+			commit_key_binding :: get_keybinding_for_command(.INSERT_NEW_LINE);
+			cancel_key_binding :: get_keybinding_for_command(.CANCEL_MODE);
+			print_warn("Press [%] to overwrite file, [%] to cancel or change the file name and try again.", commit_key_binding, cancel_key_binding);
+			may_override_file = true;
+			return;
+		}
+		may_override_file = false;
+
+		set_mode(Mode.TEXT_EDIT);
+		buf :: get_active_buffer_and_editor();
+		save(buf, path) catch print_err($);
 	} else {
 		set_mode(Mode.TEXT_EDIT);
-		err :: open(path);
-		if err { print_err(err); }
+		open(path) catch print_err($);
 	}
 }
 
@@ -217,5 +248,35 @@ is_path_absolute :: fn (path: string_view) bool {
 		return path[1] == ':';
 	} else {
 		return path[0] == '/';
+	}
+}
+
+dir_up :: fn (path: *string) {
+	lhs: string_view;
+	#if PLATFORM == Platform.WINDOWS {
+		if str_split_by_last(@path, '/', &lhs) {
+			assert(lhs.len > 0);
+			tmp := str_make(lhs, application_context.temporary_allocator);
+			path.len = 0;
+			str_append(path, tmp);
+			list_directory(tprint("%/", @path)) catch print_err($);
+		} else {
+			list_logical_drives() catch print_err($);
+			path.len = 0;
+		}
+	} else {
+		if str_split_by_last(@path, '/', &lhs) {
+			err := OK;
+			if lhs.len == 0 {
+				path.len = 0;
+				err = list_directory("/");
+			} else {
+				tmp := str_make(lhs, application_context.temporary_allocator);
+				path.len = 0;
+				str_append(path, tmp);
+				err = list_directory(tprint("%/", @path));
+			}
+			if err then print_err(err);
+		}
 	}
 }

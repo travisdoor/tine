@@ -850,14 +850,13 @@ clear_list_filters :: fn () {
 	visible_list_index = DEFAULT_LIST_INDEX;
 }
 
-filter_list :: fn (filter: string_view) {
+filter_list :: fn (filter: string_view, implicit_item: *ListItem = null) {
 	assert(filter.len > 0);
 	selected_index = 0;
 	start_index    = 0;
 	list[FILTER_LIST_INDEX].len = 0;
 	loop i := 0; i < list[DEFAULT_LIST_INDEX].len; i += 1 {
 		item :: &list[DEFAULT_LIST_INDEX][i];
-
 		search_for := item.title;
 		if search_for.len == 0 {
 			search_for = item.preview;
@@ -877,6 +876,10 @@ filter_list :: fn (filter: string_view) {
 
 	quick_sort_by_score(list[FILTER_LIST_INDEX], 0, auto (list[FILTER_LIST_INDEX].len - 1));
 
+	if implicit_item {
+		array_push(&list[FILTER_LIST_INDEX], @implicit_item);
+	}
+
 	visible_list_index = FILTER_LIST_INDEX;
 }
 
@@ -889,13 +892,11 @@ get_selected_item_in_list :: fn () *ListItem #inline {
 list_item_up :: fn () {
 	selected_index -= 1;
 	if selected_index < 0 { selected_index = list[visible_list_index].len - 1; }
-	notify();
 }
 
 list_item_down :: fn () {
 	selected_index += 1;
 	if selected_index >= list[visible_list_index].len { selected_index = 0; }
-	notify();
 }
 
 // Do the cleanup of the current vidible list in case the first_call is true. We use both list buffers as double-buffers
@@ -1261,10 +1262,3 @@ quick_sort_by_score :: fn (arr: []ListItem, low: s32, high: s32) {
 	}
 }
 
-notify :: fn () {
-	using Mode;
-	switch mode {
-		SAVE_TO_DRIVE { save_to_drive_list_select_changed(); }
-		default;
-	}
-}

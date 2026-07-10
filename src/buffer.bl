@@ -1164,7 +1164,7 @@ notify :: fn () {
 	using Mode;
 	switch mode {
 		OPEN_FROM_DRIVE   { open_from_drive_cmd_changed();      }
-		SAVE_TO_DRIVE     { save_to_drive_cmd_changed();        }
+		SAVE_TO_DRIVE     { open_from_drive_cmd_changed();      }
 		QUICK_OPEN        { quick_open_cmd_changed();           }
 		RUN_COMMAND       { run_command_cmd_changed();          }
 		SEARCH_FILE       { search_cmd_changed();               }
