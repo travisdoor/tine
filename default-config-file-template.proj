@@ -260,6 +260,8 @@ next-error           Ctrl+.
 prev-error           Ctrl+,
 next-location        Ctrl+]
 prev-location        Ctrl+[
+jump-next-block      Ctrl+Alt+]
+jump-prev-block      Ctrl+Alt+[
 
 #----------------------------------------------------------------------------------------------------
 # LSP

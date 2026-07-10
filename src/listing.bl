@@ -855,6 +855,11 @@ filter_list :: fn (filter: string_view, implicit_item: *ListItem = null) {
 	selected_index = 0;
 	start_index    = 0;
 	list[FILTER_LIST_INDEX].len = 0;
+
+	if implicit_item {
+		array_push(&list[FILTER_LIST_INDEX], @implicit_item);
+	}
+
 	loop i := 0; i < list[DEFAULT_LIST_INDEX].len; i += 1 {
 		item :: &list[DEFAULT_LIST_INDEX][i];
 		search_for := item.title;
@@ -874,11 +879,8 @@ filter_list :: fn (filter: string_view, implicit_item: *ListItem = null) {
 		}
 	}
 
-	quick_sort_by_score(list[FILTER_LIST_INDEX], 0, auto (list[FILTER_LIST_INDEX].len - 1));
-
-	if implicit_item {
-		array_push(&list[FILTER_LIST_INDEX], @implicit_item);
-	}
+	sort_from_index :: if implicit_item then 1 else 0;
+	quick_sort_by_score(list[FILTER_LIST_INDEX], sort_from_index, auto (list[FILTER_LIST_INDEX].len - 1));
 
 	visible_list_index = FILTER_LIST_INDEX;
 }
@@ -1179,15 +1181,6 @@ get_icon_for_file_info :: fn (file_info: *FileVisitInfo) string_view #inline {
 	return get_icon_for_file_type(file_type);
 }
 
-// utf8 version?
-first_from_left_in_path :: fn (str: string_view, c: u8, start: s64) s64 {
-	if start >= str.len { return -1; }
-	loop i := start; i < str.len; i += 1 {
-		if C.toupper(auto str[i]) == C.toupper(auto c) { return i; }
-	}
-	return -1;
-}
-
 reset_listing :: fn () {
 	list[DEFAULT_LIST_INDEX].len = 0;
 	list[FILTER_LIST_INDEX].len  = 0;
@@ -1201,6 +1194,16 @@ reset_listing :: fn () {
 	last_selected_index = -1;
 }
 
+// utf8 version?
+first_from_left_in_path :: fn (str: string_view, c: u8, start: s64) s64 {
+	if start >= str.len { return -1; }
+	loop i := start; i < str.len; i += 1 {
+		if C.toupper(auto str[i]) == C.toupper(auto c) { return i; }
+	}
+	return -1;
+}
+
+/*
 fuzzy_cmp :: fn (str: string_view, pattern: string_view) s32 {
 	if pattern.len == 0 { return 0; }
 	MAX :: 256;
@@ -1216,6 +1219,50 @@ fuzzy_cmp :: fn (str: string_view, pattern: string_view) s32 {
 			score += 10;
 		}
 	}
+	return score;
+}
+*/
+
+fuzzy_cmp :: fn (str: string_view, pattern: string_view) s32 {
+	if pattern.len == 0 { return 0; }
+	MAX :: 256;
+
+	score:    s32;
+	last_pos: s64;
+
+	loop i := 0; i < pattern.len; i += 1 {
+		pos :: first_from_left_in_path(str, pattern[i], last_pos);
+		if pos < 0 { return -1; }
+
+		// consecutive bonus — most important scoring factor
+		if pos == last_pos {
+			score += 20;
+		}
+
+		// word boundary bonus — match after _ . / - space
+		if pos == 0 {
+			score += 15;
+		} else {
+			prev :: str[pos - 1];
+			if prev == '_' || prev == '.' || prev == '/' || prev == '-' || prev == ' ' {
+				score += 15;
+			}
+		}
+
+		// earlier in string is better
+		score += cast(s32)(MAX - pos);
+
+		// exact case bonus
+		if str[pos] == pattern[i] {
+			score += 10;
+		}
+
+		last_pos = pos + 1;
+	}
+
+	// penalize longer strings — shorter match = more specific
+	score -= cast(s32) str.len;
+
 	return score;
 }
 

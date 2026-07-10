@@ -959,8 +959,37 @@ has_indentation_info :: fn (buf: *Buffer) bool #inline {
 	return buf.indent.len > 0;
 }
 
-find_indentation_for_cursor :: fn (buf: *Buffer, cursor_index: s32) s32 {
-	position :: get_cursor_position(buf, cursor_index);
+find_prev_indent_block :: fn (buf: *Buffer, position: s64) s64 {
+	n :: find_indentation_for_position(buf, position);
+
+	loop i := 0 ; i < buf.indent.len; i += 1 {
+		indent :: &buf.indent[i];
+		if indent.position >= position && indent.nesting == n+1 {
+			if i == 0 {
+				return indent.position;
+			}
+			return buf.indent[i-1].position;
+		}
+	}
+	return 0;
+}
+
+find_next_indent_block :: fn (buf: *Buffer, position: s64) s64 {
+	n :: find_indentation_for_position(buf, position);
+
+	print_log("n = %", n);
+
+	loop i := 0 ; i < buf.indent.len; i += 1 {
+		indent :: &buf.indent[i];
+		if indent.position-1 >= position && indent.nesting == n-1 {
+			print_log("indent.nesting = %", indent.nesting);
+			return indent.position;
+		}
+	}
+	return 0;
+}
+
+find_indentation_for_position :: fn (buf: *Buffer, position: s64) s32 {
 	n := 0;
 	loop i := 0 ; i < buf.indent.len; i += 1 {
 		indent :: &buf.indent[i];

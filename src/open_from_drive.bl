@@ -146,6 +146,7 @@ open_from_drive_cmd_changed :: fn () {
 			title = save_item_title,
 			icon  = icon(ICON_SAVE_AS),
 			index = SAVE_ITEM_INDEX,
+			flags = .HIGHLIGHT,
 		};
 		save_item = &save_item_tmp;
 		may_override_file = false;
