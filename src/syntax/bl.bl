@@ -32,11 +32,11 @@ highlight_syntax_bl :: fn (buf: *Buffer) {
 			EOF { break; }
 			LB  {
 				indentation_nesting += 1;
-				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
+				array_push(&buf.indent, Indent.{ .OPEN, token.index, indentation_nesting });
 			}
 			RB  {
 				indentation_nesting -= 1;
-				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
+				array_push(&buf.indent, Indent.{ .CLOSE, token.index, indentation_nesting });
 			}
 			KEYWORD_FN {
 				if previous_token_set && previous_token.kind == IDENT {

@@ -26,11 +26,11 @@ highlight_syntax_glsl :: fn (buf: *Buffer) {
 			EOF { break; }
 			LB  {
 				indentation_nesting += 1;
-				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
+				array_push(&buf.indent, Indent.{ .OPEN, token.index, indentation_nesting });
 			}
 			RB  {
 				indentation_nesting -= 1;
-				array_push(&buf.indent, Indent.{ token.index, indentation_nesting });
+				array_push(&buf.indent, Indent.{ .CLOSE, token.index, indentation_nesting });
 			}
 
 			default;
