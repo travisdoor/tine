@@ -174,7 +174,7 @@ vertical_move_tries_follow_indentation true
 block_caret                            true
 # Change the caret in case the current editor is in selection mode.
 change_caret_on_selection              true
-maximize_on_start                      true
+maximize_on_start                      false
 save_all_before_build                  true
 # Focus the shell buffer automatically when build command is invoked. Otherwise compilation
 # runs in background.

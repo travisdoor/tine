@@ -1021,6 +1021,10 @@ main :: fn () s32 {
 	current_window_title: string;
 	defer str_terminate(&current_window_title);
 
+	if show_help {
+		set_mode(.CHEAT_SHEET);
+	}
+
 	loop is_running() {
 		current_time :: get_ticks();
 		frame_delta_time = auto ((current_time - prev_time) * 1000.);

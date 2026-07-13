@@ -2,6 +2,7 @@ draw_cheat_sheet_mode :: fn () {
 	list :: [_]SectionOrCommand.{
 		make_section("General"),
 		make_command(.RUN_COMMAND),
+		make_command(.CHEAT_SHEET),
 		make_command(.CANCEL_MODE),
 		make_command(.OTHER_SPLIT),
 		make_section("File navigation"),
