@@ -2,7 +2,7 @@
 [x] When shell is focused ctrl+` opens new one in other split.
 [x] Clang-format prints error result from compilation!
 [ ] Previous location from jumping back is not recorded.
-[ ] Scroll on empty document asserts!
+[x] Scroll on empty document asserts!
 
 [x] Platform commands should be visible only on supported platform.
 [x] Use highter resolution for app icon. It's blurry in Windows start menu.

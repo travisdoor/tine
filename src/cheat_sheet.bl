@@ -39,25 +39,35 @@ make_command :: fn (cmd: Command) SectionOrCommand #inline {
 }
 
 draw_body :: fn (list: []SectionOrCommand) {
-	text_padding :: metrics.text_padding;
-	rounding     :: metrics.corner_rounding_panel;
-	line_height  :: metrics.line_ui_height * 2.f;
+	padding_x   :: metrics.item_spacing;
+	rounding    :: metrics.corner_rounding_panel;
+	line_height :: metrics.line_ui_height * 2.f;
+	padding_y   :: math.round(padding_x * 0.5f);
 
-	x :: 10.f;
-	y :: 10.f;
-	w :: 800.f;
-	h :: 700.f;
+	w :: math.round(math.min(font_ui.height * 45.f, cast(f32) WINDOW_WIDTH * 0.8f));
+	h := padding_y * 2.f;
+
+	loop i := 0; i < list.len; i += 1 {
+		h += line_height;
+	}
+
+	x :: math.round((cast(f32) WINDOW_WIDTH  - w) * 0.5f);
+	y :: math.round((cast(f32) WINDOW_HEIGHT - h) * 0.5f);
 
 	draw_panel_body(x, y, w, h, rounding);
 
-	tx := x + text_padding;
-	ty := y;
-	tw :: w - text_padding * 2.f;
+	tx := x + padding_x;
+	ty := y + padding_y;
+	tw :: w - padding_x * 2.f;
 
 	loop i := 0; i < list.len; i += 1 {
 		item :: &list[i];
 		switch item.kind {
 			.section {
+				draw.set_scissor(x, y, tw, h);
+				defer draw.clear_scissor();
+				defer draw.flush();
+
 				draw.set_shader_font(&font_ui_b);
 				draw.text(tx, ty + font_centered_in(line_height, &font_ui_b), item.section, colors.foreground);
 			}

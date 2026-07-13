@@ -173,7 +173,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 	if is_animating(&sliding.vertical) {
 		interpolated_y :: animate(&sliding.vertical);
 
-		first_line_index = auto math.floor(interpolated_y / line_height);
+		first_line_index = math.max(0, auto math.floor(interpolated_y / line_height));
 		sliding.vertical_offset = (line_height * auto first_line_index) - interpolated_y;
 		redraw();
 	}
@@ -415,7 +415,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 				if top < 0 {
 					top = 0;
 				} else if top+2 >= virtual_lines_count {
-					top = auto (virtual_lines_count - 2);
+					top = math.max(0, auto (virtual_lines_count - 2));
 				}
 				start_vertical_animation(editor, top, 0.01f);
 			}

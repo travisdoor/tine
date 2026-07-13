@@ -955,7 +955,7 @@ is_multiline :: fn (str: string_view, first_line: *string_view = null) bool #inl
 	return multiline;
 }
 
-get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") string_view #inline {
+get_keybinding_for_command :: fn (cmd: Command) string_view #inline {
 	tmp :: str_make(application_context.temporary_allocator);
 	loop keymap_index := 0;; keymap_index += 1 {
 		keymap_index = lookup_command_keymap_index(cmd, keymap_index);
@@ -965,7 +965,7 @@ get_keybinding_for_command :: fn (cmd: Command, missing := "<no binding>") strin
 		str_append(&tmp, keymap_entry_to_string(keymap_index));
 	}
 
-	if tmp.len == 0 then return missing;
+	if tmp.len == 0 then return COMMAND_NAMES[auto cmd];
 	return tmp;
 }
 

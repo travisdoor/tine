@@ -1,9 +1,6 @@
 # Welcome to the Tine text editor.
 
-Use `Alt+X` to see a list of all available commands.
-Use `Ctrl+Shift+O` to open project.
-Use `open-project-config` to edit project configuration.
-Use `Ctrl+O` to open a file.
+Press **F1** to see basic cheat sheet.
 
 - Author:  Martin Dorazil
 - Version: 1.0
