@@ -288,6 +288,7 @@ delete-word-left     Ctrl+Backspace Alt+Backspace
 toggle-comment       Ctrl+/
 duplicate-line       Ctrl+Shift+D
 
+set-selection-marker
 smart-selection      Ctrl+Space
 copy                 Ctrl+C
 paste                Ctrl+V
@@ -312,8 +313,10 @@ open-project         Ctrl+Shift+O
 
 open-messages
 open-shell           Ctrl+`
+cheat-sheet          F1
+help
 
-quick-open           Ctrl+P F3
+quick-open           Ctrl+P
 save-as              # No mapping
 save-all             # No mapping
 goto-line            Alt+G
@@ -334,7 +337,7 @@ decrease-font-size   Ctrl+-
 undo                 Ctrl+Z
 redo                 Ctrl+Y
 
-clang-format          F1
+clang-format          F3
 build                 F4
 open-in-visual-studio F5
 

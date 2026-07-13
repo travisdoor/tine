@@ -795,6 +795,10 @@ PanelHint :: struct {
 	info:        string_view;
 }
 
+draw_command_panel_hint :: fn (x: f32, y: f32, w: f32, h: f32, hint: PanelHint, base_alpha := 1.f) #inline {
+	draw_command_panel_hints(x, y, w, h, [1]PanelHint.{ hint }, base_alpha);
+}
+
 draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHint, base_alpha := 1.f) {
 	using draw;
 

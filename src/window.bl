@@ -190,7 +190,7 @@ handle_window_event_loop :: fn () {
 
 					buf, editor :: get_active_buffer_and_editor();
 					clear_message();
-					if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+					cancel_popup_mode();
 					update_recent_locations(editor, buf);
 					invoke_command(editor, buf, m.cmd);
 
@@ -227,7 +227,7 @@ handle_window_event_loop :: fn () {
 
 				set_prev_executed_command(Command.UNKNOWN);
 				clear_message();
-				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+				cancel_popup_mode();
 
 				redraw();
 			}
@@ -268,7 +268,7 @@ handle_window_event_loop :: fn () {
 				reset_caret_blinking();
 				mouse.scroll += auto event.wheel.y;
 				clear_message();
-				if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+				cancel_popup_mode();
 				redraw();
 			}
 
@@ -311,8 +311,7 @@ handle_text_input :: fn (text: string_view) {
 
 	redraw();
 	reset_caret_blinking();
-
-	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
+	cancel_popup_mode();
 
 	buf, editor :: get_active_buffer_and_editor();
 	if maybe_report_readonly(buf) then return;
@@ -562,3 +561,11 @@ KEYCODE_TO_NAME :: [_]KeyName.{
 	.{ sdl.K_F11          ,"F11"         },
 	.{ sdl.K_F12          ,"F12"         },
 };
+
+cancel_popup_mode :: fn () #inline {
+	if mode == .PEEK_ERROR {
+		set_mode(.TEXT_EDIT);
+	} else if mode == .CHEAT_SHEET {
+		set_mode(.TEXT_EDIT);
+	}
+}

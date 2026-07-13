@@ -70,7 +70,7 @@ Having used Emacs extensively, my Ctrl key is remapped to Caps Lock. I believe t
 The editor is distributed as a single, small executable containing all necessary data. I recommend placing the executable in a dedicated directory, as the default configuration file `default.proj` and the `projects` directory will be automatically generated next to the executable.
 
 ## Linux & macOS
-The default configuration file `default.proj` will be created in the `~/.tine` directory, along with the `projects` folder.
+The default configuration file `default.proj` will be created in the `~/.config/tine` directory, along with the `projects` folder.
 
 # Configuration
 The default configuration of the editor can be found in `default.proj` file. This file is created automatically on the first run. Use `open-default-config` command to open it.

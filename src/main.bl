@@ -22,6 +22,7 @@ type_utils :: #import "std/type_utils";
 #import "std/thread"
 
 #load "buffer.bl"
+#load "cheat_sheet.bl"
 #load "clang_format.bl"
 #load "command_run.bl"
 #load "commands.bl"
@@ -247,6 +248,7 @@ Mode :: enum {
 	PEEK_ERROR;
 	LIST_FUNCTIONS;
 	SHELL_RUN;
+	CHEAT_SHEET;
 }
 
 mode: Mode;
@@ -2125,6 +2127,7 @@ draw_frame :: fn () {
 			REPLACE           { draw_replace_mode(last_active_x, y, w, h); }
 			LIST_FUNCTIONS    { draw_list_functions_mode();                }
 			SHELL_RUN         { draw_shell_run_mode();                     }
+			CHEAT_SHEET       { draw_cheat_sheet_mode();                   }
 			PEEK_ERROR        {
 				draw_peek_error_mode(active_x, y, w, h);
 			}

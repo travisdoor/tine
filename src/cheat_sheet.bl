@@ -1,0 +1,75 @@
+draw_cheat_sheet_mode :: fn () {
+	list :: [_]SectionOrCommand.{
+		make_section("General"),
+		make_command(.RUN_COMMAND),
+		make_command(.CANCEL_MODE),
+		make_section("File navigation"),
+		make_command(.OPEN_FILE),
+		make_command(.OPEN_PROJECT),
+		make_command(.QUICK_OPEN),
+		make_command(.PREV_LOCATION),
+		make_command(.NEXT_LOCATION),
+		make_section("Edditing"),
+		make_command(.SMART_SELECTION),
+		make_section("Search"),
+		make_command(.SEARCH_FILE),
+		make_command(.SEARCH_IN_PROJECT),
+	};
+
+	draw_body(list);
+}
+
+#private
+
+SectionOrCommand :: Variant(union {
+		section: string_view;
+		command: Command;
+	});
+
+make_section :: fn (text: string_view) SectionOrCommand #inline {
+	item: SectionOrCommand;
+	set_variant(&item, .section, text);
+	return item;
+}
+
+make_command :: fn (cmd: Command) SectionOrCommand #inline {
+	item: SectionOrCommand;
+	set_variant(&item, .command, cmd);
+	return item;
+}
+
+draw_body :: fn (list: []SectionOrCommand) {
+	text_padding :: metrics.text_padding;
+	rounding     :: metrics.corner_rounding_panel;
+	line_height  :: metrics.line_ui_height * 2.f;
+
+	x :: 10.f;
+	y :: 10.f;
+	w :: 800.f;
+	h :: 700.f;
+
+	draw_panel_body(x, y, w, h, rounding);
+
+	tx := x + text_padding;
+	ty := y;
+	tw :: w - text_padding * 2.f;
+
+	loop i := 0; i < list.len; i += 1 {
+		item :: &list[i];
+		switch item.kind {
+			.section {
+				draw.set_shader_font(&font_ui_b);
+				draw.text(tx, ty + font_centered_in(line_height, &font_ui_b), item.section, colors.foreground);
+			}
+
+			.command {
+				draw_command_panel_hint(tx, ty, tw, line_height, .{
+						key_mapping = get_keybinding_for_command(item.command),
+						info        = COMMAND_HELP[auto item.command]
+					});
+			}
+		}
+
+		ty += line_height;
+	}
+}
