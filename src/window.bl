@@ -62,8 +62,8 @@ init_window :: fn () {
 	bounds: Rect;
 	GetDisplayUsableBounds(display, &bounds);
 
-	WINDOW_WIDTH  = cast(s32)(cast(f32)bounds.w * 0.6f);
-	WINDOW_HEIGHT = cast(s32)(cast(f32)bounds.h * 0.6f);
+	WINDOW_WIDTH  = cast(s32)(cast(f32)bounds.w * 0.65f);
+	WINDOW_HEIGHT = cast(s32)(cast(f32)bounds.h * 0.65f);
 
 	using GLAttr;
 	if !GL_SetAttribute(GL_CONTEXT_MAJOR_VERSION, 3) then panic(sdl_last_error());
