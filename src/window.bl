@@ -1,7 +1,7 @@
-WINDOW_WIDTH  := 1024;
-WINDOW_HEIGHT := 768;
-WINDOW_SCALE  := 1.f;
-WINDOW_TITLE  :: "Tine"; // This is not Emacs
+WINDOW_WIDTH      := 1024;
+WINDOW_HEIGHT     := 768;
+WINDOW_SCALE      := 1.f;
+WINDOW_TITLE      :: "Tine"; // This is not Emacs
 
 window: *sdl.Window;
 
@@ -57,6 +57,14 @@ init_window :: fn () {
 
 	print_log("SDL Video: %", ctostr(sdl.GetCurrentVideoDriver()));
 
+	display :: GetPrimaryDisplay();
+
+	bounds: Rect;
+	GetDisplayUsableBounds(display, &bounds);
+
+	WINDOW_WIDTH  = cast(s32)(cast(f32)bounds.w * 0.6f);
+	WINDOW_HEIGHT = cast(s32)(cast(f32)bounds.h * 0.6f);
+
 	using GLAttr;
 	if !GL_SetAttribute(GL_CONTEXT_MAJOR_VERSION, 3) then panic(sdl_last_error());
 	if !GL_SetAttribute(GL_CONTEXT_MINOR_VERSION, 3) then panic(sdl_last_error());
@@ -67,6 +75,7 @@ init_window :: fn () {
 	window = CreateWindow(strtoc(WINDOW_TITLE), WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_RESIZABLE | WINDOW_OPENGL | WINDOW_HIGH_PIXEL_DENSITY);
 	if (!window) then panic(sdl_last_error());
 
+
 	if PLATFORM != .DARWIN {
 		set_icon();
 	}
@@ -74,6 +83,8 @@ init_window :: fn () {
 	if !sdl.EnableScreenSaver() then print_err(sdl_last_error());
 
 	if !GetWindowSizeInPixels(window, &WINDOW_WIDTH, &WINDOW_HEIGHT) then print_err(sdl_last_error());
+	// SetWindowPosition(window, bounds.x + (bounds.w - WINDOW_WIDTH) / 2, bounds.y + (bounds.h - WINDOW_HEIGHT) / 2);
+
 	print_log("Window size: %x%", WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	WINDOW_SCALE = GetWindowDisplayScale(window);
