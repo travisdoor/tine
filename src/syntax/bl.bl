@@ -1,12 +1,5 @@
 highlight_syntax_bl :: fn (buf: *Buffer) {
-	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
-
-	buf.colors.len = 0;
-	array_resize(&buf.colors, buf.bytes.len);
-	zero_slice(buf.colors);
-
-	buf.indent.len = 0;
-	buf.functions.len = 0;
+	reset_buffer_syntax(buf);
 
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
@@ -111,7 +104,7 @@ KEYWORDS :: [_]string_view.{
 	"panic", "assert", "sizeof", "alignof", "typeinfo", "compiler_error", "compiler_warning",
 	"typeof", "then", "catch",
 };
-KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
+KEYWORDS_MAX_LEN :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
 
 DIRECTIVES :: [_]string_view.{
 	"load", "enable_if", "call_location", "extern", "compiler", "private",
@@ -120,15 +113,6 @@ DIRECTIVES :: [_]string_view.{
 	"scope", "thread_local", "flags", "maybe_unused", "comptime", "obsolete",
 	"scope_private", "scope_public", "scope_module", "err",
 };
-
-max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
-	tmp :: []string_view.{ count, ptrs };
-	l := 0;
-	loop i := 0; i < tmp.len; i += 1 {
-		l = math.max(l, auto tmp[i].len);
-	}
-	return l;
-}
 
 next_token :: fn (ctx: *Tokenizer) Token {
 	using Token.kind;

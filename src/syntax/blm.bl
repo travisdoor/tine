@@ -1,12 +1,5 @@
 highlight_syntax_blm :: fn (buf: *Buffer) {
-	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
-
-	buf.colors.len = 0;
-	array_resize(&buf.colors, buf.bytes.len);
-	zero_slice(buf.colors);
-
-	buf.indent.len = 0;
-	buf.functions.len = 0;
+	reset_buffer_syntax(buf);
 
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
@@ -97,20 +90,11 @@ KEYWORDS :: [_]string_view.{
 	"br", "switch", "unreachable", "debugbreak", "arg", "unop", "decl", "declvariant", "declmember", "declarg", "ret", "store",
 	"binop", "call", "declref", "testcases", "call_location", "unroll", "using", "msg", "addrof", "load",
 };
-KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
+KEYWORDS_MAX_LEN :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
 
 DIRECTIVES :: [_]string_view.{
 	"~unroll~",  "~insert~", "~defer~", "~deferinsert~", "~designator~",
 };
-
-max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
-	tmp :: []string_view.{ count, ptrs };
-	l := 0;
-	loop i := 0; i < tmp.len; i += 1 {
-		l = math.max(l, auto tmp[i].len);
-	}
-	return l;
-}
 
 next_token :: fn (ctx: *Tokenizer) Token {
 	using Token.kind;

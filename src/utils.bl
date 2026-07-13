@@ -1089,3 +1089,12 @@ warn_if_modifications_needs_to_be_saved :: fn (buf: *Buffer) bool {
 font_centered_in :: fn (h: f32, _: *draw.Font) f32 #inline {
 	return math.ceil(h * 0.5f);
 }
+
+max_len :: fn (ptrs: *string_view, count: s64) s32 {
+	tmp :: []string_view.{ count, ptrs };
+	l := 0;
+	loop i := 0; i < tmp.len; i += 1 {
+		l = math.max(l, auto tmp[i].len);
+	}
+	return l;
+}

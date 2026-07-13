@@ -1,11 +1,5 @@
 highlight_syntax_glsl :: fn (buf: *Buffer) {
-	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
-
-	buf.colors.len = 0;
-	array_resize(&buf.colors, buf.bytes.len);
-	zero_slice(buf.colors);
-
-	buf.indent.len = 0;
+	reset_buffer_syntax(buf);
 
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
@@ -96,26 +90,11 @@ KEYWORDS :: [_]string_view.{
 "invariant", "lowp", "mediump", "highp",
 };
 
-KEYWORDS_MAX_LEN :: max_len(KEYWORDS.ptr, KEYWORDS.len);
+KEYWORDS_MAX_LEN :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
 
 DIRECTIVES :: [_]string_view.{
 	"include", "if", "ifdef", "ifndef", "define", "undef", "else", "elif", "endif", "error", "pragma", "extension", "version"
 };
-
-max_len :: fn (ptrs: *string_view, count: s64) s32 #comptime {
-	tmp :: []string_view.{ count, ptrs };
-	l := 0;
-	loop i := 0; i < tmp.len; i += 1 {
-		l = math.max(l, auto tmp[i].len);
-	}
-	return l;
-}
-
-insert_all :: fn (tbl: *?T, v: []string_view) #inline {
-	loop i := 0; i < v.len; i += 1 {
-		tbl_insert(tbl, v[i], 0);
-	}
-}
 
 next_token :: fn (ctx: *Tokenizer) Token {
 	using Token.kind;

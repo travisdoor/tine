@@ -1,0 +1,11 @@
+reset_buffer_syntax :: fn (buf: *Buffer) {
+	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
+
+	buf.colors.len = 0;
+	array_resize(&buf.colors, buf.bytes.len);
+	zero_slice(buf.colors);
+
+	buf.indent.len    = 0;
+	buf.functions.len = 0;
+}
+

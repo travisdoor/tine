@@ -1070,6 +1070,8 @@ rebuild_coloring_and_indentation_info :: fn (buf: *Buffer) {
 		ASM     { highlight_syntax_asm(buf);    }
 		CSHARP  { highlight_syntax_csharp(buf); }
 		BLM     { highlight_syntax_blm(buf);    }
+		ZIG     { highlight_syntax_zig(buf);    }
+		JAI     { highlight_syntax_jai(buf);    }
 		default;
 	}
 	if buf.index == messages_buffer_index {
@@ -1119,6 +1121,7 @@ toggle_buffer_word_wrap :: fn (buf: *Buffer) {
 }
 
 #scope_private
+#load "syntax/syntax.bl"
 #load "syntax/asm.bl"
 #load "syntax/bl.bl"
 #load "syntax/blm.bl"
@@ -1126,10 +1129,12 @@ toggle_buffer_word_wrap :: fn (buf: *Buffer) {
 #load "syntax/cpp.bl"
 #load "syntax/csharp.bl"
 #load "syntax/glsl.bl"
+#load "syntax/jai.bl"
 #load "syntax/md.bl"
 #load "syntax/messages.bl"
 #load "syntax/project.bl"
 #load "syntax/search.bl"
+#load "syntax/zig.bl"
 
 SMALL_STRING_EDIT :: 16;
 

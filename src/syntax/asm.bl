@@ -2,13 +2,7 @@
 // we should try to deduplicate this...
 
 highlight_syntax_asm :: fn (buf: *Buffer) {
-	assert(buf.dirty_syntax == true, "This should be called only if syntax is dirty!");
-
-	buf.colors.len = 0;
-	array_resize(&buf.colors, buf.bytes.len);
-	zero_slice(buf.colors);
-
-	buf.indent.len = 0;
+	reset_buffer_syntax(buf);
 
 	ctx :: Tokenizer.{
 		base = TokenizerBase.{
@@ -59,13 +53,6 @@ Token :: struct {
 
 	index: s32;
 	len:   s32;
-}
-
-insert_all :: fn (tbl: *?T, v: []string_view) #inline {
-	using std;
-	loop i := 0; i < v.len; i += 1 {
-		tbl_insert(tbl, v[i], 0);
-	}
 }
 
 next_token :: fn (ctx: *Tokenizer) Token {

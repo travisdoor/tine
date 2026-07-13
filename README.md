@@ -20,14 +20,16 @@ Press **F1** to see basic cheat sheet.
 
 # Supported Languages
 
-  | Language | Syntax Highlight | LSP  |
-  | -------- | ---------------- | ---- |
-  | BL       | YES              | NO   |
-  | C        | YES              | YES  |
-  | C++      | YES              | YES  |
-  | Markdown | YES (basic)      | NO   |
-  | GLSL     | YES              | NO   |
-  | CSharp   | YES              | YES  |
+  | Language | Syntax Highlight | LSP           |
+  | -------- | ---------------- | ------------- |
+  | BL       | YES              | NO            |
+  | C        | YES              | YES           |
+  | C++      | YES              | YES           |
+  | CSharp   | YES              | YES           |
+  | GLSL     | YES              | NO            |
+  | JAI      | YES              | (not tested)  |
+  | Markdown | YES (basic)      | NO            |
+  | ZIG      | YES              | (not tested)  |
 
 # Feature Highlights
 

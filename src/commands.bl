@@ -178,7 +178,11 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto LSP_GOTO_DEFINITION_OTHER_SPLIT]  = "Go to definition of the current symbol under cursor using LSP and open the location in other split.";
 	help[auto LSP_OTHER_FILE]                   = "Try to open related header file.";
 	help[auto LSP_OTHER_FILE_OTHER_SPLIT]       = "Try to open related header file in other split.";
-
+	help[auto LSP_COMPLETION]                   = "Start LSP completion on current subject under cursor.";
+	help[auto LSP_REFERENCES]                   = "Find all references of symbol under cursor using LSP.";
+	help[auto LSP_KILL_SERVER]                  = "Kill running LSP server.";
+	help[auto LSP_RESTART_SERVER]               = "Restart running LSP server.";
+	
 	help[auto INSERT_NEW_LINE]                  = "Insert new line into current document.";
 	help[auto INSERT_TAB]                       = "Insert tab into current document.";
 	help[auto DELETE_CHAR_LEFT]                 = "Delete one character before cursor.";
@@ -187,7 +191,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto DELETE_LINE]                      = "Delete current line.";
 	help[auto DUPLICATE_LINE]                   = "Duplicate current line.";
 	help[auto SET_SELECTION_MARKER]             = "Start text selection.";
-	help[auto SMART_SELECTION]                  = "Start text selection. Then selects word, line, whole line, paragraph or block.";
+	help[auto SMART_SELECTION]                  = "Start text selection. Then select: word, line, whole line, paragraph or block.";
 	help[auto SELECT_ALL]                       = "Select whole document.";
 	help[auto SELECT_WORD]                      = "Select current word.";
 	help[auto SELECT_LINE]                      = "Select current line content.";
@@ -204,22 +208,22 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto TOGGLE_COMMENT]                   = "Comment or uncomment current selection or line based on current file type.";
 	help[auto SORT]                             = "Alphabetically sort selected lines.";
 
-	help[auto OTHER_SPLIT]                      = "Switch focus to other split.";
+	help[auto OTHER_SPLIT]                      = "Create new split with the same file or switch focus to other split.";
 	help[auto CLOSE_SPLIT]                      = "Close focused split.";
 	help[auto CLOSE_OTHER_SPLIT]                = "Close non-focused split.";
 
-	help[auto CLOSE_BUFFER]                     = "Close current buffer and check if it was saved.";
-	help[auto CLOSE_EDITOR]                     = "Close current focused editor but keep buffer open.";
-	help[auto CLOSE_BUFFERS_WITHOUT_EDITOR]     = "Close all buffers without active editor open.";
-	help[auto CLOSE_ALL_BUFFERS]                = "Close all buffers.";
-	help[auto FORCE_CLOSE_BUFFER]               = "Close current buffer without saving.";
-	help[auto SAVE]                             = "Save current buffer.";
-	help[auto SAVE_ALL]                         = "Save all open buffers.";
-	help[auto NEW_BUFFER]                       = "Create new scratch buffer.";
+	help[auto CLOSE_BUFFER]                     = "Close current file and check if it was saved.";
+	help[auto CLOSE_EDITOR]                     = "Close current focused editor but keep file open.";
+	help[auto CLOSE_BUFFERS_WITHOUT_EDITOR]     = "Close all files without active editor open.";
+	help[auto CLOSE_ALL_BUFFERS]                = "Close all files.";
+	help[auto FORCE_CLOSE_BUFFER]               = "Close current files without saving.";
+	help[auto SAVE]                             = "Save current file.";
+	help[auto SAVE_ALL]                         = "Save all open files.";
+	help[auto NEW_BUFFER]                       = "Create new scratch file.";
 
 	help[auto OPEN_FILE]                        = "Open file.";
 	help[auto QUICK_OPEN]                       = "Search files in current project.";
-	help[auto SAVE_AS]                          = "Save buffer as.";
+	help[auto SAVE_AS]                          = "Save file as.";
 	help[auto GOTO_LINE]                        = "Go to line number.";
 	help[auto CANCEL_MODE]                      = "Cancel active mode.";
 	help[auto RUN_COMMAND]                      = "List and run editor commands.";
@@ -228,7 +232,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto SEARCH_IN_PROJECT]                = "Search in current project.";
 	help[auto SEARCH_REPLACE]                   = "Search replace in current file.";
 	help[auto PEEK_ERROR]                       = "Peek full error message on current line if there is one.";
-	help[auto LIST_FUNCTIONS]                   = "List functions in current buffer. This information might not be available for all file types.";
+	help[auto LIST_FUNCTIONS]                   = "List functions in current file. This information might not be available for all file types.";
 	help[auto REPEAT]                           = "Activate repeat mode, first enter number of repetitions and then invoke desired command.";
 	help[auto SHELL]                            = "Execute shell command in current working directory.";
 	help[auto CHEAT_SHEET]                      = "Show common editor shortcuts in overlay panel.";
@@ -245,10 +249,6 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto HELP]                             = "Open help.";
 	help[auto INCREASE_FONT_SIZE]               = "Increase font size.";
 	help[auto KILL_ASYNC_JOBS]                  = "Kill all running async jobs.";
-	help[auto LSP_COMPLETION]                   = "Start LSP completion on current subject under cursor.";
-	help[auto LSP_REFERENCES]                   = "Find all references of symbol under cursor using LSP.";
-	help[auto LSP_KILL_SERVER]                  = "Kill running LSP server.";
-	help[auto LSP_RESTART_SERVER]               = "Restart running LSP server.";
 	help[auto OPEN_DEFAULT_CONFIG]              = "Open default editor configuration file.";
 	help[auto OPEN_CONFIG_TEMPLATE]             = "Open read-only default configuration template.";
 	help[auto OPEN_IN_REMEDYBG]                 = "Open current file location in RemedyBG.";
@@ -258,9 +258,9 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto OPEN_SHELL]                       = "Open shell buffer.";
 	help[auto OPEN_PROJECTS_DIRECTORY]          = "Open project location in file explorer.";
 	help[auto OPEN_PROJECT_CONFIG]              = "Open configuration file of current project.";
-	help[auto REDO]                             = "Open configuration file of current project.";
+	help[auto REDO]                             = "Redo chages.";
 	help[auto SEARCH_TO_BUFFER]                 = "Redirect search results into separate buffer.";
-	help[auto UNDO]                             = "Undo latest chages.";
+	help[auto UNDO]                             = "Undo chages.";
 	help[auto OPEN_FILE_LOCATION]               = "Open current file location in default system file manager.";
 	help[auto DATE]                             = "Inserts current system date into focused buffer.";
 

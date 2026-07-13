@@ -3,6 +3,7 @@ draw_cheat_sheet_mode :: fn () {
 		make_section("General"),
 		make_command(.RUN_COMMAND),
 		make_command(.CANCEL_MODE),
+		make_command(.OTHER_SPLIT),
 		make_section("File navigation"),
 		make_command(.OPEN_FILE),
 		make_command(.OPEN_PROJECT),
@@ -11,9 +12,17 @@ draw_cheat_sheet_mode :: fn () {
 		make_command(.NEXT_LOCATION),
 		make_section("Edditing"),
 		make_command(.SMART_SELECTION),
+		make_command(.CENTER_VIEW),
+		make_command(.TOGGLE_COMMENT),
+		make_command(.UNDO),
+		make_command(.REDO),
 		make_section("Search"),
 		make_command(.SEARCH_FILE),
 		make_command(.SEARCH_IN_PROJECT),
+		make_section("LSP"),
+		make_command(.LSP_COMPLETION),
+		make_command(.LSP_REFERENCES),
+		make_command(.LSP_GOTO_DEFINITION),
 	};
 
 	draw_body(list);

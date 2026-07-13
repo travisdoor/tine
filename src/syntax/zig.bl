@@ -1,0 +1,355 @@
+highlight_syntax_zig :: fn (buf: *Buffer) {
+	reset_buffer_syntax(buf);
+
+	ctx :: Tokenizer.{
+		base = TokenizerBase.{
+			bytes = buf.bytes,
+		},
+	};
+
+	insert_all(&ctx.keyword_table,  KEYWORDS);
+	insert_all(&ctx.builtin_table,  BUILTINS);
+
+	indentation_nesting := 0;
+
+	loop {
+		token :: next_token(&ctx);
+		switch token.kind {
+			.EOF { break; }
+			.LB  {
+				indentation_nesting += 1;
+				array_push(&buf.indent, Indent.{ .OPEN, token.index, indentation_nesting });
+			}
+			.RB  {
+				indentation_nesting -= 1;
+				array_push(&buf.indent, Indent.{ .CLOSE, token.index, indentation_nesting });
+			}
+
+			default;
+		}
+
+		if token.len > 0 {
+			memset(&buf.colors[token.index], kind_to_color(token.kind), auto token.len);
+		}
+	}
+
+	tbl_terminate(&ctx.keyword_table);
+	tbl_terminate(&ctx.builtin_table);
+}
+
+#scope_private
+
+kind_to_color :: fn (kind: Token.kind) u8 #inline {
+	switch kind {
+		.INVALID     { return CODE_COLOR_INVALID_INDEX;   }
+		.IDENT       { return CODE_COLOR_DEFAULT_INDEX;   }
+		.KEYWORD     { return CODE_COLOR_KEYWORD_INDEX;   }
+		.COMMENT     { return CODE_COLOR_COMMENT_INDEX;   }
+		.DOC_COMMENT { return CODE_COLOR_COMMENT_INDEX;   }
+		.BUILTIN     { return CODE_COLOR_DIRECTIVE_INDEX; }
+		.STRING      { return CODE_COLOR_STRING_INDEX;    }
+		.CHAR        { return CODE_COLOR_STRING_INDEX;    }
+		.NUMBER      { return CODE_COLOR_NUMBER_INDEX;    }
+		.LB, .RB     { return CODE_COLOR_KEYWORD_INDEX;   }
+		default;
+	}
+	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+Tokenizer :: struct #base TokenizerBase {
+	keyword_table: Table(string_view, u8);
+	builtin_table: Table(string_view, u8);
+}
+
+Token :: struct {
+	kind: enum u8 {
+		EOF = -1;
+
+		INVALID;
+		IDENT;
+		KEYWORD;
+		COMMENT;
+		DOC_COMMENT;
+		BUILTIN;
+		STRING;
+		CHAR;
+		NUMBER;
+		LB;
+		RB;
+	};
+
+	index: s32;
+	len:   s32;
+}
+
+KEYWORDS :: [_]string_view.{
+	"addrspace", "align", "allowzero", "and", "anyframe", "anytype", "asm", "async", "await",
+	"break", "callconv", "catch", "comptime", "const", "continue", "defer", "else", "enum",
+	"errdefer", "error", "export", "extern", "fn", "for", "if", "inline", "linksection",
+	"noalias", "noinline", "nosuspend", "opaque", "or", "orelse", "packed", "pub", "resume",
+	"return", "struct", "suspend", "switch", "test", "threadlocal", "try", "union",
+	"unreachable", "usingnamespace", "var", "volatile", "while", "true", "false", "null"
+};
+
+KEYWORDS_MAX_LEN :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
+
+BUILTINS :: [_]string_view.{
+	"addWithOverflow", "addrSpaceCast", "alignCast", "alignOf", "as", "atomicLoad", "atomicRmw",
+	"atomicStore", "bitCast", "bitOffsetOf", "bitSizeOf", "branchHint", "breakpoint", "byteSwap",
+	"call", "cDefine", "cImport", "cInclude", "cUndef", "clz", "cmpxchgStrong", "cmpxchgWeak",
+	"compileError", "compileLog", "constCast", "ctz", "divExact", "divFloor", "divTrunc",
+	"embedFile", "enumFromInt", "errorCast", "errorFromInt", "errorName", "errorReturnTrace",
+	"export", "extern", "field", "fieldParentPtr", "FieldType", "floatCast", "floatFromInt",
+	"frameAddress", "hasDecl", "hasField", "import", "inComptime", "intCast", "intFromBool",
+	"intFromEnum", "intFromError", "intFromFloat", "intFromPtr", "max", "memcpy", "memset",
+	"min", "mod", "mulAdd", "mulWithOverflow", "panic", "popCount", "prefetch", "ptrCast",
+	"ptrFromInt", "reduce", "rem", "returnAddress", "select", "setEvalBranchQuota",
+	"setFloatMode", "setRuntimeSafety", "shlExact", "shlWithOverflow", "shrExact", "shuffle",
+	"sizeOf", "splat", "src", "subWithOverflow", "tagName", "This", "trap", "truncate", "Type",
+	"typeInfo", "typeName", "TypeOf", "unionInit", "Vector", "volatileCast"
+};
+
+BUILTINS_MAX_LEN :: max_len#(BUILTINS.ptr, BUILTINS.len);
+
+next_token :: fn (ctx: *Tokenizer) Token {
+	loop ctx.index < ctx.bytes.len {
+		eat_whitespace(ctx);
+		t :: Token.{
+			kind  = .EOF,
+			index = ctx.index,
+		};
+
+		c :: ctx.bytes[ctx.index];
+		if c == '{'         && parse_left_brace   (ctx, &t) { return t; }
+		if c == '}'         && parse_right_brace  (ctx, &t) { return t; }
+		if c == '/'         && parse_comment      (ctx, &t) { return t; }
+		if c == '@'         && parse_builtin      (ctx, &t) { return t; }
+		if c == '\"'        && parse_string       (ctx, &t) { return t; }
+		if c == '\''        && parse_char         (ctx, &t) { return t; }
+		if c == '\\'        && parse_multiline_str(ctx, &t) { return t; }
+		if parse_identifier_or_keyword            (ctx, &t) { return t; }
+		if parse_number                           (ctx, &t) { return t; }
+
+		ctx.index += 1;
+	}
+
+	return Token.{ kind = .EOF };
+}
+
+parse_left_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
+	ctx.index += 1;
+	t.kind = .LB;
+	t.len  = 1;
+	return true;
+}
+
+parse_right_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
+	ctx.index += 1;
+	t.kind = .RB;
+	t.len  = 1;
+	return true;
+}
+
+parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.index+1 >= ctx.bytes.len || ctx.bytes[ctx.index+1] != '/' {
+		return false;
+	}
+
+	t.kind = .COMMENT;
+	t.len  = 2;
+	ctx.index += 2;
+
+	if ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '/' || c == '!' {
+			t.kind      = .DOC_COMMENT;
+			t.len      += 1;
+			ctx.index  += 1;
+		}
+	}
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\n' || c == 0 { break; }
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	return true;
+}
+
+parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' then return false;
+	t.kind     = .STRING;
+	t.len     += 1; // "
+	ctx.index += 1;
+
+	pc := '0';
+
+	in_string := true;
+	loop in_string && ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\"' && (pc != '\\') {
+			in_string = false;
+		}
+		if c == '\n' then break;
+		t.len     += 1;
+		ctx.index += 1;
+		pc = c;
+	}
+
+	return true;
+}
+
+parse_char :: fn (ctx: *Tokenizer, t: *Token) bool {
+	t.kind     = .CHAR;
+	t.len     += 1; // '
+	ctx.index += 1;
+
+	pc := '0';
+
+	in_char := true;
+	loop in_char && ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\'' && (pc != '\\') {
+			in_char = false;
+		}
+		if c == '\n' then break;
+		t.len     += 1;
+		ctx.index += 1;
+		pc = c;
+	}
+
+	return true;
+}
+
+// Zig multiline string literals: each line starting with `\\` is a raw string segment.
+parse_multiline_str :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.index+1 >= ctx.bytes.len || ctx.bytes[ctx.index+1] != '\\' {
+		return false;
+	}
+
+	t.kind     = .STRING;
+	t.len      = 2;
+	ctx.index += 2;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '\n' || c == 0 then break;
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	return true;
+}
+
+parse_builtin :: fn (ctx: *Tokenizer, t: *Token) bool {
+	ctx.index += 1;
+	t.len  = 1;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c != '_' && is_alpha(c) == false && (t.len > 1 && is_digit(c)) == false { break; }
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	if t.len == 1 {
+		ctx.index -= 1;
+		t.len     -= 1;
+		return false;
+	}
+
+	maybe_builtin :: string_view.{ t.len-1, &ctx.bytes[t.index+1] }; // strip @
+	if maybe_builtin.len <= BUILTINS_MAX_LEN && tbl_contains(&ctx.builtin_table, maybe_builtin) {
+		t.kind = .BUILTIN;
+	} else {
+		t.kind = .INVALID;
+	}
+
+	return true;
+}
+
+parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c == '_' || is_alpha(c) || (t.len > 0 && is_digit(c)) {
+			t.len     += 1;
+			ctx.index += 1;
+		} else {
+			break;
+		}
+	}
+
+	if t.len == 0 then return false;
+
+	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
+	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && tbl_contains(&ctx.keyword_table, maybe_keyword);
+	if is_keyword {
+		t.kind = .KEYWORD;
+	} else {
+		t.kind = .IDENT;
+	}
+	return true;
+}
+
+parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
+	c    := ctx.bytes[ctx.index];
+	dot  := false;
+	base := FmtIntBase.DEC;
+
+	if c != '-' && is_digit(c) == false { return false; }
+	t.kind = .NUMBER;
+
+	if c == '-' {
+		if ctx.index+1 >= ctx.bytes.len {
+			return false;
+		}
+		if is_digit(ctx.bytes[ctx.index+1]) == false {
+			return false;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	c = ctx.bytes[ctx.index];
+	if c == '0' {
+		ctx.index += 1;
+		t.len     += 1;
+
+		if ctx.index < ctx.bytes.len {
+			c = ctx.bytes[ctx.index];
+			switch c {
+				'b' { base = .BIN; ctx.index += 1; t.len += 1; }
+				'o' { base = .OCT; ctx.index += 1; t.len += 1; }
+				'x' { base = .HEX; ctx.index += 1; t.len += 1; }
+				default;
+			}
+		}
+	}
+
+	loop ctx.index < ctx.bytes.len {
+		c = ctx.bytes[ctx.index];
+
+		if c == '_' { // digit separator
+			t.len     += 1;
+			ctx.index += 1;
+			continue;
+		}
+
+		if dot == false && c == '.' {
+			dot        = true;
+			t.len     += 1;
+			ctx.index += 1;
+			continue;
+		}
+
+		if !is_digit(c, base) {
+			break;
+		}
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	return true;
+}

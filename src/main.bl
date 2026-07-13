@@ -263,6 +263,8 @@ FileType :: enum {
 	ASM;
 	CSHARP;
 	BLM;
+	ZIG;
+	JAI;
 }
 
 FileTypeInfo :: struct {
@@ -338,6 +340,25 @@ FILE_TYPE :: [type_utils.enum_variant_count(FileType)]FileTypeInfo.{
 		name         = "BLM",
 		comment_with = ";",
 	},
+
+	// zig
+	.{
+		name            = "Zig",
+		comment_with    = "//",
+		reindent_on     = "}",
+		align_on        = "=",
+		lsp_language_id = "zig",
+	},
+
+	// JAI
+	.{
+		name            = "JAI",
+		comment_with    = "//",
+		reindent_on     = "}",
+		align_on        = "=",
+		lsp_language_id = "jai",
+	},
+
 
 	// Add your setup here...
 };
@@ -1576,6 +1597,12 @@ detect_filetype :: fn (filename: string_view) FileType {
 	if str_match(extension, ".blm") {
 		return BLM;
 	}
+	if str_match(extension, ".zig") {
+		return ZIG;
+	}
+	if str_match(extension, ".jai") {
+		return JAI;
+	}
 	return FileType.UNKNOWN;
 }
 
@@ -1585,7 +1612,7 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 		PROJ {
 			return icon(ICON_PROJECT);
 		}
-		C, CSHARP, BL, BLM {
+		C, CSHARP, BL, BLM, ZIG {
 			return icon(ICON_FILE_CODE);
 		}
 		default;

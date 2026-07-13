@@ -1,4 +1,4 @@
-highlight_syntax_csharp :: fn (buf: *Buffer) {
+highlight_syntax_jai :: fn (buf: *Buffer) {
 	reset_buffer_syntax(buf);
 
 	ctx :: Tokenizer.{
@@ -7,8 +7,9 @@ highlight_syntax_csharp :: fn (buf: *Buffer) {
 		},
 	};
 
-	insert_all(&ctx.keyword_table,   KEYWORDS);
-	insert_all(&ctx.directive_table, DIRECTIVES);
+	insert_all(&ctx.keyword_table,  KEYWORDS);
+	insert_all(&ctx.typename_table, TYPENAMES);
+	insert_all(&ctx.builtin_table,  BUILTINS);
 
 	indentation_nesting := 0;
 
@@ -36,7 +37,8 @@ highlight_syntax_csharp :: fn (buf: *Buffer) {
 	}
 
 	tbl_terminate(&ctx.keyword_table);
-	tbl_terminate(&ctx.directive_table);
+	tbl_terminate(&ctx.typename_table);
+	tbl_terminate(&ctx.builtin_table);
 }
 
 #scope_private
@@ -47,9 +49,13 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
 		IDENT     { return CODE_COLOR_DEFAULT_INDEX;   }
 		KEYWORD   { return CODE_COLOR_KEYWORD_INDEX;   }
+		TYPENAME  { return CODE_COLOR_KEYWORD_INDEX;   }
+		BUILTIN   { return CODE_COLOR_DEFAULT_INDEX;   }
 		COMMENT   { return CODE_COLOR_COMMENT_INDEX;   }
 		DIRECTIVE { return CODE_COLOR_DIRECTIVE_INDEX; }
+		NOTE      { return CODE_COLOR_DIRECTIVE_INDEX; }
 		STRING    { return CODE_COLOR_STRING_INDEX;    }
+		CONST     { return CODE_COLOR_NUMBER_INDEX;    }
 		NUMBER    { return CODE_COLOR_NUMBER_INDEX;    }
 		LB, RB    { return CODE_COLOR_KEYWORD_INDEX;   }
 		default;
@@ -58,8 +64,9 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 }
 
 Tokenizer :: struct #base TokenizerBase {
-	keyword_table:   Table(string_view, u8); // We need set!
-	directive_table: Table(string_view, u8);
+	keyword_table:  Table(string_view, u8);
+	typename_table: Table(string_view, u8);
+	builtin_table:  Table(string_view, u8);
 }
 
 Token :: struct {
@@ -69,9 +76,13 @@ Token :: struct {
 		INVALID;
 		IDENT;
 		KEYWORD;
+		TYPENAME;
+		BUILTIN;
 		COMMENT;
 		DIRECTIVE;
+		NOTE;
 		STRING;
+		CONST;
 		NUMBER;
 		LB;
 		RB;
@@ -81,36 +92,30 @@ Token :: struct {
 	len:   s32;
 }
 
-KEYWORDS :: [123]string_view.{
-	// Reserved keywords
-	"abstract","as","base","bool","break","byte","case","catch","char","checked","class","const",
-	"continue","decimal","default","delegate","do","double","else","enum","event","explicit","extern",
-	"false","finally","fixed","float","for","foreach","goto","if","implicit","in","int","interface",
-	"internal","is","lock","long","namespace","new","null","object","operator","out","override","params",
-	"private","protected","public","readonly","ref","return","sbyte","sealed","short","sizeof","stackalloc",
-	"static","string","struct","switch","this","throw","true","try","typeof","uint","ulong","unchecked",
-	"unsafe","ushort","using","virtual","void","volatile","while",
-
-	// Contextual keywords
-	"add","allows","alias","and","ascending","args","async","await","by","descending","dynamic","equals",
-	"extension","field","file","from","get","global","group","init","into","join","let","managed","nameof",
-	"nint","not","notnull","nuint","on","or","orderby","partial","record","remove","required","scoped",
-	"select","set","unmanaged","value","var","when","where","with","yield"
+KEYWORDS :: [_]string_view.{
+	"if", "ifx", "else", "then", "while", "for", "switch", "case", "struct", "enum",
+	"return", "remove", "continue", "break", "defer", "inline", "no_inline",
+	"using", "code_of", "initializer_of", "size_of", "type_of", "cast", "type_info",
+	"null", "true", "false", "xx", "context", "operator", "push_context", "is_constant",
+	"enum_flags", "union", "interface"
 };
-
 KEYWORDS_MAX_LEN :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
 
-DIRECTIVES :: [13]string_view.{
-	"define", "undef", "if", "elif", "else", "endif", "warning", "error", "line", "region", "endregion", "pragma", "nullable"
+TYPENAMES :: [_]string_view.{
+	"int", "u64", "u32", "u16", "u8",
+	"s64", "s32", "s16", "s8", "float",
+	"float32", "float64", "string", "bool"
 };
+TYPENAMES_MAX_LEN :: max_len#(TYPENAMES.ptr, TYPENAMES.len);
+
+BUILTINS :: [_]string_view.{ "it", "it_index" };
+BUILTINS_MAX_LEN :: max_len#(BUILTINS.ptr, BUILTINS.len);
 
 next_token :: fn (ctx: *Tokenizer) Token {
-	using Token.kind;
-
 	loop ctx.index < ctx.bytes.len {
 		eat_whitespace(ctx);
 		t :: Token.{
-			kind  = EOF,
+			kind  = .EOF,
 			index = ctx.index,
 		};
 
@@ -119,34 +124,34 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
 		if c == '/'         && parse_comment     (ctx, &t) { return t; }
 		if c == '#'         && parse_directive   (ctx, &t) { return t; }
+		if c == '@'         && parse_note        (ctx, &t) { return t; }
 		if c == '\"'        && parse_string      (ctx, &t) { return t; }
+		if c == '-'         && parse_uninit      (ctx, &t) { return t; }
+		if c == '\''        && parse_const_char  (ctx, &t) { return t; }
 		if parse_identifier_or_keyword           (ctx, &t) { return t; }
 		if parse_number                          (ctx, &t) { return t; }
 
 		ctx.index += 1;
 	}
 
-	return Token.{ kind = EOF };
+	return Token.{ kind = .EOF };
 }
 
 parse_left_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
 	ctx.index += 1;
-	t.kind = LB;
+	t.kind = .LB;
 	t.len  = 1;
 	return true;
 }
 
 parse_right_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
 	ctx.index += 1;
-	t.kind = RB;
+	t.kind = .RB;
 	t.len  = 1;
 	return true;
 }
 
 parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
 	ctx.index += 1;
 
 	c := ctx.bytes[ctx.index];
@@ -155,7 +160,7 @@ parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
 			ctx.index += 1;
 			loop ctx.index < ctx.bytes.len {
 				c = ctx.bytes[ctx.index];
-				if c == '\n' || c == 0 { break; }
+				if c == '\n' || c == 0 then break;
 				t.len     += 1;
 				ctx.index += 1;
 			}
@@ -164,17 +169,26 @@ parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
 		'*' {
 			ctx.index += 1;
 			t.len     += 2;
-			loop ctx.index < ctx.bytes.len {
+
+			depth := 1;
+			loop ctx.index < ctx.bytes.len && depth > 0 {
 				c = ctx.bytes[ctx.index];
-				if c == 0 { break; }
-				if c == '*' && ctx.index+1 < ctx.bytes.len {
-					ctx.index += 1;
-					if ctx.bytes[ctx.index] == '/' {
-						t.len += 2; // /**/
-						break;
-					}
-					ctx.index -= 1;
+				if c == 0 then break;
+
+				if c == '/' && ctx.index+1 < ctx.bytes.len && ctx.bytes[ctx.index+1] == '*' {
+					depth     += 1;
+					t.len     += 2;
+					ctx.index += 2;
+					continue;
 				}
+
+				if c == '*' && ctx.index+1 < ctx.bytes.len && ctx.bytes[ctx.index+1] == '/' {
+					depth     -= 1;
+					t.len     += 2;
+					ctx.index += 2;
+					continue;
+				}
+
 				t.len     += 1;
 				ctx.index += 1;
 			}
@@ -185,15 +199,13 @@ parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
 		}
 	}
 
-	t.kind = COMMENT;
-
+	t.kind = .COMMENT;
 	return true;
 }
 
 parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
 	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
-	t.kind     = STRING;
+	t.kind     = .STRING;
 	t.len     += 1; // "
 	ctx.index += 1;
 
@@ -214,7 +226,6 @@ parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
 }
 
 parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
 	ctx.index += 1;
 	t.len  = 1;
 
@@ -231,18 +242,68 @@ parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
 		return false;
 	}
 
-	maybe_directive :: string_view.{ t.len-1, &ctx.bytes[t.index+1] }; // strip #
-	if tbl_contains(&ctx.directive_table, maybe_directive) {
-		t.kind = DIRECTIVE;
-	} else {
-		t.kind = INVALID;
+	t.kind = .DIRECTIVE;
+	return true;
+}
+
+parse_note :: fn (ctx: *Tokenizer, t: *Token) bool {
+	ctx.index += 1;
+	t.len  = 1;
+
+	loop ctx.index < ctx.bytes.len {
+		c :: ctx.bytes[ctx.index];
+		if c != '_' && is_alpha(c) == false { break; }
+		t.len     += 1;
+		ctx.index += 1;
+	}
+
+	if t.len == 1 {
+		ctx.index -= 1;
+		t.len     -= 1;
+		return false;
+	}
+
+	t.kind = .NOTE;
+	return true;
+}
+
+parse_uninit :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.index+2 >= ctx.bytes.len { return false; }
+	if ctx.bytes[ctx.index+1] != '-' || ctx.bytes[ctx.index+2] != '-' { return false; }
+
+	t.kind     = .CONST;
+	t.len      = 3;
+	ctx.index += 3;
+	return true;
+}
+
+parse_const_char :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.index+1 >= ctx.bytes.len { return false; }
+
+	c :: ctx.bytes[ctx.index+1];
+	if c != '_' && is_alpha(c) == false { return false; }
+
+	t.kind     = .CONST;
+	t.len      = 1;
+	ctx.index += 1;
+
+	loop ctx.index < ctx.bytes.len {
+		cc :: ctx.bytes[ctx.index];
+		if cc != '_' && is_alpha(cc) == false && is_digit(cc) == false { break; }
+		t.len     += 1;
+		ctx.index += 1;
 	}
 
 	return true;
 }
 
 parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
+	is_type_sigil := false;
+	if ctx.bytes[ctx.index] == '^' || ctx.bytes[ctx.index] == '$' {
+		is_type_sigil = true;
+		t.len     += 1;
+		ctx.index += 1;
+	}
 
 	loop ctx.index < ctx.bytes.len {
 		c :: ctx.bytes[ctx.index];
@@ -255,25 +316,36 @@ parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
 	}
 
 	if t.len == 0 { return false; }
+	if is_type_sigil && t.len == 1 {
+		t.kind = .TYPENAME;
+		return true;
+	}
+
+	if is_type_sigil {
+		t.kind = .TYPENAME;
+		return true;
+	}
 
 	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
-	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && tbl_contains(&ctx.keyword_table, maybe_keyword);
-	if is_keyword {
-		t.kind = KEYWORD;
+	if maybe_keyword.len <= KEYWORDS_MAX_LEN && tbl_contains(&ctx.keyword_table, maybe_keyword) {
+		t.kind = .KEYWORD;
+	} else if maybe_keyword.len <= TYPENAMES_MAX_LEN && tbl_contains(&ctx.typename_table, maybe_keyword) {
+		t.kind = .TYPENAME;
+	} else if maybe_keyword.len <= BUILTINS_MAX_LEN && tbl_contains(&ctx.builtin_table, maybe_keyword) {
+		t.kind = .BUILTIN;
 	} else {
-		t.kind = IDENT;
+		t.kind = .IDENT;
 	}
 	return true;
 }
 
 parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
 	c    := ctx.bytes[ctx.index];
 	dot  := false;
 	base := FmtIntBase.DEC;
 
 	if c != '-' && is_digit(c) == false { return false; }
-	t.kind = NUMBER;
+	t.kind = .NUMBER;
 
 	if c == '-' {
 		if ctx.index+1 >= ctx.bytes.len {
@@ -284,12 +356,11 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
 		}
 		t.len     += 1;
 		ctx.index += 1;
-
 	}
 
 	c = ctx.bytes[ctx.index];
 	if c == '0' {
-		base = FmtIntBase.OCT;
+		base = .OCT;
 
 		ctx.index += 1;
 		t.len     += 1;
@@ -297,31 +368,34 @@ parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
 		if ctx.index < ctx.bytes.len {
 			c = ctx.bytes[ctx.index];
 			switch c {
-				'b' { base = FmtIntBase.BIN;  ctx.index += 1; t.len += 1; }
-				'x' { base = FmtIntBase.HEX; ctx.index += 1; t.len += 1; }
+				'b' { base = .BIN; ctx.index += 1; t.len += 1; }
+				'x', 'h' { base = .HEX; ctx.index += 1; t.len += 1; }
 				default;
 			}
 		}
 	}
 
-	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
+	loop ctx.index < ctx.bytes.len {
 		c = ctx.bytes[ctx.index];
-		if dot && c == 'f' {
+
+		if c == '_' { // digit separator
+			t.len     += 1;
 			ctx.index += 1;
-			t.len += 1;
-			break;
+			continue;
 		}
 
 		if dot == false && c == '.' {
-			dot = true;
-			t.len += 1;
+			dot        = true;
+			t.len     += 1;
+			ctx.index += 1;
 			continue;
 		}
 
 		if !is_digit(c, base) {
 			break;
 		}
-		t.len += 1;
+		t.len     += 1;
+		ctx.index += 1;
 	}
 
 	return true;
