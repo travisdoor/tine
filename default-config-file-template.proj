@@ -71,13 +71,13 @@ show_lsp_inline_diagnostics            true
 # Customize arguments passed into 'lsp_executable'.
 # lsp_args                               -j=8 -background-index --log=error --enable-config --offset-encoding=utf-32 --header-insertion=never --function-arg-placeholders=true
 
-# LSP server kind specification, possible values are: generic, clangd, roslyn.
-# lsp_flavor                             clangd.exe
+# LSP server kind specification, possible values are: generic, clangd, roslyn. This value is used to handle server-specific requirements.
+# lsp_flavor                             clangd
 
-# Specify file type used by LSP. Possible values are: bl, c (same for c++), proj, md, glsl, asm, csharp, blm.
+# Specify file type used by LSP. Possible values are: bl, c (same for c++), proj, md, glsl, asm, csharp, blm, zig, jai.
 # lsp_file_type                          c
 
-# Can be used with roslyn LSP to specify path to C# solution file.
+# Can be used with roslyn LSP to specify path to C# solution file. Must be used together with 'lsp_flavor' set to 'roslyn'.
 # lsp_roslyn_solution                    solution.sln
 
 # Example LSP setup for C/C++
@@ -89,8 +89,8 @@ show_lsp_inline_diagnostics            true
 
 # Example LSP setup for C#
 # use_lsp                                true
-# lsp_executable                         dotnet.exe
-# lsp_args                               C:/path/.vscode/extensions/ms-dotnettools.csharp/.roslyn/Microsoft.CodeAnalysis.LanguageServer.dll --stdio --logLevel Information --autoLoadProjects
+# lsp_executable                         "C:/Users/<your name>/.vscode/extensions/ms-dotnettools.csharp-2.140.9-win32-x64/.roslyn/Microsoft.CodeAnalysis.LanguageServer.exe"
+# lsp_args                               --stdio --logLevel Information --autoLoadProjects
 # lsp_file_type                          csharp
 # lsp_flavor                             roslyn
 # lsp_roslyn_solution                    C:/path/foo.sln
@@ -297,8 +297,8 @@ select-all           Ctrl+A
 
 # Split
 other-split          Alt+`
-close-split          Alt+1
-close-other-split    Alt+2
+close-split          Alt+W
+close-other-split    Ctrl+Alt+W
 
 close-buffer         Ctrl+Q
 close-editor         Alt+Q

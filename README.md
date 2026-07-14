@@ -33,11 +33,12 @@ Press **F1** to see basic cheat sheet.
 
 # Feature Highlights
 
-- Lightweight, single-executable distribution.
+- Lightweight, single-executable distribution on Windows.
 - Fast, keyboard-oriented navigation.
 - Project-based workspace with search-in-files support.
 - Minimalistic user interface.
 - Embedded shell execution.
+- LSP support.
 - Built-in macro system.
 - Simple integration with RemedyBG and RAD Debugger on Windows.
 
