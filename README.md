@@ -34,7 +34,7 @@ Download the executable [here](https://travisdp.itch.io/tine) or build from the 
 
 - **Windows** - Configuration files will be created next to the editor executable.
 - **Linux** - Configuration files will be created in `~/.config/tine` or `~/.tine` folder.
-- **MacOS** - Configuration files will be created in `~/.tine` folder.
+- **macOS** - Configuration files will be created in `~/.tine` folder.
 
 Optionally, run the `install` editor command to add a link to the executable to the "start" menu (available on Windows and Linux).
 
@@ -51,6 +51,12 @@ Optionally, run the `install` editor command to add a link to the executable to 
 - RemedyBG workflow: https://youtu.be/2JmT6_gce8g
 - Repeat mode & macros: https://youtu.be/8FxoyvfCiOc?si=zEccV3FbVi8l6yvx
 
+## Authors
+
+- **Martin Dorazil** (travis) [**SUPPORT**](https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6)
+- **bovacu**
+
+
 # Philosophy of Tine
 
 Tine is a simple text/code editor that was initially designed as my primary work tool, so I only implemented features that I personally needed. Over time, however, it became clear that it might also be useful to others.
@@ -62,10 +68,6 @@ Because I mostly use C and C++ at work, the editor is primarily optimized for th
 
 Having used Emacs extensively, my Ctrl key is remapped to Caps Lock. I believe this position is far more ergonomic and highly recommend doing the same. The default Tine keybindings rely heavily on the Control key. In addition, the right-hand touch-typing home position is used as the basis for cursor movement (though the arrow keys can also be used).
 
-# Authors
-
-- **Martin Dorazil** (travis) [**SUPPORT**](https://www.paypal.com/donate/?hosted_button_id=WKSP23ADBFDP6)
-- **bovacu**
 
 # Developer
 
