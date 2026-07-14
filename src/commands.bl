@@ -110,6 +110,7 @@ Command :: enum {
 	LSP_RESTART_SERVER;
 	OPEN_DEFAULT_CONFIG;
 	OPEN_CONFIG_TEMPLATE;
+	SETTINGS; // Alias for OPEN_DEFAULT_CONFIG
 
 	_WINDOWS_BEGIN;
 	OPEN_IN_REMEDYBG;
@@ -250,6 +251,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto INCREASE_FONT_SIZE]               = "Increase font size.";
 	help[auto KILL_ASYNC_JOBS]                  = "Kill all running async jobs.";
 	help[auto OPEN_DEFAULT_CONFIG]              = "Open default editor configuration file.";
+	help[auto SETTINGS]                         = help[auto OPEN_DEFAULT_CONFIG];
 	help[auto OPEN_CONFIG_TEMPLATE]             = "Open read-only default configuration template.";
 	help[auto OPEN_IN_REMEDYBG]                 = "Open current file location in RemedyBG.";
 	help[auto OPEN_IN_RADDBG]                   = "Open current file location in RAD Debugger.";
@@ -804,7 +806,7 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 		DEBUG_REPORT                  { debug_report(); }
 		OPEN_PROJECT_CONFIG           { open_project_config(); }
-		OPEN_DEFAULT_CONFIG           { open_default_config(); }
+		OPEN_DEFAULT_CONFIG, SETTINGS { open_default_config(); }
 		OPEN_CONFIG_TEMPLATE          { open_config_template(); }
 		OPEN_MESSAGES                 { open_messages(); }
 		OPEN_SHELL                    { open_shell(); }
