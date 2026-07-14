@@ -1,8 +1,6 @@
 # Tine Code Editor
 
-*Version: 1.0.0*
-
-Press **F1** to see basic cheat sheet.
+Fast and lightweight keyboard focused code editor with LSP support and shell integration.
 
 ## Supported Languages
 
