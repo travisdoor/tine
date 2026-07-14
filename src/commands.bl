@@ -134,6 +134,8 @@ Command :: enum {
 	TOGGLE_MACRO_RECORDING;
 	REPLAY_MACRO;
 	COPY_FILE_PATH;
+	COPY_INLINE_ERROR;
+	COPY_LOCATION;
 	TOGGLE_WRAP;
 	TOGGLE_LINE_NUMBERS;
 
@@ -183,7 +185,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto LSP_REFERENCES]                   = "Find all references of symbol under cursor using LSP.";
 	help[auto LSP_KILL_SERVER]                  = "Kill running LSP server.";
 	help[auto LSP_RESTART_SERVER]               = "Restart running LSP server.";
-	
+
 	help[auto INSERT_NEW_LINE]                  = "Insert new line into current document.";
 	help[auto INSERT_TAB]                       = "Insert tab into current document.";
 	help[auto DELETE_CHAR_LEFT]                 = "Delete one character before cursor.";
@@ -269,10 +271,12 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto SUPPORT]                     = "Consider supporting this project via PayPal.";
 	help[auto INSTALL]                          = "Add application menu entry.";
 
-	help[auto TOGGLE_MACRO_RECORDING]           = "Start/Stop macro sequence recording.";
+	help[auto TOGGLE_MACRO_RECORDING]           = "Start/Stop macro sequence recording. When active all following commands are recorded and can be replayed by 'replay-macro' command.";
 	help[auto REPLAY_MACRO]                     = "Replay last recorded macro sequence.";
 
 	help[auto COPY_FILE_PATH]                   = "Copy current buffer file path to the clipboard.";
+	help[auto COPY_INLINE_ERROR]                = "Copy current inline error under the cursor to the clipboard.";
+	help[auto COPY_LOCATION]                    = "Copy current file path, line and column to the clipboard.";
 
 	help[auto TOGGLE_WRAP]                      = "Toggle word-wrap for current buffer.";
 	help[auto TOGGLE_LINE_NUMBERS]              = "Toggle code line numbers.";
@@ -861,6 +865,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 
 		REPLAY_MACRO                  { replay_macro(); }
 		COPY_FILE_PATH                { copy_file_path(buf); }
+		COPY_INLINE_ERROR             { copy_inline_error(editor, buf); }
+		COPY_LOCATION                 { copy_location(editor, buf); }
 		TOGGLE_WRAP                   { toggle_buffer_word_wrap(buf); }
 		TOGGLE_LINE_NUMBERS           { toggle_line_numbers(); }
 
@@ -2333,6 +2339,27 @@ insert_current_date :: fn (editor: *Editor, buf: *Buffer) {
 
 copy_file_path :: fn (buf: *Buffer) {
 	write_clipboard(buf.filepath);
+	print_info("Filepath written to the clipboard.");
+}
+
+copy_inline_error :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	inline_compilation_error :: get_current_compilation_error();
+
+	loc :: if inline_compilation_error then inline_compilation_error else get_diagnostic_for_line(buf, cursor.row);
+	if loc && loc.is_hidden == false {
+		write_clipboard(loc.message);
+		print_info("Error written to the clipboard.");
+		return;
+	}
+
+	print_warn("No errors on this line!");
+}
+
+copy_location :: fn (editor: *Editor, buf: *Buffer) {
+	cursor :: get_cursor(buf, editor.cursor_index);
+	write_clipboard(tprint("%:%:%", buf.filepath, cursor.row+1, cursor.col+1));
+	print_info("Location written to the clipboard.");
 }
 
 toggle_line_numbers :: fn () {

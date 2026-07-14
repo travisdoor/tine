@@ -25,6 +25,7 @@ Press **F1** to see basic cheat sheet.
 - Minimalistic user interface.
 - Embedded shell execution.
 - LSP support.
+- Clang-format support.
 - Built-in macro system.
 - Simple integration with RemedyBG and RAD Debugger on Windows.
 
@@ -71,7 +72,7 @@ Having used Emacs extensively, my Ctrl key is remapped to Caps Lock. I believe t
 
 # Developer
 
-The Tine text editor is written in a custom programming language called *Biscuit* (https://github.com/travisdoor/bl). The latest *master* compiler version is required.
+The Tine text editor is written in a custom programming language called [Biscuit](https://github.com/travisdoor/bl). The latest *master* compiler version is required.
 
 To compile debug version use:
 

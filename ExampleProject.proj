@@ -3,14 +3,16 @@
 # Open projects directory: Alt+X + `open-projects-directory`
 
 ;include
-# List of directories included into the project.
+# List of directories included into the project. The first one is used as current working directory when project is loaded.
 # /path/to/project/root
 
 ;include_file_extensions
-# Files with these extensions will be included into the project as editable.
+# Files with these extensions at 'include' file tree will be available in the project as editable.
 .c .cpp .h .hpp
 
 ;settings
+
+trim_trailing_whitespace_on_save true
 
 # Build command used when 'build' editor command is invoked.
 # build_command make -j4

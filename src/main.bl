@@ -138,7 +138,7 @@ ICONS                         :: "codicon.ttf";
 APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
 APP_ICON                      :: "icon/icon_256x256.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
-HELP_FILE                     :: "README.md";
+HELP_FILE                     :: "HELP.md";
 EXAMPLE_PROJECT_FILE          :: "ExampleProject.proj";
 
 FONT_DATA                          :: file_to_stack(FONT);
