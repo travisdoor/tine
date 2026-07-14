@@ -3,7 +3,7 @@
 Press **F1** to see basic cheat sheet.
 
 - Author:  Martin Dorazil
-- Version: 1.0
+- Version: 1.0.0
 
 ## Links
 
