@@ -29,3 +29,12 @@ Use `open-project` to list and open existing projects.
 - Files (sometimes called buffers) can be split into two side-by-side editors. Closing the editors does not close the file; it remains open and is highlighted in the `quick-open` list. See `close-buffer` and `close-all-buffers` commands.
 - Use `peek-error` to see full content of inline errors or warnings reported by LSP and `copy-inline-error` to copy them to the clipboard.
 - Use `copy-file-path` to copy current file path to the clipboard.
+
+## Links
+
+- Download: https://travisdp.itch.io/tine
+- Source code: https://github.com/travisdoor/tine
+- Bug reports: https://github.com/travisdoor/tine/issues
+- Compiler: https://github.com/travisdoor/bl
+- Discord: https://discord.gg/cmDSGMhwYT
+- YouTube: https://www.youtube.com/@martindorazil9891
