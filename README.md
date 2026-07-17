@@ -2,6 +2,8 @@
 
 Fast and lightweight keyboard focused code editor with LSP support and shell integration.
 
+![demo](./screensots/demo.gif)
+
 ## Supported Languages
 
   | Language | Syntax Highlight | LSP           |
