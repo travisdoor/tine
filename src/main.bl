@@ -2510,12 +2510,7 @@ activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
 	editor :: &editors[editor_index];
 	assert(!editor.is_removed);
 
-	buf :: &buffers[editor.buffer_index];
-
-	if workspace.active_editor == editor_index {
-		return buf, editor;
-	}
-
+	buf   :: &buffers[editor.buffer_index];
 	split :: find_editor_split(editor_index);
 	switch split {
 		.LEFT    { workspace.left  = editor_index; }
