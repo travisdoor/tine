@@ -135,8 +135,8 @@ FONT_UI_B                     :: "NotoSans-Bold.ttf";
 
 // ICONS                         :: "fa-solid-900.ttf";
 ICONS                         :: "codicon.ttf";
-APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
-APP_ICON                      :: "icon/icon_256x256.png";
+// APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
+// APP_ICON                      :: "icon/icon_256x256.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
 HELP_FILE                     :: "HELP.md";
 EXAMPLE_PROJECT_FILE          :: "ExampleProject.proj";
@@ -146,8 +146,8 @@ FONT_UI_DATA                       :: file_to_stack(FONT_UI);
 FONT_UI_B_DATA                     :: file_to_stack(FONT_UI_B);
 ICON_DATA                          :: file_to_stack(ICONS);
 DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: file_to_stack(DEFAULT_PROJECT_FILE_TEMPLATE);
-APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
-APP_ICON_DATA                      :: file_to_stack(APP_ICON);
+// APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
+// APP_ICON_DATA                      :: file_to_stack(APP_ICON);
 HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
 EXAMPLE_PROJECT_FILE_DATA          :: file_to_stack(EXAMPLE_PROJECT_FILE);
 
