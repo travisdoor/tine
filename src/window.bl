@@ -76,9 +76,9 @@ init_window :: fn () {
 	if (!window) then panic(sdl_last_error());
 
 
-	// if PLATFORM != .DARWIN {
-	// 	set_icon();
-	// }
+	if PLATFORM == .LINUX {
+		set_icon();
+	}
 
 	if !sdl.EnableScreenSaver() then print_err(sdl_last_error());
 
@@ -522,7 +522,6 @@ sdl_last_error :: fn () Error #inline {
 	return error(ctostr(sdl.GetError()));
 }
 
-/*
 set_icon :: fn () {
 	w, h, pitch: u32;
 	bit_depth: u8;
@@ -535,7 +534,6 @@ set_icon :: fn () {
 	defer sdl.DestroySurface(surface);
 	if !sdl.SetWindowIcon(window, surface) then print_err(sdl_last_error());
 }
-*/
 
 KeyName :: struct { code: sdl.Keycode; name: string_view };
 
