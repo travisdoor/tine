@@ -1,11 +1,11 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+1.0.0 2026-07-18
+---------------------------------------------------------------------------------------
 - Migration to SDL3.
 - Fix file-drop crash in case the file is dropped when command buffer is active.
-- Automatically create linux desktop entry on the first run.
-- Add experimental align-assignments command to align all assignments in selection,
-  taking into account current file type assignment symbols. Currently only first appearance
-  of assignment symbol on each line is aligned.
+- Add experimental align-assignments command to align all assignments in selection, taking into account current file type assignment symbols. Currently only first appearance of assignment symbol on each line is aligned.
 - Add center view support into replace mode.
 - Add support for clangd argument customization.
 - Fix parsing of CL error locations.
@@ -16,7 +16,6 @@ MASTER
 - Add support for C#.
 - Add background task run indicator.
 - Add LSP function signature help.
-- Remove support for relative line numbers.
 - Add support for line word-wrapping.
 - Hide Windows only commands on Linux & Mac.
 - Add `install` command for Windows and Linux to create desktop entry.
@@ -30,6 +29,13 @@ MASTER
   - Changed color scheme entries.
 - Add wider support for unicode characters.
 - Allow running the shell command in the background.
+- Add cheat sheet panel.
+- Add JAI and Zig syntax highlighting.
+- Highlight commands in list with shortcut.
+- Improve smart selection to use code indentation blocks in case they are present. Add `jump_prev_block` and `jump_next_block` commands.
+- Merge open file dialog with save dialog implementation, and improve overall UX.
+- Add settings alias for `open-default-config` command.
+- Recent location fixes.
 
 0.10 2025-03-07
 ---------------------------------------------------------------------------------------
