@@ -1051,7 +1051,8 @@ main :: fn () s32 {
 					FILE_CHANGED {
 						if is_config {
 							print_log("Config changed!");
-							open_project(project.filepath) catch {
+							// @Hack 2026-07-18: We duplicate the string here because previous project.filepath is freed once we open a project.
+							open_project(tprint(project.filepath)) catch {
 								print_err($);
 							};
 						} else {
