@@ -48,7 +48,7 @@ Optionally, run the `install` editor command to add a link to the executable to 
 
 ## Tutorials
 
-- Introduction: https://youtu.be/vE9m_v0OPqE
+- Introduction: https://youtu.be/SWHi74XATUE
 - RemedyBG workflow: https://youtu.be/2JmT6_gce8g
 - Repeat mode & macros: https://youtu.be/8FxoyvfCiOc?si=zEccV3FbVi8l6yvx
 
