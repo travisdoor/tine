@@ -35,7 +35,7 @@ Download the executable [here](https://travisdp.itch.io/tine) or build from the 
 
 - **Windows** - Configuration files will be created next to the editor executable.
 - **Linux** - Configuration files will be created in `~/.config/tine` or `~/.tine` folder.
-- **macOS** - Configuration files will be created in `~/.tine` folder.
+- **macOS** (experimental) - Configuration files will be created in `~/.tine` folder. **Note** the *app* package is not signed, you may run `xattr -d com.apple.quarantine /Applications/Tine.app`.
 
 Optionally, run the `install` editor command to add a link to the executable to the "start" menu (available on Windows and Linux).
 
