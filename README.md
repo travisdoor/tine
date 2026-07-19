@@ -69,6 +69,7 @@ Because I mostly use C and C++ at work, the editor is primarily optimized for th
 
 Having used Emacs extensively, my Ctrl key is remapped to Caps Lock. I believe this position is far more ergonomic and highly recommend doing the same. The default Tine keybindings rely heavily on the Control key. In addition, the right-hand touch-typing home position is used as the basis for cursor movement (though the arrow keys can also be used).
 
+Tine is heavily inspired by [Focus](https://focus-editor.dev) editor.
 
 # Developer
 
