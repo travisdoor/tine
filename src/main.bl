@@ -1769,12 +1769,14 @@ remove_async_job :: fn (index: s32) {
 				ec, wc = get_error_and_warning_count();
 			}
 
+			open_shell_command_name :: COMMAND_NAMES[auto Command.OPEN_SHELL];
+
 			if ec > 0 {
-				print_err("Job '%' finished with % error%.", ctx.name, ec, if ec > 1 then "s" else "");
+				print_err("Job '%' finished with % error%. Use '%' to see results.", ctx.name, ec, if ec > 1 then "s" else "", open_shell_command_name);
 			} else if wc > 0 {
-				print_warn("Job '%' finished with % warning%.", ctx.name, wc, if wc > 1 then "s" else "");
+				print_warn("Job '%' finished with % warning%. Use '%' to see results.", ctx.name, wc, if wc > 1 then "s" else "", open_shell_command_name);
 			} else {
-				print_info("Job '%' finished with exit code: %.", ctx.name, ctx.exit_code);
+				print_info("Job '%' finished with exit code: %. Use '%' to see results.", ctx.name, ctx.exit_code, open_shell_command_name);
 			}
 		}
 		KILLED { print_warn("Job '%' killed.", ctx.name); }
