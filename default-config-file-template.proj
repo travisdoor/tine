@@ -178,7 +178,7 @@ maximize_on_start                      false
 save_all_before_build                  true
 # Focus the shell buffer automatically when build command is invoked. Otherwise compilation
 # runs in background.
-focus_shell_on_build                   false
+focus_shell_on_build                   true
 
 # Enable smooth animated navigation.
 smooth_movement                        true

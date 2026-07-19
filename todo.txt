@@ -45,10 +45,10 @@
 	[x] Closing split will close all editors not buffers and remove merging of splits.
 	[-] Option to ignore changed files on close.
 
-[ ] Welcome screen - show only if initial buffer is empty.
+[-] Welcome screen - show only if initial buffer is empty.
 
 
-[ ] Presentation
+[x] Presentation
 	- Shell mode (error locations, clear output on each run, man pages, search).
 	- LSP C++/C#
 	- Smart selection & modal selection UX.
