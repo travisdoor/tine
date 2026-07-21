@@ -31,6 +31,10 @@ mouse: struct {
 	current_cursor: CursorShape;
 };
 
+keyboard: struct {
+	mod_pressed: u32;
+};
+
 init_window :: fn () {
 	using sdl;
 
@@ -141,6 +145,18 @@ handle_window_event_loop :: fn () {
 	clear_mouse_events();
 	if mouse.last_hover_elem_id != mouse.hover_elem_id then redraw();
 
+	get_mod :: fn (_mod: u32) u32 {
+		VALID_MOD_KEY_MASK :: KMOD_CTRL | KMOD_SHIFT | KMOD_ALT | KMOD_GUI;
+		mod := _mod & VALID_MOD_KEY_MASK;
+
+		if (mod & KMOD_CTRL)  != 0 then mod |= KMOD_CTRL;
+		if (mod & KMOD_SHIFT) != 0 then mod |= KMOD_SHIFT;
+		if (mod & KMOD_ALT)   != 0 then mod |= KMOD_ALT;
+		if (mod & KMOD_GUI)   != 0 then mod |= KMOD_GUI;
+
+		return mod;
+	};
+
 	event: Event;
 	loop WaitEventTimeout(&event, if draw_next_frame then 0 else 16) {
 
@@ -166,17 +182,9 @@ handle_window_event_loop :: fn () {
 
 			EVENT_KEY_DOWN {
 
-				VALID_MOD_KEY_MASK :: KMOD_CTRL | KMOD_SHIFT | KMOD_ALT | KMOD_GUI;
-
-				key  := event.key.key;
-				mod  := event.key.mod & VALID_MOD_KEY_MASK;
-
-				if key == K_KP_ENTER then key = K_RETURN;
-
-				if (mod & KMOD_CTRL)  != 0 then mod |= KMOD_CTRL;
-				if (mod & KMOD_SHIFT) != 0 then mod |= KMOD_SHIFT;
-				if (mod & KMOD_ALT)   != 0 then mod |= KMOD_ALT;
-				if (mod & KMOD_GUI)   != 0 then mod |= KMOD_GUI;
+				key  :: event.key.key;
+				mod  :: get_mod(event.key.mod);
+				keyboard.mod_pressed = mod;
 
 				redirect_as_text_input := false;
 
@@ -214,6 +222,10 @@ handle_window_event_loop :: fn () {
 
 					break;
 				}
+			}
+
+			EVENT_KEY_UP {
+				keyboard.mod_pressed = get_mod(event.key.mod);
 			}
 
 			EVENT_TEXT_INPUT {
@@ -279,9 +291,19 @@ handle_window_event_loop :: fn () {
 
 			EVENT_MOUSE_WHEEL {
 				reset_caret_blinking();
-				mouse.scroll += auto event.wheel.y;
 				clear_message();
 				cancel_popup_mode();
+
+				if (keyboard.mod_pressed & sdl.KMOD_CTRL) == sdl.KMOD_CTRL {
+					if event.wheel.y > 0.f {
+						increase_font_size();
+					} else {
+						decrease_font_size();
+					}
+				} else {
+					mouse.scroll += auto event.wheel.y;
+				}
+
 				redraw();
 			}
 

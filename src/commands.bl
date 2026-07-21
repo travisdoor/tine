@@ -1603,6 +1603,7 @@ jump_prev_word :: fn (editor: *Editor, buf: *Buffer) bool {
 	return true;
 }
 
+#scope_public
 increase_font_size :: fn () bool {
 	prev_size :: settings.font_size;
 	settings.font_size = math.clamp(settings.font_size + FONT_RESIZE_STEP, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -1622,6 +1623,7 @@ decrease_font_size :: fn () bool {
 	}
 	return true;
 }
+#scope_private
 
 // Switch to other split or create one by duplicating current active editor and switch.
 other_split :: fn (buf: *Buffer) bool {
