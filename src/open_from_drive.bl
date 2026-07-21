@@ -35,7 +35,7 @@ draw_open_from_drive_mode :: fn () {
 
 	search_list_begin(.{}); {
 		draw_search_command_editor(.{
-				title  = "Search file...",
+				title  = if is_saving then "Save file to..." else "Search file...",
 				prefix = get_title(),
 			});
 
@@ -43,20 +43,20 @@ draw_open_from_drive_mode :: fn () {
 
 		draw_search_hints([_]PanelHint.{
 				.{
-					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
-					info        = "open"
+					command = .INSERT_NEW_LINE,
+					info    = "open"
 				},
 				.{
-					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
-					info        = "cancel"
+					command = .CANCEL_MODE,
+					info    = "cancel"
 				},
 				.{
-					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
-					info        = "next",
+					command = .MOVE_DOWN,
+					info    = "next",
 				},
 				.{
-					key_mapping = get_keybinding_for_command(.MOVE_UP),
-					info        = "prev",
+					command = .MOVE_UP,
+					info    = "prev",
 				},
 			});
 
@@ -195,7 +195,7 @@ commit :: fn () {
 		if file_exist(path) && may_override_file == false {
 			commit_key_binding :: get_keybinding_for_command(.INSERT_NEW_LINE);
 			cancel_key_binding :: get_keybinding_for_command(.CANCEL_MODE);
-			print_warn("Press [%] to overwrite file, [%] to cancel or change the file name and try again.", commit_key_binding, cancel_key_binding);
+			print_warn("Use [%] to overwrite file, [%] to cancel or change the file name and try again.", commit_key_binding, cancel_key_binding);
 			may_override_file = true;
 			return;
 		}

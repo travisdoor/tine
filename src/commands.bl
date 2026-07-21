@@ -142,6 +142,7 @@ Command :: enum {
 	INSTALL;
 	SUPPORT;
 	QUIT;
+	FORCE_QUIT;
 }
 
 COMMAND_NAMES :: get_enum_variants_as_redable_list(Command);
@@ -285,7 +286,8 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	help[auto DECREASE_NUMBER]                  = "Decrease number under cursor by one.";
 	help[auto ALIGN_ASSIGNMENTS]                = "Align selected lines by assignment symbols set for current file type.";
 
-	help[auto QUIT]                             = "Quit Tine.";
+	help[auto QUIT]                             = "Quit the application.";
+	help[auto FORCE_QUIT]                       = "Quit the application without prompting to save unsaved files.";
 
 	loop i := 0; i < help.len; i += 1 {
 		using Command;
@@ -320,20 +322,21 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 	handled := false;
 
 	switch mode {
-		Mode.TEXT_EDIT         { handled = invoke_command_text_edit_mode         (buf, cmd); }
-		Mode.GOTO_LINE         { handled = invoke_command_goto_line_mode         (buf, cmd); }
-		Mode.OPEN_FROM_DRIVE   { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
-		Mode.QUICK_OPEN        { handled = invoke_command_quick_open_mode        (buf, cmd); }
-		Mode.SAVE_TO_DRIVE     { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
-		Mode.RUN_COMMAND       { handled = invoke_command_run_command_mode       (buf, cmd); }
-		Mode.SEARCH_FILE       { handled = invoke_command_search_mode            (buf, cmd); }
-		Mode.OPEN_PROJECT      { handled = invoke_command_open_project_mode      (buf, cmd); }
-		Mode.SEARCH_IN_PROJECT { handled = invoke_command_search_in_project_mode (buf, cmd); }
-		Mode.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
-		Mode.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
-		Mode.LIST_FUNCTIONS    { handled = invoke_command_list_functions_mode    (buf, cmd); }
-		Mode.REPEAT            { handled = invoke_command_repeat_line_mode       (buf, cmd); }
-		Mode.SHELL_RUN         { handled = invoke_command_shell_run_mode         (buf, cmd); }
+		.TEXT_EDIT         { handled = invoke_command_text_edit_mode         (buf, cmd); }
+		.GOTO_LINE         { handled = invoke_command_goto_line_mode         (buf, cmd); }
+		.OPEN_FROM_DRIVE   { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
+		.QUICK_OPEN        { handled = invoke_command_quick_open_mode        (buf, cmd); }
+		.SAVE_TO_DRIVE     { handled = invoke_command_open_from_drive_mode   (buf, cmd); }
+		.RUN_COMMAND       { handled = invoke_command_run_command_mode       (buf, cmd); }
+		.SEARCH_FILE       { handled = invoke_command_search_mode            (buf, cmd); }
+		.OPEN_PROJECT      { handled = invoke_command_open_project_mode      (buf, cmd); }
+		.SEARCH_IN_PROJECT { handled = invoke_command_search_in_project_mode (buf, cmd); }
+		.COMPLETION        { handled = invoke_command_completion_mode        (buf, cmd); }
+		.REPLACE           { handled = invoke_command_replace_mode           (buf, cmd); }
+		.LIST_FUNCTIONS    { handled = invoke_command_list_functions_mode    (buf, cmd); }
+		.REPEAT            { handled = invoke_command_repeat_line_mode       (buf, cmd); }
+		.SHELL_RUN         { handled = invoke_command_shell_run_mode         (buf, cmd); }
+		.SHUTDOWN          { handled = invoke_command_shutdown_mode          (buf, cmd); }
 
 		default;
 	}
@@ -379,14 +382,6 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 			CANCEL_MODE {
 				set_default_mode();
 				clear_selection(buf, editor.cursor_index);
-
-				// if !mode_changed && build.buffer_index != -1 {
-				// 	buffer_index :: build.buffer_index;
-				// 	assert(buffer_index >= 0 && buffer_index < buffers.len);
-				// 	if !buffers[buffer_index].is_removed {
-				// 		close_buffer(buffer_index);
-				// 	}
-				// }
 			}
 
 			// Not handled...
@@ -853,7 +848,8 @@ invoke_command_text_edit_mode :: fn (buf: *Buffer, cmd: Command) bool {
 		TRIM_TRAILING_WHITESPACE      { trim_trailing_whitespace(buf); }
 		SUPPORT                       { suport(); }
 		INSTALL                       { install(); }
-		QUIT                          { schedule_exit(); }
+		QUIT                          { set_mode(.SHUTDOWN); }
+		FORCE_QUIT                    { schedule_exit(); }
 
 		TOGGLE_MACRO_RECORDING {
 			if macros.is_recording {
@@ -1714,7 +1710,7 @@ close_all_buffers :: fn (check_unsaved_modifications := true) {
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
 		if buf.is_removed then continue;
-		if buf.index == editors[workspace.command_editor].buffer_index then continue;
+		if is_command_editor_buffer(buf) then continue;
 		if buf.index == scratch_buffer_index then continue;
 		if buf.index == messages_buffer_index then continue;
 
@@ -1848,7 +1844,7 @@ open_messages :: fn () {
 
 open_shell :: fn () {
 	if shell.buffer_index == -1 {
-		print_warn("No shell output found. Use `%` command.", COMMAND_NAMES[auto Command.SHELL]);
+		print_warn("No shell output found. Use [%] command.", get_keybinding_for_command(.SHELL));
 		return;
 	}
 

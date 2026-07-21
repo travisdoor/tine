@@ -11,10 +11,7 @@ quick_open_mode_init :: fn () {
 	list_project();
 }
 
-quick_open_mode_terminate :: fn () {
-	activate_command_editor();
-	str_terminate(&base_path);
-}
+quick_open_mode_terminate :: fn () {}
 
 draw_quick_open_mode :: fn () {
 	if project.is_indexing {
@@ -35,20 +32,20 @@ draw_quick_open_mode :: fn () {
 
 		draw_search_hints([_]PanelHint.{
 				.{
-					key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
-					info        = "open"
+					command = .INSERT_NEW_LINE,
+					info    = "open"
 				},
 				.{
-					key_mapping = get_keybinding_for_command(.CANCEL_MODE),
-					info        = "cancel"
+					command = .CANCEL_MODE,
+					info    = "cancel"
 				},
 				.{
-					key_mapping = get_keybinding_for_command(.MOVE_DOWN),
-					info        = "next",
+					command = .MOVE_DOWN,
+					info    = "next",
 				},
 				.{
-					key_mapping = get_keybinding_for_command(.MOVE_UP),
-					info        = "prev",
+					command = .MOVE_UP,
+					info    = "prev",
 				},
 			});
 
@@ -92,8 +89,6 @@ quick_open_cmd_changed :: fn () {
 }
 
 #scope_private
-
-base_path: string;
 
 commit :: fn () {
 	item :: get_selected_item_in_list();

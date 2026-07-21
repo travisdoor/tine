@@ -146,7 +146,9 @@ handle_window_event_loop :: fn () {
 
 		using EventType;
 		switch event.type {
-			EVENT_QUIT { schedule_exit(); }
+			EVENT_QUIT {
+				set_mode(.SHUTDOWN);
+			}
 
 			EVENT_WINDOW_RESIZED, EVENT_WINDOW_PIXEL_SIZE_CHANGED, EVENT_WINDOW_EXPOSED, EVENT_WINDOW_DISPLAY_SCALE_CHANGED {
 				GetWindowSizeInPixels(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);

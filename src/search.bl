@@ -81,28 +81,28 @@ draw_search_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edito
 
 	draw_command_panel_hints(x, y+cmd_h, w, cmd_h, [_]PanelHint.{
 			.{
-				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
-				info        = "use"
+				command = .INSERT_NEW_LINE,
+				info    = "use"
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
-				info        = "cancel"
+				command = .CANCEL_MODE,
+				info    = "cancel"
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.MOVE_DOWN),
-				info        = "next match",
+				command = .MOVE_DOWN,
+				info    = "next match",
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.MOVE_UP),
-				info        = "prev match",
+				command = .MOVE_UP,
+				info    = "prev match",
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.SEARCH_REPLACE),
-				info        = "replace",
+				command = .SEARCH_REPLACE,
+				info    = "replace",
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.SEARCH_TO_BUFFER),
-				info        = "to buffer",
+				command = .SEARCH_TO_BUFFER,
+				info    = "to buffer",
 			},
 		}, metrics.command_panel_hints_alpha);
 }

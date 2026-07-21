@@ -43,6 +43,7 @@ type_utils :: #import "std/type_utils";
 #load "search_in_project.bl"
 #load "shell.bl"
 #load "shell_run.bl"
+#load "shutdown.bl"
 #load "utils.bl"
 #load "window.bl"
 
@@ -123,6 +124,7 @@ ICON_SEARCH           : u32 : 0xEA6D;
 ICON_ARROW_EAST       : u32 : 0xEAB6;
 ICON_REPLACE          : u32 : 0xEB3D;
 ICON_SAVE_AS          : u32 : 0xEB4A;
+ICON_CLOSE_ALL        : u32 : 0xEAC1;
 
 ICON_SHELL    : u32 : 0xEA85;
 ICON_MESSAGES : u32 : 0xEB1C;
@@ -249,6 +251,7 @@ Mode :: enum {
 	LIST_FUNCTIONS;
 	SHELL_RUN;
 	CHEAT_SHEET;
+	SHUTDOWN;
 }
 
 mode: Mode;
@@ -1279,6 +1282,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		PEEK_ERROR        { peek_error_mode_terminate();             }
 		LIST_FUNCTIONS    { list_functions_mode_terminate();         }
 		SHELL_RUN         { shell_run_mode_terminate();              }
+		SHUTDOWN          { shutdown_mode_terminate();               }
 
 		default;
 	}
@@ -1289,7 +1293,14 @@ set_mode :: fn (m: Mode) bool #inline {
 		TEXT_EDIT {
 			assert(workspace.last_active_text_editor != -1);
 			assert(workspace.last_active_text_editor != workspace.command_editor);
-			workspace.active_editor = workspace.last_active_text_editor;
+			if editors[workspace.last_active_text_editor].is_removed {
+				// Use left as a fallback in case prev active mode removed some editors...
+				workspace.active_editor = workspace.left;
+			} else {
+				workspace.active_editor = workspace.last_active_text_editor;
+			}
+			assert(workspace.active_editor != -1);
+
 			input_mode = InputMode.TEXT;
 
 			assert(workspace.active_editor >= 0 && workspace.active_editor < editors.len);
@@ -1308,6 +1319,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		PEEK_ERROR        { peek_error_mode_init();          }
 		LIST_FUNCTIONS    { list_functions_mode_init();      }
 		SHELL_RUN         { shell_run_mode_init();           }
+		SHUTDOWN          { shutdown_mode_init();            }
 
 		default;
 	}
@@ -1317,6 +1329,7 @@ set_mode :: fn (m: Mode) bool #inline {
 	// causing reset of the current list.
 	print_log("Mode % set.", m);
 
+	redraw();
 	return true;
 }
 
@@ -1769,14 +1782,14 @@ remove_async_job :: fn (index: s32) {
 				ec, wc = get_error_and_warning_count();
 			}
 
-			open_shell_command_name :: COMMAND_NAMES[auto Command.OPEN_SHELL];
+			open_shell_command_binding :: get_keybinding_for_command(.OPEN_SHELL);
 
 			if ec > 0 {
-				print_err("Job '%' finished with % error%. Use '%' to see results.", ctx.name, ec, if ec > 1 then "s" else "", open_shell_command_name);
+				print_err("Job '%' finished with % error%. Use [%] to see results.", ctx.name, ec, if ec > 1 then "s" else "", open_shell_command_binding);
 			} else if wc > 0 {
-				print_warn("Job '%' finished with % warning%. Use '%' to see results.", ctx.name, wc, if wc > 1 then "s" else "", open_shell_command_name);
+				print_warn("Job '%' finished with % warning%. Use [%] to see results.", ctx.name, wc, if wc > 1 then "s" else "", open_shell_command_binding);
 			} else {
-				print_info("Job '%' finished with exit code: %. Use '%' to see results.", ctx.name, ctx.exit_code, open_shell_command_name);
+				print_info("Job '%' finished with exit code: %. Use [%] to see results.", ctx.name, ctx.exit_code, open_shell_command_binding);
 			}
 		}
 		KILLED { print_warn("Job '%' killed.", ctx.name); }
@@ -2158,6 +2171,7 @@ draw_frame :: fn () {
 			LIST_FUNCTIONS    { draw_list_functions_mode();                }
 			SHELL_RUN         { draw_shell_run_mode();                     }
 			CHEAT_SHEET       { draw_cheat_sheet_mode();                   }
+			SHUTDOWN          { draw_shutdown_mode();                      }
 			PEEK_ERROR        {
 				draw_peek_error_mode(active_x, y, w, h);
 			}
@@ -2530,6 +2544,10 @@ activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
 
 activate_command_editor :: fn () (*Buffer, *Editor) #inline {
 	return activate_editor(workspace.command_editor);
+}
+
+is_command_editor_buffer :: fn (buf: *Buffer) bool #inline {
+	return buf.index == editors[workspace.command_editor].buffer_index;
 }
 
 // Returns editor index.

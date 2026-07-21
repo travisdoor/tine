@@ -84,8 +84,8 @@ draw_body :: fn (list: []SectionOrCommand) {
 
 			.command {
 				draw_command_panel_hint(tx, ty, tw, line_height, .{
-						key_mapping = get_keybinding_for_command(item.command),
-						info        = COMMAND_HELP[auto item.command]
+						command = item.command,
+						info    = COMMAND_HELP[auto item.command]
 					});
 			}
 		}

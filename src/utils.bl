@@ -791,8 +791,8 @@ draw_keybind_cells :: fn (x: f32, y: f32, item_h: f32, key_mapping: []string_vie
 }
 
 PanelHint :: struct {
-	key_mapping: string_view;
-	info:        string_view;
+	command: Command;
+	info:    string_view;
 }
 
 draw_command_panel_hint :: fn (x: f32, y: f32, w: f32, h: f32, hint: PanelHint, base_alpha := 1.f) #inline {
@@ -814,10 +814,7 @@ draw_command_panel_hints :: fn (x: f32, y: f32, w: f32, h: f32, hints: []PanelHi
 	hx := x + text_padding;
 	loop i := 0; i < hints.len; i += 1 {
 		hint :: &hints[i];
-
-		// Use primary only to save some space.
-		key_mapping := "";
-		str_split_by_first(hint.key_mapping, '\0', &key_mapping);
+		key_mapping :: get_keybinding_for_command(hint.command);
 
 		cells_w :: draw_keybind_cells(hx, y, h, [_]string_view.{ key_mapping }, base_alpha);
 		hx += cells_w;
@@ -955,17 +952,20 @@ is_multiline :: fn (str: string_view, first_line: *string_view = null) bool #inl
 	return multiline;
 }
 
-get_keybinding_for_command :: fn (cmd: Command) string_view #inline {
+get_keybinding_for_command :: fn (cmd: Command, primary_only := true) string_view #inline {
 	tmp :: str_make(application_context.temporary_allocator);
 	loop keymap_index := 0;; keymap_index += 1 {
 		keymap_index = lookup_command_keymap_index(cmd, keymap_index);
 		if keymap_index == -1 then break;
 
-		if tmp.len > 0 then str_append(&tmp, "\0");
+		if tmp.len > 0 {
+			if primary_only then break;
+			str_append(&tmp, "\0");
+		}
 		str_append(&tmp, keymap_entry_to_string(keymap_index));
 	}
 
-	if tmp.len == 0 then return COMMAND_NAMES[auto cmd];
+	if tmp.len == 0 then return tprint("<%>", COMMAND_NAMES[auto cmd]);
 	return tmp;
 }
 
@@ -1070,7 +1070,7 @@ count_visual_cols_to_position_str :: fn (line: string_view, position: s64) s32 {
 
 warn_if_no_project_open :: fn () bool {
 	if project.filepath.len == 0 {
-		print_warn("No project is open. Use 'open-project' command first to open one.");
+		print_warn("No project is open. Use [%] command first to open one.", get_keybinding_for_command(.OPEN_PROJECT));
 		return true;
 	}
 
@@ -1079,7 +1079,7 @@ warn_if_no_project_open :: fn () bool {
 
 warn_if_modifications_needs_to_be_saved :: fn (buf: *Buffer) bool {
 	if buf.saved_top != buf.undo_top {
-		print_warn("Buffer has unsaved changes. Force close `%`, or save `%`.", COMMAND_NAMES[auto Command.FORCE_CLOSE_BUFFER], COMMAND_NAMES[auto Command.SAVE]);
+		print_warn("Buffer has unsaved changes. Force close [%], or save [%].", get_keybinding_for_command(.FORCE_CLOSE_BUFFER), get_keybinding_for_command(.SAVE));
 		return true;
 	}
 

@@ -390,9 +390,6 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 			PREVIEW_FACTOR :: 0.25f;
 
-			// set_shader_color();
-			// rect(ctx.x, item_y, title_w, item_h, v4.{ x = 1.f, w = 0.2f });
-
 			set_scissor(ctx.x, item_y, if show_preview then content_w * PREVIEW_FACTOR - item_spacing else content_w, item_h);
 			set_shader_font(&font_ui);
 
@@ -798,23 +795,33 @@ list_project :: fn () {
 	quick_sort_by_title(list[DEFAULT_LIST_INDEX], auto (list[DEFAULT_LIST_INDEX].len - 1), auto (list[DEFAULT_LIST_INDEX].len - 1));
 }
 
-list_buffers :: fn () {
+list_buffers :: fn (modified_only := false, implicit_items: []ListItem = .{}) {
 	reset_listing();
+	implicit_item_num :: implicit_items.len;
+
+	loop i := 0; i < implicit_items.len; i += 1 {
+		array_push(&list[DEFAULT_LIST_INDEX], implicit_items[i]);
+	}
+
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
-		if buf.is_removed { continue; }
-		if buf.index == editors[workspace.command_editor].buffer_index { continue; }
+		if buf.is_removed then continue;
+		if is_command_editor_buffer(buf) then continue;
+
+		modified :: buf.saved_top != buf.undo_top;
+		missing  :: buf.missing_on_disk;
+
+		if modified_only && !modified && !missing then continue;
 
 		dirpath := path_split(buf.filepath);
 		if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
 
 		ic :: get_icon_for_buffer(buf);
-		modified :: buf.saved_top != buf.undo_top;
-		missing  :: buf.missing_on_disk;
 
-		flags := ItemFlags.HIGHLIGHT;
-		if missing  then flags |= .MISSING;
-		if modified then flags |= .MODIFIED;
+		flags: ItemFlags;
+		if !modified_only then flags |= .HIGHLIGHT;
+		if missing        then flags |= .MISSING;
+		if modified       then flags |= .MODIFIED;
 
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
 			title = buf.name,
@@ -827,8 +834,7 @@ list_buffers :: fn () {
 		});
 	}
 
-	// quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
-	quick_sort_by_score(list[DEFAULT_LIST_INDEX], 0, auto (list[DEFAULT_LIST_INDEX].len - 1));
+	quick_sort_by_score(list[DEFAULT_LIST_INDEX], auto implicit_item_num, auto (list[DEFAULT_LIST_INDEX].len - 1));
 }
 
 // Returns false in case there are no functions available for the buffer.

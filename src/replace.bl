@@ -78,24 +78,24 @@ draw_replace_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_edit
 
 	draw_command_panel_hints(x, y+cmd_h, w, cmd_h, [_]PanelHint.{
 			.{
-				key_mapping = get_keybinding_for_command(.INSERT_NEW_LINE),
-				info        = "replace"
+				command = .INSERT_NEW_LINE,
+				info    = "replace"
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.CANCEL_MODE),
-				info        = "cancel"
+				command = .CANCEL_MODE,
+				info    = "cancel"
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.MOVE_DOWN),
-				info        = "next match",
+				command = .MOVE_DOWN,
+				info    = "next match",
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.MOVE_UP),
-				info        = "prev match",
+				command = .MOVE_UP,
+				info    = "prev match",
 			},
 			.{
-				key_mapping = get_keybinding_for_command(.SELECT_ALL),
-				info        = "all",
+				command = .SELECT_ALL,
+				info    = "all",
 			},
 		}, metrics.command_panel_hints_alpha);
 }

@@ -1209,6 +1209,7 @@ notify :: fn () {
 		OPEN_FROM_DRIVE   { open_from_drive_cmd_changed();      }
 		SAVE_TO_DRIVE     { open_from_drive_cmd_changed();      }
 		QUICK_OPEN        { quick_open_cmd_changed();           }
+		SHUTDOWN          { shutdown_cmd_changed();             }
 		RUN_COMMAND       { run_command_cmd_changed();          }
 		SEARCH_FILE       { search_cmd_changed();               }
 		OPEN_PROJECT      { open_project_cmd_changed();         }

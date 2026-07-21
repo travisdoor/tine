@@ -30,7 +30,7 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 	clear_error_list();
 
 	if shell.job_index != -1 {
-		return error("Shell execution is already in progress, use 'shell-kill' for interruption and try again.");
+		return error("Shell execution is already in progress. Use [%] for interruption and try again.", get_keybinding_for_command(.SHELL_KILL));
 	}
 
 	// _, initial_editor :: get_active_buffer_and_editor();
@@ -47,7 +47,7 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 			find_or_create_editor_in_split(get_other_split(), shell.buffer_index);
 		}
 	}
-	
+
 	// activate_editor(initial_editor.index);
 
 	buf :: &buffers[shell.buffer_index];
