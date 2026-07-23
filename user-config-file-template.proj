@@ -1,0 +1,26 @@
+# User configuration file for Tine text editor.
+# Use `open-config-template` command to see all options and documentation.
+
+;include
+# Directories included into every project.
+
+;exclude
+# Directories excluded from every project.
+.svn
+.git
+.cache
+.vs
+.vscode
+.idea
+
+;include_file_extensions
+# File extensions included to every project.
+
+;settings
+# User custom settings.
+
+;keys
+# User custom key mapping.
+
+;colors
+# User custom theme colors.

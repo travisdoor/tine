@@ -749,7 +749,7 @@ calculate_keybind_cell_width :: fn (key_mapping: []string_view) f32 #inline {
 		text_w :: text_size(key_mapping[i], &font_ui_small);
 		cell_w :: text_w + text_padding*2.f;
 
-		total_w += cell_w + text_padding;
+		total_w += cell_w + text_padding*0.5f;
 	}
 	return total_w;
 }

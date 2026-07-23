@@ -294,7 +294,7 @@ handle_window_event_loop :: fn () {
 				clear_message();
 				cancel_popup_mode();
 
-				if (keyboard.mod_pressed & sdl.KMOD_CTRL) == sdl.KMOD_CTRL {
+				if is_ctrl_pressed() {
 					if event.wheel.y > 0.f {
 						increase_font_size();
 					} else {
@@ -509,6 +509,14 @@ is_focused :: fn () bool #inline {
 
 is_minimized :: fn () bool #inline {
 	return minimized;
+}
+
+is_shift_pressed :: fn () bool #inline {
+	return (keyboard.mod_pressed & sdl.KMOD_SHIFT) == sdl.KMOD_SHIFT;
+}
+
+is_ctrl_pressed :: fn () bool #inline {
+	return (keyboard.mod_pressed & sdl.KMOD_CTRL) == sdl.KMOD_CTRL;
 }
 
 #scope_private

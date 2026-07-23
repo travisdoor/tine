@@ -1,0 +1,9 @@
+smart-selection            Ctrl+Space
+save                       F2
+search-file                Ctrl+S
+search-in-project          Ctrl+Alt+S
+lsp-other-file-other-split Ctrl+Alt+H
+lsp-completion             Alt+Space
+
+# search-replace             Ctrl+R
+# lsp-other-file             Ctrl+H

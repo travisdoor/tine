@@ -1,7 +1,7 @@
 # Default configuration file for Tine text editor.
 
 # This configuration is used as a default "project" file in case no other project is loaded. The
-# actual project configuration files might override some of these settings.
+# actual user/project configuration files might override some of these settings.
 #
 # The configuration is split into sections, each section starts by ;section-name tag.
 #----------------------------------------------------------------------------------------------------
@@ -19,11 +19,11 @@
 #----------------------------------------------------------------------------------------------------
 # List of directories excluded from the project.
 # Each directory path entry is supposed to be on a separate line and may contains spaces.
-.svn
-.git
-.cache
-.vs
-.vscode
+# .svn
+# .git
+# .cache
+# .vs
+# .vscode
 
 #----------------------------------------------------------------------------------------------------
 ;include_file_extensions
@@ -174,6 +174,9 @@ vertical_move_tries_follow_indentation true
 block_caret                            true
 # Change the caret in case the current editor is in selection mode.
 change_caret_on_selection              true
+# When enabled, selection becomes modal (similar to Emacs), you don't need to hold shift,
+# you activate selection mode instead by `set-selection-marker` or `smart-selection` commands.
+modal_selection                        false
 maximize_on_start                      false
 save_all_before_build                  true
 # Focus the shell buffer automatically when build command is invoked. Otherwise compilation
@@ -240,21 +243,21 @@ search_size_limit_bytes 0
 # Navigation
 #----------------------------------------------------------------------------------------------------
 # Text navigation is based around JKL; keys (the home position on the keyboard).
-move-right           ArrowRight      Ctrl+Semicolon
-move-left            ArrowLeft       Ctrl+J
-move-down            ArrowDown       Ctrl+K
-move-up              ArrowUp         Ctrl+L
-jump-next-word       Ctrl+ArrowRight Ctrl+Alt+Semicolon Alt+Semicolon
-jump-prev-word       Ctrl+ArrowLeft  Ctrl+Alt+J         Alt+J
-jump-next-paragraph  Ctrl+ArrowDown  Ctrl+Alt+K         Alt+K
-jump-prev-paragraph  Ctrl+ArrowUp    Ctrl+Alt+L         Alt+L
-jump-line-end        End             Ctrl+E
-jump-indent-begin    Home            Ctrl+I
+move-right           ArrowRight      Ctrl+Semicolon     Shift+ArrowRight
+move-left            ArrowLeft       Ctrl+J             Shift+ArrowLeft
+move-down            ArrowDown       Ctrl+K             Shift+ArrowDown
+move-up              ArrowUp         Ctrl+L             Shift+ArrowUp
+jump-next-word       Ctrl+ArrowRight Ctrl+Alt+Semicolon Alt+Semicolon    Ctrl+Shift+ArrowRight
+jump-prev-word       Ctrl+ArrowLeft  Ctrl+Alt+J         Alt+J            Ctrl+Shift+ArrowLeft
+jump-next-paragraph  Ctrl+ArrowDown  Ctrl+Alt+K         Alt+K            Ctrl+Shift+ArrowDown
+jump-prev-paragraph  Ctrl+ArrowUp    Ctrl+Alt+L         Alt+L            Ctrl+Shift+ArrowUp
+jump-line-end        End             Ctrl+E             Shift+End
+jump-indent-begin    Home            Ctrl+I             Shift+Home
 jump-line-begin      Ctrl+B
-jump-begin           Ctrl+Home       Ctrl+Alt+B         Alt+B
-jump-end             Ctrl+End        Ctrl+Alt+E         Alt+E
-jump-page-up         PageUp
-jump-page-down       PageDown
+jump-begin           Ctrl+Home       Ctrl+Alt+B         Alt+B            Ctrl+Shift+Home
+jump-end             Ctrl+End        Ctrl+Alt+E         Alt+E            Ctrl+Shift+End
+jump-page-up         PageUp          Shift+PageUp
+jump-page-down       PageDown        Shift+PageDown
 center-view          Ctrl+M
 next-error           Ctrl+.
 prev-error           Ctrl+,
@@ -262,19 +265,6 @@ next-location        Ctrl+]
 prev-location        Ctrl+[
 jump-next-block      Ctrl+Alt+]
 jump-prev-block      Ctrl+Alt+[
-
-#----------------------------------------------------------------------------------------------------
-# LSP
-#----------------------------------------------------------------------------------------------------
-
-lsp-goto-definition              F12
-lsp-references                   Shift+F12
-lsp-goto-definition-other-split  Alt+F12
-lsp-goto-declaration
-lsp-goto-declaration-other-split
-lsp-other-file                   Ctrl+H
-lsp-other-file-other-split       Ctrl+Alt+H
-lsp-completion                   Alt+Space
 
 #----------------------------------------------------------------------------------------------------
 # Editing
@@ -289,7 +279,7 @@ toggle-comment       Ctrl+/
 duplicate-line       Ctrl+Shift+D
 
 set-selection-marker
-smart-selection      Ctrl+Space
+smart-selection      Alt+Space
 copy                 Ctrl+C
 paste                Ctrl+V
 cut                  Ctrl+X
@@ -306,7 +296,7 @@ force-close-buffer   Ctrl+Shift+Q
 close-all-buffers
 close-buffers-without-editor
 
-save                 Ctrl+W F2
+save                 Ctrl+S
 new-buffer           Ctrl+Alt+N
 open-file            Ctrl+O
 open-project         Ctrl+Shift+O
@@ -317,17 +307,17 @@ cheat-sheet          F1
 help
 
 quick-open           Ctrl+P
-save-as              # No mapping
+save-as              Ctrl+Shift+S
 save-all             # No mapping
-goto-line            Alt+G
+goto-line            Ctrl+G Alt+G
 run-command          Alt+X
 cancel-mode          Escape
 
-search-file          Ctrl+S
-search-in-project    Ctrl+Alt+S
+search-file          Ctrl+F
+search-in-project    Ctrl+Shift+F
 
 # Works in the scope of search modes. Replace mode for the last search is activated.
-search-replace       Ctrl+R
+search-replace       Ctrl+H
 
 # Works in the scope of search modes. Opens search results in separate file buffer.
 search-to-buffer     Ctrl+Enter
@@ -374,6 +364,19 @@ toggle-line-numbers
 
 # Quit the editor.
 quit
+
+#----------------------------------------------------------------------------------------------------
+# LSP
+#----------------------------------------------------------------------------------------------------
+
+lsp-goto-definition              F12
+lsp-references                   Shift+F12
+lsp-goto-definition-other-split  Alt+F12
+lsp-goto-declaration
+lsp-goto-declaration-other-split
+lsp-other-file                   Alt+O
+lsp-other-file-other-split       Ctrl+Alt+O
+lsp-completion                   Ctrl+Space
 
 #----------------------------------------------------------------------------------------------------
 ;colors

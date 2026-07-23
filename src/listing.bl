@@ -238,7 +238,7 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 		{ // Keymap
 			key_mapping :: str_split_by(item.hint, '\0', allocator);
 
-			hw :: calculate_keybind_cell_width(key_mapping);
+			hw :: calculate_keybind_cell_width(key_mapping) + text_padding;
 			hx := ctx.x + ctx.w - hw;
 			available_w -= hw;
 
@@ -659,9 +659,18 @@ list_history :: fn (history: []HistoryItem) {
 
 	loop i := 0; i < history.len; i += 1 {
 		title :: str_make(history[i].title, &string_cache[DEFAULT_CACHE_INDEX]);
+
+		ic := icon(ICON_ANY_SHELL);
+		if str_match(title, "git", auto "git".len) || str_match(title, "svn", auto "svn".len) {
+			ic = icon(ICON_GIT);
+		} else if str_match(title, "rg", auto "rg".len) || str_match(title, "grep", auto "grep".len) || str_match(title, "find", auto "find".len){
+			ic = icon(ICON_SEARCH);
+		}
+
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
 				title = title,
 				score = history[i].priority,
+				icon  = ic,
 			});
 	}
 	// quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);

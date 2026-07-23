@@ -52,3 +52,13 @@
 	- Shell mode (error locations, clear output on each run, man pages, search).
 	- LSP C++/C#
 	- Smart selection & modal selection UX.
+
+[ ] Config loader
+	[ ] Add file versions.
+	[ ] Store diagnostics with location in file.
+	[ ] Allow diffs with existing config.
+	[ ] Store what overrides what.
+	[ ] Load to separate buffer.
+	[ ] Persist file lines so we can handle upgrades and config merging.
+	[ ] Validate shortcut conflicts at the end of loading.
+	[ ] Add comptime verification that template config contains all settings entries & check outdated ones.

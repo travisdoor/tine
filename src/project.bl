@@ -101,7 +101,6 @@ load_project :: fn (filepath: string_view) Error {
 		load_default_project_from_template();
 	}
 
-
 	return err;
 }
 
@@ -109,7 +108,7 @@ setup_after_first_run :: fn () Error {
 	defer do_the_stuff_after_project_load();
 
 	load_default_project_from_template();
-	write_entire_file(DEFAULT_PROJECT_PATH, DEFAULT_PROJECT_FILE_TEMPLATE_DATA) catch {
+	write_entire_file(DEFAULT_PROJECT_PATH, USER_PROJECT_FILE_TEMPLATE_DATA) catch {
 		return $;
 	};
 	write_entire_file(tprint("%/%/%", data_dir, PROJECTS_DIRECTORY, EXAMPLE_PROJECT_FILE), EXAMPLE_PROJECT_FILE_DATA) catch {

@@ -2,6 +2,9 @@ MASTER
 ---------------------------------------------------------------------------------------
 - Add shutdown panel checking for unsaved files on exit.
 - Add Ctrl+MouseWheel font resize.
+- Add modal_selection toggle.
+- Add support for classical shift selection.
+- Add an empty user level global config.
 
 1.0.0 2026-07-18
 ---------------------------------------------------------------------------------------

@@ -125,6 +125,8 @@ ICON_ARROW_EAST       : u32 : 0xEAB6;
 ICON_REPLACE          : u32 : 0xEB3D;
 ICON_SAVE_AS          : u32 : 0xEB4A;
 ICON_CLOSE_ALL        : u32 : 0xEAC1;
+ICON_GIT              : u32 : 0xEA68;
+ICON_ANY_SHELL        : u32 : 0xEA93;
 
 ICON_SHELL    : u32 : 0xEA85;
 ICON_MESSAGES : u32 : 0xEB1C;
@@ -140,6 +142,7 @@ ICONS                         :: "codicon.ttf";
 APP_FLIP_ICON                 :: "icon/icon_flip_256x256.png";
 APP_ICON                      :: "icon/icon_256x256.png";
 DEFAULT_PROJECT_FILE_TEMPLATE :: "default-config-file-template.proj";
+USER_PROJECT_FILE_TEMPLATE    :: "user-config-file-template.proj";
 HELP_FILE                     :: "HELP.md";
 EXAMPLE_PROJECT_FILE          :: "ExampleProject.proj";
 
@@ -148,6 +151,7 @@ FONT_UI_DATA                       :: file_to_stack(FONT_UI);
 FONT_UI_B_DATA                     :: file_to_stack(FONT_UI_B);
 ICON_DATA                          :: file_to_stack(ICONS);
 DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: file_to_stack(DEFAULT_PROJECT_FILE_TEMPLATE);
+USER_PROJECT_FILE_TEMPLATE_DATA    :: file_to_stack(USER_PROJECT_FILE_TEMPLATE);
 APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
 APP_ICON_DATA                      :: file_to_stack(APP_ICON);
 HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
@@ -433,6 +437,7 @@ Settings :: struct {
 	show_line_numbers:                      bool;
 	line_numbers_relative:                  bool; // deprecated
 	enable_quick_search:                    bool;
+	modal_selection:                        bool;
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
@@ -884,7 +889,7 @@ main :: fn () s32 {
 		print_log("Editor executable directory: '%'", exec_dir);
 	}
 
-	#if PLATFORM == .WINDOWS {
+	#if PLATFORM == .WINDOWS || IS_DEBUG {
 		data_dir = str_make(exec_dir);
 	} else if PLATFORM == .LINUX {
 		data_dir = get_home();
@@ -1030,7 +1035,7 @@ main :: fn () s32 {
 		prev_time = current_time;
 
 		handle_window_event_loop();
-		
+
 		if fonts_dirty {
 			fonts_dirty = false;
 			rebuild_fonts();
