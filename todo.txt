@@ -53,12 +53,21 @@
 	- LSP C++/C#
 	- Smart selection & modal selection UX.
 
-[ ] Config loader
-	[ ] Add file versions.
-	[ ] Store diagnostics with location in file.
-	[ ] Allow diffs with existing config.
-	[ ] Store what overrides what.
-	[ ] Load to separate buffer.
-	[ ] Persist file lines so we can handle upgrades and config merging.
-	[ ] Validate shortcut conflicts at the end of loading.
-	[ ] Add comptime verification that template config contains all settings entries & check outdated ones.
+[ ] Config loader (Default -> User -> Project)
+	[x] Add file versions.
+	[x] Store diagnostics with location in file.
+	[x] Allow diffs with existing config.
+	[-] Store what overrides what.
+	[x] Persist file lines so we can handle upgrades and config merging.
+	[-] Validate shortcut conflicts at the end of loading.
+	[-] Add comptime verification that template config contains all settings entries & check outdated ones.
+
+[ ] Cleanup find_* functions.
+[ ] Cleanup syntax highlight parsing code. Lot of stuff can be shared, parse_string for example. Also do not precheck for characters in `next_token` functions, sharing underlying function would be easier.
+
+BUGS
+[x] Numpad Enter does not work.
+[x] Add option to disable Ctrl+Scroll to resize text -> it's bugged on Wayland (ofc).
+[x] Inline messages are off when line numbers are shown.
+[ ] Open error location should check if buffer is already active in any split first.
+[ ] When going back, previous location is not recorded in case cursor didn't move?

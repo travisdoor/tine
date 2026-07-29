@@ -1,0 +1,94 @@
+12 # Version, do not modify!
+
+#23456
+
+123
+
+; homo koko
+
+    ;    bar
+
+# hello
+   #world
+
+; #hello
+
+;
+
+;header
+10
+20
+
+;include
+#hello this is commend
+foo/bar
+baz
+
+C:\baba/bopbo
+~/hello # ignore this
+~/develop
+
+;exclude
+foo/bar
+baz
+
+#hello this is commend
+
+C:\baba/bopbo
+~/hello # ignore this
+C:\Program Files\kokot
+
+;include_file_extensions
+.bl .txt .cpp .h
+.homo
+
+;settings
+hoho_mama-bono 10
+#hello
+
+kao_ba #homo
+10
+
+ba_ba 10 # cool comment
+ba_ba 12
+
+font_size 1000 # small
+line_spacing hello world
+enable_quick_search                    true
+show_line_numbers                      false
+smooth_movement                        TruE
+
+lsp_flavor                             clangd
+lsp_file_type                          hal
+
+;keys
+
+a-foo `
+b-foo /
+c-foo Ctrl+/
+d-foo +
+e-foo Alt+'
+f-foo ++
+g-foo +Alt
+h-foo Alt+Ctrl+A Shift+Enter Semicolon
+i-foo # no binding
+j-foo Space
+k-foo Alt+Ctrl+A Shift+Enter +Semicolon
+l-foo
+l-foo
+l-foo Space
+l-foo Enter
+open-file Ctrl+O
+open-file Alt+O
+
+;colors
+
+foo ffBBAA
+haba 32
+gogo # hello
+
+# ignore this
+ansi_black                          3A2E22
+ansi_red                            8E2A2A
+ansi_green                          3E6B4A
+ansi_yellow                         9A6B23

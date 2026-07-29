@@ -182,9 +182,11 @@ handle_window_event_loop :: fn () {
 
 			EVENT_KEY_DOWN {
 
-				key  :: event.key.key;
+				key  := event.key.key;
 				mod  :: get_mod(event.key.mod);
 				keyboard.mod_pressed = mod;
+
+				if key == K_KP_ENTER then key = K_RETURN;
 
 				redirect_as_text_input := false;
 
@@ -294,7 +296,7 @@ handle_window_event_loop :: fn () {
 				clear_message();
 				cancel_popup_mode();
 
-				if is_ctrl_pressed() {
+				if is_ctrl_pressed() && settings.resize_font_by_scrolling {
 					if event.wheel.y > 0.f {
 						increase_font_size();
 					} else {

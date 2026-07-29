@@ -1,0 +1,109 @@
+ConfigServerRequest :: Variant(union {
+		document_update: struct {
+			filepath: string;
+			src:      string;
+		};
+	});
+
+ConfigServerResponse :: Variant(union {
+		publish_diagnostics: struct {
+			filepath:     string;
+			items:    [..]ErrorLocation;
+		};
+	});
+
+config_server: struct {
+	job_index: s32;
+}
+
+config_server_init :: fn () {
+	config_server.job_index = -1;
+}
+
+config_server_terminate :: fn () {
+}
+
+start_config_server :: fn () Error {
+	print_log("CS: Starting server.");
+	config_server.job_index = start_async_job(.CONFIG_SERVER, "config server", &worker);
+	return OK;
+}
+
+config_server_is_supported_document_type :: fn (buf: *Buffer) bool #inline {
+	return buf.file_type == .PROJ;
+}
+
+config_server_document_update :: fn (buf: *Buffer) Error {
+	if config_server.job_index == -1 {
+		start_config_server();
+	}
+	assert(config_server_is_supported_document_type(buf));
+
+	print_log("CS: Add file '%'.", buf.name);
+	ctx :: get_job_context(config_server.job_index);
+
+	request :: make_request(ctx) catch return $;
+	set_variant(&request.as.cs, .document_update, .{
+			filepath = str_make(buf.filepath, request.allocator),
+			src      = str_make(buf.bytes, request.allocator), // @Performance
+		});
+
+	push_request(ctx, &request);
+	return OK;
+}
+
+apply_config_server :: fn (_: JobContext.state, response: *Response) Error {
+	check_main_thread();
+	rd :: &response.as.cs;
+	switch rd.kind {
+		.publish_diagnostics {
+			buf :: get_buffer_by_filepath(rd.publish_diagnostics.filepath);
+			if !buf then return OK;
+
+			reset_buffer_diagnostics(buf);
+
+			loop i := 0; i < rd.publish_diagnostics.items.len; i += 1 {
+				add_buffer_dia_entry(buf, &rd.publish_diagnostics.items[i]);
+			}
+		}
+	}
+
+	return OK;
+}
+
+#private
+
+worker :: fn (ctx: *JobContext) s32 {
+	loop !ctx.kill {
+		request: Request;
+		loop pop_request(ctx, &request) {
+			defer terminate_request(&request);
+
+			rd :: &request.as.cs;
+			switch rd.kind {
+				.document_update {
+					response :: make_response(ctx) catch panic($);
+
+					config_data: ConfigData;
+					config_data_init(&config_data, application_context.temporary_allocator);
+
+					diag: [..]ErrorLocation;
+					array_init(&diag, LSP_MAX_DIAG_MESSAGE_COUNT, response.allocator);
+					load_config_from_memory(&config_data, rd.document_update.filepath, rd.document_update.src, &diag, true);
+
+					set_variant(&response.as.cs, .publish_diagnostics, .{
+							filepath = str_make(config_data.filepath, response.allocator),
+							items    = diag,
+						});
+					push_response(ctx, &response);
+				}
+			}
+		}
+
+		os_sleep_ms(34);
+		temporary_reset();
+	}
+
+	ctx.state = .KILLED;
+	return 0;
+}

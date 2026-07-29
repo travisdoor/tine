@@ -65,15 +65,16 @@ Buffer :: struct {
 	version: u32;
 }
 
-is_file_open :: fn (filepath: string_view) bool {
+find_buffer_for_file :: fn (filepath: string_view) *Buffer {
+	hash :: get_file_hash(filepath);
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
 		if buf.is_removed { continue; }
-		if buf.hash == get_file_hash(filepath) {
-			return true;
+		if buf.hash == hash {
+			return buf;
 		}
 	}
-	return false;
+	return null;
 }
 
 BufferFlags :: enum #flags {
@@ -145,6 +146,8 @@ add_buffer :: fn (name := "") s32 {
 	buf.version = 0;
 	buf.is_word_wrap_enabled = settings.word_wrap;
 	buf.lsp.dia_message_pool = pool_make(null, 2048);
+	buf.file_type = .TEXT;
+
 	return buf.index;
 }
 
@@ -173,7 +176,7 @@ add_builtin_buffer :: fn (name: string_view, additional_flags: BufferFlags = .{}
 	return index;
 }
 
-add_implicit_file_buffer :: fn (name: string_view, data: []u8, file_type := FileType.UNKNOWN) s32 {
+add_implicit_file_buffer :: fn (name: string_view, data: []u8, file_type := FileType.TEXT) s32 {
 	index :: add_buffer();
 	buf :: &buffers[index];
 	buf.flags = BufferFlags.READONLY;
@@ -1023,8 +1026,6 @@ find_indentation_for_range :: fn (buf: *Buffer, start: s64, end: s64) s32 {
 }
 
 add_buffer_dia_entry :: fn (buf: *Buffer, loc: *ErrorLocation) #inline {
-	print_log("Add dia: %", loc.message);
-
 	row :: peek_row(buf, loc.line);
 
 	array_push(&buf.lsp.dia, .{
@@ -1039,6 +1040,18 @@ add_buffer_dia_entry :: fn (buf: *Buffer, loc: *ErrorLocation) #inline {
 reset_buffer_diagnostics :: fn (buf: *Buffer) {
 	buf.lsp.dia.len = 0;
 	reset_allocator(&buf.lsp.dia_message_pool);
+}
+
+get_diagnostics_error_and_warning_count :: fn (buf: *Buffer) (ec: s32, wc: s32) {
+	ec, wc := 0;
+	loop i := 0; i < buf.lsp.dia.len; i += 1 {
+		if buf.lsp.dia[i].kind == .ERROR {
+			ec += 1;
+		} else {
+			wc += 1;
+		}
+	}
+	return ec, wc;
 }
 
 get_diagnostic_for_line :: fn (buf: *Buffer, line: s32) *ErrorLocation #inline {
@@ -1109,6 +1122,9 @@ detect_line_ending :: fn (bytes: []u8) LineEnding {
 publish_lsp_buffer_change_if_needed :: fn (buf: *Buffer) {
 	if is_lsp_running() && buf.lsp.version > 0 && lsp_buffer_needs_update(buf) {
 		lsp_change_document(buf) catch print_err("LSP: %", $);
+	}
+	if config_server_is_supported_document_type(buf) {
+		config_server_document_update(buf) catch print_err("CS: %", $);
 	}
 }
 

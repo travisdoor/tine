@@ -5,6 +5,17 @@ MASTER
 - Add modal_selection toggle.
 - Add support for classical shift selection.
 - Add an empty user level global config.
+- Add new config file version upgreade handling.
+- Add config file inline diagnostics.
+- Add possibility to insert current build_command to shell command line.
+- Fix offset of inline error text when line numbers are shown.
+- Add option `resize_font_by_scrolling` to disable Ctrl+MouseWheel to resize text.
+- Fix non-working numpad Enter.
+- Fix parsing issues with C++ quote escapes in strings.
+- Add inline diagnostic stats to editor title bar.
+- Add ignore of `.bak.proj` backup files in project lister.
+- Add parsing of file links in messages.
+- Add priorities to nofitication messages, info will not override errors for example.
 
 1.0.0 2026-07-18
 ---------------------------------------------------------------------------------------

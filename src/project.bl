@@ -23,25 +23,57 @@ terminate_project :: fn () {
 }
 
 load_project_file :: fn (filepath: string_view, is_default := false) Error {
-	stream, err_open :: open_file(filepath, OpenFileMode.READ);
-	if err_open { return err_open; }
-	defer close_file(&stream);
+	allocator :: pool_make();
+	defer release_allocator(&allocator);
 
-	bytes: [..]u8;
-	defer array_terminate(&bytes);
+	bytes := read_entire_file(filepath, &allocator) catch return $;
 
-	err_load :: load_whole_file(&bytes, &stream);
-	if err_load { return err_load; }
+	config_data: ConfigData;
+	config_data_init(&config_data, &allocator);
 
-	ctx :: Tokenizer.{
-		base = TokenizerBase.{
-			bytes = bytes,
-		},
-		file       = filepath,
-	};
+	diag: [..]ErrorLocation;
+	array_init(&diag, 0, &allocator);
+	load_config_from_memory(&config_data, filepath, bytes, &diag) catch return $;
 
-	err :: parse(&ctx);
-	if err { return err; }
+	orig_version :: config_data.version;
+	if config_data_version_upgrade(&config_data, CONFIG_VERSION) {
+		// Save original config backup.
+		file, ext       :: path_splitext(filepath);
+		backup_filepath :: tprint("%.bak%", file, ext);
+		write_entire_file(backup_filepath, bytes) catch return $;
+
+		if orig_version == -1 && is_default {
+			// Special case wiping out old default settings.
+			bytes = USER_PROJECT_FILE_TEMPLATE_DATA;
+		} else {
+			// Get upgraded file content.
+			bytes = config_data_get_bytes(&config_data);
+		}
+
+		// Override previous file with upgraded one.
+		write_entire_file(filepath, bytes) catch return $;
+
+		// Hot-loading of processed file is removed here, we have to update contents manually.
+		buf :: find_buffer_for_file(filepath);
+		if buf then change_content(buf, bytes);
+
+		diag.len = 0;
+		load_config_from_memory(&config_data, filepath, bytes, &diag) catch return $;
+
+		print_info("Configuration '%' upgraded to version %. Backup saved to '%'.", filepath, CONFIG_VERSION, backup_filepath);
+	}
+
+	// Print diagnostics.
+	loop i := 0; i < diag.len; i += 1 {
+		msg :: &diag[i];
+		text :: tprint("%:%:%: %", filepath, msg.line+1, msg.col+1, msg.message);
+		switch msg.kind {
+			.WARNING { print_warn(text); }
+			.ERROR   { print_err(text);  }
+		}
+	}
+
+	config_data_apply(&config_data);
 
 	if is_default {
 		project.name = "Default";
@@ -51,28 +83,23 @@ load_project_file :: fn (filepath: string_view, is_default := false) Error {
 		project.filepath   = str_make(filepath, &project.string_cache);
 	}
 
-	return err;
+	return OK;
 }
 
 load_default_project_from_template :: fn () {
-	ctx :: Tokenizer.{
-		base = TokenizerBase.{
-			bytes = DEFAULT_PROJECT_FILE_TEMPLATE_DATA,
-		},
-		file = "TEMPLATE",
-	};
+	allocator :: pool_make();
+	defer release_allocator(&allocator);
 
-	// Clear settings
-	info :: cast(*TypeInfoStruct) typeinfo(Settings);
-	loop i := 0; i < info.members.len; i += 1 {
-		member :: &info.members[i];
-		if member.base_type == typeinfo(string) {
-			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
-			str.len = 0;
-		}
-	}
+	config_data: ConfigData;
+	config_data_init(&config_data, &allocator);
 
-	parse(&ctx) catch panic($); // This is really bad! Even the template project file is broken.
+	bytes :: DEFAULT_PROJECT_FILE_TEMPLATE_DATA;
+	load_config_from_memory(&config_data, "TEMPLATE", bytes) catch panic($);
+
+	assert(config_data.diag_reports_num == 0, "Template config data should not produce any errors.");
+	assert(config_data.version == CONFIG_VERSION);
+
+	config_data_apply(&config_data);
 }
 
 is_default_project_present :: fn () bool #inline {
@@ -137,6 +164,46 @@ get_project_main_directory :: fn () string_view #inline {
 	}
 
 	return "";
+}
+
+add_include_directory :: fn (dir: string_view) {
+	array_push(&project.included_directories, str_make(dir, &project.string_cache));
+}
+
+add_exclude_directory :: fn (dir: string_view) {
+	array_push(&project.excluded_directories, str_make(dir, &project.string_cache));
+}
+
+add_include_file_extension :: fn (ext: string_view) {
+	array_push(&project.included_extensions, str_make(ext, &project.string_cache));
+}
+
+unmap_binding_for_command :: fn (command_id: Command) {
+	loop i := 0; i < key_binding.len; {
+		if key_binding[i].cmd == command_id {
+			array_erase_keep_order(&key_binding, i);
+			continue;
+		}
+		i += 1;
+	}
+}
+
+map_key_binding :: fn (command_id: Command, key: u32, mods: u32) {
+	assert((cast(s32) command_id) > (cast(s32) Command._PUBLIC));
+	// Handle collisions, newer wins...
+	loop i := 0; i < key_binding.len; i += 1 {
+		other_entry :: key_binding[i];
+		if other_entry.key == key && other_entry.mods == mods {
+			// We might notify user about this, but the the clean way to use already used key map would require unbinging previous shortuct first, which might be annoying...
+			array_erase_keep_order(&key_binding, i);
+			break;
+		}
+	}
+	array_push(&key_binding, KeyMapEntry.{
+			cmd  = command_id,
+			mods = mods,
+			key  = key
+		});
 }
 
 #scope_private
@@ -248,6 +315,16 @@ clear_project :: fn () {
 	project.excluded_directories.len = 0;
 	project.indexed_files.len        = 0;
 
+	// Clear settings
+	info :: cast(*TypeInfoStruct) typeinfo(Settings);
+	loop i := 0; i < info.members.len; i += 1 {
+		member :: &info.members[i];
+		if member.base_type == typeinfo(string) {
+			str :: cast(*string) ptr_shift_bytes(&settings, member.offset_bytes);
+			str.len = 0;
+		}
+	}
+
 	reset_allocator(&project.string_cache);
 }
 
@@ -317,337 +394,3 @@ do_the_stuff_after_project_load :: fn () {
 
 	clear_recent_locations();
 }
-
-add_include_directory :: fn (dir: string_view) {
-	array_push(&project.included_directories, str_make(dir, &project.string_cache));
-}
-
-add_exclude_directory :: fn (dir: string_view) {
-	array_push(&project.excluded_directories, str_make(dir, &project.string_cache));
-}
-
-add_include_file_extension :: fn (ext: string_view) {
-	array_push(&project.included_extensions, str_make(ext, &project.string_cache));
-}
-
-//
-// Parsing
-//
-
-Tokenizer :: struct #base TokenizerBase {
-	current_section: ProjectSection;
-	file:            string_view;
-	line:            s32;
-}
-
-parse :: fn (ctx: *Tokenizer) Error {
-	loop ctx.index < ctx.bytes.len {
-		eat_whitespace(ctx);
-		c :: ctx.bytes[ctx.index];
-		if c == '\n' { ctx.index += 1; ctx.line += 1; continue;  }
-		if c == '\r' { ctx.index += 1; continue;                 }
-		if c == '#'  { eat_till_new_line(ctx); continue;         }
-
-		err_sec, section_changed :: maybe_change_section(ctx);
-		if err_sec         { return err_sec; }
-		if section_changed { continue;       }
-
-		err := OK;
-
-		using ProjectSection;
-		switch ctx.current_section {
-			NONE                    { err = report(ctx, "Unexpected characters!"); }
-			INCLUDE                 { err = parse_include(ctx);                    }
-			EXCLUDE                 { err = parse_exclude(ctx);                    }
-			INCLUDE_FILE_EXTENSIONS { err = parse_include_extension(ctx);          }
-			SETTINGS                { err = parse_settings_entry(ctx);             }
-			KEYS                    { err = parse_keymap_entry(ctx);               }
-			COLORS                  { err = parse_color_entry(ctx);                }
-
-			default;
-		}
-
-		if err { return err; }
-	}
-
-	return OK;
-}
-
-maybe_change_section :: fn (ctx: *Tokenizer) (err: Error, changed: bool) {
-	if ctx.bytes[ctx.index] != ';' { return OK, false; }
-	ctx.index += 1; // eat ;
-	eat_whitespace(ctx);
-	section_name :: eat_word(ctx);
-
-	section_index :: str_first_match(section_name, PROJECT_SECTIONS);
-	if section_index == -1 || section_index == auto ProjectSection.NONE {
-		return report(ctx, "Expected section name after ';'."), false;
-	} else {
-		ctx.current_section = auto section_index;
-	}
-
-	return OK, true;
-}
-
-parse_whole_line_as_string :: fn (ctx: *Tokenizer) string_view #inline {
-	line :: eat_till(ctx, "\n\r\t#");
-	return trim_right(line, [1]u8.{ ' ' });
-}
-
-parse_include :: fn (ctx: *Tokenizer) Error {
-	include :: parse_whole_line_as_string(ctx);
-	if include.len > 0 {
-		assert(include[0] != ' ');
-		add_include_directory(include);
-	}
-	return OK;
-}
-
-parse_exclude :: fn (ctx: *Tokenizer) Error {
-	exclude :: parse_whole_line_as_string(ctx);
-	if exclude.len > 0 {
-		assert(exclude[0] != ' ');
-		add_exclude_directory(exclude);
-	}
-	return OK;
-}
-
-parse_include_extension :: fn (ctx: *Tokenizer) Error {
-	ext :: eat_till(ctx, " #\n\r\t");
-	if ext.len > 0 {
-		add_include_file_extension(ext);
-	}
-	return OK;
-}
-
-parse_settings_entry :: fn (ctx: *Tokenizer) Error {
-	// entry name
-	name :: eat_word(ctx);
-	if name.len == 0 { return report(ctx, "Expected settings entry name!"); }
-	eat_whitespace(ctx);
-
-	info :: cast(*TypeInfoStruct) typeinfo(settings);
-	member_ptr, member_type, member_hash :: find_member_in_struct(auto &settings, info, name);
-	if !member_ptr {
-		return report(ctx, "Unknown settings entry name '%'.", name);
-	}
-
-	if member_type.kind == .ENUM {
-		variant_name := str_make(trim_right(eat_till(ctx, "#\n\r\t"), " "), application_context.temporary_allocator);
-		str_upper(&variant_name);
-		enum_info :: cast(*TypeInfoEnum) member_type;
-		variant_index := 0;
-		loop ; variant_index < enum_info.variants.len; variant_index += 1 {
-			variant :: enum_info.variants[variant_index];
-			if str_match(variant.name, variant_name) {
-				n_ptr :: cast(*s32) member_ptr;
-				@n_ptr = auto variant.value;
-				break;
-			}
-		}
-		if variant_index == enum_info.variants.len {
-			return report(ctx, "Unknown enumeration value '%'", variant_name);
-		}
-
-		return OK;
-	}
-
-	if member_type == typeinfo(s32) {
-		err, n :: parse_number(ctx);
-		if err { return err; }
-		// Some validation...
-		switch member_hash {
-			lit_hash("font_size") {
-				if n < MIN_FONT_SIZE || n > MAX_FONT_SIZE {
-					return report(ctx, "Font size is expected to be in range <%, %>.", MIN_FONT_SIZE, MAX_FONT_SIZE);
-				}
-			}
-			lit_hash("font_ui_size") {
-				if n < MIN_FONT_SIZE || n > MAX_FONT_SIZE {
-					return report(ctx, "Font size is expected to be in range <%, %>.", MIN_FONT_SIZE, MAX_FONT_SIZE);
-				}
-			}
-			lit_hash("tab_size") {
-				if n < 1 {
-					return report(ctx, "Tab size is expected to be greater than 0.");
-				}
-			}
-		}
-		s32_ptr :: cast(*s32) member_ptr;
-		@s32_ptr = cast(s32)  n;
-	} else if member_type == typeinfo(bool) {
-		err, v :: parse_bool(ctx);
-		if err { return err; }
-		bool_ptr :: cast(*bool) member_ptr;
-		@bool_ptr = v;
-	} else if member_type == typeinfo(string) {
-		v :: eat_till(ctx, "#\n\r\t");
-		str_ptr :: cast(*string) member_ptr;
-		str_ptr.len = 0;
-		str_append(str_ptr, trim_right(v, " "));
-	} else {
-		panic(report(ctx, "Unsupported settings entry type '%'!", @member_type));
-	}
-	return OK;
-}
-
-parse_color_entry :: fn (ctx: *Tokenizer) Error {
-	// entry name
-	name :: eat_word(ctx);
-	if name.len == 0 { return report(ctx, "Expected color entry name!"); }
-	eat_whitespace(ctx);
-
-	info :: cast(*TypeInfoStruct) typeinfo(colors);
-	member_ptr :: find_member_in_struct(auto &colors, info, name);
-	if !member_ptr { return report(ctx, "Unknown colors entry name '%'.", name); }
-
-	// value
-	err, n :: parse_number(ctx, FmtIntBase.HEX);
-	if err { return err; }
-	dest :: cast(*v4) member_ptr;
-	@dest = rgb2(cast(u32) n);
-
-	return OK;
-}
-
-parse_keymap_entry :: fn (ctx: *Tokenizer) Error {
-	// entry name
-	name :: eat_word(ctx);
-	if name.len == 0 { return report(ctx, "Expected command name!"); }
-
-	command_id :: str_first_match(name, COMMAND_NAMES);
-	if command_id <= auto Command._PUBLIC {
-		return report(ctx, "Invalid command name '%'.", name);
-	}
-
-	unmap_binding_for_command(auto command_id);
-
-	key_code : u32 = 0;
-	mods     : u32 = 0;
-
-	loop {
-		eat_whitespace(ctx);
-		key_name :: eat_till(ctx, " \n\r\t#+");
-		if key_name.len == 0 {
-			break;
-		}
-		mod :: mod_from_name(key_name);
-		if mod != 0 {
-			mods |= mod;
-		} else {
-			key :: key_from_name(key_name);
-			if key == 0 {
-				return report(ctx, "Invalid key name '%'!", key_name);
-			}
-			if key_code != 0 {
-				return report(ctx, "Key chord can contain only one non-modifier key!");
-			}
-			key_code = key;
-		}
-
-		eat_whitespace(ctx);
-
-		c :: ctx.bytes[ctx.index];
-		if c == '+' {
-			// Multiple keys in chord.
-			ctx.index += 1;
-			continue;
-		} else if c != '#' && c != '\r' && c != '\n' {
-			if key_code == -1 { return report(ctx, "Invalid key binding."); }
-			map_key_binding(ctx, auto command_id, key_code, mods);
-			// New entry.
-			key_code   = 0;
-			mods       = 0;
-			continue;
-		}
-		break;
-	}
-
-	if key_code != 0 || mods != 0 {
-		map_key_binding(ctx, auto command_id, key_code, mods);
-	} else if mods != 0 {
-		return report(ctx, "Invalid key binding.");
-	}
-	return OK;
-}
-
-// key == -1 -> unmap all command bindings
-map_key_binding :: fn (ctx: *Tokenizer, command_id: Command, key: u32, mods: u32) {
-	assert((cast(s32) command_id) > (cast(s32) Command._PUBLIC));
-	loop i := 0; i < key_binding.len; i += 1 {
-		if key_binding[i].key == key && key_binding[i].mods == mods {
-			warning(ctx, "Duplicate key-binding for command '%' the same key combination is already set for command '%'.",
-						  COMMAND_NAMES[auto command_id], COMMAND_NAMES[auto key_binding[i].cmd]);
-		}
-	}
-	array_push(&key_binding, KeyMapEntry.{
-		cmd  = command_id,
-		mods = mods,
-		key  = key
-	});
-}
-
-unmap_binding_for_command :: fn (command_id: Command) {
-	loop i := 0; i < key_binding.len; {
-		if key_binding[i].cmd == command_id {
-			array_erase_keep_order(&key_binding, i);
-			continue;
-		}
-		i += 1;
-	}
-}
-
-parse_number :: fn (ctx: *Tokenizer, base := FmtIntBase.DEC) (err: Error, n: s64) {
-	c := ctx.bytes[ctx.index];
-	if !is_digit(c, base) { return report(ctx, "Expected number!"), 0; }
-	start_index :: ctx.index;
-	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
-		c = ctx.bytes[ctx.index];
-		if !is_digit(c, base) {
-			break;
-		}
-	}
-	len :: ctx.index - start_index;
-	str :: string_view.{ len, &ctx.bytes[start_index] };
-	v, err :: strtos64(str, base);
-	if err {
-		return report(ctx, tprint("Invalid number: %", err)), 0;
-	}
-	return OK, v;
-}
-
-parse_bool :: fn (ctx: *Tokenizer) (err: Error, v: bool) {
-	str :: eat_till(ctx, " \t\n\r#");
-	v :: str_first_match(str, [2]string_view.{ "false", "true" });
-	if v == -1 {
-		return report(ctx, "Expected boolean value <true|false>!"), false;
-	}
-	if v == 0 { return OK, false; }
-	return OK, true;
-}
-
-find_member_in_struct :: fn (base_ptr: *u8, info: *TypeInfoStruct, name: string_view) (ptr: *u8, member_type: *TypeInfo, hash: u32) #inline {
-	assert(info.kind == TypeKind.STRUCT);
-	loop i := 0; i < info.members.len; i += 1 {
-		member :: &info.members[i];
-		if str_match(member.name, name) {
-			return ptr_shift_bytes(base_ptr, member.offset_bytes), member.base_type, str_hash(member.name);
-		}
-	}
-	return null, null, 0;
-}
-
-lit_hash :: fn (lit: string_view) u32 #comptime {
-	return str_hash(lit);
-}
-
-report :: fn (ctx: *Tokenizer, fmt: string_view, args: ...) Error {
-	msg :: tprint(fmt, args);
-	return error("Project configuration %:% %", ctx.file, ctx.line+1, msg);
-}
-
-warning :: fn (ctx: *Tokenizer, fmt: string_view, args: ...) {
-	msg :: tprint(fmt, args);
-	print_warn("Project configuration %:% %", ctx.file, ctx.line+1, msg);
-}
-

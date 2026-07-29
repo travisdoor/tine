@@ -283,8 +283,8 @@ restart_lsp_server :: fn () {
 }
 
 lsp_is_supported_document_type :: fn (buf: *Buffer) bool #inline {
-	if settings.lsp_file_type == .UNKNOWN {
-		print_warn("LSP: Missing 'lsp_file_type' in settings, no files will be added to LSP.");
+	if settings.lsp_file_type == .TEXT {
+		print_warn("LSP: Missing or invalid 'lsp_file_type' in settings, no files will be added to LSP.");
 		return false;
 	}
 
@@ -775,7 +775,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 		show_progress(ctx, &current_request);
 
-		os_sleep_ms(10);
+		os_sleep_ms(34);
 		temporary_reset();
 	}
 

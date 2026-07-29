@@ -681,11 +681,15 @@ list_directory :: fn (dirpath: string_view, file_extension_filter := []string_vi
 	file_visitor :: fn (info: *FileVisitInfo, ctx: *FileVisitorContext) Error {
 
 		if !info.is_directory {
-			if ctx.dirs_only { return OK; }
-			_, ext :: path_splitext(info.filename);
+			if ctx.dirs_only then return OK;
+			head, ext :: path_splitext(info.filename);
 			// @Incomplete: Case sensitive!?
-			if ext.len == 0 { return OK; }
+			if ext.len == 0 then return OK;
 			if ctx.file_extension_filter.len > 0 && str_match_one_of(ext, ctx.file_extension_filter) == false { return OK; }
+			if ctx.as_projects {
+				_, ext2 :: path_splitext(head);
+				if str_match(ext2, ".bak") then return OK;
+			}
 		}
 
 		title := str_make(info.filename, &string_cache[DEFAULT_CACHE_INDEX]);
@@ -789,7 +793,7 @@ list_project :: fn () {
 		array_reserve(&list[DEFAULT_LIST_INDEX], project.indexed_files.len);
 		loop i := 0; i < project.indexed_files.len; i += 1 {
 			filepath :: project.indexed_files[i];
-			if is_file_open(filepath) { continue; }
+			if find_buffer_for_file(filepath) { continue; }
 			dirpath, filename := path_split(filepath);
 			if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
 			file_type :: detect_filetype(filename);

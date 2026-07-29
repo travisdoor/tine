@@ -8,9 +8,6 @@ highlight_syntax_proj :: fn (buf: *Buffer) {
 		prev_token = Token.kind.EOF,
 	};
 
-	insert_all(&ctx.commands_table, COMMAND_NAMES);
-	defer tbl_terminate(&ctx.commands_table);
-
 	loop {
 		using Token.kind;
 
@@ -30,8 +27,6 @@ Tokenizer :: struct #base TokenizerBase {
 	current_section: ProjectSection;
 	prev_token:      Token.kind;
 	expect_keys:     bool;
-
-	commands_table: Table(string_view, s16);
 }
 
 Token :: struct {
@@ -49,13 +44,9 @@ Token :: struct {
 	len:   s32;
 }
 
-SETTINGS_ENTRIES :: get_struct_members_as_list(Settings);
-COLOR_ENTRIES    :: get_struct_members_as_list(Colors);
-
 kind_to_color :: fn (kind: Token.kind) u8 #inline {
 	using Token.kind;
 	switch kind {
-		INVALID   { return CODE_COLOR_INVALID_INDEX;   }
 		SECTION   { return CODE_COLOR_KEYWORD_INDEX;   }
 		COMMENT   { return CODE_COLOR_COMMENT_INDEX;   }
 		IDENT     { return CODE_COLOR_DEFAULT_INDEX;   }
@@ -104,7 +95,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 						return t;
 					}
 				} else if is_alpha(c) {
-					parse_entry_name(ctx, &t, SETTINGS_ENTRIES);
+					parse_entry_name(ctx, &t);
 					return t;
 				}
 			}
@@ -112,7 +103,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 				if ctx.prev_token == IDENT {
 					if parse_number(ctx, &t, FmtIntBase.HEX) { return t; }
 				} else if is_alpha(c) {
-					parse_entry_name (ctx, &t, COLOR_ENTRIES);
+					parse_entry_name(ctx, &t);
 					return t;
 				}
 			}
@@ -142,9 +133,6 @@ parse_command_name :: fn (ctx: *Tokenizer, t: *Token) {
 	t.kind = IDENT;
 	command_name :: eat_till_whitespace(auto ctx);
 	t.len = auto command_name.len;
-	if !tbl_contains(&ctx.commands_table, command_name) {
-		t.kind = INVALID;
-	}
 }
 
 parse_key :: fn (ctx: *Tokenizer, t: *Token) bool {
@@ -163,9 +151,6 @@ parse_key :: fn (ctx: *Tokenizer, t: *Token) bool {
 		return true;
 	}
 
-	if key_from_name(tmp) == -1 {
-		t.kind = INVALID;
-	}
 	return true;
 }
 
@@ -187,14 +172,11 @@ parse_file_extension :: fn (ctx: *Tokenizer, t: *Token) bool {
 	return true;
 }
 
-parse_entry_name :: fn (ctx: *Tokenizer, t: *Token, valid_names: []string_view) {
+parse_entry_name :: fn (ctx: *Tokenizer, t: *Token) {
 	using Token.kind;
 	t.kind = IDENT;
 	ident :: eat_till_whitespace(auto ctx);
 	t.len += cast(s32) ident.len;
-	if !str_match_one_of(ident, valid_names) {
-		t.kind = INVALID;
-	}
 }
 
 parse_number :: fn (ctx: *Tokenizer, t: *Token, base := FmtIntBase.DEC) bool {
@@ -224,9 +206,7 @@ parse_section :: fn (ctx: *Tokenizer, t: *Token) {
 	t.len += cast(s32) section_name.len;
 
 	section_index :: str_first_match(section_name, PROJECT_SECTIONS);
-	if section_index == -1 || section_index == auto ProjectSection.NONE {
-		t.kind = INVALID;
-	} else {
+	if section_index != -1 && section_index != auto ProjectSection.NONE {
 		ctx.current_section = auto section_index;
 	}
 }

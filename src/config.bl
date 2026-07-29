@@ -1,0 +1,768 @@
+ConfigData :: struct {
+	filepath: string_view;
+
+	version: s32; // Set everytime if in the file, otherwise -1.
+
+	// Filled when validate_only == false. Might contain broken entries, check is_valid before applying!
+	lines:   [..]ConfigLine; // Original file content lines, could be resolved by token.row index.
+	indices: [..]s32;
+
+	includes:            [..]ConfigEntry;
+	excludes:            [..]ConfigEntry;
+	included_extensions: [..]ConfigEntry;
+	settings:            [..]ConfigEntry;
+	keys:                [..]ConfigEntry;
+	colors:              [..]ConfigEntry;
+
+	diag_reports_num: s32;
+	allocator: *Allocator;
+}
+
+ConfigLine :: struct {
+	text:    string_view;
+	section: Section;
+}
+
+ConfigEntry :: struct {
+	token:      Token;
+	as: union {
+		str:     string_view;
+		number:  s32;
+		boolean: bool;
+		keys:  []u32;
+	};
+
+	is_valid: bool;
+}
+
+config_data_init :: fn (config_data: *ConfigData, allocator: *Allocator) {
+	zeroinit(config_data);
+
+	array_init(&config_data.lines, 0, allocator);
+	array_init(&config_data.indices, 0, allocator);
+	array_init(&config_data.includes, 0, allocator);
+	array_init(&config_data.excludes, 0, allocator);
+	array_init(&config_data.included_extensions, 0, allocator);
+	array_init(&config_data.settings, 0, allocator);
+	array_init(&config_data.keys, 0, allocator);
+	array_init(&config_data.colors, 0, allocator);
+
+	config_data.version   = -1;
+	config_data.allocator = allocator;
+}
+
+config_data_reset :: fn (config_data: *ConfigData) {
+	config_data.lines.len               = 0;
+	config_data.indices.len             = 0;
+	config_data.includes.len            = 0;
+	config_data.excludes.len            = 0;
+	config_data.included_extensions.len = 0;
+	config_data.settings.len            = 0;
+	config_data.keys.len                = 0;
+	config_data.colors.len              = 0;
+
+	config_data.filepath.len =  0;
+	config_data.version      = -1;
+}
+
+// @Note Passed 'bytes' must stay valid for config_data usage time.
+load_config_from_memory :: fn (
+	config_data: *ConfigData,
+	filepath: string_view,
+	bytes: []u8,
+	diag: *[..]ErrorLocation = null,
+	validate_only := false,
+) Error {
+	config_data_reset(config_data);
+	config_data.filepath = filepath;
+
+	settings: Table(string_view, Token);
+	keys:     Table(string_view, KeysEntry);
+
+	tbl_init(&settings, 256, config_data.allocator);
+	tbl_init(&keys, 128, config_data.allocator);
+
+	ctx := Tokenizer.{
+		base = TokenizerBase.{
+			bytes = bytes,
+		},
+		filepath      = filepath,
+		diag          = diag,
+		data          = config_data,
+		settings      = &settings,
+		keys          = &keys,
+
+		row = -1,
+		col = -1,
+
+		validate_only = validate_only,
+	};
+
+	parse(&ctx);
+	return OK;
+}
+
+config_data_version_upgrade :: fn (config_data: *ConfigData, target_version: s32) bool {
+	assert(target_version > 0);
+	if config_data.version == target_version then return false;
+	if config_data.version == -1 {
+		// Version is not present in the file, add it at the beginning.
+		index :: cast(s32) config_data.lines.len;
+		array_push(&config_data.lines, .{
+				section = .NONE,
+				text    = str_make(VERSION_TEXT, config_data.allocator),
+			});
+		array_insert(&config_data.indices, 0, index);
+	}
+
+	config_data.version = target_version;
+	return true;
+}
+
+config_data_apply :: fn (config_data: *ConfigData) {
+	assert(config_data.version == CONFIG_VERSION, "Upgrade was not called!");
+
+	loop i := 0; i < config_data.includes.len; i += 1 {
+		include :: &config_data.includes[i];
+		if !include.is_valid then continue;
+		add_include_directory(include.as.str);
+	}
+
+	loop i := 0; i < config_data.excludes.len; i += 1 {
+		exclude :: &config_data.excludes[i];
+		if !exclude.is_valid then continue;
+		add_exclude_directory(exclude.as.str);
+	}
+
+	loop i := 0; i < config_data.included_extensions.len; i += 1 {
+		include_exts :: &config_data.included_extensions[i];
+		if !include_exts.is_valid then continue;
+		add_include_file_extension(include_exts.as.str);
+	}
+
+	loop i := 0; i < config_data.settings.len; i += 1 {
+		opt :: &config_data.settings[i];
+		if !opt.is_valid then continue;
+
+		name :: get_variant(&opt.token.as, .str);
+		assert(name.len > 0);
+		member_ptr, member_type :: find_member_in_struct(&settings, name);
+		assert(member_ptr);
+
+		dst :: Any.{ member_type, member_ptr };
+
+		if member_type.kind == .ENUM || member_type == typeinfo(s32) {
+			reinterpret_write_any(dst, opt.as.number);
+		} else if member_type == typeinfo(bool) {
+			reinterpret_write_any(dst, opt.as.boolean);
+		} else if member_type == typeinfo(string) {
+			str_ptr :: cast(*string) member_ptr;
+			str_ptr.len = 0;
+			str_append(str_ptr, opt.as.str);
+		} else {
+			panic("Unsupported settings entry type '%'!", @member_type);
+		}
+	}
+
+	loop i := 0; i < config_data.colors.len; i += 1 {
+		color :: &config_data.colors[i];
+		if !color.is_valid then continue;
+
+		name :: get_variant(&color.token.as, .str);
+		assert(name.len > 0);
+		member_ptr :: find_member_in_struct(&colors, name);
+		assert(member_ptr);
+
+		dest :: cast(*v4) member_ptr;
+		@dest = rgb2(cast(u32) color.as.number);
+	}
+
+	loop i := 0; i < config_data.keys.len; i += 1 {
+		keys :: &config_data.keys[i];
+		if !keys.is_valid then continue;
+
+		name :: get_variant(&keys.token.as, .str);
+		command :: find_command(name);
+		assert(command != .UNKNOWN);
+
+		unmap_binding_for_command(command);
+
+		binding :: keys.as.keys;
+		assert(binding.len % 2 == 0);
+		loop i := 0; i < binding.len; i += 2 {
+			key_code :: binding[i+0];
+			mods     :: binding[i+1];
+			map_key_binding(command, key_code, mods);
+		}
+	}
+}
+
+config_data_get_bytes :: fn (config_data: *ConfigData) []u8 {
+	buf := str_make(1024, config_data.allocator);
+	loop i := 0; i < config_data.indices.len; i += 1 {
+		index :: config_data.indices[i];
+		str_concat(&buf, config_data.lines[index].text, "\n");
+	}
+	return buf;
+}
+
+#private
+
+Section  :: enum { NONE; INCLUDE; EXCLUDE; INCLUDE_FILE_EXTENSIONS; SETTINGS; KEYS; COLORS; };
+SECTION_NAMES :: get_enum_variants_as_redable_list(Section, false);
+
+Token :: struct {
+	as:    TokenVariant;
+	pid:   s32;
+	row:   s32;
+	col:   s32;
+};
+
+TokenVariant :: Variant(union {
+		none:       u8;
+
+		comment:   string_view;
+		semicolon: string_view;
+		plus:      string_view;
+		str:       string_view;
+	});
+
+
+Tokenizer :: struct #base TokenizerBase {
+	data:           *ConfigData;
+	diag:           *[..]ErrorLocation;
+	current_section: Section;
+	filepath:        string_view;
+	row:             s32;
+	col:             s32;
+
+	settings:     *Table(string_view, Token);
+	keys:         *Table(string_view, KeysEntry);
+
+	validate_only: bool;
+}
+
+KeysEntry :: struct {
+	command:   Token;
+	bound_num: s32;
+}
+
+init_token :: fn (token: *Token, ctx: *Tokenizer, kind: variant_typeof_kind(TokenVariant) #comptime, value: type_utils.get_struct_member_type(TokenVariant.base, auto kind)) #inline {
+	set_variant(&token.as, kind, value);
+	token.row = ctx.row;
+	token.col = ctx.col;
+}
+
+parse :: fn (file_ctx: *Tokenizer) {
+	ctx := @file_ctx;
+	loop next_line(file_ctx, &ctx) {
+		tok: Token;
+		force_single_string :: ctx.current_section == .INCLUDE || ctx.current_section == .EXCLUDE;
+		loop next_token(&ctx, &tok, force_single_string) {
+			switch tok.as.kind {
+				.none,
+				.comment {
+					continue;
+				}
+				.semicolon {
+					if !parse_section_marker(&ctx) {
+						report(&ctx, .ERROR, tok, "Expected section name after semicolon.");
+						eat_rest_as_invalid(&ctx);
+					}
+
+					continue;
+				}
+				default;
+			}
+
+			switch ctx.current_section {
+				.NONE {
+					if tok.as.kind == .str && tok.row == 0 {
+						n := strtos64(tok.as.str) catch {
+							report(&ctx, .ERROR, tok, "Invalid version number.");
+							continue;
+						};
+						ctx.data.version = auto n;
+						continue;
+					}
+				}
+				.INCLUDE {
+					parse_include_entry(&ctx, tok);
+					continue;
+				}
+				.EXCLUDE {
+					parse_exclude_entry(&ctx, tok);
+					continue;
+				}
+				.INCLUDE_FILE_EXTENSIONS {
+					parse_include_file_extensions_entry(&ctx, tok);
+					continue;
+				}
+				.SETTINGS {
+					if !parse_settings_entry(&ctx, tok) {
+						report(&ctx, .ERROR, tok, "Expected settings entry name.");
+						eat_rest_as_invalid(&ctx);
+					}
+					continue;
+				}
+				.KEYS {
+					if !parse_keys_entry(&ctx, tok) {
+						report(&ctx, .ERROR, tok, "Expected keys entry name.");
+						eat_rest_as_invalid(&ctx);
+					}
+					continue;
+				}
+				.COLORS {
+					if !parse_color_entry(&ctx, tok) {
+						report(&ctx, .ERROR, tok, "Expected color entry name.");
+						eat_rest_as_invalid(&ctx);
+					}
+					continue;
+				}
+			}
+
+			report(&ctx, .ERROR, tok, "Unexpected token.");
+			eat_rest_as_invalid(&ctx);
+		}
+	}
+}
+
+next_line :: fn (ctx: *Tokenizer, line_ctx: *Tokenizer) bool #inline {
+	if ctx.index >= ctx.bytes.len then return false;
+
+	start_index :: ctx.index;
+	line        :: eat_line_and_trim_eol(ctx);
+
+	line_ctx.bytes.len = start_index + line.len;
+	line_ctx.index     = start_index;
+	line_ctx.row      += 1;
+	line_ctx.col       = 0;
+
+	if !ctx.validate_only {
+		index :: cast(s32) ctx.data.lines.len;
+		array_push(&ctx.data.lines, .{
+				text    = line,
+				section = line_ctx.current_section,
+			});
+		array_push(&ctx.data.indices, index);
+	}
+
+	return true;
+}
+
+next_token :: fn (ctx: *Tokenizer, tok: *Token, force_single_string := false) bool {
+	ctx.col += eat_whitespace(ctx);
+	if ctx.index >= ctx.bytes.len then {
+		return false;
+	}
+
+	len := 0;
+	adjust_col :: fn (ctx: *Tokenizer, len: s32) {
+		ctx.col += len;
+	};
+	defer adjust_col(ctx, len);
+
+	switch ctx.bytes[ctx.index] {
+		';' {
+			init_token(tok, ctx, .semicolon, ";");
+			len         = 1;
+			ctx.index  += 1;
+			return true;
+		}
+		'#' {
+			len = cast(s32) ctx.bytes.len - ctx.index;
+			init_token(tok, ctx, .comment, .{
+					len = len,
+					ptr = &ctx.bytes[ctx.index]
+				});
+			ctx.index += len;
+			return true;
+		}
+		'+' {
+			init_token(tok, ctx, .plus, "+");
+			len         = 1;
+			ctx.index  += 1;
+			return true;
+		}
+		default;
+	}
+
+	split_at :: if force_single_string then "#" else " \t#+;";
+
+	text :: trim_right(eat_till(ctx, split_at), " \t");
+
+	assert(text.len > 0); // In case the line is only whitespace, we should never get here.
+	init_token(tok, ctx, .str, text);
+	len = auto text.len; // Used only to adjust col, so we use full len.
+
+	return true;
+}
+
+parse_section_marker :: fn (ctx: *Tokenizer) bool {
+	tok: Token;
+	if !next_token(ctx, &tok) && tok.as.kind != .str then return false;
+
+	section_index :: str_first_match(tok.as.str, SECTION_NAMES);
+	if section_index == -1 || section_index == auto Section.NONE {
+		report(ctx, .ERROR, tok, "Invalid section name '%'.", tok.as.str);
+		eat_rest_as_invalid(ctx);
+	} else {
+		ctx.current_section = auto section_index;
+	}
+
+	return true;
+}
+
+parse_include_entry :: fn (ctx: *Tokenizer, tok: Token) {
+	path  :: get_variant(&tok.as, .str);
+	entry :: push_entry(ctx, &ctx.data.includes, tok);
+
+	normalized :: expand_and_normalize_path(path) catch {
+		report(ctx, .WARNING, tok, "Include path '%' not found.", path);
+		return;
+	};
+
+	if !is_directory(normalized).is_dir {
+		report(ctx, .WARNING, tok, "Include path '%' does not point to directory.", path);
+		return;
+	}
+
+	if entry {
+		entry.as.str   = str_make(normalized, ctx.data.allocator);
+		entry.is_valid = true;
+	}
+}
+
+parse_exclude_entry :: fn (ctx: *Tokenizer, tok: Token) {
+	entry :: push_entry(ctx, &ctx.data.excludes, tok);
+	if !entry then return;
+
+	entry.as.str   = get_variant(&tok.as, .str);
+	entry.is_valid = true;
+}
+
+parse_include_file_extensions_entry :: fn (ctx: *Tokenizer, tok: Token) {
+	entry :: push_entry(ctx, &ctx.data.included_extensions, tok);
+	if !entry then return;
+
+	ext := get_variant(&tok.as, .str);
+	if ext.len > 0 && ext[0] != '.' {
+		ext_fixed :: str_make(ext.len + 1, ctx.data.allocator);
+		str_concat(&ext_fixed, ".", ext);
+		ext = ext_fixed;
+	}
+
+	print_log("Add ext: %", ext);
+
+	entry.as.str   = ext;
+	entry.is_valid = true;
+}
+
+parse_settings_entry :: fn (ctx: *Tokenizer, tok: Token) bool {
+	if tok.as.kind != .str then return false;
+	entry :: push_entry(ctx, &ctx.data.settings, tok);
+	name  :: get_variant(&tok.as, .str);
+
+	member_ptr, member_type, member_hash :: find_member_in_struct(&settings, name);
+	if !member_ptr {
+		report(ctx, .ERROR, tok, "Unknown settings entry name '%'.", name);
+		eat_rest_as_invalid(ctx);
+		return true;
+	}
+
+	ptr := tbl_lookup_ptr(ctx.settings, name);
+	if ptr {
+		collision :: @ptr;
+		report(ctx, .WARNING, tok, "The '%' option is already set, value at % line will be ignored.", tok.as.str, collision.row+1);
+	} else {
+		ptr = tbl_insert(ctx.settings, tok.as.str);
+	}
+	assert(ptr);
+	@ptr = tok;
+
+	get_type_hint :: fn (info: *TypeInfo) string_view {
+		skip_index := -1;
+		if info == typeinfo(FileType) {
+			skip_index = 0;
+		}
+
+		if info.kind == .ENUM {
+			enum_info :: cast(*TypeInfoEnum) info;
+			tmp :: str_make(256, application_context.temporary_allocator);
+			loop i := 0; i < enum_info.variants.len; i += 1 {
+				variant :: enum_info.variants[i];
+				if skip_index == variant.value then continue;
+				if tmp.len > 0 then str_append(&tmp, "|");
+				str_append(&tmp, variant.name);
+			}
+			str_lower(&tmp);
+			return tmp;
+		} else if info == typeinfo(s32) {
+			return "integer";
+		} else if info == typeinfo(bool) {
+			return "true|false";
+		} else if info == typeinfo(string) {
+			return "string";
+		}
+
+		return "";
+	};
+
+	tok_value: Token;
+	if next_token(ctx, &tok_value, true) && tok_value.as.kind == .str {
+		value :: get_variant(&tok_value.as, .str);
+
+		if member_type.kind == .ENUM {
+			enum_info :: cast(*TypeInfoEnum) member_type;
+
+			skip_index := -1;
+			if member_type == typeinfo(FileType) {
+				skip_index = 0;
+			}
+
+			variant_index := 0;
+			loop ; variant_index < enum_info.variants.len; variant_index += 1 {
+				variant :: enum_info.variants[variant_index];
+				if skip_index == variant.value then continue;
+				if str_match(str_lower2(variant.name), value) {
+					if entry {
+						entry.as.number = auto variant.value;
+						entry.is_valid  = true;
+					}
+					break;
+				}
+			}
+			if variant_index == enum_info.variants.len {
+				report(ctx, .ERROR, tok_value, "Unknown enumeration value '%', expected is: <%>", value, get_type_hint(member_type));
+			}
+
+		} else if member_type == typeinfo(s32) {
+			n := strtos64(value) catch {
+				report(ctx, .ERROR, tok_value, "Invalid settings value type, expected is: <%>.", get_type_hint(member_type));
+				return true;
+			};
+
+			switch member_hash {
+				lit_hash("font_ui_size"),
+				lit_hash("font_size") {
+					if n < MIN_FONT_SIZE || n > MAX_FONT_SIZE {
+						report(ctx, .WARNING, tok_value, "Font size is expected to be in range <%, %>, value discarded.", MIN_FONT_SIZE, MAX_FONT_SIZE);
+						return true;
+					}
+				}
+				lit_hash("tab_size") {
+					if n < 1 {
+						report(ctx, .WARNING, tok_value, "Tab size is expected to be greater than 0, value discarded");
+						return true;
+					}
+				}
+			}
+
+			if entry {
+				entry.as.number = auto n;
+				entry.is_valid  = true;
+			}
+		} else if member_type == typeinfo(bool) {
+			v :: str_first_match(value, [_]string_view.{ "false", "true" });
+			if v == -1 {
+				report(ctx, .ERROR, tok_value, "Invalid settings value type, expected is: <%>.", get_type_hint(member_type));
+				return true;
+			}
+
+			if entry {
+				entry.as.boolean = if v == 0 then false else true;
+				entry.is_valid   = true;
+			}
+		} else if member_type == typeinfo(string) {
+			if entry {
+				entry.as.str   = tok_value.as.str;
+				entry.is_valid = true;
+			}
+		}
+	} else {
+		report(ctx, .ERROR, tok, "Missing settings entry value, expected is: <%>.", get_type_hint(member_type));
+		eat_rest_as_invalid(ctx);
+	}
+
+	return true;
+}
+
+parse_keys_entry :: fn (ctx: *Tokenizer, tok_name: Token) bool {
+	if tok_name.as.kind != .str then return false;
+	entry   :: push_entry(ctx, &ctx.data.keys, tok_name);
+	command :: get_variant(&tok_name.as, .str);
+
+	if find_command(command) == .UNKNOWN {
+		report(ctx, .ERROR, tok_name, "Unknown command name '%'.", command);
+		eat_rest_as_invalid(ctx);
+	}
+
+	keys: [..]u32;
+	array_init(&keys, 0, ctx.data.allocator);
+
+	state: enum { PENDING; HAS_KEY; EXPECT_KEY; };
+
+	mods     : u32 = 0;
+	key_code : u32 = 0;
+
+	commit_and_reset :: fn (keys: *[..]u32, mods: *u32, key_code: *u32) {
+		array_push_all(keys, [_]u32.{ @key_code, @mods });
+		@mods     = 0;
+		@key_code = 0;
+	};
+
+	tok: Token;
+	loop next_token(ctx, &tok) {
+		switch tok.as.kind {
+			.comment {
+				continue;
+			}
+			.str {
+				key_name :: get_variant(&tok.as, .str);
+				if state == .HAS_KEY {
+					commit_and_reset(&keys, &mods, &key_code);
+				}
+
+				mod :: mod_from_name(key_name);
+				if mod != 0 {
+					mods |= mod;
+				} else {
+					key :: key_from_name(key_name);
+					if key == 0 {
+						report(ctx, .ERROR, tok, "Invalid key name '%'.", key_name);
+					} else if key_code != 0 {
+						report(ctx, .ERROR, tok, "Key chord can contain only one non-modifier key, invalid key '%'.", key_name);
+					} else {
+						key_code = key;
+					}
+				}
+
+				state = .HAS_KEY;
+			}
+			.plus {
+				switch state {
+					.PENDING,
+					.EXPECT_KEY {
+						report(ctx, .ERROR, tok, "Unexpected token in key chord sequence. Key chord is supposed to be composed like 'Ctrl+Alt+O' for example.");
+						eat_rest_as_invalid(ctx);
+					}
+					.HAS_KEY {
+						state = .EXPECT_KEY;
+					}
+				}
+			}
+			default {
+				report(ctx, .ERROR, tok, "Unexpected token.");
+				eat_rest_as_invalid(ctx);
+			}
+		}
+	}
+
+	switch state {
+		.PENDING;
+		.HAS_KEY {
+			commit_and_reset(&keys, &mods, &key_code);
+		}
+		.EXPECT_KEY {
+			report(ctx, .ERROR, tok, "Unterminated key chord sequence. Key chord is supposed to be composed like 'Ctrl+Alt+O' for example.");
+			eat_rest_as_invalid(ctx);
+		}
+	}
+
+	override_binding: Token;
+
+	ptr := tbl_lookup_ptr(ctx.keys, command);
+	if !ptr {
+		ptr = zeroinit(tbl_insert(ctx.keys, command));
+	} else if ptr.bound_num > 0 {
+		override_binding = ptr.command;
+	}
+
+	ptr.command   = tok_name;
+	ptr.bound_num = auto keys.len;
+
+	if override_binding.as.kind == .str {
+		report(ctx, .WARNING, tok_name, "Binding for '%' overrides previous one at line %.", tok_name.as.str, override_binding.row+1);
+	}
+
+	if entry {
+		entry.as.keys  = keys;
+		entry.is_valid = true;
+	}
+
+	return true;
+}
+
+parse_color_entry :: fn (ctx: *Tokenizer, tok_name: Token) bool {
+	if tok_name.as.kind != .str then return false;
+	entry :: push_entry(ctx, &ctx.data.colors, tok_name);
+	name  :: get_variant(&tok_name.as, .str);
+
+	member_ptr :: find_member_in_struct(&colors, name);
+	if !member_ptr {
+		report(ctx, .ERROR, tok_name, "Unknown color entry name '%'.", name);
+		eat_rest_as_invalid(ctx);
+		return true;
+	}
+
+	tok_value: Token;
+	if next_token(ctx, &tok_value) && tok_value.as.kind == .str {
+		value :: get_variant(&tok_value.as, .str);
+		c :: strtos64(value, .HEX) catch {
+			report(ctx, .ERROR, tok_value, "Invalid color entry value, expected is hex number in format RRGGBB.");
+			return true;
+		};
+
+		if entry {
+			entry.as.number = auto c;
+			entry.is_valid  = true;
+		}
+	} else {
+		report(ctx, .ERROR, tok_name, "Expected color value in hex format RRGGBB after color name.");
+		eat_rest_as_invalid(ctx);
+	}
+
+	return true;
+}
+
+eat_rest_as_invalid :: fn (ctx: *Tokenizer) #inline {
+	ctx.index = cast(s32) ctx.bytes.len;
+}
+
+report :: fn (ctx: *Tokenizer, severity: ErrorLocation.kind, tok: Token, fmt: string_view, args: ...) {
+	ctx.data.diag_reports_num += 1;
+
+	msg :: tprint(fmt, args);
+	if ctx.diag {
+		array_push(ctx.diag, .{
+				kind    = severity,
+				message = msg,
+				line    = tok.row,
+				col     = tok.col
+			});
+		return;
+	}
+	row :: tok.row+1;
+	col :: tok.col+1;
+	switch severity {
+		.WARNING {
+			print_warn("%:%:%: %", ctx.filepath, row, col, msg);
+		}
+		.ERROR {
+			print_err("%:%:%: %", ctx.filepath, row, col, msg);
+		}
+	}
+}
+
+push_entry :: fn (ctx: *Tokenizer, dst: *[..]ConfigEntry, token: Token) *ConfigEntry #inline {
+	if ctx.validate_only then return null;
+	return array_push(dst, .{ token });
+}
+
+find_command :: fn (name: string_view) Command {
+	index :: str_first_match(name, COMMAND_NAMES);
+	if index <= auto Command._PUBLIC {
+		return .UNKNOWN;
+	}
+	return auto index;
+}

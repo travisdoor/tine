@@ -252,7 +252,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			if inline_compilation_error {
 				loc :: inline_compilation_error;
 				if physical_row_index == loc.line-1 && cursor.row == loc.line-1 && loc.file_hash == buf.hash {
-					draw_inline_error(editor, content_x, line_base_y, w, virtual_line, loc, highliht_only);
+					draw_inline_error(editor, content_x, line_base_y, content_w, virtual_line, loc, highliht_only);
 					error_reported_for_line = true;
 				}
 			}
@@ -263,7 +263,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 					if loc.line_hash != str_hash(physical_line) {
 						loc.is_hidden = true;
 					}
-					draw_inline_error(editor, content_x, line_base_y, w, virtual_line, loc, highliht_only);
+					draw_inline_error(editor, content_x, line_base_y, content_w, virtual_line, loc, highliht_only);
 				}
 			}
 
@@ -679,7 +679,7 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 
 #scope_private
 
-EDITOR_DEBUG :: true;
+EDITOR_DEBUG :: false;
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
@@ -1133,7 +1133,7 @@ draw_title_bar :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor, x: f32, y: 
 
 	}
 	if (buf.flags & BufferFlags.READONLY) == BufferFlags.READONLY {
-		text(status_x, icon_y, icon(ICON_READONLY), colors.warning);
+		text(status_x, icon_y, icon(ICON_READONLY), colors.foreground);
 		status_x += item_spacing;
 	}
 
@@ -1170,6 +1170,33 @@ draw_title_bar :: fn (editor: *Editor, buf: *Buffer, cursor: Cursor, x: f32, y: 
 	name_size :: text_size(buf.name, &font_ui_b);
 	status_x += name_size + item_spacing;
 	text(status_x, text_y, title, colors.title_bar_text);
+
+	if settings.show_lsp_inline_diagnostics {
+		ec, wc :: get_diagnostics_error_and_warning_count(buf);
+		if ec != 0 || wc != 0 {
+			err  :: tprint("%", ec);
+			warn :: tprint("%", wc);
+
+			icon_size :: text_size(icon(ICON_ERROR), &icons);
+			e_size    :: text_size(err, &font_ui);
+			w_size    :: text_size(warn, &font_ui);
+
+			diag_x := x + w - e_size - w_size - (text_padding * 2.f) - (icon_size * 2.f) - 4.f;
+
+			set_shader_font(&icons);
+			text(diag_x, icon_y, icon(ICON_ERROR), colors.foreground);
+			diag_x += icon_size + 2.f;
+			set_shader_font(&font_ui);
+			text(diag_x, text_y, err, colors.foreground);
+			diag_x += text_padding + e_size;
+
+			set_shader_font(&icons);
+			text(diag_x, icon_y, icon(ICON_WARNING), colors.foreground);
+			diag_x += icon_size + 2.f;
+			set_shader_font(&font_ui);
+			text(diag_x, text_y, warn, colors.foreground);
+		}
+	}
 
 	if is_active || (workspace.active_editor == workspace.command_editor && workspace.last_active_text_editor == editor.index) {
 		draw_last_status_message(status_x, h - title_bar_height, w-(status_x-x));

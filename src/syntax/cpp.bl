@@ -195,17 +195,21 @@ parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
 	t.len     += 1; // "
 	ctx.index += 1;
 
-	pc := '0';
+	escape_quotes := 0;
 
 	in_string := true;
 	loop in_string && ctx.index < ctx.bytes.len {
 		c :: ctx.bytes[ctx.index];
-		if c == '\"' && (pc != '\\') {
+		if c == '\\' {
+			escape_quotes += 1;
+		} else if c == '\"' && ((escape_quotes % 2) == 0) {
 			in_string = false;
+		} else {
+			escape_quotes = 0;
 		}
+
 		t.len     += 1;
 		ctx.index += 1;
-		pc = c;
 	}
 
 	return true;

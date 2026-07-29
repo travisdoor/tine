@@ -27,6 +27,8 @@ type_utils :: #import "std/type_utils";
 #load "command_run.bl"
 #load "commands.bl"
 #load "completion.bl"
+#load "config.bl"
+#load "config_server.bl"
 #load "editor.bl"
 #load "goto.bl"
 #load "list_functions.bl"
@@ -52,6 +54,8 @@ LineEnding :: enum {
 	CRLF;
 	LF;
 }
+
+CONFIG_VERSION :: 1;
 
 MOUSE_DRAG_OFFSET :: 4.f;
 MOUSE_DBL_CLICK_S :: 0.5;
@@ -146,16 +150,22 @@ USER_PROJECT_FILE_TEMPLATE    :: "user-config-file-template.proj";
 HELP_FILE                     :: "HELP.md";
 EXAMPLE_PROJECT_FILE          :: "ExampleProject.proj";
 
+get_version_text :: fn () string_view #comptime {
+	return tprint("% # !!! VERSION NUMBER, DO NOT MODIFY !!!", CONFIG_VERSION);
+}
+
+VERSION_TEXT :: get_version_text();
+
 FONT_DATA                          :: file_to_stack(FONT);
 FONT_UI_DATA                       :: file_to_stack(FONT_UI);
 FONT_UI_B_DATA                     :: file_to_stack(FONT_UI_B);
 ICON_DATA                          :: file_to_stack(ICONS);
-DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: file_to_stack(DEFAULT_PROJECT_FILE_TEMPLATE);
-USER_PROJECT_FILE_TEMPLATE_DATA    :: file_to_stack(USER_PROJECT_FILE_TEMPLATE);
+DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: config_to_stack(DEFAULT_PROJECT_FILE_TEMPLATE);
+USER_PROJECT_FILE_TEMPLATE_DATA    :: config_to_stack(USER_PROJECT_FILE_TEMPLATE);
 APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
 APP_ICON_DATA                      :: file_to_stack(APP_ICON);
 HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
-EXAMPLE_PROJECT_FILE_DATA          :: file_to_stack(EXAMPLE_PROJECT_FILE);
+EXAMPLE_PROJECT_FILE_DATA          :: config_to_stack(EXAMPLE_PROJECT_FILE);
 
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
 
@@ -261,7 +271,7 @@ Mode :: enum {
 mode: Mode;
 
 FileType :: enum {
-	UNKNOWN;
+	TEXT;
 	BL;
 	C;
 	PROJ;
@@ -432,12 +442,11 @@ Settings :: struct {
 	maximize_on_start:                      bool;
 	save_all_before_build:                  bool;
 	focus_shell_on_build:                   bool;
-	show_hints:                             bool; // deprecated
 	smooth_movement:                        bool;
 	show_line_numbers:                      bool;
-	line_numbers_relative:                  bool; // deprecated
 	enable_quick_search:                    bool;
 	modal_selection:                        bool;
+	resize_font_by_scrolling:               bool;
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
@@ -834,6 +843,7 @@ exec_dir: string_view;
 data_dir: string;
 
 main :: fn () s32 {
+
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -863,7 +873,7 @@ main :: fn () s32 {
 	// Create command editor.
 	workspace.command_editor = add_editor(add_command_buffer());
 	// Messages buffer
-	messages_buffer_index = add_builtin_buffer("messages");
+	messages_buffer_index = add_builtin_buffer("messages", BufferFlags.PARSE_FILE_LINKS);
 
 	default_logger :: set_logger(&logger);
 	defer set_logger(default_logger);
@@ -989,6 +999,9 @@ main :: fn () s32 {
 	lsp_init();
 	defer lsp_terminate();
 
+	config_server_init();
+	defer config_server_terminate();
+
 	shell_init();
 	defer shell_terminate();
 
@@ -1076,6 +1089,10 @@ main :: fn () s32 {
 								print_err($);
 								continue;
 							};
+
+							if config_server_is_supported_document_type(buf) {
+								config_server_document_update(buf);
+							}
 
 							reloaded_num += 1;
 							print_info("Buffer '%' reloaded from disk.", buf.name);
@@ -1363,7 +1380,8 @@ last_message :: fn () (exists: bool, kind: PrintLogKind, text: string_view) {
 clear_message :: fn () {
 	mutex_lock(&message.mutex);
 	defer mutex_unlock(&message.mutex);
-	message.text.len = 0;
+	message.text.len  =  0;
+	message.kind = .MESSAGE;
 }
 
 close_editor :: fn (editor_index: s32) {
@@ -1394,7 +1412,7 @@ close_editor :: fn (editor_index: s32) {
 			default;
 		}
 	} else {
-		prev_split_index :: (split_index - 1) % split_editors.len;
+		prev_split_index :: if split_index == 0 then split_editors.len-1 else split_index-1;
 		activate_editor_index = (@split_editors)[prev_split_index];
 	}
 
@@ -1511,6 +1529,9 @@ open :: fn (filepath: string_view, open_in_other_split := false) Error {
 		if is_lsp_running() && lsp_is_supported_document_type(buf) {
 			lsp_open_document(buf) catch print_err("LSP: %", $);
 		}
+		if config_server_is_supported_document_type(buf) {
+			config_server_document_update(buf) catch print_err("CS: %", $);
+		}
 	}
 	assert(buf);
 
@@ -1622,7 +1643,7 @@ detect_filetype :: fn (filename: string_view) FileType {
 	if str_match(extension, ".jai") {
 		return JAI;
 	}
-	return FileType.UNKNOWN;
+	return .TEXT;
 }
 
 get_icon_for_file_type :: fn (file_type: FileType) string_view {
@@ -1678,6 +1699,7 @@ Request :: struct {
 		clang_format: ClangFormatRequest;
 		shell:        ShellRequest;
 		lsp:          LspRequest;
+		cs:           ConfigServerRequest;
 	}
 }
 
@@ -1688,6 +1710,7 @@ Response :: struct {
 		clang_format: ClangFormatResponse;
 		shell:        ShellResponse;
 		lsp:          LspResponse;
+		cs:           ConfigServerResponse;
 	}
 }
 
@@ -1696,6 +1719,7 @@ JobKind :: enum {
 	CLANG_FORMAT;
 	SHELL;
 	LSP;
+	CONFIG_SERVER;
 }
 
 Job :: Async2(JobContext, s32);
@@ -1778,6 +1802,8 @@ remove_async_job :: fn (index: s32) {
 	} else if ctx.kind == .LSP {
 		remove_all_buffers_from_lsp();
 		lsp.job_index = -1;
+	} else if ctx.kind == .CONFIG_SERVER {
+		config_server.job_index = -1;
 	}
 
 	switch ctx.state {
@@ -1797,7 +1823,7 @@ remove_async_job :: fn (index: s32) {
 				print_info("Job '%' finished with exit code: %. Use [%] to see results.", ctx.name, ctx.exit_code, open_shell_command_binding);
 			}
 		}
-		KILLED { print_warn("Job '%' killed.", ctx.name); }
+		KILLED { print_info("Job '%' killed.", ctx.name); }
 		FAILED;
 
 		default { panic(); }
@@ -1847,9 +1873,10 @@ consume_job_results :: fn (job: *Job, is_blocking := false) {
 		assert(response.job_kind == ctx.kind);
 		err: Error;
 		switch ctx.kind {
-			CLANG_FORMAT { err = apply_format(ctx.state, &response);        }
-			SHELL        { err = apply_shell(ctx.state, &response);         }
-			LSP          { err = apply_lsp(ctx.state, &response);           }
+			CLANG_FORMAT  { err = apply_format(ctx.state, &response);        }
+			SHELL         { err = apply_shell(ctx.state, &response);         }
+			LSP           { err = apply_lsp(ctx.state, &response);           }
+			CONFIG_SERVER { err = apply_config_server(ctx.state, &response); }
 			default { panic(); }
 		}
 
@@ -2215,25 +2242,17 @@ recalculate_metrics :: fn () {
 }
 
 file_to_stack :: fn (filepath: string_view) []u8 #comptime {
-	using io.StreamLocator;
+	bytes :: read_entire_file(filepath) catch panic($);
+	return bytes;
+}
 
-	stream, open_err :: open_file(filepath);
-	defer close_file(&stream);
-	if open_err {
-		panic(open_err);
-	}
-	size, seek_end_err :: io.seek(&stream, END);
-	if seek_end_err { panic(seek_end_err); }
+config_to_stack :: fn (filepath: string_view) []u8 #comptime {
+	version :: tprint("%\n\n", VERSION_TEXT);
 
-	_, seek_begin_err :: io.seek(&stream, BEGIN);
-	if seek_begin_err { panic(seek_begin_err); }
+	bytes := read_entire_file(filepath) catch panic($);
+	bytes  = join_slices(version, bytes) catch panic($);
 
-	data, alloc_err :: new_slice(u8, size, true);
-	if alloc_err { panic(alloc_err); }
-
-	read_err :: io.read_all(&stream, data.ptr, data.len, 2048);
-	if read_err { panic(read_err); }
-	return data;
+	return bytes;
 }
 
 set_allocator_allocator :: fn (allocator: *Allocator) *Allocator {
@@ -2283,10 +2302,14 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 			mutex_lock(&message.mutex);
 			defer mutex_unlock(&message.mutex);
 
-			message.kind     = kind;
-			message.text.len = 0;
+			prev_priority :: cast(s32) message.kind;
+			next_priority :: cast(s32) kind;
 
-			str_append(&message.text, tprint(format, args));
+			if next_priority >= prev_priority {
+				message.kind     = kind;
+				message.text.len = 0;
+				str_append(&message.text, tprint(format, args));
+			}
 		}
 		MESSAGE {
 			#if !IS_DEBUG { return; }
@@ -2563,5 +2586,3 @@ add_scratch :: fn () s32 {
 
 	return add_editor_to_split(.LEFT, add_editor(scratch_buffer_index));
 }
-
-#scope_private

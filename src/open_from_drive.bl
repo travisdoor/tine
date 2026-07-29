@@ -138,7 +138,7 @@ open_from_drive_cmd_changed :: fn () {
 	}
 
 	save_item: *ListItem;
-	if is_saving && base_path.len > 0 && !is_directory(tail)._0 && !file_exist(tprint("%/%", base_path, tail)) {
+	if is_saving && base_path.len > 0 && !is_directory(tail).is_dir && !file_exist(tprint("%/%", base_path, tail)) {
 		save_item_title.len = 0;
 		str_clear_concat(&save_item_title, "Save as: ", tail);
 

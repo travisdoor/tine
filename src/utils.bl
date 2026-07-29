@@ -1098,3 +1098,35 @@ max_len :: fn (ptrs: *string_view, count: s64) s32 {
 	}
 	return l;
 }
+
+expand_and_normalize_path :: fn (path: string_view) (path: string_view, err: Error) {
+	tmp :: str_make(path.len, application_context.temporary_allocator);
+	if path.len > 1 && path[0] == '~' {
+		str_append(&tmp, get_home2());
+		if path.len > 2 {
+			str_append(&tmp, slice_range(path, 1));
+		}
+	} else {
+		str_append(&tmp, path);
+	}
+
+	path_normalize(&tmp) catch return path, $;
+	return tmp, OK;
+}
+
+find_member_in_struct :: fn (strct: *?TStruct, name: string_view) (ptr: *u8, member_type: *TypeInfo, hash: u32) #inline {
+	info :: cast(*TypeInfoStruct) typeinfo(TStruct);
+	assert(info.kind == TypeKind.STRUCT);
+	loop i := 0; i < info.members.len; i += 1 {
+		member :: &info.members[i];
+		if str_match(member.name, name) {
+			return ptr_shift_bytes(cast(*u8) strct, member.offset_bytes), member.base_type, str_hash(member.name);
+		}
+	}
+	return null, null, 0;
+}
+
+lit_hash :: fn (lit: string_view) u32 #comptime {
+	return str_hash(lit);
+}
+

@@ -45,6 +45,7 @@ Optionally, run the `install` editor command to add a link to the executable to 
 - Source code: https://github.com/travisdoor/tine
 - Compiler: https://github.com/travisdoor/bl
 - Discord: https://discord.gg/cmDSGMhwYT
+- Zulip: https://tine.zulipchat.com/join/lhnqb53mklvmjmeqzibqa3go
 
 ## Tutorials
 

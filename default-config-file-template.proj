@@ -217,6 +217,9 @@ file_location_regex :([0-9]*)(?::([0-9]*))?
 #search_size_limit_bytes 1048576
 search_size_limit_bytes 0
 
+# Ctrl+Mouse Wheel change editor font size when enabled.
+resize_font_by_scrolling true
+
 #----------------------------------------------------------------------------------------------------
 ;keys
 #----------------------------------------------------------------------------------------------------
