@@ -48,7 +48,6 @@ kind_to_color :: fn (kind: Token.kind) u8 #inline {
 		.DOC_COMMENT { return CODE_COLOR_COMMENT_INDEX;   }
 		.BUILTIN     { return CODE_COLOR_DIRECTIVE_INDEX; }
 		.STRING      { return CODE_COLOR_STRING_INDEX;    }
-		.CHAR        { return CODE_COLOR_STRING_INDEX;    }
 		.NUMBER      { return CODE_COLOR_NUMBER_INDEX;    }
 		.LB, .RB     { return CODE_COLOR_KEYWORD_INDEX;   }
 		default;
@@ -72,7 +71,6 @@ Token :: struct {
 		DOC_COMMENT;
 		BUILTIN;
 		STRING;
-		CHAR;
 		NUMBER;
 		LB;
 		RB;
@@ -119,16 +117,17 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			index = ctx.index,
 		};
 
-		c :: ctx.bytes[ctx.index];
-		if c == '{'         && parse_left_brace   (ctx, &t) { return t; }
-		if c == '}'         && parse_right_brace  (ctx, &t) { return t; }
-		if c == '/'         && parse_comment      (ctx, &t) { return t; }
-		if c == '@'         && parse_builtin      (ctx, &t) { return t; }
-		if c == '\"'        && parse_string       (ctx, &t) { return t; }
-		if c == '\''        && parse_char         (ctx, &t) { return t; }
-		if c == '\\'        && parse_multiline_str(ctx, &t) { return t; }
-		if parse_identifier_or_keyword            (ctx, &t) { return t; }
-		if parse_number                           (ctx, &t) { return t; }
+		if parse_block(ctx, &t, '{', .LB) then return t;
+		if parse_block(ctx, &t, '}', .RB) then return t;
+		if parse_block(ctx, &t, '(', .LB) then return t;
+		if parse_block(ctx, &t, ')', .RB) then return t;
+		if parse_c_like_comment(ctx, &t) then return t;
+		if parse_builtin(ctx, &t) then return t;
+		if parse_c_like_string(ctx, &t, '\"') then return t;
+		if parse_c_like_string(ctx, &t, '\'') then return t;
+		if parse_multiline_str(ctx, &t) then return t;
+		if parse_identifier_or_keyword(ctx, &t) then return t;
+		if parse_number(ctx, &t) then return t;
 
 		ctx.index += 1;
 	}
@@ -136,95 +135,9 @@ next_token :: fn (ctx: *Tokenizer) Token {
 	return Token.{ kind = .EOF };
 }
 
-parse_left_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	ctx.index += 1;
-	t.kind = .LB;
-	t.len  = 1;
-	return true;
-}
-
-parse_right_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	ctx.index += 1;
-	t.kind = .RB;
-	t.len  = 1;
-	return true;
-}
-
-parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
-	if ctx.index+1 >= ctx.bytes.len || ctx.bytes[ctx.index+1] != '/' {
-		return false;
-	}
-
-	t.kind = .COMMENT;
-	t.len  = 2;
-	ctx.index += 2;
-
-	if ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '/' || c == '!' {
-			t.kind      = .DOC_COMMENT;
-			t.len      += 1;
-			ctx.index  += 1;
-		}
-	}
-
-	loop ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '\n' || c == 0 { break; }
-		t.len     += 1;
-		ctx.index += 1;
-	}
-
-	return true;
-}
-
-parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
-	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' then return false;
-	t.kind     = .STRING;
-	t.len     += 1; // "
-	ctx.index += 1;
-
-	pc := '0';
-
-	in_string := true;
-	loop in_string && ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '\"' && (pc != '\\') {
-			in_string = false;
-		}
-		if c == '\n' then break;
-		t.len     += 1;
-		ctx.index += 1;
-		pc = c;
-	}
-
-	return true;
-}
-
-parse_char :: fn (ctx: *Tokenizer, t: *Token) bool {
-	t.kind     = .CHAR;
-	t.len     += 1; // '
-	ctx.index += 1;
-
-	pc := '0';
-
-	in_char := true;
-	loop in_char && ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '\'' && (pc != '\\') {
-			in_char = false;
-		}
-		if c == '\n' then break;
-		t.len     += 1;
-		ctx.index += 1;
-		pc = c;
-	}
-
-	return true;
-}
-
 // Zig multiline string literals: each line starting with `\\` is a raw string segment.
 parse_multiline_str :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.bytes[ctx.index] != '\\' then return false;
 	if ctx.index+1 >= ctx.bytes.len || ctx.bytes[ctx.index+1] != '\\' {
 		return false;
 	}
@@ -244,6 +157,7 @@ parse_multiline_str :: fn (ctx: *Tokenizer, t: *Token) bool {
 }
 
 parse_builtin :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.bytes[ctx.index] != '@' then return false;
 	ctx.index += 1;
 	t.len  = 1;
 

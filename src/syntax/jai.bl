@@ -119,17 +119,18 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			index = ctx.index,
 		};
 
-		c :: ctx.bytes[ctx.index];
-		if c == '{'         && parse_left_brace  (ctx, &t) { return t; }
-		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
-		if c == '/'         && parse_comment     (ctx, &t) { return t; }
-		if c == '#'         && parse_directive   (ctx, &t) { return t; }
-		if c == '@'         && parse_note        (ctx, &t) { return t; }
-		if c == '\"'        && parse_string      (ctx, &t) { return t; }
-		if c == '-'         && parse_uninit      (ctx, &t) { return t; }
-		if c == '\''        && parse_const_char  (ctx, &t) { return t; }
-		if parse_identifier_or_keyword           (ctx, &t) { return t; }
-		if parse_number                          (ctx, &t) { return t; }
+		if parse_block(ctx, &t, '{', .LB) then return t;
+		if parse_block(ctx, &t, '}', .RB) then return t;
+		if parse_block(ctx, &t, '(', .LB) then return t;
+		if parse_block(ctx, &t, ')', .RB) then return t;
+		if parse_comment(ctx, &t) then return t;
+		if parse_directive_or_note(ctx, &t, '#', .DIRECTIVE) then return t;
+		if parse_directive_or_note(ctx, &t, '@', .NOTE) then return t;
+		if parse_uninit(ctx, &t) then return t;
+		if parse_c_like_string(ctx, &t, '\"') then return t;
+		if parse_c_like_string(ctx, &t, '\'') then return t;
+		if parse_identifier_or_keyword (ctx, &t) then return t;
+		if parse_number(ctx, &t) then return t;
 
 		ctx.index += 1;
 	}
@@ -137,21 +138,8 @@ next_token :: fn (ctx: *Tokenizer) Token {
 	return Token.{ kind = .EOF };
 }
 
-parse_left_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	ctx.index += 1;
-	t.kind = .LB;
-	t.len  = 1;
-	return true;
-}
-
-parse_right_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	ctx.index += 1;
-	t.kind = .RB;
-	t.len  = 1;
-	return true;
-}
-
 parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.bytes[ctx.index] != '/' then return false;
 	ctx.index += 1;
 
 	c := ctx.bytes[ctx.index];
@@ -203,29 +191,8 @@ parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
 	return true;
 }
 
-parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
-	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
-	t.kind     = .STRING;
-	t.len     += 1; // "
-	ctx.index += 1;
-
-	pc := '0';
-
-	in_string := true;
-	loop in_string && ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '\"' && (pc != '\\') {
-			in_string = false;
-		}
-		t.len     += 1;
-		ctx.index += 1;
-		pc = c;
-	}
-
-	return true;
-}
-
-parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
+parse_directive_or_note :: fn (ctx: *Tokenizer, t: *Token, prefix: u8, kind: Token.kind) bool {
+	if ctx.bytes[ctx.index] != prefix then return false;
 	ctx.index += 1;
 	t.len  = 1;
 
@@ -242,58 +209,17 @@ parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
 		return false;
 	}
 
-	t.kind = .DIRECTIVE;
-	return true;
-}
-
-parse_note :: fn (ctx: *Tokenizer, t: *Token) bool {
-	ctx.index += 1;
-	t.len  = 1;
-
-	loop ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c != '_' && is_alpha(c) == false { break; }
-		t.len     += 1;
-		ctx.index += 1;
-	}
-
-	if t.len == 1 {
-		ctx.index -= 1;
-		t.len     -= 1;
-		return false;
-	}
-
-	t.kind = .NOTE;
+	t.kind = kind;
 	return true;
 }
 
 parse_uninit :: fn (ctx: *Tokenizer, t: *Token) bool {
-	if ctx.index+2 >= ctx.bytes.len { return false; }
-	if ctx.bytes[ctx.index+1] != '-' || ctx.bytes[ctx.index+2] != '-' { return false; }
+	if ctx.index+3 >= ctx.bytes.len then return false;
+	if ctx.bytes[ctx.index] != '-' || ctx.bytes[ctx.index+1] != '-' || ctx.bytes[ctx.index+2] != '-' then return false;
 
 	t.kind     = .CONST;
 	t.len      = 3;
 	ctx.index += 3;
-	return true;
-}
-
-parse_const_char :: fn (ctx: *Tokenizer, t: *Token) bool {
-	if ctx.index+1 >= ctx.bytes.len { return false; }
-
-	c :: ctx.bytes[ctx.index+1];
-	if c != '_' && is_alpha(c) == false { return false; }
-
-	t.kind     = .CONST;
-	t.len      = 1;
-	ctx.index += 1;
-
-	loop ctx.index < ctx.bytes.len {
-		cc :: ctx.bytes[ctx.index];
-		if cc != '_' && is_alpha(cc) == false && is_digit(cc) == false { break; }
-		t.len     += 1;
-		ctx.index += 1;
-	}
-
 	return true;
 }
 

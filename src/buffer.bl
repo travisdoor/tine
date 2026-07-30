@@ -1137,20 +1137,7 @@ toggle_buffer_word_wrap :: fn (buf: *Buffer) {
 }
 
 #scope_private
-#load "syntax/syntax.bl"
-#load "syntax/asm.bl"
-#load "syntax/bl.bl"
-#load "syntax/blm.bl"
-#load "syntax/build.bl"
-#load "syntax/cpp.bl"
-#load "syntax/csharp.bl"
-#load "syntax/glsl.bl"
-#load "syntax/jai.bl"
-#load "syntax/md.bl"
-#load "syntax/messages.bl"
-#load "syntax/project.bl"
-#load "syntax/search.bl"
-#load "syntax/zig.bl"
+#load "syntax.bl"
 
 SMALL_STRING_EDIT :: 16;
 

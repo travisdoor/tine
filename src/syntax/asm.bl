@@ -65,19 +65,10 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			index = ctx.index,
 		};
 
-		c :: ctx.bytes[ctx.index];
-		if c == ';' {
-			parse_comment(ctx, &t);
-			return t;
-		}
-
-		if c == '\"' && parse_string(ctx, &t) {
-			return t;
-		}
-
-		if parse_number(ctx, &t) {
-			return t;
-		}
+		if parse_comment(ctx, &t) then return t;
+		if parse_c_like_string (ctx, &t, '\"') then return t;
+		if parse_c_like_string (ctx, &t, '\'') then return t;
+		if parse_c_like_number(ctx, &t) then return t;
 
 		ctx.index += 1;
 	}
@@ -85,93 +76,10 @@ next_token :: fn (ctx: *Tokenizer) Token {
 	return Token.{ kind = EOF };
 }
 
-parse_comment :: fn (ctx: *Tokenizer, t: *Token) {
-	using Token.kind;
+parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.bytes[ctx.index] != ';' then return false;
 	comment :: eat_line(ctx);
 	t.len  = auto comment.len;
-	t.kind = COMMENT;
-}
-
-parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
-	t.kind     = STRING;
-	t.len     += 1; // "
-	ctx.index += 1;
-
-	pc := '0';
-
-	in_string := true;
-	loop in_string && ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '\"' && (pc != '\\') {
-			in_string = false;
-		}
-		t.len     += 1;
-		ctx.index += 1;
-		pc = c;
-	}
-
-	return true;
-}
-
-parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	c    := ctx.bytes[ctx.index];
-	dot  := false;
-	base := FmtIntBase.DEC;
-
-	if c != '-' && is_digit(c) == false { return false; }
-	t.kind = NUMBER;
-
-	if c == '-' {
-		if ctx.index+1 >= ctx.bytes.len {
-			return false;
-		}
-		if is_digit(ctx.bytes[ctx.index+1]) == false {
-			return false;
-		}
-		t.len     += 1;
-		ctx.index += 1;
-
-	}
-
-	c = ctx.bytes[ctx.index];
-	if c == '0' {
-		base = FmtIntBase.OCT;
-
-		ctx.index += 1;
-		t.len     += 1;
-
-		if ctx.index < ctx.bytes.len {
-			c = ctx.bytes[ctx.index];
-			switch c {
-				'b' { base = FmtIntBase.BIN;  ctx.index += 1; t.len += 1; }
-				'x' { base = FmtIntBase.HEX; ctx.index += 1; t.len += 1; }
-				default;
-			}
-		}
-	}
-
-	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
-		c = ctx.bytes[ctx.index];
-		if dot && c == 'f' {
-			ctx.index += 1;
-			t.len += 1;
-			break;
-		}
-
-		if dot == false && c == '.' {
-			dot = true;
-			t.len += 1;
-			continue;
-		}
-
-		if !is_digit(c, base) {
-			break;
-		}
-		t.len += 1;
-	}
-
+	t.kind = .COMMENT;
 	return true;
 }

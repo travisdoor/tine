@@ -96,11 +96,13 @@ KEYWORDS :: [75]string_view.{
 	"using", "virtual", "volatile", "while", "xor", "xor_eq", "override"
 };
 
-KEYWORDS_MAX_LEN :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
 
 DIRECTIVES :: [11]string_view.{
 	"include", "if", "ifdef", "ifndef", "define", "undef", "else", "elif", "endif", "error", "pragma"
 };
+
+KEYWORDS_MAX_LEN   :: max_len#(KEYWORDS.ptr, KEYWORDS.len);
+DIRECTIVES_MAX_LEN :: max_len#(DIRECTIVES.ptr, DIRECTIVES.len);
 
 next_token :: fn (ctx: *Tokenizer) Token {
 	using Token.kind;
@@ -112,219 +114,19 @@ next_token :: fn (ctx: *Tokenizer) Token {
 			index = ctx.index,
 		};
 
-		c :: ctx.bytes[ctx.index];
-		if c == '{'         && parse_left_brace  (ctx, &t) { return t; }
-		if c == '}'         && parse_right_brace (ctx, &t) { return t; }
-		if c == '/'         && parse_comment     (ctx, &t) { return t; }
-		if c == '#'         && parse_directive   (ctx, &t) { return t; }
-		if c == '\"'        && parse_string      (ctx, &t) { return t; }
-		if parse_identifier_or_keyword           (ctx, &t) { return t; }
-		if parse_number                          (ctx, &t) { return t; }
+		if parse_block(ctx, &t, '{', .LB) then return t;
+		if parse_block(ctx, &t, '}', .RB) then return t;
+		if parse_block(ctx, &t, '(', .LB) then return t;
+		if parse_block(ctx, &t, ')', .RB) then return t;
+		if parse_c_like_comment(ctx, &t) then return t;
+		if parse_c_like_string(ctx, &t, '\"') then return t;
+		if parse_c_like_string(ctx, &t, '\'') then return t;
+		if parse_c_like_directive(ctx, &t, '#', &ctx.directive_table, DIRECTIVES_MAX_LEN, .DIRECTIVE, .IDENT) then return t;
+		if parse_c_like_keyword(ctx, &t, &ctx.keyword_table, KEYWORDS_MAX_LEN, .KEYWORD, .IDENT) then return t;
+		if parse_c_like_number(ctx, &t) then return t;
 
 		ctx.index += 1;
 	}
 
 	return Token.{ kind = EOF };
-}
-
-parse_left_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	ctx.index += 1;
-	t.kind = LB;
-	t.len  = 1;
-	return true;
-}
-
-parse_right_brace :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	ctx.index += 1;
-	t.kind = RB;
-	t.len  = 1;
-	return true;
-}
-
-parse_comment :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	ctx.index += 1;
-
-	c := ctx.bytes[ctx.index];
-	switch c {
-		'/' {
-			ctx.index += 1;
-			loop ctx.index < ctx.bytes.len {
-				c = ctx.bytes[ctx.index];
-				if c == '\n' || c == 0 { break; }
-				t.len     += 1;
-				ctx.index += 1;
-			}
-			t.len += 2; // '//'
-		}
-		'*' {
-			ctx.index += 1;
-			t.len     += 2;
-			loop ctx.index < ctx.bytes.len {
-				c = ctx.bytes[ctx.index];
-				if c == 0 { break; }
-				if c == '*' && ctx.index+1 < ctx.bytes.len {
-					ctx.index += 1;
-					if ctx.bytes[ctx.index] == '/' {
-						t.len += 2; // /**/
-						break;
-					}
-					ctx.index -= 1;
-				}
-				t.len     += 1;
-				ctx.index += 1;
-			}
-		}
-		default {
-			ctx.index -= 1;
-			return false;
-		}
-	}
-
-	t.kind = COMMENT;
-
-	return true;
-}
-
-parse_string :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	if ctx.index > 0 && ctx.bytes[ctx.index-1] == '\\' { return false; }
-	t.kind     = STRING;
-	t.len     += 1; // "
-	ctx.index += 1;
-
-	escape_quotes := 0;
-
-	in_string := true;
-	loop in_string && ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '\\' {
-			escape_quotes += 1;
-		} else if c == '\"' && ((escape_quotes % 2) == 0) {
-			in_string = false;
-		} else {
-			escape_quotes = 0;
-		}
-
-		t.len     += 1;
-		ctx.index += 1;
-	}
-
-	return true;
-}
-
-parse_directive :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	ctx.index += 1;
-	t.len  = 1;
-
-	loop ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c != '_' && is_alpha(c) == false { break; }
-		t.len     += 1;
-		ctx.index += 1;
-	}
-
-	if t.len == 1 {
-		ctx.index -= 1;
-		t.len     -= 1;
-		return false;
-	}
-
-	maybe_directive :: string_view.{ t.len-1, &ctx.bytes[t.index+1] }; // strip #
-	if tbl_contains(&ctx.directive_table, maybe_directive) {
-		t.kind = DIRECTIVE;
-	} else {
-		t.kind = INVALID;
-	}
-
-	return true;
-}
-
-parse_identifier_or_keyword :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-
-	loop ctx.index < ctx.bytes.len {
-		c :: ctx.bytes[ctx.index];
-		if c == '_' || is_alpha(c) || (t.len > 0 && is_digit(c)) {
-			t.len     += 1;
-			ctx.index += 1;
-		} else {
-			break;
-		}
-	}
-
-	if t.len == 0 { return false; }
-
-	maybe_keyword :: string_view.{ t.len, &ctx.bytes[t.index] };
-	is_keyword :: maybe_keyword.len <= KEYWORDS_MAX_LEN && tbl_contains(&ctx.keyword_table, maybe_keyword);
-	if is_keyword {
-		t.kind = KEYWORD;
-	} else {
-		t.kind = IDENT;
-	}
-	return true;
-}
-
-parse_number :: fn (ctx: *Tokenizer, t: *Token) bool {
-	using Token.kind;
-	c    := ctx.bytes[ctx.index];
-	dot  := false;
-	base := FmtIntBase.DEC;
-
-	if c != '-' && is_digit(c) == false { return false; }
-	t.kind = NUMBER;
-
-	if c == '-' {
-		if ctx.index+1 >= ctx.bytes.len {
-			return false;
-		}
-		if is_digit(ctx.bytes[ctx.index+1]) == false {
-			return false;
-		}
-		t.len     += 1;
-		ctx.index += 1;
-
-	}
-
-	c = ctx.bytes[ctx.index];
-	if c == '0' {
-		base = FmtIntBase.OCT;
-
-		ctx.index += 1;
-		t.len     += 1;
-
-		if ctx.index < ctx.bytes.len {
-			c = ctx.bytes[ctx.index];
-			switch c {
-				'b' { base = FmtIntBase.BIN;  ctx.index += 1; t.len += 1; }
-				'x' { base = FmtIntBase.HEX; ctx.index += 1; t.len += 1; }
-				default;
-			}
-		}
-	}
-
-	loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
-		c = ctx.bytes[ctx.index];
-		if dot && c == 'f' {
-			ctx.index += 1;
-			t.len += 1;
-			break;
-		}
-
-		if dot == false && c == '.' {
-			dot = true;
-			t.len += 1;
-			continue;
-		}
-
-		if !is_digit(c, base) {
-			break;
-		}
-		t.len += 1;
-	}
-
-	return true;
 }
