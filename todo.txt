@@ -2,7 +2,7 @@
 [ ] Previous location from jumping back is not recorded.
 [ ] Open error location should check if buffer is already active in any split first.
 [ ] When going back, previous location is not recorded in case cursor didn't move?
-[ ] Crash when opening with file path from terminal.
+[x] Crash when opening with file path from terminal.
 [x] When shell is focused ctrl+` opens new one in other split.
 [x] Clang-format prints error result from compilation!
 [x] Scroll on empty document asserts!
