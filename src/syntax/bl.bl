@@ -134,6 +134,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		if parse_c_like_string(ctx, &t, '\"') then return t;
 		if parse_c_like_string(ctx, &t, '\'') then return t;
 		if parse_comptime_call(ctx, &t) then return t;
+		if parse_fn(ctx, &t) then return t;
 		if parse_c_like_directive(ctx, &t, '#', &ctx.directive_table, DIRECTIVES_MAX_LEN, .DIRECTIVE, .IDENT) then return t;
 		if parse_c_like_keyword(ctx, &t, &ctx.keyword_table, KEYWORDS_MAX_LEN, .KEYWORD, .IDENT) then return t;
 		if parse_c_like_number(ctx, &t) then return t;
@@ -147,11 +148,20 @@ next_token :: fn (ctx: *Tokenizer) Token {
 parse_comptime_call :: fn (ctx: *Tokenizer, t: *Token) bool {
 	if ctx.bytes[ctx.index] != '#' then return false;
 	if ctx.index+1 < ctx.bytes.len && ctx.bytes[ctx.index+1] == '(' {
-		ctx.index += 2;
-		t.len      = 2;
+		ctx.index += 1;
+		t.len      = 1;
 		t.kind     = .KEYWORD;
 		return true;
 	}
-	
+
 	return false;
+}
+
+parse_fn :: fn (ctx: *Tokenizer, t: *Token) bool {
+	if ctx.index+1 >= ctx.bytes.len then return false;
+	if !str_match(.{ 2, &ctx.bytes[ctx.index] }, "fn") then return false;
+	ctx.index += 2;
+	t.len      = 2;
+	t.kind     = .KEYWORD_FN;
+	return true;
 }

@@ -679,7 +679,7 @@ draw_peek_text_box :: fn (active_editor_x: f32, active_editor_y: f32, active_edi
 
 #scope_private
 
-EDITOR_DEBUG :: false;
+EDITOR_DEBUG :: true;
 
 start_vertical_animation :: fn (editor: *Editor, top: s32, speed := DEFAULT_ANIMATION_SPEED) {
 	using AnimationInterpolation;
