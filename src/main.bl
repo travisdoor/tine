@@ -635,7 +635,6 @@ recent_location_force_new_record :: fn () #inline {
 
 update_recent_locations :: fn (editor: *Editor, buf: *Buffer) {
 	if editor.index == workspace.command_editor then return;
-	if buf.index == shell.buffer_index then return;
 	if macros.is_replaying then return;
 	if recent_locations.skip_next_update {
 		recent_locations.skip_next_update = false;
