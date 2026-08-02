@@ -16,6 +16,7 @@ MASTER
 - Add ignore of `.bak.proj` backup files in project lister.
 - Add parsing of file links in messages.
 - Add priorities to nofitication messages, info will not override errors for example.
+- Editor split now has to be explicitly requested by user.
 
 1.0.0 2026-07-18
 ---------------------------------------------------------------------------------------

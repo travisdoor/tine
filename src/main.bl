@@ -695,8 +695,8 @@ jump_to_previous_location :: fn () bool {
 
 		editor := &editors[loc.editor_index];
 		if editor.is_removed || editor.buffer_index != loc.buffer_index {
-			loc.editor_index = find_or_create_editor_in_split(get_active_split(), loc.buffer_index);
-			editor = &editors[loc.editor_index];
+			_, editor        = activate_buffer_editor(loc.buffer_index, get_active_split());
+			loc.editor_index = editor.index;
 		}
 
 		if prev_buf.index == buf.index && prev_editor.index == editor.index && loc.row == prev_cursor.row {
@@ -728,8 +728,8 @@ jump_to_next_location :: fn () bool {
 
 		editor := &editors[loc.editor_index];
 		if editor.is_removed || editor.buffer_index != loc.buffer_index {
-			loc.editor_index = find_or_create_editor_in_split(get_active_split(), loc.buffer_index);
-			editor = &editors[loc.editor_index];
+			_, editor        = activate_buffer_editor(loc.buffer_index, get_active_split());
+			loc.editor_index = editor.index;
 		}
 
 		if prev_buf.index == buf.index && prev_editor.index == editor.index && loc.row == prev_cursor.row {
@@ -842,7 +842,6 @@ exec_dir: string_view;
 data_dir: string;
 
 main :: fn () s32 {
-
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -1016,7 +1015,7 @@ main :: fn () s32 {
 
 	loop i := 1; i < command_line_arguments.len; i += 1 {
 		filepath :: command_line_arguments[i];
-		open(filepath) catch print_err($);
+		open(filepath, .LEFT) catch print_err($);
 	}
 
 	if workspace.active_editor == -1 {
@@ -1423,21 +1422,7 @@ close_editor :: fn (editor_index: s32) {
 	}
 
 	assert(activate_editor_index != -1);
-
-	// if should_activate {
-		activate_editor(activate_editor_index);
-// 	} else {
-// 		switch split {
-// 			.LEFT  {
-// 				workspace.left = activate_editor_index;
-// 			}
-// 			.RIGHT {
-// 				workspace.right = activate_editor_index;
-// 			}
-
-// 			default;
-// 		}
-// 	}
+	activate_editor(activate_editor_index);
 }
 
 // Close the split and leaves the other always as the left one (if we close LEFT all editors
@@ -1509,7 +1494,7 @@ get_buffer_by_filepath :: fn (filepath: string_view) *Buffer {
 	return &buffers[buffer_index];
 }
 
-open :: fn (filepath: string_view, open_in_other_split := false) Error {
+open :: fn (filepath: string_view, split: Split) Error {
 	normalized_path := str_make(filepath, application_context.temporary_allocator);
 	path_normalize(&normalized_path) catch return error("Invalid file path: '%'.", filepath);
 	buf := get_buffer_by_filepath(normalized_path);
@@ -1526,20 +1511,9 @@ open :: fn (filepath: string_view, open_in_other_split := false) Error {
 			config_server_document_update(buf) catch print_err("CS: %", $);
 		}
 	}
-	assert(buf);
 
-	// resolve editor
-	split := Split.LEFT;
-	if workspace.active_editor != -1 {
-		if open_in_other_split {
-			split = get_other_split();
-		} else {
-			split = get_active_split();
-		}
-	}
-	editor_index :: find_or_create_editor_in_split(split, buf.index);
-	activate_editor(editor_index);
-
+	assert_buffer(buf.index);
+	activate_buffer_editor(buf.index, split);
 	return OK;
 }
 
@@ -1561,8 +1535,8 @@ save :: fn (buf: *Buffer, filepath: string_view) Error {
 }
 
 // Open file in the buffer or switch to already existing one and move the cursor to line and col.
-open_location :: fn (filepath: string_view, line: s32, col: s32, open_in_other_split := false) Error {
-	err :: open(filepath, open_in_other_split);
+open_location :: fn (filepath: string_view, line: s32, col: s32, split: Split) Error {
+	err :: open(filepath, split);
 	if err { return err; }
 
 	target_buf, target_editor :: get_active_buffer_and_editor();
@@ -2516,38 +2490,25 @@ get_other_split :: fn () Split #inline {
 	return .LEFT;
 }
 
-
-// Show given buffer in the split, in case any editor in the split already serves this buffer, it's activated;
-// otherwise a new editor is created for the buffer. Returns index of used editor.
-find_or_create_editor_in_split :: fn (split: Split, buffer_index: s32) s32 {
-	assert(buffer_index != -1);
-
-	editor_index := find_editor_for_buffer_in_split(split, buffer_index);
-	if editor_index == -1 {
-		editor_index = add_editor_to_split(split, add_editor(buffer_index));
+// Tries to resolve user-facing editor index for buffer.
+get_visible_editor_for_buffer :: fn (buffer_index: s32) s32 {
+	assert(workspace.left != -1);
+	editor_index := -1;
+	if editors[workspace.left].buffer_index == buffer_index {
+		editor_index = workspace.left;
+	} else if workspace.right != -1 && editors[workspace.right].buffer_index == buffer_index {
+		editor_index = workspace.right;
+	} else {
+		return -1;
 	}
-	assert(editor_index > -1);
 
-	activate_editor(editor_index);
+	assert_editor(editor_index);
 	return editor_index;
-}
-
-// Open or create editor for the buffer_index in the other split, in case the buffer_index is -1 new buffer
-// with name buffer_name is created. Returns id of editor.
-find_or_create_editor_with_buffer_in_other_split :: fn (buffer_index: *s32, buffer_name: string_view) s32 { // @Incomplete 2026-06-27: Take split directly.
-	buf, editor := get_active_buffer_and_editor();
-	if buf.index != @buffer_index {
-		if @buffer_index == -1 {
-			@buffer_index = add_builtin_buffer(buffer_name, BufferFlags.PARSE_FILE_LINKS);
-		}
-		return find_or_create_editor_in_split(get_other_split(), @buffer_index);
-	}
-	return editor.index;
 }
 
 // Activate existing editor it it's split.
 activate_editor :: fn (editor_index: s32) (*Buffer, *Editor) {
-	assert(editor_index >= 0 && editor_index < editors.len);
+	assert_editor(editor_index);
 
 	editor :: &editors[editor_index];
 	assert(!editor.is_removed);
@@ -2569,6 +2530,44 @@ activate_command_editor :: fn () (*Buffer, *Editor) #inline {
 	return activate_editor(workspace.command_editor);
 }
 
+activate_search_editor :: fn () (*Buffer, *Editor) {
+	if search_buffer_index == -1 {
+		search_buffer_index = add_builtin_buffer("search", BufferFlags.PARSE_FILE_LINKS);
+	}
+	return activate_buffer_editor(search_buffer_index);
+}
+
+activate_buffer_editor :: fn {
+	fn (buffer_index: s32, split: Split) (*Buffer, *Editor) {
+		assert_buffer(buffer_index);
+
+		editor_index := find_editor_for_buffer_in_split(split, buffer_index);
+		if editor_index == -1 {
+			editor_index = add_editor_to_split(split, add_editor(buffer_index));
+		}
+
+		activate_editor(editor_index);
+		return &buffers[buffer_index], &editors[editor_index];
+	};
+
+	fn (buffer_index: s32) (*Buffer, *Editor) {
+		assert_buffer(buffer_index);
+		editor_index := get_visible_editor_for_buffer(buffer_index);
+		if editor_index == -1 {
+			split := Split.LEFT;
+			if has_split() {
+				split = get_other_split();
+			}
+			_, editor :: activate_buffer_editor(buffer_index, split);
+			editor_index = editor.index;
+		} else {
+			activate_editor(editor_index);
+		}
+		activate_editor(editor_index);
+		return &buffers[buffer_index], &editors[editor_index];
+	};
+}
+
 is_command_editor_buffer :: fn (buf: *Buffer) bool #inline {
 	return buf.index == editors[workspace.command_editor].buffer_index;
 }
@@ -2578,6 +2577,5 @@ add_scratch :: fn () s32 {
 	if scratch_buffer_index == -1 {
 		scratch_buffer_index = add_buffer();
 	}
-
 	return add_editor_to_split(.LEFT, add_editor(scratch_buffer_index));
 }

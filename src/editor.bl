@@ -96,6 +96,11 @@ remove_editor :: fn (index: s32) {
 	editor.is_removed   = true;
 }
 
+assert_editor :: fn (editor_index: s32 #maybe_unused, loc := #call_location #maybe_unused) #enable_if IS_ASSERT {
+	assert(editor_index >= 0 && editor_index < editors.len, "", loc);
+	assert(!editors[editor_index].is_removed, "", loc);
+}
+
 set_editor_buffer :: fn (editor: *Editor, buffer_index: s32) {
 	editor.buffer_index          = buffer_index;
 	editor.wrap.last_buffer_hash = -1;
@@ -427,7 +432,7 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 					link, found :: get_file_link_under_cursor(buf, cursor.position);
 					if found {
 						handled = true;
-						open_file_link_in_other_split(buf, &link);
+						open_file_link(&link);
 					}
 				}
 				if !handled {

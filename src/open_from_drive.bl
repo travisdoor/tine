@@ -206,7 +206,7 @@ commit :: fn () {
 		save(buf, path) catch print_err($);
 	} else {
 		set_mode(Mode.TEXT_EDIT);
-		open(path) catch print_err($);
+		open(path, get_active_split()) catch print_err($);
 	}
 }
 

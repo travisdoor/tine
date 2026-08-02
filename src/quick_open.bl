@@ -96,11 +96,10 @@ commit :: fn () {
 
 	set_mode(Mode.TEXT_EDIT);
 	if item.index != 0 {
-		active_split :: get_active_split();
-		find_or_create_editor_in_split(active_split, item.index);
+		activate_buffer_editor(item.index, get_active_split());
 	} else {
 		path :: tprint("%/%", item.hint, item.title);
-		err :: open(path);
+		err :: open(path, get_active_split());
 		if err { print_err(err); }
 	}
 }

@@ -40,16 +40,10 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 	}
 
 	if flavor != .BUILD || settings.focus_shell_on_build {
-		existing_editor_index :: find_editor_for_buffer(shell.buffer_index);
-		if existing_editor_index != -1 {
-			activate_editor(existing_editor_index);
-		} else {
-			find_or_create_editor_in_split(get_other_split(), shell.buffer_index);
-		}
+		activate_buffer_editor(shell.buffer_index);
 	}
 
-	// activate_editor(initial_editor.index);
-
+	assert_buffer(shell.buffer_index);
 	buf :: &buffers[shell.buffer_index];
 
 	clear_buffer(buf);

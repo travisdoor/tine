@@ -143,8 +143,7 @@ commit :: fn () {
 		}
 		default {
 			assert(item.index != 0, "We should operate only on open buffers!");
-			active_split :: get_active_split();
-			find_or_create_editor_in_split(active_split, item.index);
+			activate_buffer_editor(item.index, get_active_split());
 		}
 	}
 }

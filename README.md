@@ -87,9 +87,3 @@ To compile release version use:
 ```
 blc -build --release
 ```
-
-## macOS
-
-The macOS version (on Apple Silicon) is feature-complete, though it has not been extensively tested.
-
-To create a self-contained application bundle, use `build-macos-app.sh`. This script creates the release version of the editor, and uses `dylibbundler` (installed via `brew`) to resolve all dependencies and pack them into the application bundle. The result can be found in the `tine-macos-arm64` directory.

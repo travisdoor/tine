@@ -226,6 +226,11 @@ remove_buffer :: fn (index: s32) {
 	buf.is_removed = true;
 }
 
+assert_buffer :: fn (buffer_index: s32 #maybe_unused, loc := #call_location #maybe_unused) #enable_if IS_ASSERT {
+	assert(buffer_index >= 0 && buffer_index < buffers.len, "", loc);
+	assert(!buffers[buffer_index].is_removed, "", loc);
+}
+
 lock_buffer :: fn (buf: *Buffer) {
 	mutex_lock(&buf.mutex);
 }

@@ -526,7 +526,8 @@ apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
 		.goto {
 			buf :: get_active_buffer_and_editor();
 			if rd.goto.buffer_index != buf.index then return OK;
-			open_location(rd.goto.filepath, rd.goto.cursor.row, rd.goto.cursor.col, rd.goto.open_in_other_split) catch {
+			split :: if rd.goto.open_in_other_split then get_other_split() else get_active_split();
+			open_location(rd.goto.filepath, rd.goto.cursor.row, rd.goto.cursor.col, split) catch {
 				print_err("LSP: %", $);
 			};
 		}
@@ -534,7 +535,8 @@ apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
 		.switch_header_source {
 			buf :: get_active_buffer_and_editor();
 			if rd.switch_header_source.buffer_index != buf.index then return OK;
-			open(rd.switch_header_source.filepath, rd.switch_header_source.open_in_other_split) catch {
+			split :: if rd.goto.open_in_other_split then get_other_split() else get_active_split();
+			open(rd.switch_header_source.filepath, split) catch {
 				print_err("LSP: %", $);
 			};
 		}
@@ -583,11 +585,9 @@ apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
 
 			if refs.len == 0 then return OK;
 
-			results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&search_buffer_index, "search");
-			results_buf    :: &buffers[search_buffer_index];
-			results_editor :: &editors[results_editor_index];
-
+			results_buf, results_editor :: activate_search_editor();
 			clear_buffer(results_buf);
+
 			append_readonly_buffer(results_buf, refs);
 			set_cursor_position(results_buf, results_editor.cursor_index, 0);
 		}

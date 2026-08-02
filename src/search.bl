@@ -152,10 +152,7 @@ invoke_command_search_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) bool
 					set_mode(Mode.TEXT_EDIT);
 
 					print_log("Open results in the buffer!");
-					results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&search_buffer_index, "search");
-					results_buf    :: &buffers[search_buffer_index];
-					results_editor :: &editors[results_editor_index];
-
+					results_buf, results_editor :: activate_search_editor();
 					clear_buffer(results_buf);
 					if tmp.len > 0 {
 						append_readonly_buffer(results_buf, tmp);

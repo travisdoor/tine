@@ -313,7 +313,7 @@ handle_window_event_loop :: fn () {
 				filepath :: ctostr(auto event.drop.data);
 				if filepath.len < 1 then continue;
 				set_mode(Mode.TEXT_EDIT);
-				open(filepath) catch print_err($);
+				open(filepath, get_active_split()) catch print_err($);
 				redraw();
 			}
 

@@ -1129,4 +1129,3 @@ find_member_in_struct :: fn (strct: *?TStruct, name: string_view) (ptr: *u8, mem
 lit_hash :: fn (lit: string_view) u32 #comptime {
 	return str_hash(lit);
 }
-

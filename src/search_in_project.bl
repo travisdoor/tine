@@ -109,11 +109,7 @@ invoke_command_search_in_project_mode :: fn (buf: *Buffer #maybe_unused, cmd: Co
 					if tmp.len == 0 then str_append(&tmp, tprint("No match for subject '%'", subject));
 					set_mode(Mode.TEXT_EDIT);
 
-					print_log("Open results in the buffer!");
-					results_editor_index :: find_or_create_editor_with_buffer_in_other_split(&search_buffer_index, "search");
-					results_buf    :: &buffers[search_buffer_index];
-					results_editor :: &editors[results_editor_index];
-
+					results_buf, results_editor :: activate_search_editor();
 					clear_buffer(results_buf);
 					if tmp.len > 0 {
 						append_readonly_buffer(results_buf, tmp);
@@ -155,7 +151,7 @@ commit :: fn () {
 	if !item then return;
 
 	set_mode(Mode.TEXT_EDIT);
-	err :: open(tprint("%/%", item.hint, item.title));
+	err :: open(tprint("%/%", item.hint, item.title), get_active_split());
 	if err {
 		print_err(err);
 		return;

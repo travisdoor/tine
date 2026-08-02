@@ -1,7 +1,7 @@
 !!! MUST FIX !!!
 [ ] Previous location from jumping back is not recorded.
-[ ] Open error location should check if buffer is already active in any split first.
 [ ] When going back, previous location is not recorded in case cursor didn't move?
+[x] Open error location should check if buffer is already active in any split first.
 [x] Crash when opening with file path from terminal.
 [x] When shell is focused ctrl+` opens new one in other split.
 [x] Clang-format prints error result from compilation!
@@ -9,8 +9,8 @@
 
 [x] Platform commands should be visible only on supported platform.
 [x] Use highter resolution for app icon. It's blurry in Windows start menu.
-[ ] LSP for proj files.
-[ ] Scroll + Ctrl for font resize.
+[x] LSP for proj files.
+[x] Scroll + Ctrl for font resize.
 [x] Metrics should be regular struct, there is no benefit from having it as an array. It's actually just more complicated.
 [x] All commands must have help text.
 [ ] When opening file without project loaded change cwd?
@@ -66,10 +66,17 @@
 	[-] Add comptime verification that template config contains all settings entries & check outdated ones.
 	[ ] LSP-like completions?
 
-[ ] Cleanup find_* functions.
-[ ] Cleanup syntax highlight parsing code. Lot of stuff can be shared, parse_string for example. Also do not precheck for characters in `next_token` functions, sharing underlying function would be easier.
+[x] Cleanup find_* functions.
+[x] Cleanup syntax highlight parsing code. Lot of stuff can be shared, parse_string for example. Also do not precheck for characters in `next_token` functions, sharing underlying function would be easier.
 
 BUGS
 [x] Numpad Enter does not work.
 [x] Add option to disable Ctrl+Scroll to resize text -> it's bugged on Wayland (ofc).
 [x] Inline messages are off when line numbers are shown.
+
+
+NOTES
+- Buffer open rules:
+	- Never force splitting in case it's not already active.
+	- Try to pick already visible editor.
+	- Activate new editor in other split then previous active editor.

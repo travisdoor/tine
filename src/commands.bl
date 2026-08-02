@@ -681,14 +681,14 @@ help :: fn () {
 	if help_buffer_index == -1 {
 		help_buffer_index = add_implicit_file_buffer("help", HELP_FILE_DATA, .MD);
 	}
-	activate_editor(find_or_create_editor_in_split(get_active_split(), help_buffer_index));
+	activate_buffer_editor(help_buffer_index, get_active_split());
 }
 
 open_config_template :: fn () {
 	if conf_buffer_index == -1 {
 		conf_buffer_index = add_implicit_file_buffer("Default Config Template", DEFAULT_PROJECT_FILE_TEMPLATE_DATA, .PROJ);
 	}
-	activate_editor(find_or_create_editor_in_split(get_active_split(), conf_buffer_index));
+	activate_buffer_editor(conf_buffer_index, get_active_split());
 }
 
 is_command_valid_for_repeating :: fn (cmd: Command) bool {
@@ -729,10 +729,10 @@ is_command_valid_for_repeating :: fn (cmd: Command) bool {
 	return false;
 }
 
-open_file_link_in_other_split :: fn (buf: *Buffer, link: *FileLink) {
+open_file_link :: fn (link: *FileLink) {
 	assert(file_exist(link.filepath));
-	other_split(buf);
-	open_location(link.filepath, link.ln-1, link.cl-1);
+	split :: if has_split() then get_other_split() else get_active_split();
+	open_location(link.filepath, link.ln-1, link.cl-1, split);
 }
 
 // Used to identify commands which require selection marker set before execution when shift is pressed.
@@ -1181,7 +1181,7 @@ insert_new_line :: fn (editor: *Editor, buf: *Buffer) {
 		position := get_cursor_position(buf, editor.cursor_index);
 		link, found :: get_file_link_under_cursor(buf, position);
 		if found {
-			open_file_link_in_other_split(buf, &link);
+			open_file_link(&link);
 			return;
 		}
 	}
@@ -1682,7 +1682,7 @@ decrease_font_size :: fn () bool {
 // Switch to other split or create one by duplicating current active editor and switch.
 other_split :: fn (buf: *Buffer) bool {
 	if !has_split() {
-		find_or_create_editor_in_split(.RIGHT, buf.index);
+		activate_buffer_editor(buf.index, .RIGHT);
 		return true;
 	}
 	switch get_other_split() {
@@ -1744,7 +1744,7 @@ close_buffers_without_editor :: fn (check_unsaved_modifications := true) {
 		if buf.is_removed then continue;
 		if find_editor_for_buffer(buf.index) == -1 {
 			if check_unsaved_modifications && warn_if_modifications_needs_to_be_saved(buf) {
-				find_or_create_editor_in_split(get_active_split(), buf.index);
+				activate_buffer_editor(buf.index, get_active_split());
 				return;
 			}
 			if close_buffer(buf.index) {
@@ -1771,7 +1771,7 @@ close_all_buffers :: fn (check_unsaved_modifications := true) {
 		if buf.index == messages_buffer_index then continue;
 
 		if check_unsaved_modifications && warn_if_modifications_needs_to_be_saved(buf) {
-			find_or_create_editor_in_split(get_active_split(), buf.index);
+			activate_buffer_editor(buf.index, get_active_split());
 			return;
 		}
 
@@ -1798,7 +1798,7 @@ force_close_buffer :: fn (buf: *Buffer) bool {
 
 create_new_buffer :: fn () {
 	set_default_mode();
-	find_or_create_editor_in_split(get_active_split(), add_buffer("New File"));
+	activate_buffer_editor(add_buffer("New File"), get_active_split());
 }
 
 google_selection :: fn (editor: *Editor, buf: *Buffer) {
@@ -1882,20 +1882,20 @@ open_project_config :: fn () {
 	if warn_if_no_project_open() {
 		return;
 	}
-	open(project.filepath) catch {
+	open(project.filepath, get_active_split()) catch {
 		print_err("Cannot open project file with error: %.", $);
 	};
 }
 
 open_default_config :: fn () {
-	err :: open(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE));
+	err :: open(tprint("%/%", data_dir, DEFAULT_CONFIG_FILE), get_active_split());
 	if err {
 		print_err("Cannot open default config file with error: %", err);
 	}
 }
 
 open_messages :: fn () {
-	activate_editor(find_or_create_editor_in_split(get_active_split(), messages_buffer_index));
+	activate_buffer_editor(messages_buffer_index, get_active_split());
 }
 
 open_shell :: fn () {
@@ -1903,14 +1903,8 @@ open_shell :: fn () {
 		print_warn("No shell output found. Use [%] command.", get_keybinding_for_command(.SHELL));
 		return;
 	}
-
-	existing_editor_index :: find_editor_for_buffer(shell.buffer_index);
-	if existing_editor_index != -1 {
-		activate_editor(existing_editor_index);
-		return;
-	}
-
-	activate_editor(find_or_create_editor_in_split(get_active_split(), shell.buffer_index));
+	
+	activate_buffer_editor(shell.buffer_index);
 }
 
 ToUpperOrLower :: enum {
@@ -2323,11 +2317,10 @@ open_error_location :: fn (loc: *ErrorLocation) {
 	defer str_terminate(&filepath);
 	str_replace_all(&filepath, '\\', '/'); // we love windows
 
-	err :: open_location(filepath, loc.line-1, loc.col-1);
-	if err {
-		print_err(err);
+	open_location(filepath, loc.line-1, loc.col-1, get_active_split()) catch {
+		print_err($);
 		return;
-	}
+	};
 
 	error_marker_visible = true;
 }
