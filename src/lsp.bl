@@ -1007,12 +1007,12 @@ peek_method_or_error :: fn (json: JsonTokenizer) string_view {
 	};
 
 	err: Error;
-	err        = deserialize_object(rpc, json);
+	err = deserialize_object(rpc, json);
 	reset_json(&json);
 	if !err then return rpc.method;
 
 	lsp_error: LspError;
-	err        = deserialize_object(lsp_error, json);
+	err = deserialize_object(lsp_error, json);
 	reset_json(&json);
 	if !err then return "error";
 
@@ -1740,7 +1740,7 @@ _deserialize_object :: fn (obj: Any, json: *JsonTokenizer, top_level := true) Er
 		switch tok_ident.kind {
 			OBJECT_END { break; }
 			STRING     { ident = tok_ident.as.str; }
-			default    { error("Expected value identificator got '%'!", tok_ident.kind); }
+			default    { return error("Expected value identificator got '%'!", tok_ident.kind); }
 		}
 
 		member_info, member_ptr :: find_member(obj.data, info, ident);
@@ -2001,7 +2001,10 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		};
 
 		c :: ctx.bytes[ctx.index];
-		if c == ',' || c == ':' { ctx.index += 1; continue; }
+		if c == ',' || c == ':' || c == '\n' || c == '\r' { 
+			ctx.index += 1; 
+			continue;
+		}
 		if c == '{' {
 			t.kind = OBJECT_BEGIN;
 			ctx.index += 1;
@@ -2347,6 +2350,7 @@ LspLogMessage :: struct {
 	type: s32;
 	message: string_view;
 }
+
 LspReferenceContext :: struct {
 	includeDeclaration: bool;
 }

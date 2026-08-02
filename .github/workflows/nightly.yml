@@ -35,6 +35,11 @@ jobs:
       run: |
         chmod +x build-appimage.sh
         ./build-appimage.sh
+    - uses: actions/upload-artifact@v4
+      with:
+        overwrite: true
+        name: tine-nightly-x86_64-linux
+        path: Tine-x86_64.AppImage
 
   windows-release:
     runs-on: windows-latest
@@ -54,6 +59,11 @@ jobs:
       shell: cmd
       run: |
         %GITHUB_WORKSPACE%\bl\bin\blc -build --release
+    - uses: actions/upload-artifact@v4
+      with:
+        overwrite: true
+        name: tine-nightly-x86_64-windows
+        path: Tine.exe
 
   macos-release:
     runs-on: macOS-14
@@ -77,4 +87,9 @@ jobs:
     - name: Build
       run: |
         blc -build --release
+    - uses: actions/upload-artifact@v4
+      with:
+        overwrite: true
+        name: tine-nightly-arm64-macos
+        path: Tine.dmg
 
