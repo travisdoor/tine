@@ -612,6 +612,12 @@ parse_settings_entry :: fn (ctx: *Tokenizer, tok: Token) bool {
 						return true;
 					}
 				}
+				lit_hash("line_spacing") {
+					if n < 80 || n > 200 {
+						report(ctx, .WARNING, tok_value, "Line spacing is expected to be in range <80, 200>, value discarded.");
+						return true;
+					}
+				}
 				lit_hash("tab_size") {
 					if n < 1 {
 						report(ctx, .WARNING, tok_value, "Tab size is expected to be greater than 0, value discarded");
