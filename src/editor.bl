@@ -28,7 +28,7 @@ Editor :: struct {
 	is_removed: bool;
 }
 
-DEFAULT_ANIMATION_SPEED :: 0.02f;
+DEFAULT_ANIMATION_SPEED :: 0.01f;
 
 add_editor :: fn (buffer_index: s32) s32 {
 	editor: *Editor;
@@ -416,13 +416,13 @@ draw_text_editor :: fn (index: s32, x: f32, y: f32, w: f32, h: f32, loc := #call
 			}
 
 			if math.abs(mouse.scroll) > 0.f {
-				top := editor.top - auto (mouse.scroll * 5.f);
+				top := editor.top - auto mouse.scroll;
 				if top < 0 {
 					top = 0;
 				} else if top+2 >= virtual_lines_count {
 					top = math.max(0, auto (virtual_lines_count - 2));
 				}
-				start_vertical_animation(editor, top, 0.01f);
+				start_vertical_animation(editor, top, 0.007f);
 			}
 
 			if is_lmb_dbl_press() {

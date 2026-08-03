@@ -220,6 +220,9 @@ search_size_limit_bytes 0
 # Ctrl+Mouse Wheel change editor font size when enabled.
 resize_font_by_scrolling true
 
+# Vertical document scroll speed in range <1, 100>.
+scroll_speed 10
+
 #----------------------------------------------------------------------------------------------------
 ;keys
 #----------------------------------------------------------------------------------------------------

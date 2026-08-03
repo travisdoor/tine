@@ -303,7 +303,8 @@ handle_window_event_loop :: fn () {
 						decrease_font_size();
 					}
 				} else {
-					mouse.scroll += auto event.wheel.y;
+					speed :: cast(f32) math.clamp(settings.scroll_speed, 1, 100);
+					mouse.scroll += event.wheel.y * speed;
 				}
 
 				redraw();

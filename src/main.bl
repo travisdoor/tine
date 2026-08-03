@@ -450,6 +450,7 @@ Settings :: struct {
 	enable_quick_search:                    bool;
 	modal_selection:                        bool;
 	resize_font_by_scrolling:               bool;
+	scroll_speed:                           s32;
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;
