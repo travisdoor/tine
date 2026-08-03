@@ -1275,9 +1275,11 @@ get_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
 get_last_active_buffer_and_editor :: fn () (*Buffer, *Editor) #inline {
 	assert(workspace.last_active_text_editor != -1);
 	editor :: &editors[workspace.last_active_text_editor];
+	assert_editor(editor.index);
 	assert(editor.buffer_index != -1);
+
 	buf :: &buffers[editor.buffer_index];
-	assert(!buf.is_removed);
+	assert_buffer(buf.index);
 
 	return buf, editor;
 }

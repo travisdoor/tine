@@ -1,5 +1,5 @@
 ShellRequest :: struct {
-	args: string;
+	args: string_view;
 }
 
 ShellResponse :: struct {
@@ -57,7 +57,7 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 
 	request := make_request(ctx) catch return $;
 	request.as.shell = .{
-		args = str_make(cmd, request.allocator),
+		args = parse_cmd(cmd, request.allocator),
 	};
 
 	push_request(ctx, &request);
@@ -302,4 +302,52 @@ get_ansi_color_index_from_code :: fn (n: s32) u8 #inline {
 		default;
 	}
 	return CODE_COLOR_DEFAULT_INDEX;
+}
+
+parse_cmd :: fn (cmd: string_view, allocator: *Allocator) string_view {
+	result := str_make(cmd.len, allocator);
+
+	target_buf :: get_last_active_buffer_and_editor();
+
+	loop i := 0; i < cmd.len; {
+		if cmd[i] == '{' && i+1 < cmd.len && cmd[i+1] == '{' {
+			str_append(&result, "{");
+			i += 2;
+			continue;
+		}
+
+		if cmd[i] == '}' && i+1 < cmd.len && cmd[i+1] == '}' {
+			str_append(&result, "}");
+			i += 2;
+			continue;
+		}
+
+		if cmd[i] == '{' {
+			subject :: string_view.{ cmd.len - i, &cmd[i] };
+
+			print_log(subject);
+			substitutes :: [_]string_view.{
+				"{filepath}", target_buf.filepath
+			};
+
+			hit := false;
+			loop j := 0; j < substitutes.len; j += 2 {
+				if str_match(subject, substitutes[j+0], auto substitutes[j+0].len) {
+					str_append(&result, "\"");
+					str_append(&result, substitutes[j+1]);
+					str_append(&result, "\"");
+					i += cast(s32) substitutes[j+0].len;
+					hit = true;
+					break;
+				}
+			}
+
+			if hit then continue;
+		}
+
+		str_append(&result, string_view.{ 1, &cmd[i] });
+		i += 1;
+	}
+
+	return result;
 }

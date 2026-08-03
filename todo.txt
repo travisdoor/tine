@@ -80,3 +80,8 @@ NOTES
 	- Never force splitting in case it's not already active.
 	- Try to pick already visible editor.
 	- Activate new editor in other split then previous active editor.
+
+
+{filepath}
+{buffer}
+{selection}
