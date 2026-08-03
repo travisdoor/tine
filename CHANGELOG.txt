@@ -1,23 +1,24 @@
 MASTER
 ---------------------------------------------------------------------------------------
-- Add shutdown panel checking for unsaved files on exit.
 - Add Ctrl+MouseWheel font resize.
-- Add modal_selection toggle.
-- Add support for classical shift selection.
 - Add an empty user level global config.
-- Add new config file version upgreade handling.
 - Add config file inline diagnostics.
-- Add possibility to insert current build_command to shell command line.
-- Fix offset of inline error text when line numbers are shown.
-- Add option `resize_font_by_scrolling` to disable Ctrl+MouseWheel to resize text.
-- Fix non-working numpad Enter.
-- Fix parsing issues with C++ quote escapes in strings.
-- Add inline diagnostic stats to editor title bar.
 - Add ignore of `.bak.proj` backup files in project lister.
+- Add inline diagnostic stats to editor title bar.
+- Add modal_selection toggle.
+- Add new config file version upgreade handling.
+- Add option `resize_font_by_scrolling` to disable Ctrl+MouseWheel to resize text.
 - Add parsing of file links in messages.
+- Add possibility to insert current build_command to shell command line.
 - Add priorities to nofitication messages, info will not override errors for example.
-- Editor split now has to be explicitly requested by user.
+- Add scroll speed to settings.
+- Add shutdown panel checking for unsaved files on exit.
 - Add simple completion for project files.
+- Add support for classical shift selection.
+- Editor split now has to be explicitly requested by user.
+- Fix non-working numpad Enter.
+- Fix offset of inline error text when line numbers are shown.
+- Fix parsing issues with C++ quote escapes in strings.
 
 1.0.0 2026-07-18
 ---------------------------------------------------------------------------------------
