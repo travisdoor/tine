@@ -308,6 +308,8 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 	item_spacing    :: metrics.item_spacing;
 	rounding        :: metrics.corner_rounding;
 
+	root_dir :: get_project_root_directory();
+
 	item_h :: ctx.item_height;
 
 	// scrolling
@@ -410,7 +412,22 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 				item_x += text_size(icon(ICON_ARROW_EAST), &icons).width + text_padding;
 
 				set_shader_font(&font_ui);
-				text(item_x, text_y, item.hint, hint_color);
+
+				hit_path := item.hint;
+				if settings.chop_root_dir_from_search_paths && str_match(root_dir, hit_path, auto root_dir.len) {
+					if hit_path.len == root_dir.len {
+						hit_path = ".";
+					} else if hit_path.len > root_dir.len {
+						chopped_path :: slice_range(hit_path, root_dir.len);
+						if chopped_path.len < 1 || chopped_path[0] != '/' {
+							hit_path = item.hint;
+						} else {
+							hit_path = tprint(".%", chopped_path);
+						}
+					}
+				}
+
+				text(item_x, text_y, hit_path, hint_color);
 
 			}
 			flush();

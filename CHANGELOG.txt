@@ -1,6 +1,7 @@
 MASTER
 ---------------------------------------------------------------------------------------
 - Add Ctrl+MouseWheel font resize.
+- Add `chop_root_dir_from_search_paths` option to make search results paths more readable in the list.
 - Add an empty user level global config.
 - Add config file inline diagnostics.
 - Add ignore of `.bak.proj` backup files in project lister.

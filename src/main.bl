@@ -451,6 +451,7 @@ Settings :: struct {
 	modal_selection:                        bool;
 	resize_font_by_scrolling:               bool;
 	scroll_speed:                           s32;
+	chop_root_dir_from_search_paths:        bool;
 
 	shell_parse_error_locations:            bool;
 	shell_enable_ansi_colors:               bool;

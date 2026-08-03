@@ -206,6 +206,11 @@ map_key_binding :: fn (command_id: Command, key: u32, mods: u32) {
 		});
 }
 
+get_project_root_directory :: fn () string_view #inline {
+	if project.included_directories.len == 0 then return "";
+	return project.included_directories[0];
+}
+
 #scope_private
 
 //

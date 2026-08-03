@@ -175,7 +175,7 @@ block_caret                            true
 # Change the caret in case the current editor is in selection mode.
 change_caret_on_selection              true
 # When enabled, selection becomes modal (similar to Emacs), you don't need to hold shift,
-# you activate selection mode instead by `set-selection-marker` or `smart-selection` commands.
+# you activate selection mode instead by 'set-selection-marker' or 'smart-selection' commands.
 modal_selection                        false
 maximize_on_start                      false
 save_all_before_build                  true
@@ -189,8 +189,8 @@ smooth_movement                        true
 # Line numbers
 show_line_numbers                      false
 
-# Allows a slightly modified behavior of the `search-file` command. When the current editor is in
-# selection mode, the selection is empty, and `search-command` is activated, it starts in "quick"
+# Allows a slightly modified behavior of the 'search-file' command. When the current editor is in
+# selection mode, the selection is empty, and 'search-command' is activated, it starts in "quick"
 # mode. In this mode, any character typed that exists in the file is immediately used for the
 # search, the next match is accepted as a new cursor position, and search mode is automatically
 # deactivated. This enables quick selection from the current cursor position to a desired character.
@@ -216,6 +216,11 @@ file_location_regex :([0-9]*)(?::([0-9]*))?
 # Files bigger than this limit will be excluded from the 'search-in-project'. Zero means no limit.
 #search_size_limit_bytes 1048576
 search_size_limit_bytes 0
+
+# When enabled, file paths shown in 'search-in-project' results are displayed relative to the project
+# root (root directory itself is shown as ".").
+# When disabled, full absolute paths are shown instead.
+chop_root_dir_from_search_paths true
 
 # Ctrl+Mouse Wheel change editor font size when enabled.
 resize_font_by_scrolling true
