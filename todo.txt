@@ -69,6 +69,9 @@
 [x] Cleanup find_* functions.
 [x] Cleanup syntax highlight parsing code. Lot of stuff can be shared, parse_string for example. Also do not precheck for characters in `next_token` functions, sharing underlying function would be easier.
 
+[ ] Unify close-all-buffers and shutdown UX.
+[ ] Add close project command.
+
 BUGS
 [x] Numpad Enter does not work.
 [x] Add option to disable Ctrl+Scroll to resize text -> it's bugged on Wayland (ofc).
