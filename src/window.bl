@@ -39,7 +39,7 @@ init_window :: fn () {
 	using sdl;
 
 	#if PLATFORM == .LINUX {
-		SetHint(strtoc(HINT_VIDEO_DRIVER), strtoc("wayland, x11"));
+		SetHint(strtoc(HINT_VIDEO_DRIVER), strtoc("wayland,x11"));
 		SetHint(strtoc(HINT_VIDEO_WAYLAND_PREFER_LIBDECOR), strtoc("1"));
 	} else if PLATFORM == .DARWIN {
 		SetHint(strtoc(HINT_MAC_OPTION_AS_ALT), strtoc("both"));
