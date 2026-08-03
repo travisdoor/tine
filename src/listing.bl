@@ -390,7 +390,7 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 		{ // Commands
 
-			PREVIEW_FACTOR :: 0.25f;
+			PREVIEW_FACTOR :: 0.3f;
 
 			set_scissor(ctx.x, item_y, if show_preview then content_w * PREVIEW_FACTOR - item_spacing else content_w, item_h);
 			set_shader_font(&font_ui);
