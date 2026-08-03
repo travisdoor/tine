@@ -86,8 +86,7 @@ LspResponse :: Variant(union {
 			buffer_index: s32;
 			is_complete:  bool;
 			cursor:       Cursor;
-			items:    [..]string;
-			kinds:    [..]s32;
+			items:    [..]CompletionItem;
 		};
 		find_references: struct {
 			buffer_index: s32;
@@ -151,6 +150,8 @@ LSP_COMPLETION_ITEM_KIND_EVENT :: 23;
 LSP_COMPLETION_ITEM_KIND_OPERATOR :: 24;
 LSP_COMPLETION_ITEM_KIND_TYPEPARAMETER :: 25;
 
+LSP_COMPLETION_ITEM_KIND_SETTING :: -1;
+LSP_COMPLETION_ITEM_KIND_COMMAND :: -2;
 
 lsp: struct {
 	job_index:   s32;
@@ -566,12 +567,11 @@ apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
 			current_position :: get_cursor_position(buf, editor.cursor_index);
 			if rd.completion.cursor.position != current_position then return OK;
 
-			items : []string : rd.completion.items;
-			kinds : []s32    : rd.completion.kinds;
+			items :: rd.completion.items;
 			if items.len == 0 {
 				print_warn("No completion available.");
 			} else {
-				show_completion_popup_for_active_editor(items, kinds, rd.completion.is_complete);
+				show_completion_popup_for_active_editor(items, rd.completion.is_complete);
 			}
 		}
 
@@ -640,10 +640,9 @@ lsp_buffer_needs_update :: fn (buf: *Buffer) bool #inline {
 get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
 	switch kind {
 		LSP_COMPLETION_ITEM_KIND_SNIPPET,
-		LSP_COMPLETION_ITEM_KIND_COLOR,
 		LSP_COMPLETION_ITEM_KIND_EVENT,
 		LSP_COMPLETION_ITEM_KIND_TEXT { return icon(ICON_CODE_TEXT); }
-
+		
 		LSP_COMPLETION_ITEM_KIND_OPERATOR { return icon(ICON_CODE_OPERATOR); }
 
 		LSP_COMPLETION_ITEM_KIND_KEYWORD { return icon(ICON_CODE_KEYWORD); }
@@ -673,6 +672,10 @@ get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
 
 		LSP_COMPLETION_ITEM_KIND_MODULE,
 		LSP_COMPLETION_ITEM_KIND_UNIT { return icon(ICON_CODE_MODULE); }
+
+		LSP_COMPLETION_ITEM_KIND_SETTING { return icon(ICON_CODE_SETTING); }
+		LSP_COMPLETION_ITEM_KIND_COLOR   { return icon(ICON_CODE_COLOR);   }
+		LSP_COMPLETION_ITEM_KIND_COMMAND { return icon(ICON_CODE_COMMAND); }
 	}
 
 	return icon(ICON_CODE_TEXT);
@@ -1317,11 +1320,8 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 
 			response :: make_response(ctx) catch return $;
 
-			response_items: [..]string;
-			response_kinds: [..]s32;
-
+			response_items: [..]CompletionItem;
 			array_init(&response_items, 64, response.allocator);
-			array_init(&response_kinds, 64, response.allocator);
 
 			loop i := 0; i < items.len; i += 1 {
 				item :: &items[i];
@@ -1330,16 +1330,18 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 				if symbol.len == 0 then continue;
 
 				if symbol.len > 0 {
-					title := array_push(&response_items, str_make(symbol.len, response.allocator));
-					json_source_to_str(title, trim_left(symbol, " "));
-					array_push(&response_kinds, item.kind);
+					response_item :: array_push(&response_items);
+					title :: str_make(symbol.len, response.allocator);
+					json_source_to_str(&title, trim_left(symbol, " "));
+
+					response_item.symbol = title;
+					response_item.kind   = item.kind;
 				}
 			}
 
 			set_variant(&response.as.lsp, .completion, .{
 					buffer_index = crd.completion.buffer_index,
 					items        = response_items,
-					kinds        = response_kinds,
 					cursor       = crd.completion.cursor,
 					is_complete  = is_complete,
 				});
@@ -2001,8 +2003,8 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		};
 
 		c :: ctx.bytes[ctx.index];
-		if c == ',' || c == ':' || c == '\n' || c == '\r' { 
-			ctx.index += 1; 
+		if c == ',' || c == ':' || c == '\n' || c == '\r' {
+			ctx.index += 1;
 			continue;
 		}
 		if c == '{' {

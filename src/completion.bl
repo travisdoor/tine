@@ -58,7 +58,7 @@ draw_completion_mode :: fn (active_editor_x: f32, active_editor_y: f32, active_e
 	if clicked then commit();
 }
 
-show_completion_popup_for_active_editor :: fn (list: []string, ids: []s32, is_complete: bool) {
+show_completion_popup_for_active_editor :: fn (items: []CompletionItem, is_complete: bool) {
 	set_mode(.COMPLETION);
 
 	buf, editor       :: get_active_buffer_and_editor();
@@ -70,7 +70,7 @@ show_completion_popup_for_active_editor :: fn (list: []string, ids: []s32, is_co
 	published_position   = current_position;
 	has_complete_results = is_complete;
 
-	list_completion(list, ids, subject);
+	list_completion(items, subject);
 }
 
 show_signature_help_for_active_editor :: fn (overloads: []string) {
@@ -124,14 +124,18 @@ completion_target_buffer_changed :: fn () {
 	if initial_position >= current_position || subject.len == 0 {
 		if subject.len == 0 {
 			set_mode(.TEXT_EDIT);
+		} else if config_server_is_supported_document_type(buf) {
+			config_server_completion(editor, buf) catch print_err("CS: %", $);
 		} else {
-			lsp_completion(editor, buf);
+			lsp_completion(editor, buf) catch print_err("LSP: %", $);
 		}
+
 		return;
 	}
 
 	if !has_complete_results {
 		print_log("Completion list is incomplete, requesting new one!");
+		assert(!config_server_is_supported_document_type(buf)); // Config server results should be always complete.
 		lsp_completion(editor, buf);
 		return;
 	}

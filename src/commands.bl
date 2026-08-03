@@ -763,6 +763,19 @@ start_selection_with_command :: fn (cmd: Command) bool {
 	return false;
 }
 
+is_command_available :: fn (command: Command) bool {
+	c :: cast(s32) command;
+	command_name : string_view : COMMAND_NAMES[c];
+	if command_name[0] == '_' then return false;
+
+	if !IS_DEBUG && c < auto Command._PUBLIC then return false;
+	if (c > auto Command._WINDOWS_BEGIN && c < auto Command._WINDOWS_END) && PLATFORM != .WINDOWS {
+		return false;
+	}
+
+	return true;
+}
+
 #scope_private
 
 SmartSelectionLevel :: enum {
@@ -869,12 +882,8 @@ invoke_command_text_edit_mode :: fn (editor: *Editor, buf: *Buffer, cmd: Command
 
 		LSP_KILL_SERVER               { kill_lsp_server(); }
 		LSP_RESTART_SERVER            { restart_lsp_server(); }
-		LSP_COMPLETION                {
-			lsp_completion(editor, buf) catch print_err("LSP: %", $);
-		}
-		LSP_REFERENCES                {
-			lsp_find_references(editor, buf) catch print_err("LSP: %", $);
-		}
+		LSP_COMPLETION                { completion(editor, buf); }
+		LSP_REFERENCES                { lsp_find_references(editor, buf) catch print_err("LSP: %", $); }
 
 		HELP                          { help(); }
 		CHEAT_SHEET                   { set_mode(.CHEAT_SHEET); }
@@ -1903,7 +1912,7 @@ open_shell :: fn () {
 		print_warn("No shell output found. Use [%] command.", get_keybinding_for_command(.SHELL));
 		return;
 	}
-	
+
 	activate_buffer_editor(shell.buffer_index);
 }
 
@@ -2347,6 +2356,14 @@ clear_messages :: fn () {
 	assert(!buf.is_removed);
 
 	clear_buffer(buf);
+}
+
+completion :: fn (editor: *Editor, buf: *Buffer) {
+	if config_server_is_supported_document_type(buf) {
+		config_server_completion(editor, buf) catch print_err("CS: %", $);
+	} else {
+		lsp_completion(editor, buf) catch print_err("LSP: %", $);
+	}
 }
 
 suport :: fn () {

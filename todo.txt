@@ -56,7 +56,7 @@
 	- LSP C++/C#
 	- Smart selection & modal selection UX.
 
-[ ] Config loader (Default -> User -> Project)
+[x] Config loader (Default -> User -> Project)
 	[x] Add file versions.
 	[x] Store diagnostics with location in file.
 	[x] Allow diffs with existing config.
@@ -64,7 +64,7 @@
 	[x] Persist file lines so we can handle upgrades and config merging.
 	[-] Validate shortcut conflicts at the end of loading.
 	[-] Add comptime verification that template config contains all settings entries & check outdated ones.
-	[ ] LSP-like completions?
+	[x] LSP-like completions?
 
 [x] Cleanup find_* functions.
 [x] Cleanup syntax highlight parsing code. Lot of stuff can be shared, parse_string for example. Also do not precheck for characters in `next_token` functions, sharing underlying function would be easier.

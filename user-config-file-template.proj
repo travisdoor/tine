@@ -1,5 +1,6 @@
 # User configuration file for Tine text editor.
 # Use `open-config-template` command to see all options and documentation.
+# Use `lsp-completion` to get list of available options.
 
 ;include
 # Directories included into every project.

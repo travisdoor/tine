@@ -584,13 +584,17 @@ draw_simple_floating_list :: fn (x: f32, y: f32, w: f32, max_item_count: s32, lo
 	return clicked;
 }
 
-list_completion :: fn (strs: []string, ids: []s32, subject: string_view = "") {
+CompletionItem :: struct {
+	symbol: string_view;
+	kind:   s32;
+}
+
+list_completion :: fn (items: []CompletionItem, subject: string_view = "") {
 	reset_listing();
-	assert(strs.len == ids.len);
-	loop i := 0; i < strs.len; i += 1 {
+	loop i := 0; i < items.len; i += 1 {
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
-				preview = str_make(strs[i], &string_cache[DEFAULT_CACHE_INDEX]),
-				icon = get_icon_for_lsp_completion_kind(ids[i]),
+				preview = str_make(items[i].symbol, &string_cache[DEFAULT_CACHE_INDEX]),
+				icon = get_icon_for_lsp_completion_kind(items[i].kind),
 				index = i,
 			});
 	}
@@ -602,20 +606,9 @@ list_completion :: fn (strs: []string, ids: []s32, subject: string_view = "") {
 list_commands :: fn (repeatable_only := false) {
 	reset_listing();
 
-	skip := false;
 	loop i := 0; i < COMMAND_NAMES.len; i += 1 {
-		if i == auto Command.UNKNOWN then continue;
-
-		if !IS_DEBUG && i <= auto Command._PUBLIC then continue;
-		if (i == auto Command._WINDOWS_BEGIN) {
-			skip = PLATFORM != Platform.WINDOWS;
-			continue;
-		} else if i == auto Command._WINDOWS_END {
-			skip = false;
-			continue;
-		}
+		if !is_command_available(auto i) then continue;
 		if repeatable_only && !is_command_valid_for_repeating(auto i) then continue;
-		if skip then continue;
 
 		command_name : string_view : COMMAND_NAMES[i];
 		if command_name[0] == '_' then continue;

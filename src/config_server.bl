@@ -3,12 +3,23 @@ ConfigServerRequest :: Variant(union {
 			filepath: string;
 			src:      string;
 		};
+		completion: struct {
+			filepath:     string;
+			src:          string;
+			cursor:       Cursor;
+			buffer_index: s32;
+		};
 	});
 
 ConfigServerResponse :: Variant(union {
 		publish_diagnostics: struct {
 			filepath:     string;
 			items:    [..]ErrorLocation;
+		};
+		completion: struct {
+			buffer_index: s32;
+			cursor:       Cursor;
+			items:      []CompletionItem;
 		};
 	});
 
@@ -52,6 +63,26 @@ config_server_document_update :: fn (buf: *Buffer) Error {
 	return OK;
 }
 
+config_server_completion :: fn (editor: *Editor, buf: *Buffer) Error {
+	if config_server.job_index == -1 {
+		start_config_server();
+	}
+	assert(config_server_is_supported_document_type(buf));
+
+	ctx :: get_job_context(config_server.job_index);
+
+	request :: make_request(ctx) catch return $;
+	set_variant(&request.as.cs, .completion, .{
+			filepath     = str_make(buf.filepath, request.allocator),
+			src          = str_make(buf.bytes, request.allocator), // @Performance
+			cursor       = get_cursor(buf, editor.cursor_index),
+			buffer_index = buf.index,
+		});
+
+	push_request(ctx, &request);
+	return OK;
+}
+
 apply_config_server :: fn (_: JobContext.state, response: *Response) Error {
 	check_main_thread();
 	rd :: &response.as.cs;
@@ -64,6 +95,19 @@ apply_config_server :: fn (_: JobContext.state, response: *Response) Error {
 
 			loop i := 0; i < rd.publish_diagnostics.items.len; i += 1 {
 				add_buffer_dia_entry(buf, &rd.publish_diagnostics.items[i]);
+			}
+		}
+		.completion {
+			buf, editor :: get_active_buffer_and_editor();
+			if rd.completion.buffer_index != buf.index then return OK;
+			current_position :: get_cursor_position(buf, editor.cursor_index);
+			if rd.completion.cursor.position != current_position then return OK;
+
+			items :: rd.completion.items;
+			if items.len == 0 {
+				print_warn("No completion available.");
+			} else {
+				show_completion_popup_for_active_editor(items, true);
 			}
 		}
 	}
@@ -95,6 +139,23 @@ worker :: fn (ctx: *JobContext) s32 {
 							filepath = str_make(config_data.filepath, response.allocator),
 							items    = diag,
 						});
+					push_response(ctx, &response);
+				}
+				.completion {
+					response :: make_response(ctx) catch panic($);
+
+					config_data: ConfigData;
+					config_data_init(&config_data, application_context.temporary_allocator);
+					load_config_from_memory(&config_data, rd.completion.filepath, rd.completion.src, null, true);
+
+					items :: config_data_get_completion(&config_data, rd.completion.cursor, response.allocator);
+
+					set_variant(&response.as.cs, .completion, .{
+							buffer_index = rd.completion.buffer_index,
+							cursor       = rd.completion.cursor,
+							items        = items,
+						});
+
 					push_response(ctx, &response);
 				}
 			}

@@ -206,6 +206,70 @@ config_data_get_bytes :: fn (config_data: *ConfigData) []u8 {
 	return buf;
 }
 
+config_data_get_completion :: fn (config_data: *ConfigData, cursor: Cursor, allocator: *Allocator) []CompletionItem {
+	row  := math.clamp(cursor.row, 0, auto (config_data.indices.len-1));
+	line :: &config_data.lines[config_data.indices[row]];
+
+	result: [..]CompletionItem;
+	array_init(&result, 0, allocator);
+
+	completion_for_struct :: fn (T: type #comptime, result: *[..]CompletionItem, kind: s32) {
+		info :: cast(*TypeInfoStruct) typeinfo(T);
+		loop i := 0; i < info.members.len; i += 1 {
+			array_push(result, .{
+					symbol = info.members[i].name,
+					kind   = kind,
+				});
+		}
+	};
+
+	is_name := true;
+	inside_name := false;
+	loop i := 0; i < cursor.col && i < line.text.len; i += 1 {
+		c :: line.text[i];
+		if c == ' ' || c == '\t' {
+			if inside_name {
+				is_name = false;
+				break;
+			}
+			continue;
+		}
+		if c == '#' {
+			is_name = false;
+			break;
+		}
+		inside_name = is_alpha(c);
+	}
+
+	if !is_name then return result;
+
+	switch line.section {
+		.SETTINGS {
+			completion_for_struct(Settings, &result, LSP_COMPLETION_ITEM_KIND_SETTING);
+		}
+		.KEYS {
+			loop i := 0; i < COMMAND_NAMES.len; i += 1 {
+				command :: cast(Command) i;
+				if !is_command_available(command) then continue;
+				array_push(&result, .{
+						symbol = COMMAND_NAMES[i],
+						kind   = LSP_COMPLETION_ITEM_KIND_COMMAND,
+					});
+			}
+		}
+		.COLORS {
+			completion_for_struct(Colors, &result, LSP_COMPLETION_ITEM_KIND_COLOR);
+		}
+		default;
+	}
+
+	sort(result, &fn (a: *CompletionItem, b: *CompletionItem) bool {
+			return str_compare(a.symbol, b.symbol) < 0;
+		});
+
+	return result;
+}
+
 #private
 
 Section  :: enum { NONE; INCLUDE; EXCLUDE; INCLUDE_FILE_EXTENSIONS; SETTINGS; KEYS; COLORS; };
@@ -338,14 +402,12 @@ next_line :: fn (ctx: *Tokenizer, line_ctx: *Tokenizer) bool #inline {
 	line_ctx.row      += 1;
 	line_ctx.col       = 0;
 
-	if !ctx.validate_only {
-		index :: cast(s32) ctx.data.lines.len;
-		array_push(&ctx.data.lines, .{
-				text    = line,
-				section = line_ctx.current_section,
-			});
-		array_push(&ctx.data.indices, index);
-	}
+	index :: cast(s32) ctx.data.lines.len;
+	array_push(&ctx.data.lines, .{
+			text    = line,
+			section = line_ctx.current_section,
+		});
+	array_push(&ctx.data.indices, index);
 
 	return true;
 }
@@ -731,27 +793,14 @@ eat_rest_as_invalid :: fn (ctx: *Tokenizer) #inline {
 
 report :: fn (ctx: *Tokenizer, severity: ErrorLocation.kind, tok: Token, fmt: string_view, args: ...) {
 	ctx.data.diag_reports_num += 1;
+	if !ctx.diag then return;
 
-	msg :: tprint(fmt, args);
-	if ctx.diag {
-		array_push(ctx.diag, .{
-				kind    = severity,
-				message = msg,
-				line    = tok.row,
-				col     = tok.col
-			});
-		return;
-	}
-	row :: tok.row+1;
-	col :: tok.col+1;
-	switch severity {
-		.WARNING {
-			print_warn("%:%:%: %", ctx.filepath, row, col, msg);
-		}
-		.ERROR {
-			print_err("%:%:%: %", ctx.filepath, row, col, msg);
-		}
-	}
+	array_push(ctx.diag, .{
+			kind    = severity,
+			message = tprint(fmt, args),
+			line    = tok.row,
+			col     = tok.col
+		});
 }
 
 push_entry :: fn (ctx: *Tokenizer, dst: *[..]ConfigEntry, token: Token) *ConfigEntry #inline {
