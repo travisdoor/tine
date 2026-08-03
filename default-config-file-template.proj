@@ -217,10 +217,9 @@ file_location_regex :([0-9]*)(?::([0-9]*))?
 #search_size_limit_bytes 1048576
 search_size_limit_bytes 0
 
-# When enabled, file paths shown in 'search-in-project' results are displayed relative to the project
-# root (root directory itself is shown as ".").
-# When disabled, full absolute paths are shown instead.
-chop_root_dir_from_search_paths true
+# When enabled, file paths shown in search results are displayed relative to the project root (root directory
+# itself is shown as "."). When disabled, full absolute paths are shown instead.
+chop_root_dir_from_search_paths false
 
 # Ctrl+Mouse Wheel change editor font size when enabled.
 resize_font_by_scrolling true
