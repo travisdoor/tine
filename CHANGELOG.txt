@@ -18,6 +18,7 @@ MASTER
 - Add simple completion for project files.
 - Add support for classical shift selection.
 - Editor split now has to be explicitly requested by user.
+- Fix current list selection highlight issues.
 - Fix non-working numpad Enter.
 - Fix offset of inline error text when line numbers are shown.
 - Fix parsing issues with C++ quote escapes in strings.

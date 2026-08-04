@@ -158,9 +158,9 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 	if ctx.visible_items == 0 then return false;
 
-	text_padding    :: metrics.text_ui_padding;
-	item_spacing    :: metrics.item_spacing;
-	rounding        :: metrics.corner_rounding;
+	text_padding      :: metrics.text_ui_padding;
+	item_spacing      :: metrics.item_spacing;
+	border_line_width :: metrics.border_line_width;
 
 	item_h :: ctx.item_height;
 
@@ -190,14 +190,14 @@ draw_search_command_list :: fn (loc := #call_location) bool {
 
 		if selected_index >= start_index && selected_index < start_index + ctx.visible_items {
 			selected_y :: ty + item_h * auto (selected_index - start_index);
-			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select, colors.command_select);
+			rect(ctx.x+border_line_width, selected_y, ctx.w-border_line_width*2.f, item_h, colors.command_select);
 		}
 
 		if mouse.last_hover_elem_id == loc.hash {
 			ly := ty;
 			loop i := start_index; i < end_index; i += 1 {
 				if is_point_in_rect(ctx.x, ly, ctx.w, item_h, mouse.position.x, mouse.position.y) {
-					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background_inactive, colors.selection_background_inactive);
+					rect(ctx.x+border_line_width, ly, ctx.w-border_line_width*2.f, item_h, colors.selection_background_inactive);
 					hover_index = i;
 					break;
 				}
@@ -304,9 +304,9 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 	if ctx.visible_items == 0 then return false;
 
-	text_padding    :: metrics.text_ui_padding;
-	item_spacing    :: metrics.item_spacing;
-	rounding        :: metrics.corner_rounding;
+	text_padding      :: metrics.text_ui_padding;
+	item_spacing      :: metrics.item_spacing;
+	border_line_width :: metrics.border_line_width;
 
 	root_dir :: get_project_root_directory();
 
@@ -338,14 +338,14 @@ draw_search_simple_list :: fn (loc := #call_location) bool {
 
 		if selected_index >= start_index && selected_index < start_index + ctx.visible_items {
 			selected_y :: ty + item_h * auto (selected_index - start_index);
-			rect_rounded(ctx.x, selected_y, ctx.w, item_h, rounding, colors.command_select, colors.command_select);
+			rect(ctx.x+border_line_width, selected_y, ctx.w-border_line_width*2.f, item_h, colors.command_select);
 		}
 
 		if mouse.last_hover_elem_id == loc.hash {
 			ly := ty;
 			loop i := start_index; i < end_index; i += 1 {
 				if is_point_in_rect(ctx.x, ly, ctx.w, item_h, mouse.position.x, mouse.position.y) {
-					rect_rounded(ctx.x, ly, ctx.w, item_h, rounding, colors.selection_background_inactive, colors.selection_background_inactive);
+					rect(ctx.x+border_line_width, ly, ctx.w-border_line_width*2.f, item_h, colors.selection_background_inactive);
 					hover_index = i;
 					break;
 				}

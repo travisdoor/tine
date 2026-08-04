@@ -2332,6 +2332,7 @@ clear_messages :: fn () {
 	assert(!buf.is_removed);
 
 	clear_buffer(buf);
+	print_info("Messages cleared.");
 }
 
 completion :: fn (editor: *Editor, buf: *Buffer) {
