@@ -107,7 +107,7 @@ ICON_BELL             : u32 : 0xEAA2;
 ICON_FILE             : u32 : 0xEC5E;
 ICON_FILE_CODE        : u32 : 0xEAE9;
 ICON_FOLDER           : u32 : 0xEA83;
-ICON_DRIVE            : u32 : 0xEB4B;
+ICON_DRIVE            : u32 : 0xEB50;
 ICON_COMMAND          : u32 : 0xEA86;
 ICON_PROJECT          : u32 : 0xEA62;
 ICON_READONLY         : u32 : 0xEA75;
@@ -130,7 +130,8 @@ ICON_CIRCLE           : u32 : 0xEBA7;
 ICON_SEARCH           : u32 : 0xEA6D;
 ICON_ARROW_EAST       : u32 : 0xEAB6;
 ICON_REPLACE          : u32 : 0xEB3D;
-ICON_SAVE_AS          : u32 : 0xEB4A;
+ICON_SAVE             : u32 : 0xEB4B;
+ICON_SAVE_ALL         : u32 : 0xEB49;
 ICON_CLOSE_ALL        : u32 : 0xEAC1;
 ICON_GIT              : u32 : 0xEA68;
 ICON_ANY_SHELL        : u32 : 0xEA93;
@@ -269,6 +270,7 @@ Mode :: enum {
 	SHELL_RUN;
 	CHEAT_SHEET;
 	SHUTDOWN;
+	CLOSE;
 }
 
 mode: Mode;
@@ -1305,6 +1307,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		LIST_FUNCTIONS    { list_functions_mode_terminate();         }
 		SHELL_RUN         { shell_run_mode_terminate();              }
 		SHUTDOWN          { shutdown_mode_terminate();               }
+		CLOSE             { shutdown_mode_terminate();               }
 
 		default;
 	}
@@ -1342,6 +1345,7 @@ set_mode :: fn (m: Mode) bool #inline {
 		LIST_FUNCTIONS    { list_functions_mode_init();      }
 		SHELL_RUN         { shell_run_mode_init();           }
 		SHUTDOWN          { shutdown_mode_init();            }
+		CLOSE             { shutdown_mode_init(true);        }
 
 		default;
 	}
@@ -2178,6 +2182,7 @@ draw_frame :: fn () {
 			SHELL_RUN         { draw_shell_run_mode();                     }
 			CHEAT_SHEET       { draw_cheat_sheet_mode();                   }
 			SHUTDOWN          { draw_shutdown_mode();                      }
+			CLOSE             { draw_shutdown_mode();                      }
 			PEEK_ERROR        {
 				draw_peek_error_mode(active_x, y, w, h);
 			}

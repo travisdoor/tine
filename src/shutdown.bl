@@ -1,24 +1,10 @@
-shutdown_mode_init :: fn () {
-	allocator :: application_context.temporary_allocator;
-	open_buffers :: duplicate_slice(buffers, allocator) catch panic($);
-	has_unsaved_buffers := false;
-
-	loop i := 0; i < open_buffers.len; i += 1 {
-		buf :: &open_buffers[i];
-		if buf.is_removed then continue;
-		if (buf.flags & .NO_UNDO) == .NO_UNDO then continue;
-
-		if buf.saved_top != buf.undo_top || buf.missing_on_disk {
-			has_unsaved_buffers = true;
-			continue;
-		}
-
-		close_buffer(buf.index);
-	}
+shutdown_mode_init :: fn (closing_buffers := false) {
+	is_closing_buffers = closing_buffers;
+	has_unsaved_buffers :: close_all();
 
 	if !has_unsaved_buffers {
 		set_mode(.TEXT_EDIT);
-		schedule_exit();
+		if !is_closing_buffers then schedule_exit();
 		return;
 	}
 
@@ -30,16 +16,25 @@ shutdown_mode_init :: fn () {
 
 	list_buffers(true, [_]ListItem.{
 			.{
-				icon  = icon(ICON_SAVE_AS),
-				title = "Save All & Quit",
-				flags = .HIGHLIGHT,
-				index = SAVE_ALL_ITEM_INDEX,
+				icon       = icon(ICON_SAVE),
+				title      = if is_closing_buffers then "Save All Existing" else "Save All Existing & Quit",
+				flags      = .HIGHLIGHT,
+				index      = SAVE_ALL_EXISTING_ITEM_INDEX,
+				hint       = "Save only buffers associated with files existing on disk.",
 			},
 			.{
-				icon  = icon(ICON_CLOSE_ALL),
-				title = "Quit",
-				flags = .HIGHLIGHT,
-				index = QUIT_ITEM_INDEX,
+				icon       = icon(ICON_SAVE_ALL),
+				title      = if is_closing_buffers then "Save All" else "Save All & Quit",
+				flags      = .HIGHLIGHT,
+				index      = SAVE_ALL_ITEM_INDEX,
+				hint       = "Save all buffers associated with files on disk and create missing ones.",
+			},
+			.{
+				icon       = icon(ICON_CLOSE_ALL),
+				title      = if is_closing_buffers then "Close All" else "Quit",
+				flags      = .HIGHLIGHT,
+				index      = QUIT_ITEM_INDEX,
+				hint       = "Ignore all unsaved changes.",
 			}
 		});
 
@@ -113,13 +108,16 @@ shutdown_cmd_changed :: fn () {
 		return;
 	}
 
-	filter_list(user_path);
+	filter_list(user_path, null, 3);
 }
 
 #private
 
-SAVE_ALL_ITEM_INDEX :: -1;
-QUIT_ITEM_INDEX     :: -2;
+is_closing_buffers := false;
+
+SAVE_ALL_ITEM_INDEX          :: -1;
+SAVE_ALL_EXISTING_ITEM_INDEX :: -2;
+QUIT_ITEM_INDEX              :: -3;
 
 commit :: fn () {
 	item :: get_selected_item_in_list();
@@ -128,10 +126,16 @@ commit :: fn () {
 	set_mode(.TEXT_EDIT);
 
 	switch item.index {
+		SAVE_ALL_EXISTING_ITEM_INDEX,
 		SAVE_ALL_ITEM_INDEX {
-			success, editor_index :: save_all();
+			ignore_missing :: item.index == SAVE_ALL_EXISTING_ITEM_INDEX;
+			success, editor_index :: save_all(ignore_missing);
 			if success {
-				schedule_exit();
+				if is_closing_buffers {
+					close_all(true);
+				} else {
+					schedule_exit();
+				}
 				return;
 			}
 			if editor_index != -1 {
@@ -139,7 +143,11 @@ commit :: fn () {
 			}
 		}
 		QUIT_ITEM_INDEX {
-			schedule_exit();
+			if is_closing_buffers {
+				close_all(true);
+			} else {
+				schedule_exit();
+			}
 		}
 		default {
 			assert(item.index != 0, "We should operate only on open buffers!");
@@ -148,16 +156,20 @@ commit :: fn () {
 	}
 }
 
-save_all :: fn () (success: bool, editor_index_for_manual_action: s32) {
+save_all :: fn (ignore_missing := false) (success: bool, editor_index_for_manual_action: s32) {
 	loop i := 0; i < buffers.len; i += 1 {
 		buf :: &buffers[i];
 		if buf.is_removed then continue;
 		if (buf.flags & .NO_UNDO) == .NO_UNDO then continue;
 
-		if buf.filepath.len == 0 {
-			print_err("Cannot save file '%' which is not associated with any file on disk. Use [%] to save the file.", buf.name, get_keybinding_for_command(.SAVE));
-			editor_index :: find_editor_for_buffer(buf.index);
-			return false, editor_index;
+		if !ignore_missing {
+			if buf.filepath.len == 0 {
+				print_err("Cannot automatically save file '%' which is not associated with any file on disk. Use [%] to save the file.", buf.name, get_keybinding_for_command(.SAVE));
+				editor_index :: find_editor_for_buffer(buf.index);
+				return false, editor_index;
+			}
+		} else if buf.missing_on_disk || buf.filepath.len == 0 {
+			continue;
 		}
 
 		save_buffer_to_file(buf, buf.filepath) catch {
@@ -167,4 +179,26 @@ save_all :: fn () (success: bool, editor_index_for_manual_action: s32) {
 	}
 
 	return true, -1;
+}
+
+close_all :: fn (force := false) bool {
+	allocator    :: application_context.temporary_allocator;
+	open_buffers :: duplicate_slice(buffers, allocator) catch panic($);
+
+	has_unsaved_buffers := false;
+
+	loop i := 0; i < open_buffers.len; i += 1 {
+		buf :: &open_buffers[i];
+		if buf.is_removed then continue;
+		if (buf.flags & .NO_UNDO) == .NO_UNDO then continue;
+
+		if !force && (buf.saved_top != buf.undo_top || buf.missing_on_disk) {
+			has_unsaved_buffers = true;
+			continue;
+		}
+
+		close_buffer(buf.index);
+	}
+
+	return has_unsaved_buffers;
 }

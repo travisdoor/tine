@@ -343,6 +343,7 @@ invoke_command :: fn (editor: *Editor, buf: *Buffer, cmd: Command) {
 		.REPEAT            { handled = invoke_command_repeat_line_mode       (buf, cmd);         }
 		.SHELL_RUN         { handled = invoke_command_shell_run_mode         (buf, cmd);         }
 		.SHUTDOWN          { handled = invoke_command_shutdown_mode          (buf, cmd);         }
+		.CLOSE             { handled = invoke_command_shutdown_mode          (buf, cmd);         }
 
 		default;
 	}
@@ -835,7 +836,7 @@ invoke_command_text_edit_mode :: fn (editor: *Editor, buf: *Buffer, cmd: Command
 		CLOSE_BUFFER                  { close_buffer_command(buf); }
 		CLOSE_EDITOR                  { close_editor_command(editor); }
 		CLOSE_BUFFERS_WITHOUT_EDITOR  { close_buffers_without_editor(); }
-		CLOSE_ALL_BUFFERS             { close_all_buffers(); }
+		CLOSE_ALL_BUFFERS             { set_mode(.CLOSE); }
 		FORCE_CLOSE_BUFFER            { force_close_buffer(buf); }
 
 		SAVE                          { save_command(buf); }
@@ -1585,6 +1586,7 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	set_cursor_position(buf, editor.cursor_index, position);
+	recent_location_force_new_record();
 	return true;
 }
 
@@ -1611,6 +1613,7 @@ jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	set_cursor_position(buf, editor.cursor_index, position);
+	recent_location_force_new_record();
 	return true;
 }
 
@@ -1759,33 +1762,6 @@ close_buffers_without_editor :: fn (check_unsaved_modifications := true) {
 			if close_buffer(buf.index) {
 				closed_num += 1;
 			}
-		}
-	}
-
-	if closed_num == 0 {
-		print_warn("No buffers closed.");
-		return;
-	}
-
-	print_info("Closed % buffer%.", closed_num, if closed_num > 1 then "s" else "");
-}
-
-close_all_buffers :: fn (check_unsaved_modifications := true) {
-	closed_num := 0;
-	loop i := 0; i < buffers.len; i += 1 {
-		buf :: &buffers[i];
-		if buf.is_removed then continue;
-		if is_command_editor_buffer(buf) then continue;
-		if buf.index == scratch_buffer_index then continue;
-		if buf.index == messages_buffer_index then continue;
-
-		if check_unsaved_modifications && warn_if_modifications_needs_to_be_saved(buf) {
-			activate_buffer_editor(buf.index, get_active_split());
-			return;
-		}
-
-		if close_buffer(buf.index) {
-			closed_num += 1;
 		}
 	}
 

@@ -144,7 +144,7 @@ open_from_drive_cmd_changed :: fn () {
 
 		save_item_tmp = .{
 			title = save_item_title,
-			icon  = icon(ICON_SAVE_AS),
+			icon  = icon(ICON_SAVE),
 			index = SAVE_ITEM_INDEX,
 			flags = .HIGHLIGHT,
 		};

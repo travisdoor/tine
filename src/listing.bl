@@ -887,7 +887,7 @@ clear_list_filters :: fn () {
 	visible_list_index = DEFAULT_LIST_INDEX;
 }
 
-filter_list :: fn (filter: string_view, implicit_item: *ListItem = null) {
+filter_list :: fn (filter: string_view, implicit_item: *ListItem = null, exclude_first_n := 0) {
 	assert(filter.len > 0);
 	selected_index = 0;
 	start_index    = 0;
@@ -897,7 +897,7 @@ filter_list :: fn (filter: string_view, implicit_item: *ListItem = null) {
 		array_push(&list[FILTER_LIST_INDEX], @implicit_item);
 	}
 
-	loop i := 0; i < list[DEFAULT_LIST_INDEX].len; i += 1 {
+	loop i := exclude_first_n; i < list[DEFAULT_LIST_INDEX].len; i += 1 {
 		item :: &list[DEFAULT_LIST_INDEX][i];
 		search_for := item.title;
 		if search_for.len == 0 {

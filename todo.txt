@@ -69,7 +69,7 @@
 [x] Cleanup find_* functions.
 [x] Cleanup syntax highlight parsing code. Lot of stuff can be shared, parse_string for example. Also do not precheck for characters in `next_token` functions, sharing underlying function would be easier.
 
-[ ] Unify close-all-buffers and shutdown UX.
+[x] Unify close-all-buffers and shutdown UX.
 [ ] Add close project command.
 
 BUGS
