@@ -192,6 +192,11 @@ parse_c_like_number :: fn (ctx: *TokenizerBase, t: *?TToken) bool {
 			continue;
 		}
 
+		if c == '\'' {
+			t.len += 1;
+			continue;
+		}
+
 		if !is_digit(c, base) {
 			break;
 		}

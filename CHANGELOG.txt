@@ -21,6 +21,7 @@ MASTER
 - Fix current list selection highlight issues.
 - Fix non-working numpad Enter.
 - Fix offset of inline error text when line numbers are shown.
+- Fix parsing issues with C++ numbers.
 - Fix parsing issues with C++ quote escapes in strings.
 
 1.0.0 2026-07-18
