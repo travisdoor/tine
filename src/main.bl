@@ -134,7 +134,8 @@ ICON_SAVE             : u32 : 0xEB4B;
 ICON_SAVE_ALL         : u32 : 0xEB49;
 ICON_CLOSE_ALL        : u32 : 0xEAC1;
 ICON_GIT              : u32 : 0xEA68;
-ICON_ANY_SHELL        : u32 : 0xEA93;
+ICON_ANY_SHELL        : u32 : 0xEAC4;
+ICON_PLAY             : u32 : 0xEAD3;
 
 ICON_SHELL    : u32 : 0xEA85;
 ICON_MESSAGES : u32 : 0xEB1C;
@@ -392,12 +393,15 @@ project: struct {
 	included_directories: [..]string_view;
 	included_extensions:  [..]string_view;
 	excluded_directories: [..]string_view;
+	shell_entries:        [..]ShellEntry;
 
 	is_indexing:   bool;
 	indexed_files: [..]string_view;
 
 	mutex: Mutex;
 	string_cache: PoolAllocator;
+
+	shell_entries_priority: s32;
 
 	file_link_regex: struct {
 		expr:     Regex;
@@ -556,18 +560,6 @@ clear_error_list :: fn () {
 	error_marker_visible = false;
 
 	if mode == Mode.PEEK_ERROR then set_mode(Mode.TEXT_EDIT);
-}
-
-get_error_and_warning_count :: fn () (errors: s32, warnings: s32) {
-	ec, wc := 0;
-	loop i := 0; i < error_list.len; i += 1 {
-		if error_list[i].kind == .ERROR {
-			ec += 1;
-		} else {
-			wc += 1;
-		}
-	}
-	return ec, wc;
 }
 
 // Compilation errors are in the list and shown only if the line with error is focused and not changed.
@@ -943,9 +935,6 @@ main :: fn () s32 {
 	defer terminate_macros();
 
 	defer array_terminate(&key_binding);
-
-	shell_run_mode_on_start();
-	defer shell_run_mode_on_exit();
 
 	init_window();
 	defer terminate_window();
@@ -1786,19 +1775,13 @@ remove_async_job :: fn (index: s32) {
 
 	switch ctx.state {
 		DONE   {
-			ec, wc: s32;
-			if ctx.kind == .SHELL {
-				ec, wc = get_error_and_warning_count();
-			}
-
 			open_shell_command_binding :: get_keybinding_for_command(.OPEN_SHELL);
-
-			if ec > 0 {
-				print_err("Job '%' finished with % error%. Use [%] to see results.", ctx.name, ec, if ec > 1 then "s" else "", open_shell_command_binding);
-			} else if wc > 0 {
-				print_warn("Job '%' finished with % warning%. Use [%] to see results.", ctx.name, wc, if wc > 1 then "s" else "", open_shell_command_binding);
+			shell_visible :: get_visible_editor_for_buffer(shell.buffer_index) != -1;
+			msg :: tprint("Job '%' finished with exit code: %. %",  ctx.name, ctx.exit_code, if shell_visible then "" else tprint("Use [%] to see the output.", open_shell_command_binding, ));
+			if ctx.exit_code == 0 {
+				print_info(msg);
 			} else {
-				print_info("Job '%' finished with exit code: %. Use [%] to see results.", ctx.name, ctx.exit_code, open_shell_command_binding);
+				print_err(msg);
 			}
 		}
 		KILLED { print_info("Job '%' killed.", ctx.name); }

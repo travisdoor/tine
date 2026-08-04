@@ -24,6 +24,7 @@ MASTER
 - Fix offset of inline error text when line numbers are shown.
 - Fix parsing issues with C++ numbers.
 - Fix parsing issues with C++ quote escapes in strings.
+- Improve shell mode.
 
 1.0.0 2026-07-18
 ---------------------------------------------------------------------------------------

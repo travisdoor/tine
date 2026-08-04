@@ -6,6 +6,12 @@ ShellResponse :: struct {
 	text:  string;
 }
 
+ShellEntry :: struct {
+	cmd:       string_view;
+	priority:  s32;
+	is_preset: bool;
+}
+
 ShellFlavor :: enum { CMD; BUILD; }
 
 shell: struct {
@@ -40,7 +46,8 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 	}
 
 	if flavor != .BUILD || settings.focus_shell_on_build {
-		activate_buffer_editor(shell.buffer_index);
+		_, editor :: activate_buffer_editor(shell.buffer_index);
+		editor.top = 0;
 		if has_split() then activate_editor(initial_editor.index);
 	}
 
@@ -186,6 +193,10 @@ kill_shell :: fn () {
 	remove_async_job(shell.job_index);
 }
 
+get_shell :: fn () string_view #inline {
+	return if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell;
+}
+
 #scope_private
 
 worker :: fn (ctx: *JobContext) s32 {
@@ -209,7 +220,7 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	allocator :: application_context.temporary_allocator;
 
-	shell_command :: str_make(if settings.shell.len == 0 then DEFAULT_SHELL else settings.shell, allocator);
+	shell_command :: str_make(get_shell(), allocator);
 	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
 
 	if args_with_executable.len == 0 {

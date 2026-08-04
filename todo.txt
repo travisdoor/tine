@@ -72,6 +72,9 @@
 [x] Unify close-all-buffers and shutdown UX.
 [ ] Add close project command.
 
+[ ] Unify file links and wire them to next/prev-error commands for any shell output.
+[ ] Add commands for jumping in LSP diagnostics reports: lsp-next-dia, lsp-prev-dia.
+
 BUGS
 [x] Numpad Enter does not work.
 [x] Add option to disable Ctrl+Scroll to resize text -> it's bugged on Wayland (ofc).

@@ -7,18 +7,11 @@ shell_run_mode_init :: fn () {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 
-	list_history(history);
+	list_shell_entries();
 }
 
-shell_run_mode_terminate :: fn () {}
-
-shell_run_mode_on_start :: fn () {
-	string_cache = pool_make(null, 2048);
-}
-
-shell_run_mode_on_exit :: fn () {
-	release_allocator(&string_cache);
-	array_terminate(&history);
+shell_run_mode_terminate :: fn () {
+	str_terminate(&run_item_hint);
 }
 
 draw_shell_run_mode :: fn () {
@@ -87,10 +80,8 @@ invoke_command_shell_run_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) b
 
 		BUILD {
 			if !warn_build_command_missing() {
-				notify_changes_to_buffer = -1;
 				clear_buffer(buf);
 				insert_string(buf, 0, settings.build_command);
-				notify_changes_to_buffer = buf.index;
 			}
 		}
 
@@ -107,68 +98,80 @@ shell_run_cmd_changed :: fn () {
 		clear_list_filters();
 		return;
 	}
-	filter_list(cmd);
+
+	run_item_hint.len = 0;
+	str_append(&run_item_hint, cmd);
+
+	run_item = .{
+		title = "Run",
+		hint  = run_item_hint,
+		icon  = icon(ICON_PLAY),
+		index = RUN_ITEM_INDEX,
+		flags = .HIGHLIGHT,
+	};
+
+	filter_list(cmd, &run_item);
 }
 
 #scope_private
 
-string_cache: PoolAllocator;
-history: [..]HistoryItem;
-current_priority: s32;
+RUN_ITEM_INDEX :: -1;
+
+run_item: ListItem;
+run_item_hint: string;
 
 commit :: fn () {
 	buf :: get_active_buffer_and_editor();
-	cmd := peek_row(buf, 0);
+
+	item :: get_selected_item_in_list();
+	if !item then return;
 	set_mode(Mode.TEXT_EDIT);
 
-	trim_chars :: " \t";
-	cmd = trim_right(trim_left(cmd, trim_chars), trim_chars);
-
+	cmd := peek_row(buf, 0).text;
 	if cmd.len == 0 {
-		item :: get_selected_item_in_list();
-		if !item then return;
 		cmd = item.title;
 	}
 
-	err :: request_shell_execute(cmd);
-	if err {
-		print_err(err);
-	} else {
-		index :: lookup_history_item(cmd);
-		if index == -1 {
-			array_push(&history, .{ str_make(cmd, &string_cache), current_priority });
-		} else {
-			history[index].priority = current_priority;
-		}
-		current_priority += 1;
-	}
-}
+	trim_chars :: " \t";
+	cmd = trim_right(trim_left(cmd, trim_chars), trim_chars);
+	if cmd.len == 0 then return;
 
-lookup_history_item :: fn (title: string_view) s32 {
-	loop i := 0; i < history.len; i += 1 {
-		if str_match(title, history[i].title) {
-			return i;
-		}
-	}
-	return -1;
+	request_shell_execute(cmd) catch {
+		print_err($);
+		return;
+	};
+
+	add_shell_entry(cmd);
 }
 
 is_current_selected_same_as_command :: fn () bool {
 	item :: get_selected_item_in_list();
 	if !item then return false;
 
+	if item.index == RUN_ITEM_INDEX {
+		return true;
+	}
+
 	buf :: get_active_buffer_and_editor();
 	current_cmd := peek_row(buf, 0);
-	return str_match(current_cmd, item.title);
+
+	cmd :: item.title;
+	return str_match(current_cmd, cmd);
 }
 
 set_current_item_as_caption :: fn () {
 	item :: get_selected_item_in_list();
 	if !item then return;
 
+	cmd := item.title;
+	if item.index == RUN_ITEM_INDEX {
+		cmd = item.hint;
+	}
+
 	buf :: get_active_buffer_and_editor();
 	notify_changes_to_buffer = -1;
 	clear_buffer(buf);
-	insert_string(buf, 0, item.title);
+	insert_string(buf, 0, cmd);
 	notify_changes_to_buffer = buf.index;
 }
+

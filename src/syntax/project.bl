@@ -78,6 +78,7 @@ next_token :: fn (ctx: *Tokenizer) Token {
 		using ProjectSection;
 		switch ctx.current_section {
 			NONE;
+			SHELL,
 			INCLUDE,
 			EXCLUDE {
 				ctx.index += 1;

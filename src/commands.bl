@@ -1586,7 +1586,6 @@ jump_next_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	set_cursor_position(buf, editor.cursor_index, position);
-	recent_location_force_new_record();
 	return true;
 }
 
@@ -1613,7 +1612,6 @@ jump_prev_paragraph :: fn (editor: *Editor, buf: *Buffer) bool {
 	}
 
 	set_cursor_position(buf, editor.cursor_index, position);
-	recent_location_force_new_record();
 	return true;
 }
 

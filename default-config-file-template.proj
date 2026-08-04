@@ -388,6 +388,14 @@ lsp-other-file                   Alt+O
 lsp-other-file-other-split       Ctrl+Alt+O
 lsp-completion                   Ctrl+Space
 
+;shell
+
+# List of commands available in 'shell' history from project load.
+# Each shell command is supposed to be on a separate line and may contains spaces.
+
+# git log -100
+# blc -build --release
+
 #----------------------------------------------------------------------------------------------------
 ;colors
 #----------------------------------------------------------------------------------------------------
@@ -534,3 +542,49 @@ ansi_white                          D6C7A1
 # ansi_magenta                        800080
 # ansi_cyan                           008080
 # ansi_white                          C0C0C0
+
+# plan9
+#-------------------------------------------
+# background                          FFFFEA
+# foreground                          000000
+# cursor_background                   000000
+# cursor_foreground                   FFFFEA
+# current_line_background             F4F4D8
+# search_result_background            FFFF88
+# title_bar                           E8E8C8
+# title_bar_active                    CCEEFF
+# title_bar_text                      000000
+# command_select                      AADDEE
+# panel_outline                       E8E8D0
+# open_indicator                      0055AA
+# selection_background                AADDEE
+# selection_background_inactive       DDDDC8
+# message                             006600
+# warning                             AA7700
+# error                               CC0000
+# inline_error_background             FFD8D8
+# inline_error_foreground             CC0000
+# inline_warning_background           FFFFDD
+# inline_warning_foreground           806000
+# macro_record_icon                   CC0000
+# background_line_numbers             F8F8E0
+# foreground_line_numbers             808060
+# progress_bar                        66AAEE
+# link_background                     DDEEFF
+# code_comment                        557755
+# code_keyword                        005CAA
+# code_directive                      6A3DC4
+# code_string                         8A3B12
+# code_number                         B35C00
+# code_function                       2D4F8C
+# code_invalid                        C00000
+# code_warning                        A66A00
+# code_error                          C00000
+# ansi_black                          000000
+# ansi_red                            CC0000
+# ansi_green                          006600
+# ansi_yellow                         806000
+# ansi_blue                           0055AA
+# ansi_magenta                        800080
+# ansi_cyan                           008080
+# ansi_white                          D0D0D0

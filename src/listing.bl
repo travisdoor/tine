@@ -659,31 +659,29 @@ list_commands :: fn (repeatable_only := false) {
 	quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto (list[DEFAULT_LIST_INDEX].len - 1));
 }
 
-HistoryItem :: struct {
-	title:    string_view;
-	priority: s32;
-}
-
-list_history :: fn (history: []HistoryItem) {
+list_shell_entries :: fn () {
 	reset_listing();
 
-	loop i := 0; i < history.len; i += 1 {
-		title :: str_make(history[i].title, &string_cache[DEFAULT_CACHE_INDEX]);
-
+	get_cmd_icon :: fn (cmd: string_view) string_view #inline {
 		ic := icon(ICON_ANY_SHELL);
-		if str_match(title, "git", auto "git".len) || str_match(title, "svn", auto "svn".len) {
+		if str_match(cmd, "git", auto "git".len) || str_match(cmd, "svn", auto "svn".len) {
 			ic = icon(ICON_GIT);
-		} else if str_match(title, "rg", auto "rg".len) || str_match(title, "grep", auto "grep".len) || str_match(title, "find", auto "find".len){
+		} else if str_match(cmd, "rg", auto "rg".len) || str_match(cmd, "grep", auto "grep".len) || str_match(cmd, "find", auto "find".len){
 			ic = icon(ICON_SEARCH);
 		}
+		return ic;
+	};
 
+	loop i := 0; i < project.shell_entries.len; i += 1 {
+		entry :: &project.shell_entries[i];
 		array_push(&list[DEFAULT_LIST_INDEX], ListItem.{
-				title = title,
-				score = history[i].priority,
-				icon  = ic,
+				title = entry.cmd,
+				icon  = get_cmd_icon(entry.cmd),
+				score = entry.priority,
+				flags = if entry.is_preset then ItemFlags.HIGHLIGHT else ItemFlags.NONE,
 			});
 	}
-	// quick_sort_by_title(list[DEFAULT_LIST_INDEX], 0, auto list[DEFAULT_LIST_INDEX].len - 1);
+	
 	quick_sort_by_score(list[DEFAULT_LIST_INDEX], 0, auto (list[DEFAULT_LIST_INDEX].len - 1));
 }
 

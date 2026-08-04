@@ -13,6 +13,7 @@ ConfigData :: struct {
 	settings:            [..]ConfigEntry;
 	keys:                [..]ConfigEntry;
 	colors:              [..]ConfigEntry;
+	shell:               [..]ConfigEntry;
 
 	diag_reports_num: s32;
 	allocator: *Allocator;
@@ -20,7 +21,7 @@ ConfigData :: struct {
 
 ConfigLine :: struct {
 	text:    string_view;
-	section: Section;
+	section: ProjectSection;
 }
 
 ConfigEntry :: struct {
@@ -46,6 +47,7 @@ config_data_init :: fn (config_data: *ConfigData, allocator: *Allocator) {
 	array_init(&config_data.settings, 0, allocator);
 	array_init(&config_data.keys, 0, allocator);
 	array_init(&config_data.colors, 0, allocator);
+	array_init(&config_data.shell, 0, allocator);
 
 	config_data.version   = -1;
 	config_data.allocator = allocator;
@@ -60,6 +62,7 @@ config_data_reset :: fn (config_data: *ConfigData) {
 	config_data.settings.len            = 0;
 	config_data.keys.len                = 0;
 	config_data.colors.len              = 0;
+	config_data.shell.len               = 0;
 
 	config_data.filepath.len =  0;
 	config_data.version      = -1;
@@ -195,6 +198,13 @@ config_data_apply :: fn (config_data: *ConfigData) {
 			map_key_binding(command, key_code, mods);
 		}
 	}
+
+	loop i := 0; i < config_data.shell.len; i += 1 {
+		sh :: &config_data.shell[i];
+		if !sh.is_valid then continue;
+
+		add_shell_entry(get_variant(&sh.token.as, .str), true);
+	}
 }
 
 config_data_get_bytes :: fn (config_data: *ConfigData) []u8 {
@@ -272,9 +282,6 @@ config_data_get_completion :: fn (config_data: *ConfigData, cursor: Cursor, allo
 
 #private
 
-Section  :: enum { NONE; INCLUDE; EXCLUDE; INCLUDE_FILE_EXTENSIONS; SETTINGS; KEYS; COLORS; };
-SECTION_NAMES :: get_enum_variants_as_redable_list(Section, false);
-
 Token :: struct {
 	as:    TokenVariant;
 	pid:   s32;
@@ -295,7 +302,7 @@ TokenVariant :: Variant(union {
 Tokenizer :: struct #base TokenizerBase {
 	data:           *ConfigData;
 	diag:           *[..]ErrorLocation;
-	current_section: Section;
+	current_section: ProjectSection;
 	filepath:        string_view;
 	row:             s32;
 	col:             s32;
@@ -321,7 +328,7 @@ parse :: fn (file_ctx: *Tokenizer) {
 	ctx := @file_ctx;
 	loop next_line(file_ctx, &ctx) {
 		tok: Token;
-		force_single_string :: ctx.current_section == .INCLUDE || ctx.current_section == .EXCLUDE;
+		force_single_string :: ctx.current_section == .INCLUDE || ctx.current_section == .EXCLUDE || ctx.current_section == .SHELL;
 		loop next_token(&ctx, &tok, force_single_string) {
 			switch tok.as.kind {
 				.none,
@@ -381,6 +388,10 @@ parse :: fn (file_ctx: *Tokenizer) {
 						report(&ctx, .ERROR, tok, "Expected color entry name.");
 						eat_rest_as_invalid(&ctx);
 					}
+					continue;
+				}
+				.SHELL {
+					parse_shell_entry(&ctx, tok);
 					continue;
 				}
 			}
@@ -464,8 +475,8 @@ parse_section_marker :: fn (ctx: *Tokenizer) bool {
 	tok: Token;
 	if !next_token(ctx, &tok) && tok.as.kind != .str then return false;
 
-	section_index :: str_first_match(tok.as.str, SECTION_NAMES);
-	if section_index == -1 || section_index == auto Section.NONE {
+	section_index :: str_first_match(tok.as.str, PROJECT_SECTIONS);
+	if section_index == -1 || section_index == auto ProjectSection.NONE {
 		report(ctx, .ERROR, tok, "Invalid section name '%'.", tok.as.str);
 		eat_rest_as_invalid(ctx);
 	} else {
@@ -797,6 +808,14 @@ parse_color_entry :: fn (ctx: *Tokenizer, tok_name: Token) bool {
 	}
 
 	return true;
+}
+
+parse_shell_entry :: fn (ctx: *Tokenizer, tok: Token) {
+	entry :: push_entry(ctx, &ctx.data.shell, tok);
+	if !entry then return;
+
+	entry.as.str   = get_variant(&tok.as, .str);
+	entry.is_valid = true;
 }
 
 eat_rest_as_invalid :: fn (ctx: *Tokenizer) #inline {

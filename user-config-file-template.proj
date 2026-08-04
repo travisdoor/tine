@@ -23,5 +23,8 @@
 ;keys
 # User custom key mapping.
 
+;shell
+# Custom shell commands.
+
 ;colors
 # User custom theme colors.

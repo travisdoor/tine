@@ -1,4 +1,4 @@
-ProjectSection   :: enum { NONE; INCLUDE; EXCLUDE; SETTINGS; COLORS; INCLUDE_FILE_EXTENSIONS; KEYS; };
+ProjectSection   :: enum { NONE; INCLUDE; EXCLUDE; SETTINGS; COLORS; INCLUDE_FILE_EXTENSIONS; KEYS; SHELL; };
 PROJECT_SECTIONS :: get_enum_variants_as_redable_list(ProjectSection, false);
 
 init_project :: fn () {
@@ -19,6 +19,7 @@ terminate_project :: fn () {
 	array_terminate(&project.included_directories);
 	array_terminate(&project.included_extensions);
 	array_terminate(&project.excluded_directories);
+	array_terminate(&project.shell_entries);
 	array_terminate(&project.indexed_files);
 }
 
@@ -178,6 +179,24 @@ add_include_file_extension :: fn (ext: string_view) {
 	array_push(&project.included_extensions, str_make(ext, &project.string_cache));
 }
 
+add_shell_entry :: fn (cmd: string_view, is_preset := false) {
+	project.shell_entries_priority += 1;
+
+	loop i := 0; i < project.shell_entries.len; i += 1 {
+		entry :: &project.shell_entries[i];
+		if str_match(cmd, entry.cmd) {
+			entry.priority = project.shell_entries_priority;
+			return;
+		}
+	}
+
+	array_push(&project.shell_entries, .{
+			cmd       = str_make(cmd, &project.string_cache),
+			priority  = project.shell_entries_priority,
+			is_preset = is_preset,
+		});
+}
+
 unmap_binding_for_command :: fn (command_id: Command) {
 	loop i := 0; i < key_binding.len; {
 		if key_binding[i].cmd == command_id {
@@ -318,7 +337,10 @@ clear_project :: fn () {
 	project.included_directories.len = 0;
 	project.included_extensions.len  = 0;
 	project.excluded_directories.len = 0;
+	project.shell_entries.len        = 0;
 	project.indexed_files.len        = 0;
+
+	project.shell_entries_priority = 0;
 
 	// Clear settings
 	info :: cast(*TypeInfoStruct) typeinfo(Settings);
