@@ -390,7 +390,7 @@ lsp-completion                   Ctrl+Space
 
 ;shell
 
-# List of commands available in 'shell' history from project load.
+# List of commands available in 'shell' history right after project load.
 # Each shell command is supposed to be on a separate line and may contains spaces.
 
 # git log -100
