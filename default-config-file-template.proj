@@ -424,7 +424,6 @@ background_line_numbers             2A2722
 foreground_line_numbers             7A7468
 progress_bar                        99E2FF
 link_background                     16423e
-
 code_comment                        7A8F6B
 code_keyword                        C2A23A
 code_directive                      B07A8C
@@ -434,7 +433,6 @@ code_invalid                        C2553A
 code_warning                        C2A23A
 code_error                          C2553A
 code_function                       D6C7A1
-
 ansi_black                          3A3834
 ansi_red                            C2553A
 ansi_green                          7FA36B
@@ -472,7 +470,6 @@ ansi_white                          D6C7A1
 # foreground_line_numbers             6A5A46
 # progress_bar                        FF4C00
 # link_background                     BCFFFA
-
 # code_comment                        5E6B57
 # code_keyword                        2E4A7D
 # code_directive                      6A3FA0
@@ -482,7 +479,6 @@ ansi_white                          D6C7A1
 # code_warning                        8A6A00
 # code_error                          9B1C1C
 # code_function                       0F6B6B
-
 # ansi_black                          3A2E22
 # ansi_red                            8E2A2A
 # ansi_green                          3E6B4A
@@ -491,3 +487,50 @@ ansi_white                          D6C7A1
 # ansi_magenta                        6B4B5B
 # ansi_cyan                           3F6B6B
 # ansi_white                          D8CFBF
+
+# light colors II
+#-------------------------------------------
+# background                          FFFFFF
+# foreground                          000000
+# cursor_background                   000000
+# cursor_foreground                   FFFFFF
+# current_line_background             E8F2FE
+# search_result_background            FFFF00
+# title_bar                           F0F0F0
+# title_bar_active                    CDE0F5
+# title_bar_text                      000000
+# command_select                      C0DCF3
+# panel_outline                       DBDBDB
+# open_indicator                      0000FF
+# selection_background                C0DCF3
+# selection_background_inactive       D9D9D9
+# selection_background_inactive       E5E5E5
+# message                             008000
+# warning                             FFA500
+# error                               FF0000
+# inline_error_background             FFCCCC
+# inline_error_foreground             FF0000
+# inline_warning_background           FFFFCC
+# inline_warning_foreground           808000
+# macro_record_icon                   FF0000
+# background_line_numbers             F0F0F0
+# foreground_line_numbers             808080
+# progress_bar                        3399FF
+# link_background                     CCE5FF
+# code_comment                        008000
+# code_keyword                        0000FF
+# code_directive                      8000FF
+# code_string                         800000
+# code_number                         FF8000
+# code_invalid                        FF0000
+# code_warning                        FFA500
+# code_error                          FF0000
+# code_function                       000080
+# ansi_black                          000000
+# ansi_red                            FF0000
+# ansi_green                          008000
+# ansi_yellow                         808000
+# ansi_blue                           0000FF
+# ansi_magenta                        800080
+# ansi_cyan                           008080
+# ansi_white                          C0C0C0
