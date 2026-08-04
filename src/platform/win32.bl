@@ -1,6 +1,5 @@
 #import "os/windows" // @Cleanup 2026-06-11: Probably namespace this?
 
-BUILD_COMMAND :: "build.bat";
 DEFAULT_SHELL :: "CMD.exe /Q /K prompt $";
 
 //

@@ -243,7 +243,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 
 	help[auto BREAK_IN_REMEDYBG]                = "Set current file location as breakpoint in RemedyBG.";
 	help[auto BREAK_IN_RADDBG]                  = "Set current file location as breakpoint in RAD Debugger.";
-	help[auto BUILD]                            = "Execute `build_command`.";
+	help[auto BUILD]                            = "Execute `build_command` specified in project settings.";
 	help[auto SHELL_KILL]                       = "Try to kill running shell command.";
 	help[auto CLEAR_MESSAGES]                   = "Clear 'messages' buffer.";
 	help[auto DEBUG_IN_REMEDYBG]                = "Start debugging in running RemedyBG instance.";
@@ -1947,14 +1947,17 @@ start_build :: fn () {
 	if warn_if_no_project_open() {
 		return;
 	}
+	if warn_build_command_missing() {
+		return;
+	}
 
 	if settings.save_all_before_build {
 		save_all();
 	}
 
-	build_command :: if settings.build_command.len == 0 then BUILD_COMMAND else settings.build_command;
+	assert(settings.build_command.len > 0);
 
-	err :: request_shell_execute(build_command, .BUILD);
+	err :: request_shell_execute(settings.build_command, .BUILD);
 	if err then print_err(err);
 }
 

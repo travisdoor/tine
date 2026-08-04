@@ -33,7 +33,7 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 		return error("Shell execution is already in progress. Use [%] for interruption and try again.", get_keybinding_for_command(.SHELL_KILL));
 	}
 
-	// _, initial_editor :: get_active_buffer_and_editor();
+	_, initial_editor :: get_active_buffer_and_editor();
 
 	if shell.buffer_index == -1 {
 		shell.buffer_index = add_builtin_buffer("shell", BufferFlags.PARSE_FILE_LINKS);
@@ -41,6 +41,7 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 
 	if flavor != .BUILD || settings.focus_shell_on_build {
 		activate_buffer_editor(shell.buffer_index);
+		if has_split() then activate_editor(initial_editor.index);
 	}
 
 	assert_buffer(shell.buffer_index);

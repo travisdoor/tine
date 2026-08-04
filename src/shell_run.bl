@@ -86,16 +86,11 @@ invoke_command_shell_run_mode :: fn (buf: *Buffer #maybe_unused, cmd: Command) b
 		}
 
 		BUILD {
-			if settings.build_command.len > 0 {
-				// buf, editor :: get_active_buffer_and_editor();
-
+			if !warn_build_command_missing() {
 				notify_changes_to_buffer = -1;
 				clear_buffer(buf);
 				insert_string(buf, 0, settings.build_command);
-				// select_all(editor, buf);
 				notify_changes_to_buffer = buf.index;
-			} else {
-				print_warn("Build command is not set in settings.");
 			}
 		}
 

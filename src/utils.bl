@@ -1086,6 +1086,14 @@ warn_if_modifications_needs_to_be_saved :: fn (buf: *Buffer) bool {
 	return false;
 }
 
+warn_build_command_missing :: fn () bool {
+	if settings.build_command.len == 0 {
+		print_warn("Build command is not specified in project settings.");
+		return true;
+	}
+	return false;
+}
+
 font_centered_in :: fn (h: f32, _: *draw.Font) f32 #inline {
 	return math.ceil(h * 0.5f);
 }
