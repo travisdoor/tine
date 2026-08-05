@@ -1,5 +1,8 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+1.1.0 2026-08-05
+---------------------------------------------------------------------------------------
 - Add Ctrl+MouseWheel font resize.
 - Add `chop_root_dir_from_search_paths` option to make search results paths more readable in the list.
 - Add an empty user level global config.
