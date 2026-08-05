@@ -681,7 +681,7 @@ list_shell_entries :: fn () {
 				flags = if entry.is_preset then ItemFlags.HIGHLIGHT else ItemFlags.NONE,
 			});
 	}
-	
+
 	quick_sort_by_score(list[DEFAULT_LIST_INDEX], 0, auto (list[DEFAULT_LIST_INDEX].len - 1));
 }
 
@@ -828,6 +828,7 @@ list_buffers :: fn (modified_only := false, implicit_items: []ListItem = .{}) {
 		buf :: &buffers[i];
 		if buf.is_removed then continue;
 		if is_command_editor_buffer(buf) then continue;
+		if modified_only && (buf.flags & .NO_UNDO) == .NO_UNDO then continue;
 
 		modified :: buf.saved_top != buf.undo_top;
 		missing  :: buf.missing_on_disk;

@@ -1,8 +1,8 @@
 shutdown_mode_init :: fn (closing_buffers := false) {
 	is_closing_buffers = closing_buffers;
-	has_unsaved_buffers :: close_all();
 
-	if !has_unsaved_buffers {
+	has_modified, has_missing :: close_all();
+	if !has_modified && !has_missing {
 		set_mode(.TEXT_EDIT);
 		if !is_closing_buffers then schedule_exit();
 		return;
@@ -14,30 +14,44 @@ shutdown_mode_init :: fn (closing_buffers := false) {
 
 	notify_changes_to_buffer = buf.index;
 
-	list_buffers(true, [_]ListItem.{
-			.{
+	menu: [..]ListItem;
+	array_init(&menu, 3, application_context.temporary_allocator);
+
+	save_all_hint := "";
+	if has_missing && has_modified {
+		save_all_hint = "Save all buffers and create missing files.";
+	} else if has_missing {
+		save_all_hint = "Create all missing files.";
+	}
+
+	array_push(&menu, .{
+			icon       = icon(ICON_SAVE_ALL),
+			title      = if is_closing_buffers then "Save All" else "Save All & Quit",
+			flags      = .HIGHLIGHT,
+			index      = SAVE_ALL_ITEM_INDEX,
+			hint       = save_all_hint,
+		});
+
+	if has_missing && has_modified {
+		array_push(&menu, .{
 				icon       = icon(ICON_SAVE),
 				title      = if is_closing_buffers then "Save All Existing" else "Save All Existing & Quit",
 				flags      = .HIGHLIGHT,
 				index      = SAVE_ALL_EXISTING_ITEM_INDEX,
-				hint       = "Save only buffers associated with files existing on disk.",
-			},
-			.{
-				icon       = icon(ICON_SAVE_ALL),
-				title      = if is_closing_buffers then "Save All" else "Save All & Quit",
-				flags      = .HIGHLIGHT,
-				index      = SAVE_ALL_ITEM_INDEX,
-				hint       = "Save all buffers associated with files on disk and create missing ones.",
-			},
-			.{
+				hint       = "Save only buffers associated with existing files.",
+			});
+
+	}
+
+	array_push(&menu, .{
 				icon       = icon(ICON_CLOSE_ALL),
 				title      = if is_closing_buffers then "Close All" else "Quit",
 				flags      = .HIGHLIGHT,
 				index      = QUIT_ITEM_INDEX,
 				hint       = "Ignore all unsaved changes.",
-			}
-		});
+			});
 
+	list_buffers(true, menu);
 	print_warn("Not all files were saved, chose what to do.");
 }
 
@@ -181,24 +195,34 @@ save_all :: fn (ignore_missing := false) (success: bool, editor_index_for_manual
 	return true, -1;
 }
 
-close_all :: fn (force := false) bool {
+close_all :: fn (force := false) (has_modified: bool, has_missing: bool) {
 	allocator    :: application_context.temporary_allocator;
 	open_buffers :: duplicate_slice(buffers, allocator) catch panic($);
 
-	has_unsaved_buffers := false;
+	has_modified := false;
+	has_missing  := false;
 
 	loop i := 0; i < open_buffers.len; i += 1 {
 		buf :: &open_buffers[i];
 		if buf.is_removed then continue;
 		if (buf.flags & .NO_UNDO) == .NO_UNDO then continue;
 
-		if !force && (buf.saved_top != buf.undo_top || buf.missing_on_disk) {
-			has_unsaved_buffers = true;
+		if force {
+			close_buffer(buf.index);
+			continue;
+		}
+
+		if buf.missing_on_disk {
+			has_missing  = true;
+			continue;
+		}
+		if buf.saved_top != buf.undo_top {
+			has_modified = true;
 			continue;
 		}
 
 		close_buffer(buf.index);
 	}
 
-	return has_unsaved_buffers;
+	return has_modified, has_missing;
 }
