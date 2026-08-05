@@ -8,7 +8,7 @@ MASTER
 - Add ignore of `.bak.proj` backup files in project lister.
 - Add inline diagnostic stats to editor title bar.
 - Add modal_selection toggle.
-- Add new config file version upgreade handling.
+- Add new config file version upgrade handling.
 - Add option `resize_font_by_scrolling` to disable Ctrl+MouseWheel to resize text.
 - Add parsing of file links in messages.
 - Add possibility to insert current build_command to shell command line.
