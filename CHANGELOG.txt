@@ -1,5 +1,8 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+1.1.1 2026-08-06
+---------------------------------------------------------------------------------------
 - Automatically provide stdin-related arguments for shell executables on Windows (cmd, pwsh).
 - Fix "open shell" hint, now shown only when shell/build execution produces actual output.
 - Fix broken reading of shell process exit code on Windows.
