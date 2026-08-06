@@ -1137,3 +1137,31 @@ find_member_in_struct :: fn (strct: *?TStruct, name: string_view) (ptr: *u8, mem
 lit_hash :: fn (lit: string_view) u32 #comptime {
 	return str_hash(lit);
 }
+
+ShellKind :: enum {
+	UNKNOWN;
+	CMD;
+	POWERSHELL;
+	BASH;
+	ZSH;
+	SH;
+	FISH;
+}
+
+get_shell_kind :: fn (path: string_view) ShellKind {
+	executable := path_split(path).tail;
+	executable  = str_lower2(path_splitext(executable).head);
+
+	switch str_hash(executable) {
+		str_hash#("cmd")        { return .CMD;        }
+		str_hash#("pwsh"),
+		str_hash#("powershell") { return .POWERSHELL; }
+		str_hash#("bash")       { return .BASH;       }
+		str_hash#("zsh")        { return .ZSH;        }
+		str_hash#("sh")         { return .SH;         }
+		str_hash#("fish")       { return .FISH;       }
+		default;
+	}
+
+	return .UNKNOWN;
+}

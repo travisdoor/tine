@@ -99,23 +99,28 @@ show_lsp_inline_diagnostics            true
 # Shell
 #----------------------------------------------------------------------------------------------------
 
-# Customize shell command. Command line arguments including the shell executable used when 'shell' or
-# 'build' editor commands are invoked.
-# The shell executable (or full path) should be the first followed by optional arguments passed directly
-# to the shell.
-# Requested shell command is later passed into the running shell via pipe.
+# Shell used in 'shell' and 'build' editor commands.
 #
-# Default values are:
-# - Windows: CMD.exe
-# - MacOS:   /bin/zsh
+# Defaults:
+# - Windows: cmd.exe
+# - macOS:   /bin/zsh
 # - Linux:   /bin/bash
 #
+# Commands are sent to the shell process via stdin. This requires (on Windows) specific arguments
+# depending on the shell - for cmd: '/Q /K prompt $', for PowerShell: '-c -'. These are added automatically
+# when no arguments are specified here. If custom arguments are needed, the "stdin" instructions must be
+# included manually.
+#
+# In case the shell executable cannot be found in current PATH, full path must be specified.
+#
 # Examples:
-# shell                                  pwsh -c "-"
-# shell                                  CMD.exe /Q /K prompt $
+# shell                                  pwsh
+# shell                                  CMD.exe
 # shell                                  C:/Program\ Files/Git/bin/bash.exe
 # shell                                  /bin/fish
-# shell                                  /bin/bash --login
+# shell                                  /bin/bash
+# shell                                  /bin/zsh
+# shell                                  pwsh -NoProfile -c - # With custom args...
 
 # Enable internal parsing of clang/cl or similar error and warning locations in shell output. All file
 # locations parsed from the output are available later in error list for quick navigation (used with

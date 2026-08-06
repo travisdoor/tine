@@ -1,6 +1,6 @@
 #import "os/windows" // @Cleanup 2026-06-11: Probably namespace this?
 
-DEFAULT_SHELL :: "CMD.exe /Q /K prompt $";
+DEFAULT_SHELL :: "CMD.exe";
 
 //
 // Process
@@ -157,7 +157,6 @@ PollEvent :: enum #flags {
 
 poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 	result: PollEvent;
-
 	has_separate_stderr :: ctx.stderr != ctx.stdout;
 
 	// Check if pipe has any data to read (process might be already closed).
@@ -189,12 +188,14 @@ poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 
 	if result == PollEvent.NO_EVENT {
 		// Check if process is still alive.
-		exit_code: DWORD;
-		if GetExitCodeProcess(ctx.win_process_handle, &exit_code) != 0 {
-			if exit_code != STILL_ACTIVE {
-				ctx.exit_code = auto exit_code;
+		status: DWORD;
+		if GetExitCodeProcess(ctx.win_process_handle, &status) != 0 {
+			if status != STILL_ACTIVE {
+				ctx.exit_code = auto status;
 				result = PollEvent.CLOSED;
 			}
+		} else {
+			return PollEvent.CLOSED, os_get_last_error2();
 		}
 	}
 

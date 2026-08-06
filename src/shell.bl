@@ -229,7 +229,24 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	executable :: args_with_executable[0];
-	args       :: []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
+	args       := []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
+
+	shell_kind :: get_shell_kind(executable);
+	print_log("Shell: '%' -> % [%]", executable, shell_kind, args);
+
+	// Handle shell specific prelude only in case there was nothing explicitly specified by user.
+	if args.len == 0 {
+		// Windows BS specific garbage needed for their shells to accept stdin.
+		switch shell_kind {
+			.CMD {
+				args = [_]string_view.{ "/Q", "/K", "prompt", "$" };
+			}
+			.POWERSHELL {
+				args = [_]string_view.{ "-c", "-" };
+			}
+			default;
+		}
+	}
 
 	start_process(ctx, executable, args) catch {
 		report_error_and_fail(ctx, $);
@@ -247,7 +264,19 @@ worker :: fn (ctx: *JobContext) s32 {
 	}
 
 	write_pipe(ctx.stdin, request_data.args);
-	write_pipe(ctx.stdin, "\n");
+	write_pipe(ctx.stdin, if PLATFORM == .WINDOWS then "\r\n" else "\n");
+
+	switch shell_kind {
+		// Yet again Windows garbage to let the shell propagate exit value.
+		.CMD {
+			write_pipe(ctx.stdin, "exit %ERRORLEVEL%\r\n");
+		}
+		.POWERSHELL {
+			write_pipe(ctx.stdin, "exit $LASTEXITCODE\r\n");
+		}
+		default;
+	}
+
 	close_pipe(&ctx.stdin);
 
 	loop !ctx.kill {

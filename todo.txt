@@ -7,6 +7,14 @@
 [x] Clang-format prints error result from compilation!
 [x] Scroll on empty document asserts!
 
+
+[ ] New file saving cannot handle directory tree creation.
+	[ ] Verify is pasting full path would work.
+[ ] Improve "default" project behaviour.
+	[ ] Default working directory should point to HOME.
+	[ ] Maybe change working directory on the first file open?
+	[ ] Empty includes might accept everything for search?
+
 [x] Platform commands should be visible only on supported platform.
 [x] Use highter resolution for app icon. It's blurry in Windows start menu.
 [x] LSP for proj files.

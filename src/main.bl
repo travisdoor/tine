@@ -1776,8 +1776,8 @@ remove_async_job :: fn (index: s32) {
 	switch ctx.state {
 		DONE   {
 			open_shell_command_binding :: get_keybinding_for_command(.OPEN_SHELL);
-			shell_visible :: get_visible_editor_for_buffer(shell.buffer_index) != -1;
-			msg :: tprint("Job '%' finished with exit code: %. %",  ctx.name, ctx.exit_code, if shell_visible then "" else tprint("Use [%] to see the output.", open_shell_command_binding, ));
+			show_shell_hint :: ctx.kind == .SHELL && (get_visible_editor_for_buffer(shell.buffer_index) == -1);
+			msg :: tprint("Job '%' finished with exit code: %.%",  ctx.name, ctx.exit_code, if show_shell_hint then tprint(" Use [%] to see the output.", open_shell_command_binding) else "");
 			if ctx.exit_code == 0 {
 				print_info(msg);
 			} else {
