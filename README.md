@@ -47,11 +47,12 @@ Optionally, run the `install` editor command to add a link to the executable to 
 - Discord: https://discord.gg/cmDSGMhwYT
 - Zulip: https://tine.zulipchat.com/join/lhnqb53mklvmjmeqzibqa3go
 
-## Tutorials
+## Tutorials & Videos
 
 - Introduction: https://youtu.be/SWHi74XATUE
 - RemedyBG workflow: https://youtu.be/2JmT6_gce8g
 - Repeat mode & macros: https://youtu.be/8FxoyvfCiOc?si=zEccV3FbVi8l6yvx
+- Version 1.1.0 feature update: https://youtu.be/1nv5_OmxOP0
 
 ## Authors
 
