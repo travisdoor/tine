@@ -882,6 +882,8 @@ main :: fn () s32 {
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
 
+	set_cwd(get_home2());
+
 	// Resolve editor executable path.
 	EXEC_PATH = os_get_exec_path();
 	defer str_terminate(&EXEC_PATH);
