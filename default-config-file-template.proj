@@ -232,6 +232,10 @@ resize_font_by_scrolling true
 # Vertical document scroll speed in range <1, 100>.
 scroll_speed 10
 
+# Linux only option. Application window icon is set on each start, this might cause issues on some desktops
+# using Wayland (gnome). Disable it to get rid of the startup error message.
+set_window_icon true
+
 #----------------------------------------------------------------------------------------------------
 ;keys
 #----------------------------------------------------------------------------------------------------

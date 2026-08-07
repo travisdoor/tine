@@ -80,7 +80,7 @@ init_window :: fn () {
 	if (!window) then panic(sdl_last_error());
 
 
-	if PLATFORM == .LINUX {
+	if PLATFORM == .LINUX && settings.set_window_icon {
 		set_icon();
 	}
 

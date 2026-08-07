@@ -463,6 +463,8 @@ Settings :: struct {
 	shell_enable_ansi_colors:               bool;
 	shell_enable_error_location_colors:     bool;
 
+	set_window_icon: bool;
+
 	// Language support related things
 	c_extensions:      string;
 	glsl_extensions:   string;
