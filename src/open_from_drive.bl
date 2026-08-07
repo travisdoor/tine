@@ -137,30 +137,40 @@ open_from_drive_cmd_changed :: fn () {
 		return;
 	}
 
-	save_item: *ListItem;
-	if is_saving && base_path.len > 0 && !is_directory(tail).is_dir && !file_exist(tprint("%/%", base_path, tail)) {
+	
+	implicit_items :: make_temporary_array(ListItem, 2);
+	print_log(">>> %", tail);
+	
+	if is_saving && base_path.len > 0 && !file_exist(tprint("%/%", base_path, tail)) {
 		save_item_hint.len = 0;
 		str_append(&save_item_hint, tail);
 
-		save_item_tmp = .{
+		array_push(&implicit_items, .{
 			title = "Save as",
 			hint  = save_item_hint,
 			icon  = icon(ICON_SAVE),
 			index = SAVE_ITEM_INDEX,
 			flags = .HIGHLIGHT,
-		};
-		save_item = &save_item_tmp;
-		may_override_file = false;
+		});
+		
+		array_push(&implicit_items, .{
+				title = "Create directory",
+				hint  = save_item_hint,
+				icon  = icon(ICON_FOLDER),
+				index = SAVE_ITEM_INDEX,
+				flags = .HIGHLIGHT,
+			});
+		
+		may_override_file = false; // @Incomplete 2026-08-07: We might want to reset this every time?
 	}
 
-	filter_list(tail, save_item);
+	filter_list(tail, implicit_items);
 }
 
 #scope_private
 
 is_saving: bool;
 base_path: string;
-save_item_tmp: ListItem;
 save_item_hint: string;
 may_override_file: bool;
 

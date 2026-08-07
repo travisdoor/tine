@@ -102,15 +102,17 @@ shell_run_cmd_changed :: fn () {
 	run_item_hint.len = 0;
 	str_append(&run_item_hint, cmd);
 
-	run_item = .{
-		title = "Run",
-		hint  = run_item_hint,
-		icon  = icon(ICON_PLAY),
-		index = RUN_ITEM_INDEX,
-		flags = .HIGHLIGHT,
+	implicit_items :: [1]ListItem.{
+		.{
+			title = "Run",
+			hint  = run_item_hint,
+			icon  = icon(ICON_PLAY),
+			index = RUN_ITEM_INDEX,
+			flags = .HIGHLIGHT,
+		},
 	};
 
-	filter_list(cmd, &run_item);
+	filter_list(cmd, implicit_items);
 }
 
 #scope_private

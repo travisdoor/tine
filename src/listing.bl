@@ -886,14 +886,14 @@ clear_list_filters :: fn () {
 	visible_list_index = DEFAULT_LIST_INDEX;
 }
 
-filter_list :: fn (filter: string_view, implicit_item: *ListItem = null, exclude_first_n := 0) {
+filter_list :: fn (filter: string_view, implicit_items : []ListItem = .{}, exclude_first_n := 0) {
 	assert(filter.len > 0);
 	selected_index = 0;
 	start_index    = 0;
 	list[FILTER_LIST_INDEX].len = 0;
 
-	if implicit_item {
-		array_push(&list[FILTER_LIST_INDEX], @implicit_item);
+	loop i := 0; i < implicit_items.len; i += 1 {
+		array_push(&list[FILTER_LIST_INDEX], implicit_items[i]);
 	}
 
 	loop i := exclude_first_n; i < list[DEFAULT_LIST_INDEX].len; i += 1 {
@@ -915,9 +915,7 @@ filter_list :: fn (filter: string_view, implicit_item: *ListItem = null, exclude
 		}
 	}
 
-	sort_from_index :: if implicit_item then 1 else 0;
-	quick_sort_by_score(list[FILTER_LIST_INDEX], sort_from_index, auto (list[FILTER_LIST_INDEX].len - 1));
-
+	quick_sort_by_score(list[FILTER_LIST_INDEX], auto implicit_items.len, auto (list[FILTER_LIST_INDEX].len - 1));
 	visible_list_index = FILTER_LIST_INDEX;
 }
 

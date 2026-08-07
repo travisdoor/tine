@@ -9,11 +9,13 @@
 
 
 [ ] New file saving cannot handle directory tree creation.
-	[ ] Verify is pasting full path would work.
+	[ ] Verify pasting full path work.
 [ ] Improve "default" project behaviour.
-	[ ] Default working directory should point to HOME.
+	[x] Default working directory should point to HOME.
 	[ ] Maybe change working directory on the first file open?
 	[ ] Empty includes might accept everything for search?
+[ ] Check how remove of cwd works in all cases, and verify it's consistent.
+[ ] Implement group replace edits in search buffer. Find + replace.
 
 [x] Platform commands should be visible only on supported platform.
 [x] Use highter resolution for app icon. It's blurry in Windows start menu.

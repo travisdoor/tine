@@ -122,7 +122,7 @@ shutdown_cmd_changed :: fn () {
 		return;
 	}
 
-	filter_list(user_path, null, 3);
+	filter_list(user_path, .{}, 3);
 }
 
 #private
