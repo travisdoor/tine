@@ -79,11 +79,6 @@ init_window :: fn () {
 	window = CreateWindow(strtoc(WINDOW_TITLE), WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_RESIZABLE | WINDOW_OPENGL | WINDOW_HIGH_PIXEL_DENSITY);
 	if (!window) then panic(sdl_last_error());
 
-
-	if PLATFORM == .LINUX && settings.set_window_icon {
-		set_icon();
-	}
-
 	if !sdl.EnableScreenSaver() then print_err(sdl_last_error());
 
 	if !GetWindowSizeInPixels(window, &WINDOW_WIDTH, &WINDOW_HEIGHT) then print_err(sdl_last_error());
@@ -400,6 +395,19 @@ set_window_title :: fn (title: string_view) #inline {
 	if !sdl.SetWindowTitle(window, strtoc(text)) then print_err(sdl_last_error());
 }
 
+set_window_icon :: fn () {
+	w, h, pitch: u32;
+	bit_depth: u8;
+	pixels: *u8;
+	format: draw.TextureFormat;
+	draw.png_load_from_memory(APP_FLIP_ICON_DATA, &pixels, &w, &h, &bit_depth, &format, &pitch) catch panic($);
+	defer free(pixels);
+
+	surface :: sdl.CreateSurfaceFrom(auto w, auto h, sdl.PixelFormat.PIXELFORMAT_RGBA32, pixels, auto pitch);
+	defer sdl.DestroySurface(surface);
+	sdl.SetWindowIcon(window, surface); // Ignore errors here...
+}
+
 //
 // Clipboard
 //
@@ -555,19 +563,6 @@ clear_mouse_events :: fn () {
 
 sdl_last_error :: fn () Error #inline {
 	return error(ctostr(sdl.GetError()));
-}
-
-set_icon :: fn () {
-	w, h, pitch: u32;
-	bit_depth: u8;
-	pixels: *u8;
-	format: draw.TextureFormat;
-	draw.png_load_from_memory(APP_FLIP_ICON_DATA, &pixels, &w, &h, &bit_depth, &format, &pitch) catch panic($);
-	defer free(pixels);
-
-	surface :: sdl.CreateSurfaceFrom(auto w, auto h, sdl.PixelFormat.PIXELFORMAT_RGBA32, pixels, auto pitch);
-	defer sdl.DestroySurface(surface);
-	if !sdl.SetWindowIcon(window, surface) then print_err(sdl_last_error());
 }
 
 KeyName :: struct { code: sdl.Keycode; name: string_view };

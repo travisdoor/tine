@@ -233,7 +233,7 @@ resize_font_by_scrolling true
 scroll_speed 10
 
 # Linux only option. Application window icon is set on each start, this might cause issues on some desktops
-# using Wayland (gnome). Disable it to get rid of the startup error message.
+# using Wayland (gnome).
 set_window_icon true
 
 #----------------------------------------------------------------------------------------------------
