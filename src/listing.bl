@@ -1217,6 +1217,7 @@ get_icon_for_file_info :: fn (file_info: *FileVisitInfo) string_view #inline {
 	return get_icon_for_file_type(file_type);
 }
 
+#scope_public
 reset_listing :: fn () {
 	list[DEFAULT_LIST_INDEX].len = 0;
 	list[FILTER_LIST_INDEX].len  = 0;
@@ -1229,6 +1230,7 @@ reset_listing :: fn () {
 	top_index           =  0;
 	last_selected_index = -1;
 }
+#scope_private
 
 // utf8 version?
 first_from_left_in_path :: fn (str: string_view, c: u8, start: s64) s64 {

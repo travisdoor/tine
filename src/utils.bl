@@ -646,6 +646,7 @@ unicode_char_to_utf8_with_fallback :: fn (c: u32, fallback: string_view = "?") s
 	return tmp;
 }
 
+// Path is expected to be normalized.
 get_file_hash :: fn (filepath: string_view) u32 {
 	tmp :: str_make(filepath, application_context.temporary_allocator);
 	#if PLATFORM == Platform.WINDOWS {
@@ -1107,19 +1108,83 @@ max_len :: fn (ptrs: *string_view, count: s64) s32 {
 	return l;
 }
 
-expand_and_normalize_path :: fn (path: string_view) (path: string_view, err: Error) {
-	tmp :: str_make(path.len, application_context.temporary_allocator);
-	if path.len > 1 && path[0] == '~' {
+normalize_path_no_check :: fn (path: string_view, for_platform := PLATFORM) (path: string_view, err: Error) {
+	if path.len == 0 then return path, OK;
+
+	allocator :: application_context.temporary_allocator;
+	tmp := str_make(path, allocator);
+	str_replace_all(&tmp, '\\', '/');
+
+	head, tail: string_view;
+	str_split_by_first(tmp, '/', &head, &tail);
+	if str_match(head, "~") {
+		tail_dup :: str_make(tail, allocator);
+
+		tmp.len = 0;
 		str_append(&tmp, get_home2());
-		if path.len > 2 {
-			str_append(&tmp, slice_range(path, 1));
+		if tail_dup.len > 0 {
+			str_append(&tmp, "/");
+			str_append(&tmp, tail_dup);
 		}
-	} else {
-		str_append(&tmp, path);
+
+	} else if str_match(head, ".") || str_match(head, "..") || (head.len > 0 && !is_path_absolute(head, for_platform)) {
+		cwd :: get_cwd();
+		defer str_terminate(&cwd);
+		str_insert(&tmp, 0, "/");
+		str_insert(&tmp, 0, cwd);
 	}
 
-	path_normalize(&tmp) catch return path, $;
-	return tmp, OK;
+	tokens :: str_split_by(tmp, '/', allocator);
+
+	loop i := 0; i < tokens.len; {
+		if tokens[i].len == 0 || str_match(tokens[i], ".") {
+			array_erase_keep_order(&tokens, i);
+			continue;
+		}
+		if str_match(tokens[i], "..") {
+			if i == 0 {
+				return path, error("Invalid path.");
+			}
+			array_erase_keep_order(&tokens, i-1);
+			array_erase_keep_order(&tokens, i-1);
+			i -= 1;
+			continue;
+		}
+		i += 1;
+	}
+
+	if for_platform == Platform.WINDOWS {
+		if tokens.len == 0 {
+			return path, error("Invalid path.");
+		}
+	} else {
+		if tokens.len == 0 {
+			return "/", OK;
+		}
+	}
+
+	result :: str_make(path.len, allocator);
+	loop i := 0; i < tokens.len; i += 1 {
+		if for_platform == Platform.WINDOWS {
+			if i > 0 then str_append(&result, "/");
+		} else {
+			str_append(&result, "/");
+		}
+		str_append(&result, tokens[i]);
+	}
+
+	return result, OK;
+}
+
+normalize_path :: fn (path: string_view) (path: string_view, err: Error) #inline {
+	normalized :: normalize_path_no_check(path) catch {
+		return path, $;
+	};
+	print_log(">> %", normalized);
+	if !file_exist(normalized) {
+		return path, error("File '%' not found", path);
+	}
+	return normalized, OK;
 }
 
 find_member_in_struct :: fn (strct: *?TStruct, name: string_view) (ptr: *u8, member_type: *TypeInfo, hash: u32) #inline {
@@ -1164,4 +1229,15 @@ get_shell_kind :: fn (path: string_view) ShellKind {
 	}
 
 	return .UNKNOWN;
+}
+
+is_path_absolute :: fn (path: string_view, for_platform := PLATFORM) bool {
+	if path.len < 1 then return false;
+
+	if for_platform == .WINDOWS {
+		if path.len < 2 then return false;
+		return path[1] == ':';
+	} else {
+		return path[0] == '/';
+	}
 }

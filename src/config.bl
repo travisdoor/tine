@@ -490,7 +490,7 @@ parse_include_entry :: fn (ctx: *Tokenizer, tok: Token) {
 	path  :: get_variant(&tok.as, .str);
 	entry :: push_entry(ctx, &ctx.data.includes, tok);
 
-	normalized :: expand_and_normalize_path(path) catch {
+	normalized :: normalize_path(path) catch {
 		report(ctx, .WARNING, tok, "Include path '%' not found.", path);
 		return;
 	};

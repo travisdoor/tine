@@ -8,6 +8,7 @@ open_from_drive_mode_init :: fn (saving := false) {
 	input_mode               = InputMode.TEXT;
 	notify_changes_to_buffer = buf.index;
 	may_override_file        = false;
+	last_path_failed         = false;
 
 	base_path = get_cwd();
 	list_directory(tprint("%/", base_path)) catch print_err($);
@@ -116,12 +117,21 @@ open_from_drive_cmd_changed :: fn () {
 			}
 		}
 
-		is_dir :: is_directory(new_base_path) catch print_err($);
+		print_log("Check dir: %", new_base_path);
+		is_dir, err :: is_directory(new_base_path);
+		if err {
+			last_path_failed = true;
+			reset_listing();
+			if !is_saving {
+				print_err(err);
+			}
+		}
 
 		if is_dir {
 			base_path.len = 0;
 			str_append(&base_path, new_base_path);
 			list_directory(base_path) catch print_err($);
+			last_path_failed = false;
 
 			// 2025-02-17: Changing the buffer content will invoke change notification
 			//             invoking this function again. So filtering should be properly
@@ -132,25 +142,34 @@ open_from_drive_cmd_changed :: fn () {
 		}
 	}
 
+	if head.len == 0 && last_path_failed {
+		list_directory(base_path) catch print_err($);
+		last_path_failed = false;
+	}
+
 	if tail.len == 0 {
 		clear_list_filters();
 		return;
 	}
 
 	save_item: *ListItem;
-	if is_saving && base_path.len > 0 && !is_directory(tail).is_dir && !file_exist(tprint("%/%", base_path, tail)) {
-		save_item_hint.len = 0;
-		str_append(&save_item_hint, tail);
+	if is_saving {
+		dst_path :: tprint("%/%", base_path, tail);
+		if !file_exist(dst_path) && !is_directory(dst_path).is_dir {
 
-		save_item_tmp = .{
-			title = "Save as",
-			hint  = save_item_hint,
-			icon  = icon(ICON_SAVE),
-			index = SAVE_ITEM_INDEX,
-			flags = .HIGHLIGHT,
-		};
-		save_item = &save_item_tmp;
-		may_override_file = false;
+			save_item_hint.len = 0;
+			str_append(&save_item_hint, tail);
+
+			save_item_tmp = .{
+				title = if head.len > 0 then "Save and (create directories)" else "Save as",
+				hint  = save_item_hint,
+				icon  = icon(ICON_SAVE),
+				index = SAVE_ITEM_INDEX,
+				flags = .HIGHLIGHT,
+			};
+			save_item = &save_item_tmp;
+			may_override_file = false;
+		}
 	}
 
 	filter_list(tail, save_item);
@@ -163,6 +182,7 @@ base_path: string;
 save_item_tmp: ListItem;
 save_item_hint: string;
 may_override_file: bool;
+last_path_failed: bool;
 
 SAVE_ITEM_INDEX :: -1;
 
@@ -213,7 +233,6 @@ commit :: fn () {
 
 parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
 	delims: string_view;
-
 	#if PLATFORM == Platform.WINDOWS {
 		delims = "\\/";
 	} else {
@@ -221,7 +240,7 @@ parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
 	}
 
 	last_delim_index : s64 = -1;
-	loop i := path.len-1; i >= 0; i -= 1 {
+	loop i := path.len-1; i >= 0 && last_delim_index == -1; i -= 1 {
 		loop j := 0; j < delims.len; j += 1 {
 			if path[i] == delims[j] {
 				last_delim_index = i;
@@ -240,17 +259,6 @@ parse_path :: fn (path: string_view) (head: string_view, tail: string_view) {
 	tail :: string_view.{ path.len - last_delim_index - 1, &path[last_delim_index+1] };
 
 	return head, tail;
-}
-
-is_path_absolute :: fn (path: string_view) bool {
-	if path.len < 1 then return false;
-
-	#if PLATFORM == .WINDOWS {
-		if path.len < 2 then return false;
-		return path[1] == ':';
-	} else {
-		return path[0] == '/';
-	}
 }
 
 dir_up :: fn (path: *string) {

@@ -882,8 +882,6 @@ main :: fn () s32 {
 	editor_start_time = get_timestamp();
 	print_log("Editor start time is %.", editor_start_time);
 
-	set_cwd(get_home2());
-
 	// Resolve editor executable path.
 	EXEC_PATH = os_get_exec_path();
 	defer str_terminate(&EXEC_PATH);
@@ -1013,9 +1011,19 @@ main :: fn () s32 {
 	defer str_terminate(&search.last_replacement);
 	defer array_terminate(&search.results);
 
+	set_default_working_directory := true;
 	loop i := 1; i < command_line_arguments.len; i += 1 {
 		filepath :: command_line_arguments[i];
-		open(filepath, .LEFT) catch print_err($);
+		err :: open(filepath, .LEFT);
+		if err {
+			print_err(err);
+		} else {
+			set_default_working_directory = false;
+		}
+	}
+
+	if set_default_working_directory {
+		set_cwd(get_home2());
 	}
 
 	if workspace.active_editor == -1 {
@@ -1497,8 +1505,8 @@ get_buffer_by_filepath :: fn (filepath: string_view) *Buffer {
 }
 
 open :: fn (filepath: string_view, split: Split) Error {
-	normalized_path := str_make(filepath, application_context.temporary_allocator);
-	path_normalize(&normalized_path) catch return error("Invalid file path: '%'.", filepath);
+	normalized_path :: normalize_path(filepath) catch return error("Invalid file path: '%'.", filepath);
+	print_log("Open from: '%'.", normalized_path);
 	buf := get_buffer_by_filepath(normalized_path);
 	if !buf {
 		buf = &buffers[add_buffer()];
@@ -1521,19 +1529,17 @@ open :: fn (filepath: string_view, split: Split) Error {
 
 save :: fn (buf: *Buffer, filepath: string_view) Error {
 	assert(filepath.len > 0);
-
-	hash :: get_file_hash(filepath);
-	loop i := 0; i < buffers.len; i += 1 {
-		b :: &buffers[i];
-		if b.is_removed { continue; }
-		if b.hash == hash {
-			// We might have already open file with the same name, so we have to close it to
-			// prevent creation of duplicit buffers.
-			close_buffer(i);
-			break;
-		}
+	normalized_path :: normalize_path_no_check(filepath) catch return $;
+	create_all_dir(path_split(normalized_path).head) catch return $;
+	
+	print_log("Saving to: '%'.", normalized_path);
+	other_buf :: get_buffer_by_filepath(normalized_path);
+	if other_buf {
+		// We might have already open file with the same name, so we have to close it to
+		// prevent creation of duplicit buffers.
+		close_buffer(other_buf.index);
 	}
-	return save_buffer_to_file(buf, filepath);
+	return save_buffer_to_file(buf, normalized_path);
 }
 
 // Open file in the buffer or switch to already existing one and move the cursor to line and col.

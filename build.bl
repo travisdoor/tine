@@ -6,6 +6,7 @@
 Args :: struct {
 	is_release: bool;
 	sanitize_address: bool;
+	test: bool;
 }
 
 args: Args;
@@ -26,6 +27,7 @@ main :: fn () s32 {
 
 	add(&parser, &args.is_release, "--release", "", "Compile in release mode.");
 	add(&parser, &args.sanitize_address, "--sanitize-address", "", "Use ASAN.");
+	add(&parser, &args.test, "--test", "", "Run unit tests.");
 
 	_, parse_error :: parse(&parser, command_line_arguments, 0);
 	if parse_error {
@@ -51,6 +53,12 @@ main :: fn () s32 {
 	add_unit(exe, "src/main.bl");
 
 	exe.sanitize_address = args.sanitize_address;
+	exe.run_tests = args.test;
+	exe.no_bin    = args.test;
+
+	if args.test {
+		add_unit(exe, "src/utils.test.bl");
+	}
 
 	#if PLATFORM == Platform.WINDOWS {
 		add_unit(exe, "src/platform/win32.bl");
@@ -65,6 +73,7 @@ main :: fn () s32 {
 	}
 
 	compile(exe) catch return $.code;
+	if args.test then return 0;
 
 	if args.is_release {
 		if PLATFORM == Platform.WINDOWS {

@@ -1,0 +1,159 @@
+#scope_private
+#import "std/test"
+
+is_path_absolute_linux_1 :: fn () #test {
+	test_false(is_path_absolute("", .LINUX));
+}
+
+is_path_absolute_linux_2 :: fn () #test {
+	test_false(is_path_absolute("foo", .LINUX));
+}
+
+is_path_absolute_linux_3 :: fn () #test {
+	test_true(is_path_absolute("/", .LINUX));
+}
+
+is_path_absolute_linux_4 :: fn () #test {
+	test_true(is_path_absolute("/foo/bar", .LINUX));
+}
+
+is_path_absolute_windows_1 :: fn () #test {
+	test_false(is_path_absolute("", .WINDOWS));
+}
+
+is_path_absolute_windows_2 :: fn () #test {
+	test_false(is_path_absolute("foo", .WINDOWS));
+}
+
+is_path_absolute_windows_3 :: fn () #test {
+	test_true(is_path_absolute("C:/", .WINDOWS));
+}
+
+is_path_absolute_windows_4 :: fn () #test {
+	test_true(is_path_absolute("D:/foo/bar", .WINDOWS));
+}
+
+normalize_path_no_check_empty :: fn () #test {
+	path, err :: normalize_path_no_check("", .LINUX);
+	test_ok(err);
+	test_eq(path, "");
+}
+
+normalize_path_no_check_root :: fn () #test {
+	path, err :: normalize_path_no_check("/", .LINUX);
+	test_ok(err);
+	test_eq(path, "/");
+}
+
+normalize_path_no_check_root_double_slash :: fn () #test {
+	path, err :: normalize_path_no_check("//", .LINUX);
+	test_ok(err);
+	test_eq(path, "/");
+}
+
+normalize_path_no_check_relative_home :: fn () #test {
+	path, err :: normalize_path_no_check("~", .LINUX);
+	test_ok(err);
+	test_eq(path, get_home2());
+}
+
+normalize_path_no_check_relative_cwd :: fn () #test {
+	path, err :: normalize_path_no_check(".", .LINUX);
+	test_ok(err);
+	test_eq(path, get_cwd());
+}
+
+normalize_path_no_check_relative_cwd_with_path :: fn () #test {
+	path, err :: normalize_path_no_check("./foo/bar", .LINUX);
+	test_ok(err);
+	test_eq(path, tprint("%/foo/bar", get_cwd()));
+}
+
+normalize_path_no_check_relative_cwd_with_double_dot :: fn () #test {
+	path, err :: normalize_path_no_check("./foo/bar/..", .LINUX);
+	test_ok(err);
+	test_eq(path, tprint("%/foo", get_cwd()));
+}
+
+normalize_path_no_check_relative_cwd_dot_in_middle :: fn () #test {
+	path, err :: normalize_path_no_check("./foo/./bar", .LINUX);
+	test_ok(err);
+	test_eq(path, tprint("%/foo/bar", get_cwd()));
+}
+
+normalize_path_no_check_relative_cwd_two_up :: fn () #test {
+	path, err :: normalize_path_no_check("./foo/bar/../..", .LINUX);
+	test_ok(err);
+	test_eq(path, get_cwd());
+}
+
+normalize_path_no_check_relative_cwd_two_up_mixed_slash :: fn () #test {
+	path, err :: normalize_path_no_check("./foo\\bar/../..", .LINUX);
+	test_ok(err);
+	test_eq(path, get_cwd());
+}
+
+normalize_path_no_check_relative_root_one_up :: fn () #test {
+	_, err :: normalize_path_no_check("/..", .LINUX);
+	test_not_ok(err);
+}
+
+normalize_path_no_check_relative_root_two_up :: fn () #test {
+	_, err :: normalize_path_no_check("/../..", .LINUX);
+	test_not_ok(err);
+}
+
+normalize_path_no_check_relative_root_four_dots :: fn () #test {
+	path, err :: normalize_path_no_check("/....", .LINUX);
+	test_ok(err);
+	test_eq(path, "/....");
+}
+
+normalize_path_no_check_relative_cwd_with_slash :: fn () #test {
+	path, err :: normalize_path_no_check("./", .LINUX);
+	test_ok(err);
+	test_eq(path, get_cwd());
+}
+
+normalize_path_no_check_relative_root_with_dot :: fn () #test {
+	path, err :: normalize_path_no_check("/.", .LINUX);
+	test_ok(err);
+	test_eq(path, "/");
+}
+
+normalize_path_no_check_relative_root_dots_mixed :: fn () #test {
+	path, err :: normalize_path_no_check("/./.", .LINUX);
+	test_ok(err);
+	test_eq(path, "/");
+}
+
+normalize_path_no_check_multi_slash_as_root :: fn () #test {
+	path, err :: normalize_path_no_check("///", .LINUX);
+	test_ok(err);
+	test_eq(path, "/");
+}
+
+normalize_path_no_check_trailing_slash :: fn () #test {
+	path, err :: normalize_path_no_check("/foo/", .LINUX);
+	test_ok(err);
+	test_eq(path, "/foo");
+}
+
+normalize_path_no_check_tilde_no_expand :: fn () #test {
+	path, err :: normalize_path_no_check("/~", .LINUX);
+	test_ok(err);
+	test_eq(path, "/~");
+}
+
+normalize_path_windows_like :: fn () #test {
+	path, err :: normalize_path_no_check("C:\\Program Files\\", .WINDOWS);
+	test_ok(err);
+	test_eq(path, "C:/Program Files");
+}
+
+normalize_path_relative :: fn () #test {
+	path, err :: normalize_path_no_check("foo\\bar.txt");
+	test_ok(err);
+	test_eq(path, tprint("%/foo/bar.txt", get_cwd()));
+}
+
