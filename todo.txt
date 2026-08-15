@@ -8,8 +8,8 @@
 [x] Scroll on empty document asserts!
 
 
-[ ] New file saving cannot handle directory tree creation.
-	[ ] Verify is pasting full path would work.
+[x] New file saving cannot handle directory tree creation.
+	[-] Verify is pasting full path would work.
 [ ] Improve "default" project behaviour.
 	[ ] Default working directory should point to HOME.
 	[ ] Maybe change working directory on the first file open?

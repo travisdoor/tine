@@ -31,6 +31,9 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt install libgl-dev libxcb1-dev libxcb-util0-dev libbz2-dev
+    - name: Test
+      run: |
+        blc -build --test
     - name: Build
       run: |
         chmod +x build-appimage.sh
@@ -55,6 +58,9 @@ jobs:
         git clone --depth 1 https://github.com/biscuitlang/bl.git
         cd bl
         build.bat
+    - name: Test
+      run: |
+        %GITHUB_WORKSPACE%\bl\bin\blc -build --test
     - name: Build
       shell: cmd
       run: |
@@ -84,6 +90,9 @@ jobs:
     - name: Install Dependencies
       run: |
         brew install dylibbundler
+    - name: Test
+      run: |
+        blc -build --test
     - name: Build
       run: |
         blc -build --release
