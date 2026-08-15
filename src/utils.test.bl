@@ -52,43 +52,43 @@ normalize_path_no_check_root_double_slash :: fn () #test {
 }
 
 normalize_path_no_check_relative_home :: fn () #test {
-	path, err :: normalize_path_no_check("~", .LINUX);
+	path, err :: normalize_path_no_check("~");
 	test_ok(err);
 	test_eq(path, get_home2());
 }
 
 normalize_path_no_check_relative_cwd :: fn () #test {
-	path, err :: normalize_path_no_check(".", .LINUX);
+	path, err :: normalize_path_no_check(".");
 	test_ok(err);
 	test_eq(path, get_cwd());
 }
 
 normalize_path_no_check_relative_cwd_with_path :: fn () #test {
-	path, err :: normalize_path_no_check("./foo/bar", .LINUX);
+	path, err :: normalize_path_no_check("./foo/bar");
 	test_ok(err);
 	test_eq(path, tprint("%/foo/bar", get_cwd()));
 }
 
 normalize_path_no_check_relative_cwd_with_double_dot :: fn () #test {
-	path, err :: normalize_path_no_check("./foo/bar/..", .LINUX);
+	path, err :: normalize_path_no_check("./foo/bar/..");
 	test_ok(err);
 	test_eq(path, tprint("%/foo", get_cwd()));
 }
 
 normalize_path_no_check_relative_cwd_dot_in_middle :: fn () #test {
-	path, err :: normalize_path_no_check("./foo/./bar", .LINUX);
+	path, err :: normalize_path_no_check("./foo/./bar");
 	test_ok(err);
 	test_eq(path, tprint("%/foo/bar", get_cwd()));
 }
 
 normalize_path_no_check_relative_cwd_two_up :: fn () #test {
-	path, err :: normalize_path_no_check("./foo/bar/../..", .LINUX);
+	path, err :: normalize_path_no_check("./foo/bar/../..");
 	test_ok(err);
 	test_eq(path, get_cwd());
 }
 
 normalize_path_no_check_relative_cwd_two_up_mixed_slash :: fn () #test {
-	path, err :: normalize_path_no_check("./foo\\bar/../..", .LINUX);
+	path, err :: normalize_path_no_check("./foo\\bar/../..");
 	test_ok(err);
 	test_eq(path, get_cwd());
 }
@@ -110,7 +110,7 @@ normalize_path_no_check_relative_root_four_dots :: fn () #test {
 }
 
 normalize_path_no_check_relative_cwd_with_slash :: fn () #test {
-	path, err :: normalize_path_no_check("./", .LINUX);
+	path, err :: normalize_path_no_check("./");
 	test_ok(err);
 	test_eq(path, get_cwd());
 }
