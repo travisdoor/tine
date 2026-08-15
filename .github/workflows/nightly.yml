@@ -59,6 +59,7 @@ jobs:
         cd bl
         build.bat
     - name: Test
+      shell: cmd
       run: |
         %GITHUB_WORKSPACE%\bl\bin\blc -build --test
     - name: Build
