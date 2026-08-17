@@ -767,7 +767,7 @@ draw_inline_error :: fn (editor: *Editor, x: f32, y: f32, w: f32, line: string_v
 	if highlight_only then return;
 
 	line_size    := text_size(line, &font);
-	message_size := text_size(loc.message, &font_ui);
+	message_size := text_size(message, &font_ui);
 	err_x :: math.max(x + line_size  - editor.sliding.horizontal_offset + item_spacing * 2.f, x + w - text_padding - message_size - item_spacing);
 
 	set_shader_font(&icons);

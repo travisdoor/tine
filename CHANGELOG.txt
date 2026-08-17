@@ -3,6 +3,7 @@ MASTER
 - Add option to disable setting of application window icon causing issues on some Linux desktops.
 - Set startup working directory to HOME in case editor is not started with input file to open.
 - Improve save dialog to create directory trees.
+- Fix incorrect text position of inline diag messages from LSP.
 
 1.1.1 2026-08-06
 ---------------------------------------------------------------------------------------
