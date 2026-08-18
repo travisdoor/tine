@@ -1,5 +1,8 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+1.1.2 2026-08-18
+---------------------------------------------------------------------------------------
 - Add evaluation tag.
 - Add option to disable setting of application window icon causing issues on some Linux desktops.
 - Fix incorrect text position of inline diag messages from LSP.
