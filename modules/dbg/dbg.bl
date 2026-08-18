@@ -1,0 +1,9 @@
+start_process :: fn () Error {
+	return OK;
+}
+
+kill_process :: fn () Error {
+	return OK;
+}
+
+#scope_module
