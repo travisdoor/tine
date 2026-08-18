@@ -169,7 +169,7 @@ DEFAULT_PROJECT_FILE_TEMPLATE_DATA :: config_to_stack(DEFAULT_PROJECT_FILE_TEMPL
 USER_PROJECT_FILE_TEMPLATE_DATA    :: config_to_stack(USER_PROJECT_FILE_TEMPLATE);
 APP_FLIP_ICON_DATA                 :: file_to_stack(APP_FLIP_ICON);
 APP_ICON_DATA                      :: file_to_stack(APP_ICON);
-HELP_FILE_DATA                     :: file_to_stack(HELP_FILE);
+HELP_FILE_DATA                     :: help_to_stack(HELP_FILE);
 EXAMPLE_PROJECT_FILE_DATA          :: config_to_stack(EXAMPLE_PROJECT_FILE);
 
 MAX_VISIBLE_SEARCH_RESULTS_IN_EDITOR :: 1024;
@@ -843,6 +843,11 @@ exec_dir: string_view;
 data_dir: string;
 
 main :: fn () s32 {
+	print_log("Version: %.%.%", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+	#if IS_EVALUATION {
+		print_log("Running evaluation build.");
+	}
+
 	// Setup debug allocator in DEBUG mode.
 	prev_allocator: *Allocator;
 #if IS_DEBUG {
@@ -1156,7 +1161,7 @@ main :: fn () s32 {
 		#if IS_EVALUATION {
 			str_append(&title, " [EVALUATION]");
 		}
-		
+
 		#if IS_DEBUG {
 			str_append(&title, " [DEBUG]");
 		}
@@ -2228,6 +2233,15 @@ file_to_stack :: fn (filepath: string_view) []u8 #comptime {
 
 config_to_stack :: fn (filepath: string_view) []u8 #comptime {
 	version :: tprint("%\n\n", VERSION_TEXT);
+
+	bytes := read_entire_file(filepath) catch panic($);
+	bytes  = join_slices(version, bytes) catch panic($);
+
+	return bytes;
+}
+
+help_to_stack :: fn (filepath: string_view) []u8 #comptime {
+	version :: tprint("# Tine Code Editor - %.%.%\n\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 
 	bytes := read_entire_file(filepath) catch panic($);
 	bytes  = join_slices(version, bytes) catch panic($);

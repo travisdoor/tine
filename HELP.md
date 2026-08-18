@@ -1,7 +1,3 @@
-# Tine Code Editor
-
-*Version: 1.2.0*
-
 - Press **F1** for a quick common shortuct reference.
 - Run the `help` command for this help.
 

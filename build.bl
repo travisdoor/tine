@@ -12,6 +12,10 @@ Args :: struct {
 
 args: Args;
 
+VERSION_MAJOR :: 1;
+VERSION_MINOR :: 2;
+VERSION_PATCH :: 0;
+
 main :: fn () s32 {
 	defer temporary_release();
 
@@ -75,6 +79,9 @@ main :: fn () s32 {
 	}
 
 	add_bool_constant(exe, "IS_EVALUATION", args.evaluation);
+	add_int_constant(exe, "VERSION_MAJOR", VERSION_MAJOR);
+	add_int_constant(exe, "VERSION_MINOR", VERSION_MINOR);
+	add_int_constant(exe, "VERSION_PATCH", VERSION_PATCH);
 
 	compile(exe) catch return $.code;
 	if args.test then return 0;
