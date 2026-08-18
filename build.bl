@@ -7,6 +7,7 @@ Args :: struct {
 	is_release: bool;
 	sanitize_address: bool;
 	test: bool;
+	evaluation: bool;
 }
 
 args: Args;
@@ -28,6 +29,7 @@ main :: fn () s32 {
 	add(&parser, &args.is_release, "--release", "", "Compile in release mode.");
 	add(&parser, &args.sanitize_address, "--sanitize-address", "", "Use ASAN.");
 	add(&parser, &args.test, "--test", "", "Run unit tests.");
+	add(&parser, &args.evaluation, "--evaluation", "", "Build evaluation version.");
 
 	_, parse_error :: parse(&parser, command_line_arguments, 0);
 	if parse_error {
@@ -71,6 +73,8 @@ main :: fn () s32 {
 	} else if PLATFORM == Platform.LINUX {
 		add_unit(exe, "src/platform/linux.bl");
 	}
+
+	add_bool_constant(exe, "IS_EVALUATION", args.evaluation);
 
 	compile(exe) catch return $.code;
 	if args.test then return 0;

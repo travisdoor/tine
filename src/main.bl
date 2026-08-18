@@ -1146,11 +1146,19 @@ main :: fn () s32 {
 			draw_frame();
 		}
 
-		title: string_view;
+		title :: str_make(128, application_context.temporary_allocator);
 		if project.filepath.len == 0 {
-			title = buf.name;
+			str_append(&title, buf.name);
 		} else {
-			title = tprint("% - %", project.name, buf.name);
+			str_concat(&title, project.name, " - ", buf.name);
+		}
+
+		#if IS_EVALUATION {
+			str_append(&title, " [EVALUATION]");
+		}
+		
+		#if IS_DEBUG {
+			str_append(&title, " [DEBUG]");
 		}
 
 		if !str_match(current_window_title, title) {
@@ -1531,7 +1539,7 @@ save :: fn (buf: *Buffer, filepath: string_view) Error {
 	assert(filepath.len > 0);
 	normalized_path :: normalize_path_no_check(filepath) catch return $;
 	create_all_dir(path_split(normalized_path).head) catch return $;
-	
+
 	print_log("Saving to: '%'.", normalized_path);
 	other_buf :: get_buffer_by_filepath(normalized_path);
 	if other_buf {

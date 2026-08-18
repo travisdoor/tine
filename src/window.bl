@@ -386,13 +386,7 @@ is_running :: fn () bool #inline {
 }
 
 set_window_title :: fn (title: string_view) #inline {
-	#if IS_DEBUG {
-		text :: tprint("% [DEBUG]", title);
-	} else {
-		text :: title;
-	}
-
-	if !sdl.SetWindowTitle(window, strtoc(text)) then print_err(sdl_last_error());
+	if !sdl.SetWindowTitle(window, strtoc(title)) then print_err(sdl_last_error());
 }
 
 set_window_icon :: fn () {
