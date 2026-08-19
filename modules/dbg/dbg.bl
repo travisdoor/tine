@@ -1,21 +1,107 @@
-Session :: struct #base SessionImpl {
-	is_initialized: bool;
+Session :: Async2(Ctx, s32);
+
+session_start :: fn (session: *Session) #inline {
+	zeroinit(session);
+
+	command_pool :: new(cq.CommandPool);
+	queue        :: new(Queue);
+	cq.pool_init(command_pool);
+	cq.queue_init(queue, command_pool);
+
+	ctx :: Ctx.{
+		command_pool = command_pool,
+		queue        = queue,
+		is_running   = true,
+	};
+
+	async2(session, ctx, &worker);
 }
 
-session_init :: fn (session: *Session) Error #inline {
-	return session_init_impl(session);
+session_stop :: fn (session: *Session) #inline {
+	ctx :: &session.worker_context;
+
+	ctx.is_running = false;
+	async_wait(session);
+
+	cq.queue_terminate(ctx.queue);
+	cq.pool_terminate(ctx.command_pool);
+
+	free(auto ctx.queue);
+	free(auto ctx.command_pool);
 }
 
-session_terminate :: fn (session: *Session) #inline {
-	session_terminate_impl(session);
+is_session_running :: fn (session: *Session) bool #inline {
+	return session.worker_context.is_running;
 }
 
-start_process :: fn (executable: string_view) Error #inline {
-	return start_process_impl(executable);
+start_process :: fn (session: *Session, executable: string_view) #inline {
+	using cq;
+	ctx :: &session.worker_context;
+
+	request :: make_command(ctx.queue);
+	set_variant(&request.as, .start_process, .{
+			executable = str_make(executable, request.allocator),
+		});
+
+	push_request(ctx.queue, &request);
 }
 
-kill_process :: fn () Error #inline {
-	return kill_process_impl();
+stop_process :: fn (session: *Session) #inline {
+	using cq;
+	ctx :: &session.worker_context;
+
+	request :: make_command(ctx.queue);
+	set_variant(&request.as, .stop_process, .{});
+	push_request(ctx.queue, &request);
 }
 
 #scope_module
+
+Ctx :: struct #base CtxImpl {
+	command_pool:   *cq.CommandPool;
+	queue:          *Queue;
+	is_running:      bool;
+	is_initialized:  bool;
+}
+
+cq :: #import "command_queue";
+#import "experimental/variant"
+#import "std/string"
+#import "std/async"
+
+Command  :: struct #base cq.Command {
+	as: Variant(union {
+			start_process: struct {
+				executable: string_view;
+			};
+			stop_process: struct {
+				_: u8;
+			};
+		});
+}
+
+Queue :: cq.Queue(Command);
+
+worker :: fn (ctx: *Ctx) s32 {
+	loop ctx.is_running {
+
+		request: Command #noinit;
+		loop cq.pop_request(ctx.queue, &request) {
+			defer cq.terminate_command(ctx.queue, &request);
+
+			switch request.as.kind {
+				.start_process {
+					start(ctx, request.as.start_process.executable);
+				}
+				.stop_process {
+					stop(ctx);
+				}
+			}
+		}
+
+		os_sleep_ms(34);
+		temporary_reset();
+	}
+
+	return 0;
+}

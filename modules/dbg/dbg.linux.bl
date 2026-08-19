@@ -1,29 +1,42 @@
 #scope_module
 
-SessionImpl :: struct {
-	_: u32;
+CtxImpl :: struct {
+	tty: C.pid_t;
+	pid: C.pid_t;
 }
 
-session_init_impl :: fn (session: *Session) Error #inline {
-	session.is_initialized = true;
-	return OK;
-}
-
-session_terminate_impl :: fn (session: *Session) #inline {
-}
-
-start_process_impl :: fn (executable: string_view) Error {
-	tty_path :: spawn_tty() catch return $;
+start :: fn (ctx: *Ctx, executable: string_view) Error {
+	tty_path :: spawn_tty(ctx) catch return $;
 	print_log("DBG: Terminal started.");
 
-	pid :: launch_debuggee(tty_path, executable) catch return $;
-	print_log("DBG: Debuggee started on pid: %.", pid);
+	launch_debuggee(ctx, tty_path, executable) catch return $;
+	print_log("DBG: Debuggee started on pid: %.", ctx.pid);
+
+	wait_for_stop(ctx) catch {
+		stop(ctx);
+		return $;
+	};
+
+	regs :: get_regs(ctx) catch {
+		stop(ctx);
+		return $;
+	};
+
+	print_log("Regs: %", regs);
+
+	continue_execution(ctx) catch {
+		stop(ctx);
+		return $;
+	};
 
 	return OK;
 }
 
-kill_process_impl :: fn () Error {
-	return OK;
+stop :: fn (ctx: *Ctx) {
+	C.kill(ctx.pid, C.SIGKILL);
+	C.kill(ctx.tty, C.SIGKILL);
+	ctx.pid = 0; // @Incomplete 2026-08-20: Maybe -1?
+	ctx.tty = 0;
 }
 
 #scope_private
@@ -35,13 +48,8 @@ io :: #import "std/io";
 #import "std/print"
 #import "std/fs"
 
-spawn_tty :: fn () (tty: string_view, err: Error) {
-	dbg_tty_path := str_make_temporary("/tmp/dbg_tty_XXXXXX\0");
-	dbg_tty_path.len -= 1;
-	fd :: mkstemp(auto dbg_tty_path.ptr);
-	C.close(fd);
-	C.unlink(auto dbg_tty_path.ptr);
-
+spawn_tty :: fn (ctx: *Ctx) (tty: string_view, err: Error) {
+	dbg_tty_path :: get_fifo_name();
 	if mkfifo(auto dbg_tty_path.ptr, 0600) == -1 {
 		return "", os_get_last_error2();
 	}
@@ -68,20 +76,36 @@ spawn_tty :: fn () (tty: string_view, err: Error) {
 		C.exit(127);
 	}
 
-	tty_file :: open_file(dbg_tty_path) catch return "", $;
+	tty_file :: open_file(dbg_tty_path) catch {
+		C.kill(pid, C.SIGTERM);
+		return "", $;
+	};
 	defer close_file(&tty_file);
-	tty := new_slice(u8, 256, true, application_context.temporary_allocator) catch return "", $;
-	tty.len = io.read(&tty_file, tty.ptr, tty.len) catch return "", $;
-	if tty.len == 0 then return "", error("Cannot get tty file descriptor.");
 
-	print_log("DBG: %", tty);
+	tty := new_slice(u8, 256, true, application_context.temporary_allocator) catch {
+		C.kill(pid, C.SIGTERM);
+		return "", $;
+	};
+	tty.len = io.read(&tty_file, tty.ptr, tty.len) catch {
+		C.kill(pid, C.SIGTERM);
+		return "", $;
+	};
+	if tty.len > 0 && tty[tty.len-1] == '\n' then tty.len -= 1;
+	if tty.len < 1 then {
+		C.kill(pid, C.SIGTERM);
+		return "", error("Cannot get tty file descriptor.");
+	}
+
+	ctx.tty = pid;
+
+	print_log("DBG: Fifo pipe: %", tty);
 	return tty, OK;
 }
 
-launch_debuggee :: fn (tty_path: string_view, executable: string_view) (pid: s32, err: Error) {
+launch_debuggee :: fn (ctx: *Ctx, tty_path: string_view, executable: string_view) Error {
 	pid :: C.fork();
 	if pid == -1 {
-		return pid, os_get_last_error2();
+		return os_get_last_error2();
 	}
 	if (pid == 0) {
 		// child
@@ -104,14 +128,91 @@ launch_debuggee :: fn (tty_path: string_view, executable: string_view) (pid: s32
 		cargs[0] = strtoc("Tine-Debug"); // @Incomplete
 		cargs[1] = null;
 
-		ptrace(.PTRACE_TRACEME);
+		if ptrace(.PTRACE_TRACEME) == -1 {
+			C.exit(1);
+		}
 		C.execv(strtoc(executable), cargs.ptr);
 		C.exit(127);
 	}
-	return pid, OK;
+
+	ctx.pid = pid;
+	return OK;
+}
+
+wait_for_stop :: fn (ctx: *Ctx) (status: s32, err: Error) {
+	st: s32;
+	if C.waitpid(ctx.pid, &st, 0) == -1 {
+		return 0, os_get_last_error2();
+	}
+	return st, OK;
+}
+
+continue_execution :: fn (ctx: *Ctx) Error {
+	if ptrace(.PTRACE_CONT, ctx.pid, 0, 0) == -1 {
+		return os_get_last_error2();
+	}
+	return OK;
+}
+
+get_regs :: fn (ctx: *Ctx) (regs: UserRegs, err: Error) {
+	regs: UserRegs;
+	if ptrace(.PTRACE_GETREGS, ctx.pid, 0, auto &regs) == -1 {
+		return regs, os_get_last_error2();
+	}
+	return regs, OK;
+}
+
+set_regs :: fn (ctx: *Ctx, regs: *UserRegs) Error {
+	if ptrace(.PTRACE_SETREGS, ctx.pid, 0, auto regs) == -1 {
+		return os_get_last_error2();
+	}
+	return OK;
+}
+
+// Utils
+
+get_fifo_name :: fn () string_view {
+	dbg_tty_path := str_make_temporary("/tmp/tine_dbg_tty_XXXXXX\0");
+	dbg_tty_path.len -= 1;
+	fd :: mkstemp(auto dbg_tty_path.ptr);
+	C.close(fd);
+	C.unlink(auto dbg_tty_path.ptr);
+
+	return dbg_tty_path;
 }
 
 // Linux stuff...
+
+// should match /usr/include/sys/user.h
+UserRegs :: struct {
+	r15: u64;
+	r14: u64;
+	r13: u64;
+	r12: u64;
+	rbp: u64;
+	rbx: u64;
+	r11: u64;
+	r10: u64;
+	r9: u64;
+	r8: u64;
+	rax: u64;
+	rcx: u64;
+	rdx: u64;
+	rsi: u64;
+	rdi: u64;
+	orig_rax: u64;
+	rip: u64;
+	cs: u64;
+	eflags: u64;
+	rsp: u64;
+	ss: u64;
+	fs_base: u64;
+	gs_base: u64;
+	ds: u64;
+	es: u64;
+	fs: u64;
+	gs: u64;
+};
 
 TIOCSCTTY :: 0x540E;
 

@@ -10,7 +10,7 @@ session_init_impl :: fn (_: *Session) Error {
 
 session_terminate_impl :: fn (_: *Session) {}
 
-start_process_impl :: fn () Error {
+start_process :: fn (_: *Session, _: string_view) Error #inline {
 	return error("DBG module is not supported on current platform.");
 }
 

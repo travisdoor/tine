@@ -1,0 +1,143 @@
+CommandPool :: struct {
+	pools:          BucketArray(PoolAllocator);
+	available: [..]*Allocator;
+	mutex:          Mutex;
+};
+
+pool_init :: fn (pool: *CommandPool) {
+	zeroinit(pool);
+	mutex_init(&pool.mutex);
+}
+
+pool_terminate :: fn (pool: *CommandPool) {
+	loop it := bucket_array_begin(&pool.pools); it; it = bucket_array_iter_next(&pool.pools, it) {
+		release_allocator(&it.value);
+	}
+
+	bucket_array_terminate(&pool.pools);
+	array_terminate(&pool.available);
+	mutex_terminate(&pool.mutex);
+}
+
+Queue :: fn (TCommand: type #comptime) type #comptime {
+	return struct {
+		pool: *CommandPool;
+
+		pending:  [..]TCommand;
+		complete: [..]TCommand;
+		mutex:    Mutex;
+	};
+}
+
+type_of_command :: fn (TQueue: type #comptime) type #comptime {
+	return @TQueue.pending.ptr;
+}
+
+queue_init :: fn (queue: *?TQueue, pool: *CommandPool) {
+	zeroinit(queue);
+	queue.pool = pool;
+}
+
+queue_terminate :: fn (queue: *?TQueue) {
+	loop i := 0; i < queue.pending.len; i += 1 {
+		terminate_command(queue, &queue.pending[i]);
+	}
+
+	loop i := 0; i < queue.complete.len; i += 1 {
+		terminate_command(queue, &queue.complete[i]);
+	}
+
+	array_terminate(&queue.pending);
+	array_terminate(&queue.complete);
+	mutex_terminate(&queue.mutex);
+
+	zeroinit(queue);
+}
+
+Command :: struct {
+	allocator: *Allocator;
+}
+
+make_command :: fn (queue: *?TQueue) type_of_command(TQueue) #inline {
+	allocator :: get_allocator(queue.pool);
+	assert(allocator);
+
+	TCommand :: type_of_command(TQueue);
+	command: TCommand;
+	command.allocator = allocator;
+	return command;
+}
+
+terminate_command :: fn (queue: *?TQueue, command: *?TCommand) {
+	put_allocator(queue.pool, command.allocator);
+	zeroinit(command);
+}
+
+push_request :: fn (queue: *?TQueue, request: *?TCommand) {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+
+	r :: array_push(&queue.pending);
+	memcpy(auto r, auto request, sizeof(@request));
+}
+
+pop_request :: fn (queue: *?TQueue, request: *?TCommand) bool {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	if array_pop_first(&queue.pending, request) {
+		return true;
+	}
+	return false;
+}
+
+has_pending_request :: fn (queue: *?TQueue) bool #inline {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	return queue.pending.len > 0;
+}
+
+push_response :: fn (queue: *?TQueue, response: *?TCommand) {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+
+	r :: array_push(&queue.complete);
+	memcpy(auto r, auto response, sizeof(@response));
+	zeroinit(response);
+}
+
+pop_response :: fn (queue: *?TQueue, response: *?TCommand) bool {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	if array_pop_first(&ctx.complete, response) {
+		return true;
+	}
+	return false;
+}
+
+#scope_module
+
+#import "std/bucket_array"
+#import "std/sync"
+#import "std/array"
+#import "std/pool"
+
+get_allocator :: fn (pool: *CommandPool) *Allocator #inline {
+	mutex_lock(&pool.mutex);
+	defer mutex_unlock(&pool.mutex);
+
+	allocator: *Allocator;
+	if !array_pop(&pool.available, &allocator) {
+		allocator = bucket_array_push(&pool.pools, pool_make());
+	}
+	assert(allocator);
+	return allocator;
+}
+
+put_allocator :: fn (pool: *CommandPool, allocator: *Allocator)  #inline {
+	assert(allocator);
+	mutex_lock(&pool.mutex);
+	defer mutex_unlock(&pool.mutex);
+
+	reset_allocator(allocator);
+	array_push(&pool.available, auto allocator);
+}

@@ -843,6 +843,9 @@ exec_dir: string_view;
 // Path where to store projects folder and default config, same as exec_dir on Windows.
 data_dir: string;
 
+// @Cleanup 2026-08-20: TEST!!!
+dbg_session: dbg.Session;
+
 main :: fn () s32 {
 	print_log("Version: %.%.%", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 	#if IS_EVALUATION {
@@ -1050,6 +1053,9 @@ main :: fn () s32 {
 
 	current_window_title: string;
 	defer str_terminate(&current_window_title);
+
+	dbg.session_start(&dbg_session);
+	defer dbg.session_stop(&dbg_session);
 
 	loop is_running() {
 		current_time :: get_ticks();
