@@ -1,5 +1,5 @@
 #!/bin/bash
-blc -build --release
+blc -build "$@"
 echo Creating application bundle
 rm -r -f Tine.AppDir
 mkdir -p Tine.AppDir/usr/bin

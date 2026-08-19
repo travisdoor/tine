@@ -37,7 +37,7 @@ jobs:
     - name: Build
       run: |
         chmod +x build-appimage.sh
-        ./build-appimage.sh
+        ./build-appimage.sh --release --evaluation
     - uses: actions/upload-artifact@v4
       with:
         overwrite: true
@@ -65,7 +65,7 @@ jobs:
     - name: Build
       shell: cmd
       run: |
-        %GITHUB_WORKSPACE%\bl\bin\blc -build --release
+        %GITHUB_WORKSPACE%\bl\bin\blc -build --release --evaluation
     - uses: actions/upload-artifact@v4
       with:
         overwrite: true
@@ -96,7 +96,7 @@ jobs:
         blc -build --test
     - name: Build
       run: |
-        blc -build --release
+        blc -build --release --evaluation
     - uses: actions/upload-artifact@v4
       with:
         overwrite: true
