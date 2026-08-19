@@ -1,0 +1,122 @@
+#scope_module
+
+SessionImpl :: struct {
+	_: u32;
+}
+
+session_init_impl :: fn (session: *Session) Error #inline {
+	session.is_initialized = true;
+	return OK;
+}
+
+session_terminate_impl :: fn (session: *Session) #inline {
+}
+
+start_process_impl :: fn (executable: string_view) Error {
+	tty_path :: spawn_tty() catch return $;
+	print_log("DBG: Terminal started.");
+
+	pid :: launch_debuggee(tty_path, executable) catch return $;
+	print_log("DBG: Debuggee started on pid: %.", pid);
+
+	return OK;
+}
+
+kill_process_impl :: fn () Error {
+	return OK;
+}
+
+#scope_private
+
+C  :: #import "libc";
+io :: #import "std/io";
+#import "os/linux/sys/ptrace"
+#import "std/string"
+#import "std/print"
+#import "std/fs"
+
+spawn_tty :: fn () (tty: string_view, err: Error) {
+	dbg_tty_path := str_make_temporary("/tmp/dbg_tty_XXXXXX\0");
+	dbg_tty_path.len -= 1;
+	fd :: mkstemp(auto dbg_tty_path.ptr);
+	C.close(fd);
+	C.unlink(auto dbg_tty_path.ptr);
+
+	if mkfifo(auto dbg_tty_path.ptr, 0600) == -1 {
+		return "", os_get_last_error2();
+	}
+	defer C.unlink(auto dbg_tty_path.ptr);
+
+	cmd :: tprint("tty > '%'; exec sleep infinity", dbg_tty_path);
+	print_log("DBG: %", cmd);
+
+	pid :: C.fork();
+	if pid == -1 {
+		return "", os_get_last_error2();
+	}
+	if pid == 0 {
+		// child
+		cargs: [6]*C.char;
+		cargs[0] = strtoc("xterm"); // @Incomplete
+		cargs[1] = strtoc("-e");
+		cargs[2] = strtoc("sh");
+		cargs[3] = strtoc("-c");
+		cargs[4] = strtoc(cmd);
+		cargs[5] = null;
+
+		C.execv(strtoc("/usr/bin/xterm"), cargs.ptr);
+		C.exit(127);
+	}
+
+	tty_file :: open_file(dbg_tty_path) catch return "", $;
+	defer close_file(&tty_file);
+	tty := new_slice(u8, 256, true, application_context.temporary_allocator) catch return "", $;
+	tty.len = io.read(&tty_file, tty.ptr, tty.len) catch return "", $;
+	if tty.len == 0 then return "", error("Cannot get tty file descriptor.");
+
+	print_log("DBG: %", tty);
+	return tty, OK;
+}
+
+launch_debuggee :: fn (tty_path: string_view, executable: string_view) (pid: s32, err: Error) {
+	pid :: C.fork();
+	if pid == -1 {
+		return pid, os_get_last_error2();
+	}
+	if (pid == 0) {
+		// child
+
+		tty_file :: open_file(tty_path, OpenFileMode.READ | OpenFileMode.WRITE) catch C.exit(1);
+		defer close_file(&tty_file);
+
+		tty_fd :: tty_file.handle;
+
+		setsid();
+		C.ioctl(tty_fd, TIOCSCTTY, 0);
+		tcsetpgrp(tty_fd, getpgrp());
+
+		C.dup2(tty_fd, C.STDIN);
+		C.dup2(tty_fd, C.STDOUT);
+		C.dup2(tty_fd, C.STDERR);
+		if tty_fd > 2 then close_file(&tty_file);
+
+		cargs: [2]*C.char;
+		cargs[0] = strtoc("Tine-Debug"); // @Incomplete
+		cargs[1] = null;
+
+		ptrace(.PTRACE_TRACEME);
+		C.execv(strtoc(executable), cargs.ptr);
+		C.exit(127);
+	}
+	return pid, OK;
+}
+
+// Linux stuff...
+
+TIOCSCTTY :: 0x540E;
+
+setsid  :: fn () C.pid_t #extern;
+mkstemp :: fn (template: *C.char) C.pid_t #extern;
+mkfifo :: fn (path: *C.char, mode: u16) s32 #extern;
+tcsetpgrp :: fn (fd: s32, pgrp: C.pid_t) s32 #extern;
+getpgrp :: fn () C.pid_t #extern;

@@ -1,0 +1,19 @@
+#scope_module
+
+SessionImpl :: struct {
+	_: u32;
+}
+
+session_init_impl :: fn (_: *Session) Error {
+	return error("DBG module is not supported on current platform.");
+}
+
+session_terminate_impl :: fn (_: *Session) {}
+
+start_process_impl :: fn () Error {
+	return error("DBG module is not supported on current platform.");
+}
+
+kill_process_impl :: fn () Error {
+	return error("DBG module is not supported on current platform.");
+}

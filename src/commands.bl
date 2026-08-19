@@ -1,6 +1,7 @@
 Command :: enum {
 	UNKNOWN;
 	DEBUG_REPORT;
+	DBG_START;
 
 	_PUBLIC;
 
@@ -292,7 +293,7 @@ make_command_help :: fn () [type_utils.enum_variant_count(Command)]string_view #
 	loop i := 0; i < help.len; i += 1 {
 		using Command;
 		switch cast(Command) i {
-			.UNKNOWN, .DEBUG_REPORT, ._WINDOWS_BEGIN, ._WINDOWS_END, ._PUBLIC {
+			.UNKNOWN, .DEBUG_REPORT, ._WINDOWS_BEGIN, ._WINDOWS_END, ._PUBLIC, .DBG_START {
 				continue;
 			}
 			default;
@@ -863,6 +864,7 @@ invoke_command_text_edit_mode :: fn (editor: *Editor, buf: *Buffer, cmd: Command
 		LIST_FUNCTIONS                { set_mode(Mode.LIST_FUNCTIONS); }
 
 		DEBUG_REPORT                  { debug_report(); }
+		DBG_START                     { dbg_start(); }
 		OPEN_PROJECT_CONFIG           { open_project_config(); }
 		OPEN_DEFAULT_CONFIG, SETTINGS { open_default_config(); }
 		OPEN_CONFIG_TEMPLATE          { open_config_template(); }
@@ -2404,4 +2406,12 @@ copy_location :: fn (editor: *Editor, buf: *Buffer) {
 
 toggle_line_numbers :: fn () {
 	settings.show_line_numbers = !settings.show_line_numbers;
+}
+
+dbg_start :: fn () {
+	session: dbg.Session;
+	dbg.session_init(&session) catch print_err($);
+	defer dbg.session_terminate(&session);
+	dbg.start_process("/home/travis/develop/tine/Tine-Debug") catch print_err($);
+	// dbg.start_process("/usr/bin/ls") catch print_err($);
 }

@@ -1,9 +1,21 @@
-start_process :: fn () Error {
-	return OK;
+Session :: struct #base SessionImpl {
+	is_initialized: bool;
 }
 
-kill_process :: fn () Error {
-	return OK;
+session_init :: fn (session: *Session) Error #inline {
+	return session_init_impl(session);
+}
+
+session_terminate :: fn (session: *Session) #inline {
+	session_terminate_impl(session);
+}
+
+start_process :: fn (executable: string_view) Error #inline {
+	return start_process_impl(executable);
+}
+
+kill_process :: fn () Error #inline {
+	return kill_process_impl();
 }
 
 #scope_module
