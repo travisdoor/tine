@@ -1,42 +1,42 @@
 #scope_module
 
-CtxImpl :: struct {
+_Session :: struct {
 	tty: C.pid_t;
 	pid: C.pid_t;
 }
 
-start :: fn (ctx: *Ctx, executable: string_view) Error {
-	tty_path :: spawn_tty(ctx) catch return $;
+_start :: fn (session: *Session, executable: string_view) Error {
+	tty_path :: spawn_tty(session) catch return $;
 	print_log("DBG: Terminal started.");
 
-	launch_debuggee(ctx, tty_path, executable) catch return $;
-	print_log("DBG: Debuggee started on pid: %.", ctx.pid);
+	launch_debuggee(session, tty_path, executable) catch return $;
+	print_log("DBG: Debuggee started on pid: %.", session.pid);
 
-	wait_for_stop(ctx) catch {
-		stop(ctx);
+	wait_for_stop(session) catch {
+		_stop(session);
 		return $;
 	};
 
-	regs :: get_regs(ctx) catch {
-		stop(ctx);
+	regs :: get_regs(session) catch {
+		_stop(session);
 		return $;
 	};
 
 	print_log("Regs: %", regs);
 
-	continue_execution(ctx) catch {
-		stop(ctx);
+	continue_execution(session) catch {
+		_stop(session);
 		return $;
 	};
 
 	return OK;
 }
 
-stop :: fn (ctx: *Ctx) {
-	C.kill(ctx.pid, C.SIGKILL);
-	C.kill(ctx.tty, C.SIGKILL);
-	ctx.pid = 0; // @Incomplete 2026-08-20: Maybe -1?
-	ctx.tty = 0;
+_stop :: fn (session: *Session) {
+	C.kill(session.pid, C.SIGKILL);
+	C.kill(session.tty, C.SIGKILL);
+	session.pid = 0; // @Incomplete 2026-08-20: Maybe -1?
+	session.tty = 0;
 }
 
 #scope_private
@@ -48,7 +48,7 @@ io :: #import "std/io";
 #import "std/print"
 #import "std/fs"
 
-spawn_tty :: fn (ctx: *Ctx) (tty: string_view, err: Error) {
+spawn_tty :: fn (session: *Session) (tty: string_view, err: Error) {
 	dbg_tty_path :: get_fifo_name();
 	if mkfifo(auto dbg_tty_path.ptr, 0600) == -1 {
 		return "", os_get_last_error2();
@@ -96,13 +96,13 @@ spawn_tty :: fn (ctx: *Ctx) (tty: string_view, err: Error) {
 		return "", error("Cannot get tty file descriptor.");
 	}
 
-	ctx.tty = pid;
+	session.tty = pid;
 
 	print_log("DBG: Fifo pipe: %", tty);
 	return tty, OK;
 }
 
-launch_debuggee :: fn (ctx: *Ctx, tty_path: string_view, executable: string_view) Error {
+launch_debuggee :: fn (session: *Session, tty_path: string_view, executable: string_view) Error {
 	pid :: C.fork();
 	if pid == -1 {
 		return os_get_last_error2();
@@ -135,35 +135,35 @@ launch_debuggee :: fn (ctx: *Ctx, tty_path: string_view, executable: string_view
 		C.exit(127);
 	}
 
-	ctx.pid = pid;
+	session.pid = pid;
 	return OK;
 }
 
-wait_for_stop :: fn (ctx: *Ctx) (status: s32, err: Error) {
+wait_for_stop :: fn (session: *Session) (status: s32, err: Error) {
 	st: s32;
-	if C.waitpid(ctx.pid, &st, 0) == -1 {
+	if C.waitpid(session.pid, &st, 0) == -1 {
 		return 0, os_get_last_error2();
 	}
 	return st, OK;
 }
 
-continue_execution :: fn (ctx: *Ctx) Error {
-	if ptrace(.PTRACE_CONT, ctx.pid, 0, 0) == -1 {
+continue_execution :: fn (session: *Session) Error {
+	if ptrace(.PTRACE_CONT, session.pid, 0, 0) == -1 {
 		return os_get_last_error2();
 	}
 	return OK;
 }
 
-get_regs :: fn (ctx: *Ctx) (regs: UserRegs, err: Error) {
+get_regs :: fn (session: *Session) (regs: UserRegs, err: Error) {
 	regs: UserRegs;
-	if ptrace(.PTRACE_GETREGS, ctx.pid, 0, auto &regs) == -1 {
+	if ptrace(.PTRACE_GETREGS, session.pid, 0, auto &regs) == -1 {
 		return regs, os_get_last_error2();
 	}
 	return regs, OK;
 }
 
-set_regs :: fn (ctx: *Ctx, regs: *UserRegs) Error {
-	if ptrace(.PTRACE_SETREGS, ctx.pid, 0, auto regs) == -1 {
+set_regs :: fn (session: *Session, regs: *UserRegs) Error {
+	if ptrace(.PTRACE_SETREGS, session.pid, 0, auto regs) == -1 {
 		return os_get_last_error2();
 	}
 	return OK;
