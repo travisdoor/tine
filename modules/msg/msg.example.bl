@@ -1,0 +1,81 @@
+msg       :: #import "../msg";
+threading :: #import "std/thread2";
+
+#import "std/print"
+#import "std/string"
+
+Context :: struct {
+	queue: msg.Queue(Message);
+}
+
+MessageKind :: enum {
+	GET_STATUS;
+	QUIT;
+}
+
+Message :: struct #base msg.Message {
+	kind: MessageKind;
+	as: union {
+		get_status: string_view;
+	};
+}
+
+main :: fn () s32 {
+	ctx: Context;
+	msg.queue_init(&ctx.queue);
+	defer msg.queue_terminate(&ctx.queue);
+
+	thread :: threading.spawn_with_context(&ctx, &worker);
+
+	request := msg.make_message(&ctx.queue);
+	request.kind = .GET_STATUS;
+	msg.push_request(&request);
+
+	is_running := true;
+	loop is_running {
+		response :: msg.pop_response(&ctx.queue);
+		if response {
+			switch response.kind {
+				.GET_STATUS {
+					print("Received: %\n", response.as.get_status);
+					is_running = false;
+				}
+				default;
+			}
+		}
+
+		os_sleep_ms(100);
+	}
+
+	request = msg.make_message(&ctx.queue);
+	request.kind = .QUIT;
+	msg.push_request(&request);
+
+	threading.join(thread);
+	threading.destroy(thread);
+
+	return 0;
+}
+
+worker :: fn (ctx: *Context) s32 {
+	loop {
+		request :: msg.pop_request(&ctx.queue);
+		if request {
+			switch request.kind {
+				.GET_STATUS {
+					response := msg.make_message(&ctx.queue);
+					response.kind = .GET_STATUS;
+					response.as.get_status = str_make("All good!", response.allocator);
+					msg.push_response(&response);
+				}
+				.QUIT {
+					break;
+				}
+				default;
+			}
+		}
+
+		os_sleep_ms(100);
+	}
+	return 0;
+}

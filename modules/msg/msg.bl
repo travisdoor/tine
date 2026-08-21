@@ -1,0 +1,248 @@
+//! # Messages
+//!
+//! `#import "std/msg"`
+//!
+//! A general-purpose message queue for inter-thread communication that allows users to send arbitrary
+//! messages back and forth using a polling mechanism.
+//!
+//! Common use case is communication between main thread and worker thread, where main thread pushes
+//! *request* messages, worker thread pulls them, does some processing and pushes *response* back to the main thread.
+//! Thus the main thread might be identified as *requester* and worker thread as data *responder*, however
+//! worker thread might push responses without any previous requests (for example status updates).
+//!
+//! ## Queue
+//!
+//! The [Queue](modules_msg.html#Queue) is the central object shared between two threads, created with a user-defined
+//! `TMessage` type inherited from the [Message](modules_msg.html#Message) base type. User-defined `Message` types
+//! may contain arbitrary data, stored either explicitly "by-value" or heap-allocated using the `allocator` provided
+//! for each message created with [make_message](modules_msg.html#make_message). Allocations made using the message
+//! `allocator` are scoped to the lifetime of the message and released upon calling [terminate_message](modules_msg.html#terminate_message).
+//! The consumer of a message is responsible for releasing its resources. Released allocators are not destroyed
+//! immediately; instead, they are stored in the [MessagePool](modules_msg.html#MessagePool) for later reuse.
+//!
+//! Queue polling operates on a FIFO basis, so messages are popped from the queue in the same order they were pushed.
+//!
+//! ## MessagePool
+//!
+//! Serves as a thread-safe message `allocator` pool. A single `MessagePool` can be shared across multiple queues if
+//! passed explicitly to [queue_init](modules_msg.html#queue_init); otherwise, a new `MessagePool` is created for
+//! each `Queue` automatically, and its lifetime is bound to the `Queue` itself.
+
+/// Message allocator pool cache.
+MessagePool :: struct {
+	pools:          BucketArray(PoolAllocator);
+	available: [..]*Allocator;
+	mutex:          Mutex;
+};
+
+/// Initialize `pool`, once pool is initialized, it's supposed to be destroyed by [pool_terminate](modules_msg.html#pool_terminate) call.
+pool_init :: fn (pool: *MessagePool) {
+	zeroinit(pool);
+	mutex_init(&pool.mutex);
+}
+
+/// Terminates initialized `pool` and frees all its resources. Note that this must be called after termination of all
+/// queues using this pool.
+pool_terminate :: fn (pool: *MessagePool) {
+	loop it := bucket_array_begin(&pool.pools); it; it = bucket_array_iter_next(&pool.pools, it) {
+		release_allocator(&it.value);
+	}
+
+	bucket_array_terminate(&pool.pools);
+	array_terminate(&pool.available);
+	mutex_terminate(&pool.mutex);
+}
+
+/// Creates new queue type to manage messages of `TMessage` type. Note the `TMessage` must be inherited from `Message` type.
+Queue :: fn (TMessage: type #comptime) type #comptime {
+	return struct {
+		pool: *MessagePool;
+		is_owning_pool: bool;
+
+		pending:  [..]TMessage;
+		complete: [..]TMessage;
+		mutex:    Mutex;
+
+		pending_popped:  TMessage;
+		complete_popped: TMessage;
+	};
+}
+
+/// Returns actual message type used by specific queue.
+type_of_message :: fn (TQueue: type #comptime) type #comptime {
+	return @TQueue.pending.ptr;
+}
+
+/// Initialize `queue`. The `pool` might be provided here (and shared across multiple queues as needed). When
+/// `pool` is not provided, internal one is created automatically just for this queue.
+///
+/// Initialized queue is supposed to be destroyed by [queue_terminate](modules_msg.html#queue_terminate) call.
+queue_init :: fn (queue: *?TQueue, pool: *MessagePool = null) {
+	zeroinit(queue);
+	if pool {
+		queue.pool = pool;
+	} else {
+		queue.pool = new(MessagePool) catch panic($);
+		queue.is_owning_pool = true;
+	}
+}
+
+/// Terminates previously initialized `queue`.
+queue_terminate :: fn (queue: *?TQueue) {
+	loop i := 0; i < queue.pending.len; i += 1 {
+		terminate_message(&queue.pending[i]);
+	}
+
+	loop i := 0; i < queue.complete.len; i += 1 {
+		terminate_message(&queue.complete[i]);
+	}
+
+	if queue.pending_popped.allocator {
+		terminate_message(&queue.pending_popped);
+	}
+	if queue.complete_popped.allocator {
+		terminate_message(&queue.complete_popped);
+	}
+
+	array_terminate(&queue.pending);
+	array_terminate(&queue.complete);
+	mutex_terminate(&queue.mutex);
+
+	if queue.is_owning_pool {
+		delete(queue.pool);
+	}
+
+	zeroinit(queue);
+}
+
+/// Base message type. Every message should inherit this type.
+Message :: struct {
+	allocator:    *Allocator;
+	parent_queue: *u8;
+}
+
+/// Creates new message for the `queue`. Message is not pushed yet. Internal `allocator` might be used to
+/// allocate any message-scoped resources. Created message is supposed to be pushed to the `queue` by
+/// [push_request](modules_msg.html#push_request), [push_response](modules_msg.html#push_response) or
+/// destroyed by [terminate_message](modules_msg.html#terminate_message) call.
+make_message :: fn (queue: *?TQueue) type_of_message(TQueue) #inline {
+	allocator :: get_allocator(queue.pool);
+	assert(allocator);
+
+	TMessage :: type_of_message(TQueue);
+	message: TMessage;
+	message.allocator    = allocator;
+	message.parent_queue = cast(*u8) queue;
+	return message;
+}
+
+/// Pushes `request` message from *requester* thread to the queue owning this `request`.
+push_request :: fn (request: *?TMessage) {
+	queue :: get_message_parent_queue(request);
+
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+
+	r :: array_push(&queue.pending);
+	memcpy(auto r, auto request, sizeof(@request));
+	zeroinit(request);
+}
+
+/// Pops `request` from the `queue` and returns `true`, otherwise returns `false` and `request` is not modified. This
+/// call is non-blocking, caller is supposed to "try again" in case no message arrived.
+///
+/// Popped `request` ownership is transferred to the caller, thus `request` is supposed to be terminated by
+/// [terminate_message](modules_msg.html#terminate_message) call when processed.
+pop_request :: fn (queue: *?TQueue) *type_of_message(TQueue) {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	if queue.pending_popped.allocator {
+		terminate_message(&queue.pending_popped);
+	}
+	if array_pop_first(&queue.pending, &queue.pending_popped) {
+		return &queue.pending_popped;
+	}
+	return null;
+}
+
+/// Returns `true` in case the `queue` has at least one pending request.
+has_pending_request :: fn (queue: *?TQueue) bool #inline {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	return queue.pending.len > 0;
+}
+
+/// Pushes `response` message from *responder* thread to the queue owning this `response`.
+push_response :: fn (response: *?TMessage) {
+	queue :: get_message_parent_queue(response);
+
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+
+	r :: array_push(&queue.complete);
+	memcpy(auto r, auto response, sizeof(@response));
+	zeroinit(response);
+}
+
+/// Pops `response` from the `queue` and returns `true`, otherwise returns `false` and `response` is not modified. This
+/// call is non-blocking, caller is supposed to "try again" in case no message arrived.
+///
+/// Popped `response` ownership is transferred to the caller, thus `response` is supposed to be terminated by
+/// [terminate_message](modules_msg.html#terminate_message) call when processed.
+pop_response :: fn (queue: *?TQueue) *type_of_message(TQueue) {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	if queue.complete_popped.allocator {
+		terminate_message(&queue.complete_popped);
+	}
+	if array_pop_first(&queue.complete, &queue.complete_popped) {
+		return &queue.complete_popped;
+	}
+	return null;
+}
+
+/// Returns `true` in case the `queue` has at least one pending response.
+has_pending_response :: fn (queue: *?TQueue) bool #inline {
+	mutex_lock(&queue.mutex);
+	defer mutex_unlock(&queue.mutex);
+	return queue.complete.len > 0;
+}
+
+#scope_module
+
+#import "std/bucket_array"
+#import "std/sync"
+#import "std/array"
+#import "std/pool"
+
+get_message_parent_queue :: fn (message: *?TMessage) *Queue(TMessage) #inline {
+	assert(message.parent_queue);
+	return auto message.parent_queue;
+}
+
+get_allocator :: fn (pool: *MessagePool) *Allocator #inline {
+	mutex_lock(&pool.mutex);
+	defer mutex_unlock(&pool.mutex);
+
+	allocator: *Allocator;
+	if !array_pop(&pool.available, &allocator) {
+		allocator = bucket_array_push(&pool.pools, pool_make());
+	}
+	assert(allocator);
+	return allocator;
+}
+
+put_allocator :: fn (pool: *MessagePool, allocator: *Allocator)  #inline {
+	assert(allocator);
+	mutex_lock(&pool.mutex);
+	defer mutex_unlock(&pool.mutex);
+
+	reset_allocator(allocator);
+	array_push(&pool.available, auto allocator);
+}
+
+terminate_message :: fn (message: *?TMessage) {
+	queue :: get_message_parent_queue(message);
+	put_allocator(queue.pool, message.allocator);
+	zeroinit(message);
+}

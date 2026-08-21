@@ -1,15 +1,13 @@
 Session :: struct #base _Session {
-	command_pool:   cq.CommandPool;
-	queue:          Queue;
-	thread:        *threading.Thread;
-	is_running:     bool;
+	queue:      Queue;
+	thread:    *threading.Thread;
+	is_running: bool;
 };
 
 session_start :: fn (session: *Session) #inline {
 	zeroinit(session);
 
-	cq.pool_init(&session.command_pool);
-	cq.queue_init(&session.queue, &session.command_pool);
+	msg.queue_init(&session.queue);
 
 	session.is_running = true;
 	session.thread     = threading.spawn_with_context(session, &worker) catch panic($);
@@ -19,9 +17,7 @@ session_stop :: fn (session: *Session) #inline {
 	session.is_running = false;
 	threading.join(session.thread) catch panic($);
 	threading.destroy(session.thread);
-
-	cq.queue_terminate(&session.queue);
-	cq.pool_terminate(&session.command_pool);
+	msg.queue_terminate(&session.queue);
 
 	zeroinit(session);
 }
@@ -31,38 +27,36 @@ is_session_running :: fn (session: *Session) bool #inline {
 }
 
 start_process :: fn (session: *Session, executable: string_view) #inline {
-	using cq;
-	request := make_command(&session.queue);
+	request := msg.make_message(&session.queue);
 	request.kind = .START_PROCESS;
 	request.as.start_process = .{
 		executable = str_make(executable, request.allocator),
 	};
 
-	push_request(&session.queue, &request);
+	msg.push_request(&session.queue, &request);
 }
 
 stop_process :: fn (session: *Session) #inline {
-	using cq;
-	request := make_command(&session.queue);
+	request := msg.make_message(&session.queue);
 	request.kind = .STOP_PROCESS;
-	push_request(&session.queue, &request);
+	msg.push_request(&session.queue, &request);
 }
 
 #scope_module
 
-cq        :: #import "command_queue";
+msg       :: #import "msg";
 threading :: #import "std/thread2";
 
 #import "std/string"
 
-CommandKind :: enum {
+MessageKind :: enum {
 	UNKNOWN;
 	START_PROCESS;
 	STOP_PROCESS;
 }
 
-Command  :: struct #base cq.Command {
-	kind: CommandKind;
+Message  :: struct #base msg.Message {
+	kind: MessageKind;
 	as: union {
 		start_process: struct {
 			executable: string_view;
@@ -70,14 +64,14 @@ Command  :: struct #base cq.Command {
 	};
 }
 
-Queue :: cq.Queue(Command);
+Queue :: msg.Queue(Message);
 
 worker :: fn (session: *Session) s32 {
 	loop session.is_running {
 
-		request: Command #noinit;
-		loop cq.pop_request(&session.queue, &request) {
-			defer cq.terminate_command(&session.queue, &request);
+		request: Message #noinit;
+		loop msg.pop_request(&session.queue, &request) {
+			defer msg.terminate_message(&session.queue, &request);
 
 			switch request.kind {
 				.START_PROCESS {
