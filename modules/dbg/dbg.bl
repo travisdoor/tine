@@ -1,50 +1,48 @@
 Session :: struct #base _Session {
-	queue:      Queue;
+	queue:      msg.Queue;
 	thread:    *threading.Thread;
-	is_running: bool;
+	thread_id:  u64;
 };
 
 session_start :: fn (session: *Session) #inline {
 	zeroinit(session);
 
-	msg.queue_init(&session.queue);
-
-	session.is_running = true;
-	session.thread     = threading.spawn_with_context(session, &worker) catch panic($);
+	msg.init(&session.queue);
+	session.thread    = threading.spawn_with_context(session, &worker) catch panic($);
+	session.thread_id = threading.get_thread_id(session.thread);
 }
 
 session_stop :: fn (session: *Session) #inline {
-	session.is_running = false;
+	message :: msg.make_message(Message, &session.queue);
+	message.kind = .QUIT;
+	msg.post_message(session.thread_id, message);
+
 	threading.join(session.thread) catch panic($);
 	threading.destroy(session.thread);
-	msg.queue_terminate(&session.queue);
+	msg.terminate(&session.queue);
 
 	zeroinit(session);
 }
 
-is_session_running :: fn (session: *Session) bool #inline {
-	return session.is_running;
-}
-
 start_process :: fn (session: *Session, executable: string_view) #inline {
-	request := msg.make_message(&session.queue);
-	request.kind = .START_PROCESS;
-	request.as.start_process = .{
-		executable = str_make(executable, request.allocator),
+	message :: msg.make_message(Message, &session.queue);
+	message.kind = .START_PROCESS;
+	message.as.start_process = .{
+		executable = str_make(executable, message.allocator),
 	};
 
-	msg.push_request(&session.queue, &request);
+	msg.post_message(session.thread_id, message);
 }
 
 stop_process :: fn (session: *Session) #inline {
-	request := msg.make_message(&session.queue);
-	request.kind = .STOP_PROCESS;
-	msg.push_request(&session.queue, &request);
+	message :: msg.make_message(Message, &session.queue);
+	message.kind = .STOP_PROCESS;
+	msg.post_message(session.thread_id, message);
 }
 
 #scope_module
 
-msg       :: #import "msg";
+msg       :: #import "std/message_queue";
 threading :: #import "std/thread2";
 
 #import "std/string"
@@ -53,6 +51,7 @@ MessageKind :: enum {
 	UNKNOWN;
 	START_PROCESS;
 	STOP_PROCESS;
+	QUIT;
 }
 
 Message  :: struct #base msg.Message {
@@ -64,26 +63,25 @@ Message  :: struct #base msg.Message {
 	};
 }
 
-Queue :: msg.Queue(Message);
-
 worker :: fn (session: *Session) s32 {
-	loop session.is_running {
+	loop {
+		message: *Message #noinit;
+		if msg.poll_message_as(&session.queue, &message, true) {
+			defer msg.terminate_message(message);
 
-		request: Message #noinit;
-		loop msg.pop_request(&session.queue, &request) {
-			defer msg.terminate_message(&session.queue, &request);
-
-			switch request.kind {
+			switch message.kind {
 				.START_PROCESS {
-					_start(session, request.as.start_process.executable);
+					_start(session, message.as.start_process.executable);
 				}
 				.STOP_PROCESS {
 					_stop(session);
 				}
+				.QUIT {
+					break;
+				}
 			}
 		}
 
-		os_sleep_ms(34);
 		temporary_reset();
 	}
 
