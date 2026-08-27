@@ -108,9 +108,8 @@ setup_dock_menu :: fn () Error {
 		return error("Failed to setup macOS dock menu, cannot install applicationDockMenu: handler.");
 	}
 
-	if class_addMethod(delegate_class, new_window_sel, auto &fn (self_: id, cmd_: SEL, sender_: id) {
-		self_; cmd_; sender_;
-		spawn_new_window() catch return $;
+	if class_addMethod(delegate_class, new_window_sel, auto &fn (_: id, _: SEL, _: id) {
+		spawn_new_window() catch print_err($);
 	}, strtoc("v@:@")) == 0 {
 		return error("Failed to setup macOS dock menu, cannot install New Window action handler.");
 	}
@@ -145,6 +144,8 @@ spawn_new_window :: fn () Error {
 		C.execv(exe, argv.ptr);
 		C.exit(1);
 	}
+
+	return OK;
 }
 
 #scope_private
