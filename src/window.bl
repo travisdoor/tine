@@ -47,6 +47,10 @@ init_window :: fn () {
 
 	if !Init(INIT_VIDEO) then panic(sdl_last_error());
 
+	#if PLATFORM == .DARWIN {
+		setup_dock_menu() catch print_err($);
+	}
+
 	video_driver :: ctostr(sdl.GetCurrentVideoDriver());
 	using WindowSystem;
 	if str_match(video_driver, "x11") {

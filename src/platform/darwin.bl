@@ -58,6 +58,66 @@ new_filepath_from_url :: fn (url: string_view, allocator: *Allocator) (filepath:
     return result, OK;
 }
 
+//
+// Dock menu
+//
+
+// Install "New Window" item into the app icon's Dock menu.
+setup_dock_menu :: fn () Error {
+	ns_app :: objc_msgSend0(objc_getClass(strtoc("NSApplication")), sel_registerName(strtoc("sharedApplication")));
+	if !ns_app {
+		return error("Failed to setup macOS dock menu, NSApplication is not available.");
+	}
+
+	delegate :: objc_msgSend0(ns_app, sel_registerName(strtoc("delegate")));
+	if !delegate {
+		return error("Failed to setup macOS dock menu, application delegate is not available.");
+	}
+	delegate_class :: object_getClass(delegate);
+
+	menu_class      :: objc_getClass(strtoc("NSMenu"));
+	menu_item_class :: objc_getClass(strtoc("NSMenuItem"));
+
+	menu :: objc_msgSend0(objc_msgSend0(menu_class, sel_registerName(strtoc("alloc"))), sel_registerName(strtoc("init")));
+	if !menu {
+		return error("Failed to setup macOS dock menu, cannot create NSMenu.");
+	}
+
+	title     :: CFStringCreateWithCString(kCFAllocatorDefault, auto strtoc("New Window"), CFStringEncoding.UTF8);
+	key_equiv :: CFStringCreateWithCString(kCFAllocatorDefault, auto strtoc(""), CFStringEncoding.UTF8);
+
+	new_window_sel :: sel_registerName(strtoc("tineDockNewWindow:"));
+
+	item :: objc_msgSend3(
+		objc_msgSend0(menu_item_class, sel_registerName(strtoc("alloc"))),
+		sel_registerName(strtoc("initWithTitle:action:keyEquivalent:")),
+		auto title,
+		new_window_sel,
+		auto key_equiv,
+	);
+
+	objc_msgSend1(item, sel_registerName(strtoc("setTarget:")), delegate);
+	objc_msgSend1(menu, sel_registerName(strtoc("addItem:")), item);
+
+	dock_menu = menu;
+
+	if class_addMethod(delegate_class, sel_registerName(strtoc("applicationDockMenu:")), auto &fn (self_: id, cmd_: SEL, sender_: id) id {
+		self_; cmd_; sender_;
+		return dock_menu;
+	}, strtoc("@@:@")) == 0 {
+		return error("Failed to setup macOS dock menu, cannot install applicationDockMenu: handler.");
+	}
+
+	if class_addMethod(delegate_class, new_window_sel, auto &fn (self_: id, cmd_: SEL, sender_: id) {
+		self_; cmd_; sender_;
+		spawn_new_window() catch return $;
+	}, strtoc("v@:@")) == 0 {
+		return error("Failed to setup macOS dock menu, cannot install New Window action handler.");
+	}
+
+	return OK;
+}
+
 get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	using C;
 	file_stat: stat_t #noinit;
@@ -71,5 +131,40 @@ get_file_last_write_time :: fn (filepath: string_view) (t: u64, err: Error) {
 	return s * 1000 + ns / 1000000, OK;
 }
 
+spawn_new_window :: fn () Error {
+	pid :: C.fork();
+	if pid == -1 {
+		return error("Failed to open a new window: %", os_get_last_error2());
+	}
+	if pid == 0 {
+		// child
+		exe :: strtoc(EXEC_PATH);
+		argv: [2]*C.char #noinit;
+		argv[0] = exe;
+		argv[1] = null;
+		C.execv(exe, argv.ptr);
+		C.exit(1);
+	}
+}
+
 #scope_private
 #import "os/macos"
+
+//
+// Minimal Objective-C runtime bindings, just enough to install a Dock menu handler on SDL's
+// NSApplication delegate. Tine has no other AppKit/Cocoa dependency.
+//
+
+id  :: *u8;
+SEL :: *u8;
+
+dock_menu: id;
+
+objc_getClass    :: fn (name: *C.char) id #extern "objc_getClass";
+sel_registerName :: fn (name: *C.char) SEL #extern "sel_registerName";
+object_getClass  :: fn (obj: id) id #extern "object_getClass";
+class_addMethod  :: fn (cls: id, name: SEL, imp: *u8, types: *C.char) Boolean #extern "class_addMethod";
+
+objc_msgSend0 :: fn (self_: id, cmd: SEL) id #extern "objc_msgSend";
+objc_msgSend1 :: fn (self_: id, cmd: SEL, a1: id) #extern "objc_msgSend";
+objc_msgSend3 :: fn (self_: id, cmd: SEL, a1: id, a2: SEL, a3: id) id #extern "objc_msgSend";
