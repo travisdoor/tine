@@ -1,7 +1,8 @@
-draw       :: #import "extra/draw";
-math       :: #import "std/math";
-io         :: #import "std/io";
 C          :: #import "libc";
+atomic     :: #import "std/atomic";
+draw       :: #import "extra/draw";
+io         :: #import "std/io";
+math       :: #import "std/math";
 type_utils :: #import "std/type_utils";
 
 #import "experimental/variant"
@@ -395,7 +396,7 @@ project: struct {
 	excluded_directories: [..]string_view;
 	shell_entries:        [..]ShellEntry;
 
-	is_indexing:   bool;
+	is_indexing:   atomic.Atomic(bool);
 	indexed_files: [..]string_view;
 
 	mutex: Mutex;

@@ -255,16 +255,16 @@ index_included_directories :: fn () {
 		return;
 	}
 
-	project.is_indexing = true;
+	atomic.store(&project.is_indexing, true);
 	indexing.ctx = IndexWorkerContext.{};
 	async(&indexing.job, &indexing.ctx, &index_worker);
 }
 
 cancel_indexing :: fn () {
-	if !project.is_indexing { return; }
+	if !atomic.load(&project.is_indexing) { return; }
 	indexing.ctx.cancel = true;
 	async_wait(&indexing.job);
-	project.is_indexing = false;
+	atomic.store(&project.is_indexing, false);
 }
 
 index_worker :: fn (ctx: *IndexWorkerContext) s32 {
@@ -306,7 +306,7 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 		}
 	}
 
-	project.is_indexing = false;
+	atomic.store(&project.is_indexing, false);
 	print_log("Indexing DONE (indexed % files).", project.indexed_files.len);
 	return 0;
 };

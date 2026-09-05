@@ -14,7 +14,7 @@ quick_open_mode_init :: fn () {
 quick_open_mode_terminate :: fn () {}
 
 draw_quick_open_mode :: fn () {
-	if project.is_indexing {
+	if atomic.load(&project.is_indexing) {
 		print_warn(PROJECT_IS_INDEXING_MESSAGE);
 		set_mode(Mode.TEXT_EDIT);
 		return;

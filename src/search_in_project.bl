@@ -37,7 +37,7 @@ search_in_project_mode_terminate :: fn () {
 }
 
 draw_search_in_project_mode :: fn () {
-	if project.is_indexing {
+	if atomic.load(&project.is_indexing) {
 		print_warn(PROJECT_IS_INDEXING_MESSAGE);
 		set_mode(Mode.TEXT_EDIT);
 		return;
