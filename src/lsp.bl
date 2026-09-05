@@ -642,7 +642,7 @@ get_icon_for_lsp_completion_kind :: fn (kind: s32) string_view {
 		LSP_COMPLETION_ITEM_KIND_SNIPPET,
 		LSP_COMPLETION_ITEM_KIND_EVENT,
 		LSP_COMPLETION_ITEM_KIND_TEXT { return icon(ICON_CODE_TEXT); }
-		
+
 		LSP_COMPLETION_ITEM_KIND_OPERATOR { return icon(ICON_CODE_OPERATOR); }
 
 		LSP_COMPLETION_ITEM_KIND_KEYWORD { return icon(ICON_CODE_KEYWORD); }
@@ -742,25 +742,24 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	print_info("Execute '%' with arguments: %", executable, args);
 
-	err :: start_process(ctx, executable, args, false /* separate stderr */);
-	defer stop_process(ctx);
-
-	if err {
-		if err.code == ERR_NOT_FOUND {
+	start_process(ctx, executable, args, false /* separate stderr */) catch {
+		if $.code == ERR_NOT_FOUND {
 			print_err("LSP: Cannot find '%' executable. Please use a valid path or set the executable in your PATH environment variable.", executable);
 		} else {
-			print_err("LSP: Cannot execute '%' with error: %", executable, err);
+			print_err("LSP: Cannot execute '%' with error: %", executable, $);
 		}
 		ctx.state = FAILED;
 		return 1;
-	}
+	};
+
+	defer stop_process(ctx);
 
 	current_request: Request;
 
 	loop !ctx.kill {
 		// Process requests
 		if current_request.is_pending == false && pop_request(ctx, &current_request) {
-			process_request(ctx, &current_request);
+			err :: process_request(ctx, &current_request);
 			if err {
 				terminate_request(&current_request);
 				print_err("LSP: The '%' failed with error: %", executable, err);

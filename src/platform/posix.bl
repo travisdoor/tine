@@ -2,8 +2,9 @@
 // Process
 //
 
-IoStream :: C.int;
-Pid      :: C.pid_t;
+IoStream    :: C.int;
+Pid         :: C.pid_t;
+INVALID_PID : C.pid_t : -1;
 
 start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view, stderr_to_stdout := true) Error {
 	in_pipe:  [2]s32 #noinit;
@@ -97,13 +98,14 @@ start_process :: fn (ctx: *?TContext, cmd: string_view, args: []string_view, std
 
 stop_process :: fn (ctx: *?TContext) Error {
 	using C;
+	if ctx.pid < 1 then return OK;
+
 	close_pipe(&ctx.stdin);
 	close_pipe(&ctx.stdout);
 	close_pipe(&ctx.stderr);
 
-	assert(ctx.pid > 0);
 	kill(ctx.pid, SIGTERM);
-	ctx.pid = -1;
+	ctx.pid = INVALID_PID;
 
 	return OK;
 }
@@ -124,6 +126,7 @@ PollEvent :: enum #flags {
 
 poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 	using C;
+	assert(ctx.pid != INVALID_PID);
 
 	pfds := [2]pollfd.{
 		.{ fd = ctx.stdout, events = POLLIN },

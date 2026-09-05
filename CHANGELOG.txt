@@ -1,6 +1,7 @@
 MASTER
 ---------------------------------------------------------------------------------------
 - Add option on macOS to create a new application window once Tine is already running.
+- Fix crash when invalid lsp server executable is set on Linux/macOS.
 
 1.1.2 2026-08-18
 ---------------------------------------------------------------------------------------

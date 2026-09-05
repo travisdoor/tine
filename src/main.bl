@@ -1746,6 +1746,7 @@ jobs_terminate :: fn () {
 start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobContext) s32) s32 {
 	ctx := JobContext.{
 		state = JobContext.state.RUNNING,
+		pid   = INVALID_PID,
 		name  = name,
 		kind  = kind,
 	};

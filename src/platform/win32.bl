@@ -6,8 +6,9 @@ DEFAULT_SHELL :: "CMD.exe";
 // Process
 //
 
-IoStream :: HANDLE;
-Pid      :: DWORD;
+IoStream    :: HANDLE;
+Pid         :: DWORD;
+INVALID_PID : DWORD : 0;
 
 start_process :: fn (ctx: *?TContext, executable: string_view, args: []string_view, stderr_to_stdout := true) Error {
 	static_assert(type_utils.has_member#(TContext, "pid"));
@@ -131,6 +132,7 @@ stop_process :: fn (ctx: *?TContext) Error {
 		ctx.stderr = INVALID_HANDLE_VALUE;
 	}
 
+	ctx.pid = INVALID_PID;
 	return OK;
 }
 
@@ -158,6 +160,8 @@ PollEvent :: enum #flags {
 poll_process :: fn (ctx: *?TContext) (PollEvent, Error) {
 	result: PollEvent;
 	has_separate_stderr :: ctx.stderr != ctx.stdout;
+
+	assert(ctx.pid != INVALID_PID);
 
 	// Check if pipe has any data to read (process might be already closed).
 	available_bytes_stdout: u32 #noinit;
