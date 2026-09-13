@@ -4,6 +4,8 @@ draw       :: #import "extra/draw";
 io         :: #import "std/io";
 math       :: #import "std/math";
 type_utils :: #import "std/type_utils";
+threading  :: #import "std/thread2";
+msq        :: #import "std/message_queue";
 
 #import "experimental/variant"
 #import "extra/filewatch"
@@ -20,7 +22,6 @@ type_utils :: #import "std/type_utils";
 #import "std/string"
 #import "std/sync"
 #import "std/table"
-#import "std/thread"
 
 #load "buffer.bl"
 #load "cheat_sheet.bl"
@@ -401,6 +402,7 @@ project: struct {
 
 	mutex: Mutex;
 	string_cache: PoolAllocator;
+	index_cache:  PoolAllocator;
 
 	shell_entries_priority: s32;
 
@@ -837,6 +839,8 @@ replay_macro :: fn () {
 	print_info("Replay macro.");
 }
 
+message_pool: msq.MessagePool;
+
 // Points to the directory containing editor executable (does not contain the last path separator).
 exec_dir: string_view;
 
@@ -860,9 +864,12 @@ main :: fn () s32 {
 
 	// debug_allocator_break(&debug_allocator, 864);
 
-	MAIN_THREAD_ID = get_thread_id();
+	MAIN_THREAD_ID = threading.get_current_thread_id();
 	FONT_DIRECTORY = get_fonts_directory();
 	defer str_terminate(&FONT_DIRECTORY);
+
+	msq.init_pool(&message_pool);
+	defer msq.terminate_pool(&message_pool);
 
 	mutex_init(&message.mutex);
 	defer mutex_terminate(&message.mutex);
@@ -1655,10 +1662,12 @@ get_icon_for_file_type :: fn (file_type: FileType) string_view {
 // Jobs
 //
 
-JobContext :: struct {
-	state: enum { RUNNING; DONE; FAILED; KILLED; };
-	kind: JobKind;
-	name: string_view;
+JobState :: enum { RUNNING; DONE; FAILED; KILLED; }
+
+Job :: struct {
+	state: atomic.Atomic(JobState);
+	kind:  JobKind;
+	name:  string_view;
 
 	pid: Pid;
 
@@ -1670,39 +1679,15 @@ JobContext :: struct {
 	stdout: IoStream;
 	stderr: IoStream; // Most of the time mirrored to stdout.
 
-	pending:  [..]Request;
-	complete: [..]Response;
-	mutex:    Mutex;
-
-	kill: bool;
-	is_removed: bool;
+	kill: atomic.Atomic(bool);
 
 	exit_code: s32;
-	show_progress: bool;
-}
+	show_progress: atomic.Atomic(bool);
 
-Request :: struct {
-	job_kind:    JobKind;
-	is_pending:  bool;
-	allocator:  *Allocator;
+	thread: *threading.Thread;
 
-	as: union {
-		clang_format: ClangFormatRequest;
-		shell:        ShellRequest;
-		lsp:          LspRequest;
-		cs:           ConfigServerRequest;
-	}
-}
-
-Response :: struct {
-	job_kind:   JobKind;
-	allocator: *Allocator;
-	as: union {
-		clang_format: ClangFormatResponse;
-		shell:        ShellResponse;
-		lsp:          LspResponse;
-		cs:           ConfigServerResponse;
-	}
+	main_to_worker:  msq.Queue;
+	worker_to_main: *msq.Queue; // Global one shared across jobs.
 }
 
 JobKind :: enum {
@@ -1713,14 +1698,19 @@ JobKind :: enum {
 	CONFIG_SERVER;
 }
 
-Job :: Async2(JobContext, s32);
+jobs: [..]*Job; // @Note 2026-09-11: Allocated on heap not directly in the array, not all stuff inside is guaranteed to be movable in memory.
+jobs_worker_to_main: msq.Queue;
 
-jobs: [..]Job;
-jobs_pools: struct {
-	pools:          BucketArray(PoolAllocator);
-	available: [..]*Allocator;
-	mutex:          Mutex;
-};
+job_error :: fn {
+	fn (job: *Job, fmt: string_view, args: ...) {
+		print_err(fmt, args);
+		atomic.store(&job.state, .FAILED);
+	};
+	fn (job: *Job, err: Error) {
+		print_err(err);
+		atomic.store(&job.state, .FAILED);
+	};
+}
 
 background_job_indicator: struct {
 	active_last_frame: bool;
@@ -1728,286 +1718,154 @@ background_job_indicator: struct {
 };
 
 jobs_init :: fn () {
-	mutex_init(&jobs_pools.mutex);
+	msq.init(&jobs_worker_to_main, &message_pool);
 }
 
 jobs_terminate :: fn () {
 	kill_async_jobs();
-
-	loop it := bucket_array_begin(&jobs_pools.pools); it; it = bucket_array_iter_next(&jobs_pools.pools, it) {
-		release_allocator(&it.value);
-	}
-
-	bucket_array_terminate(&jobs_pools.pools);
-	array_terminate(&jobs_pools.available);
-	mutex_terminate(&jobs_pools.mutex);
+	msq.terminate(&jobs_worker_to_main);
 }
 
-start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *JobContext) s32) s32 {
-	ctx := JobContext.{
-		state = JobContext.state.RUNNING,
-		pid   = INVALID_PID,
-		name  = name,
-		kind  = kind,
-	};
-	mutex_init(&ctx.mutex, MutexKind.RECURSIVE);
+start_async_job :: fn (kind: JobKind, name: string_view, worker: *fn (ctx: *Job) s32) s32 {
+	job :: new(Job);
+	job.pid   = INVALID_PID;
+	job.name  = name;
+	job.kind  = kind;
+	job.worker_to_main = &jobs_worker_to_main;
+	msq.init(&job.main_to_worker, &message_pool);
+	atomic.store(&job.state, .RUNNING);
 
-	job: *Job;
-	index := -1;
+	job_index: s32 = -1;
 	loop i := 0; i < jobs.len; i += 1 {
-		if jobs[i].worker_context.is_removed {
-			job   = zeroinit(&jobs[i]);
-			index = i;
+		if !jobs[i] {
+			job_index       = i;
+			jobs[job_index] = job;
+			break;
 		}
 	}
-
-	if !job {
-		index = auto jobs.len;
-		job   = zeroinit(array_push(&jobs));
+	if job_index == -1 {
+		job_index = cast(s32) jobs.len;
+		array_push(&jobs, job);
 	}
 
-	async2(job, ctx, worker);
-
-	assert(index >= 0);
-	return index;
+	job.thread = threading.spawn_with_context(job, worker) catch panic($);
+	return job_index;
 }
 
 remove_async_job :: fn (index: s32) {
-	using JobContext.state;
+	job :: jobs[index];
+	assert(job);
 
-	job :: &jobs[index];
-	ctx :: &job.worker_context;
+	defer delete(job);
+	jobs[index] = null;
 
-	assert(!ctx.is_removed);
+	msq.clear(&job.main_to_worker);
+	msq.close(&job.main_to_worker);
 
-	ctx.kill = true;
-	async_wait(job);
+	atomic.store(&job.kill, true);
+	threading.join(job.thread);
+	threading.destroy(job.thread);
 
-	consume_job_results(job, true);
+	job.thread = null;
 
-	if ctx.kind == .SHELL {
+	update_jobs(); // Consume leftovers, note that it might execute other job results in the shared worker_to_main queue!
+
+	if job.kind == .SHELL {
 		shell.job_index = -1;
 		if shell.buffer_index != -1 && !buffers[shell.buffer_index].is_removed {
 			// @Hack 2026-06-20: We need this in case build output is not automatically focused to parse compilation errors.
 			rebuild_coloring_and_indentation_info(&buffers[shell.buffer_index]);
 		}
-	} else if ctx.kind == .LSP {
+	} else if job.kind == .LSP {
 		remove_all_buffers_from_lsp();
 		lsp.job_index = -1;
-	} else if ctx.kind == .CONFIG_SERVER {
+	} else if job.kind == .CONFIG_SERVER {
 		config_server.job_index = -1;
 	}
 
-	switch ctx.state {
-		DONE   {
+	switch atomic.load(&job.state) {
+		.DONE   {
 			open_shell_command_binding :: get_keybinding_for_command(.OPEN_SHELL);
-			show_shell_hint :: ctx.kind == .SHELL && (get_visible_editor_for_buffer(shell.buffer_index) == -1);
-			msg :: tprint("Job '%' finished with exit code: %.%",  ctx.name, ctx.exit_code, if show_shell_hint then tprint(" Use [%] to see the output.", open_shell_command_binding) else "");
-			if ctx.exit_code == 0 {
+			show_shell_hint :: job.kind == .SHELL && (get_visible_editor_for_buffer(shell.buffer_index) == -1);
+			msg :: tprint("Job '%' finished with exit code: %.%",  job.name, job.exit_code, if show_shell_hint then tprint(" Use [%] to see the output.", open_shell_command_binding) else "");
+			if job.exit_code == 0 {
 				print_info(msg);
 			} else {
 				print_err(msg);
 			}
 		}
-		KILLED { print_info("Job '%' killed.", ctx.name); }
-		FAILED;
+		.KILLED { print_info("Job '%' killed.", job.name); }
+		.FAILED;
 
 		default { panic(); }
 	}
 
-	array_terminate(&ctx.pending);
-	array_terminate(&ctx.complete);
-
-	mutex_terminate(&ctx.mutex);
-	ctx.is_removed = true;
+	msq.terminate(&job.main_to_worker);
 }
 
 kill_async_jobs :: fn () {
-	using JobContext.state;
-
 	loop i := 0; i < jobs.len; i += 1 {
-		job :: &jobs[i];
-		if job.worker_context.is_removed { continue; }
+		if !jobs[i] then continue;
 		remove_async_job(i);
 	}
+
 	array_terminate(&jobs);
 	zeroinit(&jobs);
 }
 
-consume_job_results :: fn (job: *Job, is_blocking := false) {
-	using JobContext.state;
-	using JobKind;
+update_jobs :: fn () {
+	using msq;
+	check_main_thread();
 
-	ctx :: &job.worker_context;
-	assert(!ctx.is_removed);
+	response: *Message #noinit;
+	loop poll(&jobs_worker_to_main, &response) {
+		defer terminate_message(response);
 
-	locked := false;
-	if is_blocking {
-		locked = true;
-		mutex_lock(&ctx.mutex);
-	} else {
-		locked = mutex_try_lock(&ctx.mutex) catch {
-			print_err($);
-		};
-	}
-
-	if !locked then return;
-	defer mutex_unlock(&ctx.mutex);
-
-	response: Response #noinit;
-	loop pop_response(ctx, &response) {
-		assert(response.job_kind == ctx.kind);
 		err: Error;
-		switch ctx.kind {
-			CLANG_FORMAT  { err = apply_format(ctx.state, &response);        }
-			SHELL         { err = apply_shell(ctx.state, &response);         }
-			LSP           { err = apply_lsp(ctx.state, &response);           }
-			CONFIG_SERVER { err = apply_config_server(ctx.state, &response); }
-			default { panic(); }
+		switch response.typeid {
+			type_utils.typeid(ClangFormatResponse) {
+				err = apply_format(auto response);
+			}
+			type_utils.typeid(ShellResponse) {
+				err = apply_shell(auto response);
+			}
+			type_utils.typeid(ConfigServerResponse) {
+				err = apply_config_server(auto response);
+			}
+			type_utils.typeid(LspResponse) {
+				err = apply_lsp(auto response);
+			}
+
+			default {
+				panic();
+			}
 		}
 
 		if err then print_err(err);
-
-		terminate_response(&response);
 		redraw();
 	}
-}
-
-update_jobs :: fn () {
-	using JobContext.state;
-	using JobKind;
 
 	loop i := 0; i < jobs.len; i += 1 {
-		job :: &jobs[i];
-		ctx :: &job.worker_context;
-		if ctx.is_removed { continue; }
-
-		consume_job_results(job);
-
-		if ctx.state != RUNNING {
+		job :: jobs[i];
+		if !job then continue;
+		if atomic.load(&job.state) != .RUNNING {
 			remove_async_job(i);
 		}
 	}
 }
 
-get_job_context :: fn (index: s32) *JobContext #inline {
+get_job :: fn (index: s32) *Job #inline {
 	assert(index >= 0 && index < jobs.len);
-	return &jobs[index].worker_context;
+	assert(jobs[index], "Job removed!");
+	return jobs[index];
 }
 
-#scope_private
-get_allocator :: fn () *Allocator #inline {
-	mutex_lock(&jobs_pools.mutex);
-	defer mutex_unlock(&jobs_pools.mutex);
-
-	allocator: *Allocator;
-	if !array_pop(&jobs_pools.available, &allocator) {
-		pool :: pool_make();
-		allocator = bucket_array_push(&jobs_pools.pools, pool);
-	}
-	assert(allocator);
-	return allocator;
+set_job_progress_indicator :: fn (job: *Job, v: bool) #inline {
+	atomic.store(&job.show_progress, v);
 }
-
-put_allocator :: fn (allocator: *Allocator)  #inline {
-	assert(allocator);
-	mutex_lock(&jobs_pools.mutex);
-	defer mutex_unlock(&jobs_pools.mutex);
-
-	reset_allocator(allocator);
-	array_push(&jobs_pools.available, auto allocator);
-}
-#scope_public
-
-make_request :: fn (ctx: *JobContext) (request: Request, err: Error) {
-	assert(ctx);
-	allocator :: get_allocator();
-	if !allocator then return .{}, error("Cannot create request, queue is full, restart LSP server or try again later.");
-
-	return .{
-		job_kind  = ctx.kind,
-		allocator = allocator,
-	}, OK;
-}
-
-push_request :: fn (ctx: *JobContext, request: *Request) {
-	assert(request.job_kind == ctx.kind);
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
-
-	r :: array_push(&ctx.pending);
-	memcpy(auto r, auto request, sizeof(@request));
-	r.is_pending = true;
-}
-
-pop_request :: fn (ctx: *JobContext, request: *Request) bool {
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
-	if array_pop_first(&ctx.pending, request) {
-		assert(request.job_kind == ctx.kind);
-		return true;
-	}
-	return false;
-}
-
-has_pending_request :: fn (ctx: *JobContext) bool #inline {
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
-	return ctx.pending.len > 0;
-}
-
-make_response :: fn (ctx: *JobContext) (response: Response, err: Error) {
-	assert(ctx);
-	allocator :: get_allocator();
-	if !allocator then return .{}, error("Cannot create response, queue is full, restart LSP server or try again later.");
-
-	return .{
-		job_kind  = ctx.kind,
-		allocator = allocator,
-	}, OK;
-}
-
-// Consume the 'request' data; meaning they are zero initialized in case the request is pushed
-// this way we prevent possible double-free of request data strings.
-push_response :: fn (ctx: *JobContext, response: *Response) {
-	assert(response.job_kind == ctx.kind);
-	mutex_lock(&ctx.mutex);
-	defer mutex_unlock(&ctx.mutex);
-
-	r :: array_push(&ctx.complete);
-	memcpy(auto r, auto response, sizeof(@response));
-	zeroinit(&response.as);
-}
-
-// ctx.mutex should be locked before this is called
-pop_response :: fn (ctx: *JobContext, response: *Response) bool {
-	if array_pop_first(&ctx.complete, response) {
-		assert(response.job_kind == ctx.kind);
-		return true;
-	}
-	return false;
-}
-
-set_job_progress_indicator :: fn (ctx: *JobContext, v: bool) #inline {
-	// @Hack 2026-02-11: This is set from worker thread and read from main thread,
-	//                   but it should be fine without locking since we use it only to
-	//                   draw indicator.
-	ctx.show_progress = v;
-}
-
-terminate_request :: fn (request: *Request) {
-	put_allocator(request.allocator);
-	zeroinit(request);
-}
-
-terminate_response :: fn (response: *Response) {
-	put_allocator(response.allocator);
-	zeroinit(response);
-}
-
 
 check_main_thread :: fn (loc := #call_location) #enable_if IS_DEBUG {
-	if MAIN_THREAD_ID != get_thread_id() {
+	if MAIN_THREAD_ID != threading.get_current_thread_id() {
 		panic("Location: %:% is expected to be reached only from the main thread!", loc.file, loc.line);
 	}
 }
@@ -2271,7 +2129,7 @@ set_logger :: fn (func: PrintLogFn) PrintLogFn {
 }
 
 // Use this to prevent recursive looping when log is reported while we report logs...
-log_reported := false;
+log_reported := atomic.make#(bool, false);
 
 logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #maybe_unused, format: string_view, args: ...) {
 	get_message_prefix :: fn (kind: PrintLogKind) string_view {
@@ -2285,12 +2143,8 @@ logger :: fn (kind: PrintLogKind, file: string_view #maybe_unused, line: s32 #ma
 	};
 
 	// Prevent looping.
-	if log_reported { return; }
-	log_reported = true;
-
-	defer fn () {
-		log_reported = false;
-	}();
+	if atomic.exchange(&log_reported, true) then return;
+	defer atomic.store(&log_reported, false);
 
 	using PrintLogKind;
 	switch kind {
@@ -2359,9 +2213,10 @@ draw_background_progress_bar :: fn (x: f32, y: f32, w: f32, h: f32) {
 
 	active := false;
 	loop i := 0; i < jobs.len; i += 1 {
-		ctx :: get_job_context(i);
-		if ctx.state != .RUNNING then continue;
-		if ctx.show_progress {
+		job :: jobs[i];
+		if !job then continue;
+		if atomic.load(&job.state) != .RUNNING then continue;
+		if atomic.load(&job.show_progress) {
 			active = true;
 			break;
 		}

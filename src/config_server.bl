@@ -1,4 +1,5 @@
-ConfigServerRequest :: Variant(union {
+ConfigServerRequest :: struct #base msq.Message {
+	data: Variant(union {
 		document_update: struct {
 			filepath: string;
 			src:      string;
@@ -10,8 +11,10 @@ ConfigServerRequest :: Variant(union {
 			buffer_index: s32;
 		};
 	});
+}
 
-ConfigServerResponse :: Variant(union {
+ConfigServerResponse :: struct #base msq.Message {
+	data: Variant(union {
 		publish_diagnostics: struct {
 			filepath:     string;
 			items:    [..]ErrorLocation;
@@ -22,6 +25,7 @@ ConfigServerResponse :: Variant(union {
 			items:      []CompletionItem;
 		};
 	});
+}
 
 config_server: struct {
 	job_index: s32;
@@ -45,65 +49,79 @@ config_server_is_supported_document_type :: fn (buf: *Buffer) bool #inline {
 }
 
 config_server_document_update :: fn (buf: *Buffer) Error {
+	using msq;
+
 	if config_server.job_index == -1 {
 		start_config_server();
 	}
 	assert(config_server_is_supported_document_type(buf));
 
 	print_log("CS: Add file '%'.", buf.name);
-	ctx :: get_job_context(config_server.job_index);
+	job :: get_job(config_server.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.cs, .document_update, .{
+	request :: make_message(ConfigServerRequest, &job.main_to_worker);
+	set_variant(&request.data, .document_update, .{
 			filepath = str_make(buf.filepath, request.allocator),
 			src      = str_make(buf.bytes, request.allocator), // @Performance
 		});
 
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("Failed to post config server message.");
+	};
 	return OK;
 }
 
 config_server_completion :: fn (editor: *Editor, buf: *Buffer) Error {
+	using msq;
+
 	if config_server.job_index == -1 {
 		start_config_server();
 	}
 	assert(config_server_is_supported_document_type(buf));
 
-	ctx :: get_job_context(config_server.job_index);
+	job :: get_job(config_server.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.cs, .completion, .{
+	request :: make_message(ConfigServerRequest, &job.main_to_worker);
+	set_variant(&request.data, .completion, .{
 			filepath     = str_make(buf.filepath, request.allocator),
 			src          = str_make(buf.bytes, request.allocator), // @Performance
 			cursor       = get_cursor(buf, editor.cursor_index),
 			buffer_index = buf.index,
 		});
 
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("Failed to post config server message.");
+	};
 	return OK;
 }
 
-apply_config_server :: fn (_: JobContext.state, response: *Response) Error {
+apply_config_server :: fn (response: *ConfigServerResponse) Error {
 	check_main_thread();
-	rd :: &response.as.cs;
-	switch rd.kind {
+
+	switch response.data.kind {
 		.publish_diagnostics {
-			buf :: get_buffer_by_filepath(rd.publish_diagnostics.filepath);
+			data :: &response.data.publish_diagnostics;
+
+			buf :: get_buffer_by_filepath(data.filepath);
 			if !buf then return OK;
 
 			reset_buffer_diagnostics(buf);
 
-			loop i := 0; i < rd.publish_diagnostics.items.len; i += 1 {
-				add_buffer_dia_entry(buf, &rd.publish_diagnostics.items[i]);
+			loop i := 0; i < data.items.len; i += 1 {
+				add_buffer_dia_entry(buf, &data.items[i]);
 			}
 		}
 		.completion {
-			buf, editor :: get_active_buffer_and_editor();
-			if rd.completion.buffer_index != buf.index then return OK;
-			current_position :: get_cursor_position(buf, editor.cursor_index);
-			if rd.completion.cursor.position != current_position then return OK;
+			data :: &response.data.completion;
 
-			items :: rd.completion.items;
+			buf, editor :: get_active_buffer_and_editor();
+			if data.buffer_index != buf.index then return OK;
+			current_position :: get_cursor_position(buf, editor.cursor_index);
+			if data.cursor.position != current_position then return OK;
+
+			items :: data.items;
 			if items.len == 0 {
 				print_warn("No completion available.");
 			} else {
@@ -117,54 +135,64 @@ apply_config_server :: fn (_: JobContext.state, response: *Response) Error {
 
 #private
 
-worker :: fn (ctx: *JobContext) s32 {
-	loop !ctx.kill {
-		request: Request;
-		loop pop_request(ctx, &request) {
-			defer terminate_request(&request);
+worker :: fn (job: *Job) s32 {
+	using msq;
 
-			rd :: &request.as.cs;
-			switch rd.kind {
-				.document_update {
-					response :: make_response(ctx) catch panic($);
+	request: *ConfigServerRequest;
+	loop poll_as(&job.main_to_worker, &request, true) {
+		defer terminate_message(request);
+		defer temporary_reset();
 
-					config_data: ConfigData;
-					config_data_init(&config_data, application_context.temporary_allocator);
+		switch request.data.kind {
+			.document_update {
+				data :: &request.data.document_update;
+				response :: make_message(ConfigServerResponse, job.worker_to_main);
 
-					diag: [..]ErrorLocation;
-					array_init(&diag, LSP_MAX_DIAG_MESSAGE_COUNT, response.allocator);
-					load_config_from_memory(&config_data, rd.document_update.filepath, rd.document_update.src, &diag, true);
+				config_data: ConfigData;
+				config_data_init(&config_data, application_context.temporary_allocator);
 
-					set_variant(&response.as.cs, .publish_diagnostics, .{
-							filepath = str_make(config_data.filepath, response.allocator),
-							items    = diag,
-						});
-					push_response(ctx, &response);
-				}
-				.completion {
-					response :: make_response(ctx) catch panic($);
+				diag: [..]ErrorLocation;
+				array_init(&diag, LSP_MAX_DIAG_MESSAGE_COUNT, response.allocator);
+				load_config_from_memory(&config_data, data.filepath, data.src, &diag, true);
 
-					config_data: ConfigData;
-					config_data_init(&config_data, application_context.temporary_allocator);
-					load_config_from_memory(&config_data, rd.completion.filepath, rd.completion.src, null, true);
+				set_variant(&response.data, .publish_diagnostics, .{
+						filepath = str_make(config_data.filepath, response.allocator),
+						items    = diag,
+					});
 
-					items :: config_data_get_completion(&config_data, rd.completion.cursor, response.allocator);
+				post(response) catch {
+					terminate_message(request);
+					job_error(job, "Failed to post config server message.");
+					return 1;
+				};
+			}
 
-					set_variant(&response.as.cs, .completion, .{
-							buffer_index = rd.completion.buffer_index,
-							cursor       = rd.completion.cursor,
-							items        = items,
-						});
+			.completion {
+				data :: &request.data.completion;
+				response :: make_message(ConfigServerResponse, job.worker_to_main);
 
-					push_response(ctx, &response);
-				}
+				config_data: ConfigData;
+				config_data_init(&config_data, application_context.temporary_allocator);
+				load_config_from_memory(&config_data, data.filepath, data.src, null, true);
+
+				items :: config_data_get_completion(&config_data, data.cursor, response.allocator);
+
+				set_variant(&response.data, .completion, .{
+						buffer_index = data.buffer_index,
+						cursor       = data.cursor,
+						items        = items,
+					});
+
+				post(response) catch {
+					terminate_message(request);
+					job_error(job, "Failed to post config server message.");
+					return 1;
+				};
 			}
 		}
 
-		os_sleep_ms(34);
-		temporary_reset();
 	}
 
-	ctx.state = .KILLED;
+	atomic.store(&job.state, .KILLED);
 	return 0;
 }

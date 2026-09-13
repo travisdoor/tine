@@ -1,17 +1,19 @@
-ClangFormatRequest :: struct {
-	filepath:     string;
-	src:          string;
+ClangFormatRequest :: struct #base msq.Message {
+	filepath:     string_view;
+	src:          string_view;
 	buffer_index: s32;
 	buffer_hash:  u32;
 }
 
-ClangFormatResponse :: struct {
+ClangFormatResponse :: struct #base msq.Message {
 	src:          string;
 	buffer_index: s32;
 	buffer_hash:  u32;
 }
 
 request_format :: fn (buf: *Buffer) Error {
+	using msq;
+
 	if buf.file_type != FileType.C {
 		return error("Buffer '%' is not recognized as C/C++ source file.", buf.name);
 	}
@@ -19,33 +21,34 @@ request_format :: fn (buf: *Buffer) Error {
 
 	// set buffer temporarily as readonly
 	buf.flags |= BufferFlags.READONLY;
-	job_index :: start_async_job(JobKind.CLANG_FORMAT, "clang-format", &worker);
+	job_index :: start_async_job(.CLANG_FORMAT, "clang-format", &worker);
 
-	ctx :: get_job_context(job_index);
+	job :: get_job(job_index);
 
-	request := make_request(ctx) catch return $;
-	request.as.clang_format = .{
-		filepath     = str_make(buf.filepath, request.allocator),
-		src          = str_make(buf.bytes, request.allocator),
-		buffer_index = buf.index,
-		buffer_hash  = buf.hash,
+	request :: make_message(ClangFormatRequest, &job.main_to_worker);
+	request.filepath     = str_make(buf.filepath, request.allocator);
+	request.src          = str_make(buf.bytes, request.allocator);
+	request.buffer_index = buf.index;
+	request.buffer_hash  = buf.hash;
+
+	post(request) catch {
+		terminate_message(request);
+		return $;
 	};
 
-	push_request(ctx, &request);
 	return OK;
 }
 
-apply_format :: fn (job_state: JobContext.state, response: *Response) Error {
+apply_format :: fn (response: *ClangFormatResponse) Error {
 	check_main_thread();
-	rd :: &response.as.clang_format;
 
 	// If clang-format took long time, it's possible the target buffer was removed or
 	// the buffer slot was reused for a different file...
-	buf :: &buffers[rd.buffer_index];
-	if buf.is_removed             { return OK; }
-	if buf.hash != rd.buffer_hash { return OK; }
+	buf :: &buffers[response.buffer_index];
+	if buf.is_removed then return OK;
+	if buf.hash != response.buffer_hash then return OK;
 	clr_flag(&buf.flags, BufferFlags.READONLY);
-	if job_state == JobContext.state.DONE then change_content(buf, rd.src);
+	change_content(buf, response.src);
 	return OK;
 }
 
@@ -60,80 +63,73 @@ get_clang_format_executable :: fn () string_view {
 	}
 }
 
-worker :: fn (ctx: *JobContext) s32 {
-	using JobContext.state;
+worker :: fn (job: *Job) s32 {
+	using msq;
 
 	// wait for request
-	request: Request #noinit;
-	loop !pop_request(ctx, &request) {
-		os_sleep_ms(10);
-	}
-	defer terminate_request(&request);
+	request: *ClangFormatRequest #noinit;
+	if poll_as(&job.main_to_worker, &request, true) {
+		defer terminate_message(request);
 
-	set_job_progress_indicator(ctx, true);
-	defer set_job_progress_indicator(ctx, false);
+		set_job_progress_indicator(job, true);
+		defer set_job_progress_indicator(job, false);
 
-	response := make_response(ctx) catch {
-		print_err("clang-format: %", $);
-		ctx.state = FAILED;
-		return 1;
-	};
+		response := make_message(ClangFormatResponse, job.worker_to_main);
+		response.buffer_index = request.buffer_index;
+		response.buffer_hash  = request.buffer_hash;
+		response.src          = str_make(request.src.len, response.allocator);
 
-	response.as.clang_format = .{
-		buffer_index = request.as.clang_format.buffer_index,
-		buffer_hash  = request.as.clang_format.buffer_hash,
-		src          = str_make(request.as.clang_format.src.len, response.allocator),
-	};
+		defer terminate_message(response);
 
-	// We need to unlock the file and do other stuff even in case execution failed...
-	defer push_response(ctx, &response);
-
-	executable :: get_clang_format_executable();
-	args       :: [_]string_view.{ tprint("--assume-filename=\"%\"", request.as.clang_format.filepath) };
-	start_process(ctx, executable, args) catch {
-		if $.code == ERR_NOT_FOUND {
-			print_err("clang-format: Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
-		} else {
-			print_err("clang-format: Cannot execute '%' with error: %", executable, $);
-		}
-		ctx.state = FAILED;
-		return 1;
-	};
-
-	defer stop_process(ctx);
-
-	write_pipe(ctx.stdin, request.as.clang_format.src) catch {
-		print_err("clang-format: The '%' failed with error: %", executable, $);
-		ctx.state = FAILED;
-		return 1;
-	};
-
-	// Submit the source to the clang-format.
-	close_pipe(&ctx.stdin);
-
-	loop !ctx.kill {
-		state :: poll_process(ctx) catch {
-			print_err("clang-format: The '%' failed with error: %", executable, $);
-			ctx.state = FAILED;
+		executable :: get_clang_format_executable();
+		args       :: [_]string_view.{ tprint("--assume-filename=\"%\"", request.filepath) };
+		start_process(job, executable, args) catch {
+			if $.code == ERR_NOT_FOUND {
+				job_error(job, "clang-format: Cannot find '%' executable. Path to the executable must be included in your PATH environment variable.", executable);
+			} else {
+				job_error(job, "clang-format: Cannot execute '%' with error: %", executable, $);
+			}
 			return 1;
 		};
 
-		using PollEvent;
-		if is_flag(state, READ) {
-			read_pipe(ctx.stdout, &response.as.clang_format.src) catch {
-				print_err("clang-format: The '%' failed with error: %", executable, $);
-				ctx.state = FAILED;
+		defer stop_process(job);
+
+		write_pipe(job.stdin, request.src) catch {
+			job_error(job, "clang-format: The '%' failed with error: %", executable, $);
+			return 1;
+		};
+
+		// Submit the source to the clang-format.
+		close_pipe(&job.stdin);
+
+		loop !atomic.load(&job.kill) {
+			state :: poll_process(job) catch {
+				job_error(job, "clang-format: The '%' failed with error: %", executable, $);
 				return 1;
 			};
+
+			using PollEvent;
+			if is_flag(state, READ) {
+				read_pipe(job.stdout, &response.src) catch {
+					job_error(job, "clang-format: The '%' failed with error: %", executable, $);
+					return 1;
+				};
+			}
+			if is_flag(state, CLOSED) {
+				post(response) catch {
+					terminate_message(request);
+					job_error(job, "clang-format: Failed to post message.");
+					return 1;
+				};
+				response = null; // Message consumed, so deferred terminate does nothing.
+				atomic.store(&job.state, .DONE);
+				return 0;
+			}
+
+			os_sleep_ms(16);
 		}
-		if is_flag(state, CLOSED) {
-			print_log("Closed");
-			ctx.state = DONE;
-			return 0;
-		}
-		os_sleep_ms(10);
 	}
 
-	ctx.state = KILLED;
+	atomic.store(&job.state, .KILLED);
 	return 0;
 }

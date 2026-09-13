@@ -1,104 +1,108 @@
-LSP_PULL_DIAGNOSTICS_EACH_S :: 2.0; //s
+LSP_PULL_DIAGNOSTICS_EACH_S :: 2.0;
 
-LspRequest :: Variant(union {
-		initialize: struct {
-			root_directory: string;
-			flavor:         LspFlavor;
-		};
-		document_open: struct {
-			filepath: string;
-			src:      string;
-			version:  s32;
-		};
-		document_change: struct {
-			filepath: string;
-			src:      string;
-			version:  s32;
-			cursor:   Cursor;
-		};
-		document_save: struct {
-			filepath: string;
-		};
-		document_close: struct {
-			filepath: string;
-		};
-		goto: struct {
-			kind:                LspGotoKind;
-			filepath:            string;
-			cursor:              Cursor;
-			buffer_index:        s32;
-			open_in_other_split: bool;
-		};
-		switch_header_source: struct {
-			filepath:            string;
-			buffer_index:        s32;
-			open_in_other_split: bool;
-		};
-		completion: struct {
-			filepath:     string;
-			cursor:       Cursor;
-			buffer_index: s32;
-		};
-		find_references: struct {
-			filepath:     string;
-			cursor:       Cursor;
-			buffer_index: s32;
-		};
-		solution_open: struct {
-			filepath:     string;
-		};
-		pull_diagnostics: struct {
-			filepath: string;
-			version:  s32;
-		};
-		signature_help: struct {
-			filepath:     string;
-			cursor:       Cursor;
-			buffer_index: s32;
-		};
-	});
+LspRequest :: struct #base msq.Message {
+	data: Variant(union {
+			initialize: struct {
+				root_directory: string;
+				flavor:         LspFlavor;
+			};
+			document_open: struct {
+				filepath: string;
+				src:      string;
+				version:  s32;
+			};
+			document_change: struct {
+				filepath: string;
+				src:      string;
+				version:  s32;
+				cursor:   Cursor;
+			};
+			document_save: struct {
+				filepath: string;
+			};
+			document_close: struct {
+				filepath: string;
+			};
+			goto: struct {
+				kind:                LspGotoKind;
+				filepath:            string;
+				cursor:              Cursor;
+				buffer_index:        s32;
+				open_in_other_split: bool;
+			};
+			switch_header_source: struct {
+				filepath:            string;
+				buffer_index:        s32;
+				open_in_other_split: bool;
+			};
+			completion: struct {
+				filepath:     string;
+				cursor:       Cursor;
+				buffer_index: s32;
+			};
+			find_references: struct {
+				filepath:     string;
+				cursor:       Cursor;
+				buffer_index: s32;
+			};
+			solution_open: struct {
+				filepath:     string;
+			};
+			pull_diagnostics: struct {
+				filepath: string;
+				version:  s32;
+			};
+			signature_help: struct {
+				filepath:     string;
+				cursor:       Cursor;
+				buffer_index: s32;
+			};
+		});
+}
 
-LspRequestKind :: LspRequest.kind;
+LspRequestKind :: LspRequest.data.kind;
 LspGotoKind :: enum { DECLARATION; DEFINITION; }
 
-LspResponse :: Variant(union {
-		initialize: struct {
-			server_name: string;
-			features:    LspFeatures;
-		};
-		goto: struct {
-			cursor:              Cursor;
-			filepath:            string;
-			buffer_index:        s32;
-			open_in_other_split: bool;
-		};
-		switch_header_source: struct {
-			filepath:            string;
-			buffer_index:        s32;
-			open_in_other_split: bool;
-		};
-		publish_diagnostics: struct {
-			filepath:     string;
-			version:      s32;
-			items:    [..]ErrorLocation;
-		};
-		completion: struct {
-			buffer_index: s32;
-			is_complete:  bool;
-			cursor:       Cursor;
-			items:    [..]CompletionItem;
-		};
-		find_references: struct {
-			buffer_index: s32;
-			subject:      string;
-			result:       string;
-		};
-		signature_help: struct {
-			overloads: [..]string;
-			cursor:        Cursor;
-			buffer_index:  s32;
-		};
-	});
+LspResponse :: struct #base msq.Message {
+	data: Variant(union {
+			initialize: struct {
+				server_name: string;
+				features:    LspFeatures;
+			};
+			goto: struct {
+				cursor:              Cursor;
+				filepath:            string;
+				buffer_index:        s32;
+				open_in_other_split: bool;
+			};
+			switch_header_source: struct {
+				filepath:            string;
+				buffer_index:        s32;
+				open_in_other_split: bool;
+			};
+			publish_diagnostics: struct {
+				filepath:     string;
+				version:      s32;
+				items:    [..]ErrorLocation;
+			};
+			completion: struct {
+				buffer_index: s32;
+				is_complete:  bool;
+				cursor:       Cursor;
+				items:    [..]CompletionItem;
+			};
+			find_references: struct {
+				buffer_index: s32;
+				subject:      string;
+				result:       string;
+			};
+			signature_help: struct {
+				overloads: [..]string;
+				cursor:        Cursor;
+				buffer_index:  s32;
+			};
+		});
+}
 
 LspFlavor :: enum {
 	GENERIC;
@@ -171,24 +175,30 @@ lsp_terminate :: fn () {
 }
 
 start_lsp_server :: fn () Error {
+	using msq;
+
 	print_info("LSP: Starting server.");
 	lsp.job_index   = start_async_job(.LSP, "lsp", &worker);
 	lsp.initialized = false;
 	lsp.roslyn_solution_load_in_progress = false;
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .initialize, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .initialize, .{
 			root_directory = sprint_with_allocator(request.allocator, "%/", get_project_main_directory()),
 			flavor         = settings.lsp_flavor,
 		});
 
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 
 lsp_roslyn_solution_open :: fn () Error {
+	using msq;
 	assert(check_running_and_initialized() == OK);
 
 	if settings.lsp_roslyn_solution.len == 0 {
@@ -196,13 +206,16 @@ lsp_roslyn_solution_open :: fn () Error {
 		return OK;
 	}
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .solution_open, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .solution_open, .{
 			filepath = str_make(settings.lsp_roslyn_solution, request.allocator),
 		});
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	lsp.roslyn_solution_load_in_progress = true;
 	return OK;
 }
@@ -223,8 +236,10 @@ lsp_pull_diagnostics_update :: fn (buf: *Buffer) {
 	if mode == Mode.COMPLETION                then return;
 	if buf.lsp.pending_dia                    then return;
 
+	job :: get_job(lsp.job_index);
+
 	// Other requests should have priority over diagnostics.
-	if has_pending_request(get_job_context(lsp.job_index)) then return;
+	if msq.get_pending_message_count(&job.main_to_worker) > 0 then return;
 
 	current_time :: get_ticks();
 	if current_time - buf.lsp.last_dia_pull_time > LSP_PULL_DIAGNOSTICS_EACH_S {
@@ -233,17 +248,21 @@ lsp_pull_diagnostics_update :: fn (buf: *Buffer) {
 }
 
 lsp_pull_diagnostics :: fn (buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	assert(lsp_is_supported_document_type(buf));
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .pull_diagnostics, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .pull_diagnostics, .{
 			filepath = str_make(buf.filepath, request.allocator),
 			version  = buf.lsp.version,
 		});
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 
 	buf.lsp.pending_dia = true;
 	reset_dia_timeout(buf);
@@ -251,18 +270,22 @@ lsp_pull_diagnostics :: fn (buf: *Buffer) Error {
 }
 
 lsp_pull_signature_help :: fn (editor: *Editor, buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	assert(lsp_is_supported_document_type(buf));
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .signature_help, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .signature_help, .{
 			filepath     = str_make(buf.filepath, request.allocator),
 			cursor       = get_cursor(buf, editor.cursor_index),
 			buffer_index = buf.index,
 		});
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 
@@ -270,8 +293,7 @@ kill_lsp_server :: fn () {
 	if !is_lsp_running() then return;
 
 	assert(lsp.job_index >= 0 && lsp.job_index < jobs.len);
-	assert(!jobs[lsp.job_index].worker_context.is_removed);
-	assert(jobs[lsp.job_index].worker_context.kind == JobKind.LSP);
+	assert(jobs[lsp.job_index].kind == JobKind.LSP);
 	remove_async_job(lsp.job_index);
 }
 
@@ -293,6 +315,7 @@ lsp_is_supported_document_type :: fn (buf: *Buffer) bool #inline {
 }
 
 lsp_open_document :: fn (buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	if !lsp.features.document_open_close then return OK;
 
@@ -302,16 +325,19 @@ lsp_open_document :: fn (buf: *Buffer) Error {
 	buf.lsp.version += 1;
 	buf.lsp.last_known_end = get_cursor_for_position(buf, get_last_position_in_buffer(buf));
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .document_open, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .document_open, .{
 			filepath = str_make(buf.filepath, request.allocator),
 			src      = str_make(buf.bytes, request.allocator), // @Performance
 			version  = buf.lsp.version,
 		});
 
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 
 	if !lsp.features.auto_diagnostics {
 		lsp_pull_diagnostics(buf) catch $;
@@ -321,6 +347,7 @@ lsp_open_document :: fn (buf: *Buffer) Error {
 }
 
 lsp_change_document :: fn (buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	assert(lsp_is_supported_document_type(buf));
 	if lsp.features.document_sync_kind == .NONE then return OK;
@@ -329,10 +356,10 @@ lsp_change_document :: fn (buf: *Buffer) Error {
 	buf.lsp.version       += 1;
 	buf.lsp.published_top  = buf.undo_top;
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .document_change, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .document_change, .{
 			filepath  = str_make(buf.filepath, request.allocator),
 			src       = str_make(buf.bytes, request.allocator),
 			version   = buf.lsp.version,
@@ -340,7 +367,10 @@ lsp_change_document :: fn (buf: *Buffer) Error {
 		});
 
 	buf.lsp.last_known_end = get_cursor_for_position(buf, get_last_position_in_buffer(buf));
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 
 	if !lsp.features.auto_diagnostics {
 		reset_dia_timeout(buf);
@@ -350,32 +380,40 @@ lsp_change_document :: fn (buf: *Buffer) Error {
 }
 
 lsp_save_document :: fn (buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	assert(lsp_is_supported_document_type(buf));
 	print_log("LSP: Save file '%'.", buf.name);
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .document_save, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .document_save, .{
 			filepath = str_make(buf.filepath, request.allocator),
 		});
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 
 lsp_close_document :: fn (buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	if !lsp.features.document_open_close then return OK;
 	assert(lsp_is_supported_document_type(buf));
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .document_close, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .document_close, .{
 			filepath = str_make(buf.filepath, request.allocator),
 		});
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 
@@ -389,6 +427,7 @@ lsp_goto_definition :: fn (editor: *Editor, buf: *Buffer, open_in_other_split :=
 
 #scope_private
 goto :: fn (editor: *Editor, buf: *Buffer, kind: LspGotoKind, open_in_other_split: bool) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	if !lsp_is_supported_document_type(buf) {
 		print_warn("LSP: Buffer type not supported.");
@@ -411,10 +450,10 @@ goto :: fn (editor: *Editor, buf: *Buffer, kind: LspGotoKind, open_in_other_spli
 		}
 	}
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .goto, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .goto, .{
 			kind                = kind,
 			cursor              = get_cursor(buf, editor.cursor_index),
 			filepath            = str_make(buf.filepath, request.allocator),
@@ -422,12 +461,16 @@ goto :: fn (editor: *Editor, buf: *Buffer, kind: LspGotoKind, open_in_other_spli
 			open_in_other_split = open_in_other_split,
 		});
 
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 #scope_public
 
 lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	if !lsp_is_supported_document_type(buf) {
 		print_warn("LSP: Buffer type not supported.");
@@ -438,20 +481,24 @@ lsp_switch_header_source :: fn (buf: *Buffer, open_in_other_split := false) Erro
 		return OK;
 	}
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .switch_header_source, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .switch_header_source, .{
 			filepath            = str_make(buf.filepath, request.allocator),
 			buffer_index        = buf.index,
 			open_in_other_split = open_in_other_split,
 		});
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 
-	push_request(ctx, &request);
 	return OK;
 }
 
 lsp_completion :: fn (editor: *Editor, buf: *Buffer) Error {
+	using msq;
 	print_log("LSP: Request completion");
 
 	check_running_and_initialized() catch return $;
@@ -465,21 +512,25 @@ lsp_completion :: fn (editor: *Editor, buf: *Buffer) Error {
 		lsp_change_document(buf) catch return $;
 	}
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .completion, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .completion, .{
 			filepath     = str_make(buf.filepath, request.allocator),
 			cursor       = get_cursor(buf, editor.cursor_index),
 			buffer_index = buf.index,
 		});
 
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	lsp_pull_signature_help(editor, buf);
 	return OK;
 }
 
 lsp_find_references :: fn (editor: *Editor, buf: *Buffer) Error {
+	using msq;
 	check_running_and_initialized() catch return $;
 	if !lsp_is_supported_document_type(buf) {
 		print_warn("LSP: Buffer type not supported.");
@@ -491,26 +542,29 @@ lsp_find_references :: fn (editor: *Editor, buf: *Buffer) Error {
 	}
 	if !check_roslyn_solution_load_in_progress() then return OK;
 
-	ctx :: get_job_context(lsp.job_index);
+	job :: get_job(lsp.job_index);
 
-	request :: make_request(ctx) catch return $;
-	set_variant(&request.as.lsp, .find_references, .{
+	request :: make_message(LspRequest, &job.main_to_worker);
+	set_variant(&request.data, .find_references, .{
 			filepath     = str_make(buf.filepath, request.allocator),
 			cursor       = get_cursor(buf, editor.cursor_index),
 			buffer_index = buf.index,
 		});
-	push_request(ctx, &request);
+	post(request) catch {
+		terminate_message(request);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 
-apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
+apply_lsp :: fn (response: *LspResponse) Error {
 	check_main_thread();
-	rd :: &response.as.lsp;
-	switch rd.kind {
+	switch response.data.kind {
 		.initialize {
+			data :: &response.data.initialize;
 			lsp.server_name.len = 0;
-			str_append(&lsp.server_name, rd.initialize.server_name);
-			lsp.features = rd.initialize.features;
+			str_append(&lsp.server_name, data.server_name);
+			lsp.features = data.features;
 			print_log("LSP: Features: %", lsp.features);
 
 			lsp.initialized = true;
@@ -525,63 +579,68 @@ apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
 		}
 
 		.goto {
+			data :: &response.data.goto;
 			buf :: get_active_buffer_and_editor();
-			if rd.goto.buffer_index != buf.index then return OK;
-			split :: if rd.goto.open_in_other_split then get_other_split() else get_active_split();
-			open_location(rd.goto.filepath, rd.goto.cursor.row, rd.goto.cursor.col, split) catch {
+			if data.buffer_index != buf.index then return OK;
+			split :: if data.open_in_other_split then get_other_split() else get_active_split();
+			open_location(data.filepath, data.cursor.row, data.cursor.col, split) catch {
 				print_err("LSP: %", $);
 			};
 		}
 
 		.switch_header_source {
+			data :: &response.data.switch_header_source;
 			buf :: get_active_buffer_and_editor();
-			if rd.switch_header_source.buffer_index != buf.index then return OK;
-			split :: if rd.goto.open_in_other_split then get_other_split() else get_active_split();
-			open(rd.switch_header_source.filepath, split) catch {
+			if data.buffer_index != buf.index then return OK;
+			split :: if data.open_in_other_split then get_other_split() else get_active_split();
+			open(data.filepath, split) catch {
 				print_err("LSP: %", $);
 			};
 		}
 
 		.publish_diagnostics {
-			buf :: get_buffer_by_filepath(rd.publish_diagnostics.filepath);
+			data :: &response.data.publish_diagnostics;
+			buf :: get_buffer_by_filepath(data.filepath);
 			if !buf {
 				// This might be simple caused by the user closing the buffer before publishing.
 				return OK;
 			}
 			buf.lsp.pending_dia = false;
-			if rd.publish_diagnostics.version < buf.lsp.version || mode == Mode.COMPLETION {
+			if data.version < buf.lsp.version || mode == Mode.COMPLETION {
 				// New version of the document was pushed already for processing so current results might be outdated.
 				return OK;
 			}
 
 			reset_buffer_diagnostics(buf);
 
-			loop i := 0; i < rd.publish_diagnostics.items.len; i += 1 {
-				add_buffer_dia_entry(buf, &rd.publish_diagnostics.items[i]);
+			loop i := 0; i < data.items.len; i += 1 {
+				add_buffer_dia_entry(buf, &data.items[i]);
 			}
 		}
 
 		.completion {
+			data :: &response.data.completion;
 			buf, editor :: get_active_buffer_and_editor();
-			if rd.completion.buffer_index != buf.index then return OK;
+			if data.buffer_index != buf.index then return OK;
 			current_position :: get_cursor_position(buf, editor.cursor_index);
-			if rd.completion.cursor.position != current_position then return OK;
+			if data.cursor.position != current_position then return OK;
 
-			items :: rd.completion.items;
+			items :: data.items;
 			if items.len == 0 {
 				print_warn("No completion available.");
 			} else {
-				show_completion_popup_for_active_editor(items, rd.completion.is_complete);
+				show_completion_popup_for_active_editor(items, data.is_complete);
 			}
 		}
 
 		.find_references {
+			data :: &response.data.find_references;
 			buf :: get_active_buffer_and_editor();
-			if rd.find_references.buffer_index != buf.index then return OK;
+			if data.buffer_index != buf.index then return OK;
 
 			search.last_subject.len = 0;
-			str_append(&search.last_subject, rd.find_references.subject);
-			refs : string_view : rd.find_references.result;
+			str_append(&search.last_subject, data.subject);
+			refs : string_view : data.result;
 
 			if refs.len == 0 then return OK;
 
@@ -593,13 +652,14 @@ apply_lsp :: fn (_: JobContext.state, response: *Response) Error {
 		}
 
 		.signature_help {
-			overloads : []string : rd.signature_help.overloads;
+			data :: &response.data.signature_help;
+			overloads : []string : data.overloads;
 			if overloads.len == 0 then return OK;
 
 			buf, editor :: get_active_buffer_and_editor();
-			if rd.signature_help.buffer_index != buf.index then return OK;
+			if data.buffer_index != buf.index then return OK;
 			current_position :: get_cursor_position(buf, editor.cursor_index);
-			if rd.signature_help.cursor.position != current_position then return OK;
+			if data.cursor.position != current_position then return OK;
 
 			show_signature_help_for_active_editor(overloads);
 		}
@@ -730,8 +790,27 @@ check_roslyn_solution_load_in_progress :: fn () bool #inline {
 	return true;
 }
 
-worker :: fn (ctx: *JobContext) s32 {
-	using JobContext.state;
+worker_context: struct {
+	pending:      Table(s32, *LspRequest);
+	next_id:      s32;
+	frame_buffer: string;
+} #thread_local;
+
+terminate_worker_context :: fn () {
+	loop i := 0; i < worker_context.pending.len; i += 1 {
+		msq.terminate_message(worker_context.pending.values[i]);
+	}
+	tbl_terminate(&worker_context.pending);
+	str_terminate(&worker_context.frame_buffer);
+}
+
+next_request_id :: fn () s32 #inline {
+	worker_context.next_id += 1;
+	return worker_context.next_id;
+}
+
+worker :: fn (job: *Job) s32 {
+	defer terminate_worker_context();
 
 	allocator :: application_context.temporary_allocator;
 
@@ -742,66 +821,190 @@ worker :: fn (ctx: *JobContext) s32 {
 
 	print_info("Execute '%' with arguments: %", executable, args);
 
-	start_process(ctx, executable, args, false /* separate stderr */) catch {
+	start_process(job, executable, args, false /* separate stderr */) catch {
 		if $.code == ERR_NOT_FOUND {
-			print_err("LSP: Cannot find '%' executable. Please use a valid path or set the executable in your PATH environment variable.", executable);
+			job_error(job, "LSP: Cannot find '%' executable. Please use a valid path or set the executable in your PATH environment variable.", executable);
 		} else {
-			print_err("LSP: Cannot execute '%' with error: %", executable, $);
+			job_error(job, "LSP: Cannot execute '%' with error: %", executable, $);
 		}
-		ctx.state = FAILED;
 		return 1;
 	};
 
-	defer stop_process(ctx);
+	defer stop_process(job);
 
-	current_request: Request;
+	loop !atomic.load(&job.kill) {
+		set_job_progress_indicator(job, worker_context.pending.len > 0);
 
-	loop !ctx.kill {
-		// Process requests
-		if current_request.is_pending == false && pop_request(ctx, &current_request) {
-			err :: process_request(ctx, &current_request);
-			if err {
-				terminate_request(&current_request);
-				print_err("LSP: The '%' failed with error: %", executable, err);
-			} else if is_notification(current_request.as.lsp.kind) {
-				terminate_request(&current_request);
+		request: *LspRequest;
+		if msq.poll_as(&job.main_to_worker, &request) {
+			if is_notification(request.data.kind) {
+				// Notification.
+				defer msq.terminate_message(request);
+				send_notification(job, request) catch {
+					print_err("LSP: Notification failed with error: %", $);
+				};
+			} else {
+				// Request.
+				send_request(job, request) catch {
+					msq.terminate_message(request);
+					print_err("LSP: Request failed with error: %", $);
+				};
 			}
 		}
 
-		process_response(ctx, &current_request) catch {
-			terminate_request(&current_request);
-			print_err("LSP: The '%' failed with error: %", executable, $);
-			ctx.state = FAILED;
+		json :: next_frame(job) catch {
+			job_error(job, "LSP: The '%' failed with error: %", executable, $);
 			return 1;
 		};
 
-		show_progress(ctx, &current_request);
+		if json.bytes.ptr {
+			switch peek_rpc_kind(json) {
+				.UNKNOWN {
+					job_error(job, "LSP: Request failed with unknown message from server.");
+					return 1;
+				}
 
-		os_sleep_ms(34);
+				.ERROR {
+					recv_error(json) catch {
+						job_error(job, $);
+						return 1;
+					};
+					continue;
+				}
+
+				.NOTIFICATION {
+					recv_notification(job, json) catch print_err($);
+					continue;
+				}
+
+				.REQUEST {
+					// Not handled.
+					continue;
+				}
+
+				.RESPONSE {
+					recv_response(job, json) catch print_err($);
+					continue;
+				}
+			}
+		}
+
+		os_sleep_ms(16);
 		temporary_reset();
 	}
 
-	ctx.state = KILLED;
+	atomic.store(&job.state, .KILLED);
 	return 0;
 }
 
-process_request :: fn (ctx: *JobContext, request: *Request) Error {
-	rd :: &request.as.lsp;
+send_notification :: fn (job: *Job, request: *LspRequest) Error {
+	err: Error;
+	switch request.data.kind {
+		.document_open {
+			data :: &request.data.document_open;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
+			defer str_terminate(&uri_filepath);
 
-	// Filepath is used in call requests so we can convert it every time, feel free to change this as needed.
+			params :: LspDidOpenTextDocumentParams.{
+				textDocument = LspTextDocumentItem.{
+					uri        = uri_filepath,
+					languageId = FILE_TYPE[auto settings.lsp_file_type].lsp_language_id,
+					text       = data.src,
+					version    = data.version,
+				},
+			};
+			err = write_notification(job, "textDocument/didOpen", params);
+		}
+
+		.document_change {
+			data :: &request.data.document_change;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
+			defer str_terminate(&uri_filepath);
+
+			switch lsp.features.document_sync_kind {
+				.NONE { assert(false); }
+				.FULL {
+					changes :: [_]LspTextDocumentContentChangeEventFull.{
+						.{ text = data.src },
+					};
+
+					params :: LspDidChangeTextDocumentParamsFull.{
+						textDocument = LspVersionedTextDocumentIdentifier.{
+							uri     = uri_filepath,
+							version = data.version,
+						},
+						contentChanges = changes,
+					};
+					err = write_notification(job, "textDocument/didChange", params);
+				}
+				.INCREMENTAL {
+					changes: [1]LspTextDocumentContentChangeEventIncremental #noinit;
+					changes[0].range = .{
+						start = .{},
+						end   = .{ line = data.cursor.row, character = data.cursor.col },
+					};
+					changes[0].text = data.src;
+
+					params :: LspDidChangeTextDocumentParamsIncremental.{
+						textDocument = LspVersionedTextDocumentIdentifier.{
+							uri     = uri_filepath,
+							version = data.version,
+						},
+						contentChanges = changes,
+					};
+					err = write_notification(job, "textDocument/didChange", params);
+				}
+			}
+		}
+
+		.document_save {
+			data :: &request.data.document_save;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
+			defer str_terminate(&uri_filepath);
+
+			params :: LspDidSaveTextDocumentParams.{
+				textDocument   = LspTextDocumentIdentifier.{
+					uri = uri_filepath,
+				},
+			};
+			err = write_notification(job, "textDocument/didSave", params);
+		}
+
+		.document_close {
+			data :: &request.data.document_close;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
+			defer str_terminate(&uri_filepath);
+
+			params :: LspDidCloseTextDocumentParams.{
+				textDocument = LspTextDocumentIdentifier.{
+					uri = uri_filepath,
+				},
+			};
+			err = write_notification(job, "textDocument/didClose", params);
+		}
+
+		default { print_warn("Unknown notification."); }
+	}
+
+	return err;
+}
+
+send_request :: fn (job: *Job, request: *LspRequest) Error {
+	id :: next_request_id();
 
 	err: Error;
-	switch rd.kind {
+	switch request.data.kind {
 		.initialize {
-			uri_root_directory :: new_url_from_filepath(rd.initialize.root_directory) catch return $;
+			data :: &request.data.initialize;
+			uri_root_directory :: new_url_from_filepath(data.root_directory) catch return $;
 			defer str_terminate(&uri_root_directory);
 
 			extra_options := "{}";
-			if rd.initialize.flavor == .ROSLYN {
+			if data.flavor == .ROSLYN {
 				extra_options = ROSLYN_EXTRA_OPTIONS2;
 			}
 
-			err = write_request(ctx, "initialize", LspInitialize.{
+			err = write_request(job, "initialize", id, LspInitialize.{
 					rootUri      = uri_root_directory,
 					capabilities = .{
 						textDocument = .{
@@ -820,111 +1023,35 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 				});
 		}
 
-		.document_open {
-			uri_filepath :: new_url_from_filepath(rd.document_open.filepath) catch return $;
-			defer str_terminate(&uri_filepath);
-
-			params :: LspDidOpenTextDocumentParams.{
-				textDocument = LspTextDocumentItem.{
-					uri        = uri_filepath,
-					languageId = FILE_TYPE[auto settings.lsp_file_type].lsp_language_id,
-					text       = rd.document_open.src,
-					version    = rd.document_open.version,
-				},
-			};
-			err = write_notification(ctx, "textDocument/didOpen", params);
-		}
-
-		.document_change {
-			uri_filepath :: new_url_from_filepath(rd.document_change.filepath) catch return $;
-			defer str_terminate(&uri_filepath);
-
-			switch lsp.features.document_sync_kind {
-				.NONE { assert(false); }
-				.FULL {
-					changes :: [_]LspTextDocumentContentChangeEventFull.{
-						.{ text = rd.document_change.src },
-					};
-
-					params :: LspDidChangeTextDocumentParamsFull.{
-						textDocument = LspVersionedTextDocumentIdentifier.{
-							uri     = uri_filepath,
-							version = rd.document_change.version,
-						},
-						contentChanges = changes,
-					};
-					err = write_notification(ctx, "textDocument/didChange", params);
-				}
-				.INCREMENTAL {
-					changes: [1]LspTextDocumentContentChangeEventIncremental #noinit;
-					changes[0].range = .{
-						start = .{},
-						end   = .{ line = rd.document_change.cursor.row, character = rd.document_change.cursor.col },
-					};
-					changes[0].text = rd.document_change.src;
-
-					params :: LspDidChangeTextDocumentParamsIncremental.{
-						textDocument = LspVersionedTextDocumentIdentifier.{
-							uri     = uri_filepath,
-							version = rd.document_change.version,
-						},
-						contentChanges = changes,
-					};
-					err = write_notification(ctx, "textDocument/didChange", params);
-				}
-			}
-		}
-
-		.document_save {
-			uri_filepath :: new_url_from_filepath(rd.document_save.filepath) catch return $;
-			defer str_terminate(&uri_filepath);
-
-			params :: LspDidSaveTextDocumentParams.{
-				textDocument   = LspTextDocumentIdentifier.{
-					uri = uri_filepath,
-				},
-			};
-			err = write_notification(ctx, "textDocument/didSave", params);
-		}
-
-		.document_close {
-			uri_filepath :: new_url_from_filepath(rd.document_close.filepath) catch return $;
-			defer str_terminate(&uri_filepath);
-
-			params :: LspDidCloseTextDocumentParams.{
-				textDocument = LspTextDocumentIdentifier.{
-					uri = uri_filepath,
-				},
-			};
-			err = write_notification(ctx, "textDocument/didClose", params);
-		}
-
 		.goto {
-			uri_filepath :: new_url_from_filepath(rd.goto.filepath) catch return $;
+			data :: &request.data.goto;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
 			params :: LspTextDocumentPositionParams.{
 				textDocument = LspTextDocumentIdentifier.{ uri = uri_filepath },
 				position     = LspPosition.{
-					line      = rd.goto.cursor.row,
-					character = rd.goto.cursor.col,
+					line      = data.cursor.row,
+					character = data.cursor.col,
 				},
 			};
-			err = write_request(ctx, if rd.goto.kind == .DECLARATION then "textDocument/declaration" else "textDocument/definition", params);
+			err = write_request(job, if data.kind == .DECLARATION then "textDocument/declaration" else "textDocument/definition", id, params);
 		}
 
 		.switch_header_source {
-			uri_filepath :: new_url_from_filepath(rd.switch_header_source.filepath) catch return $;
+			data :: &request.data.switch_header_source;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
 			params :: LspTextDocumentIdentifier.{
 				uri = uri_filepath,
 			};
-			err = write_request(ctx, "textDocument/switchSourceHeader", params);
+			err = write_request(job, "textDocument/switchSourceHeader", id, params);
 		}
 
 		.completion {
-			uri_filepath :: new_url_from_filepath(rd.completion.filepath) catch return $;
+			data :: &request.data.completion;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
 			params :: LpsCompletionParams.{
@@ -932,18 +1059,19 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 					uri = uri_filepath,
 				},
 				position = .{
-					line      = rd.completion.cursor.row,
-					character = rd.completion.cursor.col,
+					line      = data.cursor.row,
+					character = data.cursor.col,
 				},
 				context = .{
 					triggerKind = LSP_COMPLETION_KIND_INVOKED,
 				}
 			};
-			err = write_request(ctx, "textDocument/completion", params);
+			err = write_request(job, "textDocument/completion", id, params);
 		}
 
 		.find_references {
-			uri_filepath :: new_url_from_filepath(rd.find_references.filepath) catch return $;
+			data :: &request.data.find_references;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
 			params :: LpsReferencesParams.{
@@ -951,30 +1079,32 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 					uri = uri_filepath,
 				},
 				position = .{
-					line      = rd.find_references.cursor.row,
-					character = rd.find_references.cursor.col,
+					line      = data.cursor.row,
+					character = data.cursor.col,
 				},
 				context = .{
 					includeDeclaration = true
 				}
 			};
-			err = write_request(ctx, "textDocument/references", params);
+			err = write_request(job, "textDocument/references", id, params);
 		}
 
 		.solution_open {
-			uri_filepath :: new_url_from_filepath(rd.solution_open.filepath) catch return $;
+			data :: &request.data.solution_open;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
-			err = write_request(ctx, "solution/open", LspSolutionOpenParams.{
+			err = write_request(job, "solution/open", id, LspSolutionOpenParams.{
 					solution = uri_filepath,
 				});
 		}
 
 		.pull_diagnostics {
-			uri_filepath :: new_url_from_filepath(rd.pull_diagnostics.filepath) catch return $;
+			data :: &request.data.pull_diagnostics;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
-			err = write_request(ctx, "textDocument/diagnostic", LspDocumentDiagnosticParams.{
+			err = write_request(job, "textDocument/diagnostic", id, LspDocumentDiagnosticParams.{
 					textDocument = .{
 						uri = uri_filepath,
 					},
@@ -982,187 +1112,198 @@ process_request :: fn (ctx: *JobContext, request: *Request) Error {
 		}
 
 		.signature_help {
-			uri_filepath :: new_url_from_filepath(rd.signature_help.filepath) catch return $;
+			data :: &request.data.signature_help;
+			uri_filepath :: new_url_from_filepath(data.filepath) catch return $;
 			defer str_terminate(&uri_filepath);
 
-			err = write_request(ctx, "textDocument/signatureHelp", LspSignatureHelpParams.{
+			err = write_request(job, "textDocument/signatureHelp", id, LspSignatureHelpParams.{
 					textDocument = .{
 						uri = uri_filepath,
 					},
 					position = .{
-						line      = rd.signature_help.cursor.row,
-						character = rd.signature_help.cursor.col,
+						line      = data.cursor.row,
+						character = data.cursor.col,
 					},
 				});
 		}
 
-		default { print_warn("Unknown request."); }
+		default {
+			print_warn("Unknown request.");
+			return OK;
+		}
+	}
+
+	if !err {
+		tbl_insert(&worker_context.pending, id, request);
 	}
 
 	return err;
 }
 
-peek_method_or_error :: fn (json: JsonTokenizer) string_view {
-	// Yes, this is a piece of shit, thanks to JSON based LSP RPC...
-	rpc: struct {
-		method: string_view;
-	};
 
-	err: Error;
-	err = deserialize_object(rpc, json);
-	reset_json(&json);
-	if !err then return rpc.method;
+PeekRpcKind :: enum { UNKNOWN; REQUEST; RESPONSE; NOTIFICATION; ERROR; }
 
-	lsp_error: LspError;
-	err = deserialize_object(lsp_error, json);
-	reset_json(&json);
-	if !err then return "error";
+peek_rpc_kind :: fn (json: JsonTokenizer) PeekRpcKind {
+	tok :: next_token(&json);
+	if tok.kind != .OBJECT_BEGIN then return .UNKNOWN;
 
-	return "";
+	Flags :: enum #flags { HAS_ID; HAS_METHOD; HAS_ERROR; };
+	using Flags;
+	flags: Flags;
+
+	loop {
+		tok :: next_token(&json);
+		if tok.kind == .OBJECT_END then break;
+		if tok.kind != .STRING then break;
+
+		if str_match(tok.as.str, "id") {
+			flags |= HAS_ID;
+		} else if str_match(tok.as.str, "method") {
+			flags |= HAS_METHOD;
+		} else if str_match(tok.as.str, "error") {
+			flags |= HAS_ERROR;
+		}
+
+		val :: next_token(&json);
+		if val.kind == .OBJECT_BEGIN then ignore_object(&json);
+		if val.kind == .ARRAY_BEGIN  then ignore_array(&json);
+	}
+
+	if is_flag(flags, HAS_METHOD | HAS_ID) {
+		return .REQUEST;
+	}
+
+	if is_flag(flags, HAS_METHOD) {
+		return .NOTIFICATION;
+	}
+
+	if is_flag(flags, HAS_ERROR) {
+		return .ERROR;
+	}
+
+	if is_flag(flags, HAS_ID) {
+		return .RESPONSE;
+	}
+
+	return .UNKNOWN;
 }
 
-process_response :: fn (ctx: *JobContext, current_request: *Request) Error {
+next_frame :: fn (job: *Job) (json: JsonTokenizer, err: Error) {
+	MAX_FRAME_SIZE :: 1024*1024*32; // 32MB
 
-	allocator :: application_context.temporary_allocator;
-
-	pipe_state :: poll_process(ctx) catch return $;
-	if is_flag(pipe_state, .CLOSED) then return error("Pipe closed.");
+	pipe_state :: poll_process(job) catch return .{}, $;
+	if is_flag(pipe_state, .CLOSED) then return .{}, error("Pipe closed.");
 
 	if is_flag(pipe_state, .READ_STDOUT) {
-		buffer :: str_make(1024*8, allocator);
 
-		read_pipe(ctx.stdout, &buffer) catch return $;
-		data := Tokenizer.{ bytes = buffer };
-
-		loop data.index < data.bytes.len {
-			filter :: "Content-Length";
-			if str_match(string_view.{ filter.len, &data.bytes[data.index] }, filter) {
-				header :: eat_line_and_trim_eol(&data);
-				size_str: string_view;
-				if !str_split_by_first(header, ' ', null, &size_str) {
-					return error("Expected content size of the LSP response message!");
-				}
-				json_size :: strtos64(size_str) catch return error("Cannot parse size of the LSP response message!");
-				eat_line(&data); // eat \r\n after header
-
-				loop (data.bytes.len - data.index < json_size) {
-					// Wait for more data from the pipe!!!
-					pipe_state :: poll_process(ctx) catch return $;
-					if is_flag(pipe_state, .CLOSED) then return error("Pipe closed.");
-					if is_flag(pipe_state, .READ_STDOUT) {
-						read_pipe(ctx.stdout, &buffer) catch return $;
-						data.bytes = buffer;
-					} else {
-						os_sleep_ms(10);
-						continue;
-					}
-				}
-
-				content :: string_view.{ json_size, &data.bytes[data.index] };
-				data.index += cast(s32) json_size;
-
-				json   :: JsonTokenizer.{ bytes = content };
-				method :: peek_method_or_error(json);
-
-				switch str_hash(method) {
-					str_hash#("error") {
-						handle_error(json, current_request) catch return $;
-						continue;
-					}
-
-					str_hash#("textDocument/publishDiagnostics") {
-						handle_diagnostics(ctx, json) catch {
-							print_err("LSP: %", $);
-						};
-						continue;
-					}
-
-					str_hash#("window/logMessage") {
-						handle_log_message(ctx, json);
-						continue;
-					}
-
-					str_hash#("") { // Response
-						if current_request.is_pending {
-							handle_response(ctx, json, current_request) catch {
-								print_err("LSP: %", $);
-							};
-							continue;
-						}
-					}
-
-					default;
-				}
-
-				print_log("LSP: Unsupported LSP response: %", content);
-				continue;
-			}
-
-			// Discard unrecognised data...
-			break;
+		buffer :: &worker_context.frame_buffer;
+		read_pipe(job.stdout, buffer) catch return .{}, $;
+		header_end :: str_find(@buffer, "\r\n\r\n");
+		if header_end == -1 {
+			return .{}, OK; // Wait
 		}
-	} // STDOUT
+
+		content_size : s64 = -1;
+		{ // Parse header.
+			data := Tokenizer.{ bytes = @buffer };
+			property, value: string_view;
+			if str_split_by_first(eat_line_and_trim_eol(&data), ' ', &property, &value) {
+				if str_match(property, "Content-Length:") {
+					content_size = strtos64(value) catch {
+						return .{}, error("Cannot parse content size of the LSP response message!");
+					};
+				}
+			}
+			if content_size < 1 {
+				return .{}, error("Invalid size of LSP response content!");
+			}
+		}
+
+		content_offset :: header_end+4;
+		frame_size     :: content_offset + content_size;
+		if frame_size > MAX_FRAME_SIZE {
+			return .{}, error("Maximum LSP response frame size %B reached!", MAX_FRAME_SIZE);
+		}
+
+		if buffer.len < frame_size {
+			return .{}, OK; // Wait
+		}
+
+		// Chop the processed frame from the buffer.
+		remaining :: buffer.len - frame_size;
+		if remaining > 0 then memmove(buffer.ptr, &(@buffer)[frame_size], auto remaining);
+		buffer.len = remaining;
+
+		json :: JsonTokenizer.{
+			bytes = .{ content_size, &(@buffer)[content_offset] }
+		};
+
+		return json, OK;
+	}
 
 	if is_flag(pipe_state, .READ_STDERR) {
+		allocator :: application_context.temporary_allocator;
 		buffer :: str_make(1024*8, allocator);
 
-		read_pipe(ctx.stderr, &buffer) catch return $;
+		read_pipe(job.stderr, &buffer) catch return .{}, $;
 		print_err("LSP: %", buffer);
 	}
 
-	return OK;
+	return .{}, OK;
 }
 
-write_request :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
+write_request :: fn (job: *Job, method: string_view, id: s32, params: ?TParams) Error {
+	rpc: RpcRequest(TParams) #noinit;
+	rpc.jsonrpc = "2.0";
+	rpc.id      = id;
+	rpc.method  = method;
+	rpc.params  = params;
+
 	allocator :: application_context.temporary_allocator;
 	json :: str_make(1024*8, allocator);
-
-	{
-		str_append(&json, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"");
-		str_append(&json, method);
-		str_append(&json, "\",\"params\":");
-		serialize_object(data, &json);
-		str_append(&json, "}");
-	}
+	serialize_object(rpc, &json);
 
 	// print_log("LSP: >> %", json);
-	write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len)) catch return $;
-	return write_pipe(ctx.stdin, json);
+	write_pipe(job.stdin, tprint("Content-Length: %\r\n\r\n", json.len)) catch return $;
+	return write_pipe(job.stdin, json);
 }
 
-write_notification :: fn (ctx: *JobContext, method: string_view, data: Any) Error {
+write_notification :: fn (job: *Job, method: string_view, params: ?TParams) Error {
+	rpc: RpcNotification(TParams) #noinit;
+	rpc.jsonrpc = "2.0";
+	rpc.method  = method;
+	rpc.params  = params;
+
 	allocator :: application_context.temporary_allocator;
 	json :: str_make(1024*8, allocator);
-
-	{
-		str_append(&json, "{\"jsonrpc\":\"2.0\",\"method\":\"");
-		str_append(&json, method);
-		str_append(&json, "\",\"params\":");
-		serialize_object(data, &json);
-		str_append(&json, "}");
-	}
+	serialize_object(rpc, &json);
 
 	// print_log("LSP: >> %", json);
-	write_pipe(ctx.stdin, tprint("Content-Length: %\r\n\r\n", json.len)) catch return $;
-	return write_pipe(ctx.stdin, json);
+	write_pipe(job.stdin, tprint("Content-Length: %\r\n\r\n", json.len)) catch return $;
+	return write_pipe(job.stdin, json);
 }
 
-// Returns true in case the json was consumed.
-handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *Request) Error {
-	assert(current_request.is_pending);
+recv_response :: fn (job: *Job, json: JsonTokenizer) Error {
+	header: struct { id: s32; };
+	deserialize_object(header, json) catch return $;
 
-	crd       :: &current_request.as.lsp;
+	request, found :: tbl_lookup(&worker_context.pending, header.id);
+	if !found {
+		print_warn("LSP: Received response with unknown ID.");
+		return OK;
+	}
+
+	defer msq.terminate_message(request);
+	defer tbl_erase(&worker_context.pending, header.id);
+
 	allocator :: application_context.temporary_allocator;
 
-	assert(!is_notification(crd.kind));
-	defer terminate_request(current_request);
-
-	switch crd.kind {
+	switch request.data.kind {
 		.initialize {
 			initialize_result: RpcResponse(LspInitializeResult);
 			deserialize_object(initialize_result, json) catch return $;
 
-			flavor :: crd.initialize.flavor;
+			flavor :: request.data.initialize.flavor;
 			capabilities :: &initialize_result.result.capabilities;
 
 			// @Incomplete 2026-02-10: Read available features from init response.
@@ -1217,18 +1358,20 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 				}
 			}
 
-			response :: make_response(ctx) catch return $;
+			response :: msq.make_message(LspResponse, job.worker_to_main);
 			server_name :: str_make(initialize_result.result.serverInfo.name, response.allocator);
 			if server_name.len == 0 {
 				str_append(&server_name, LspServerDefaultName[auto flavor]);
 			}
 
-			set_variant(&response.as.lsp, .initialize, .{
+			set_variant(&response.data, .initialize, .{
 					server_name = server_name,
 					features    = features,
 				});
-			push_response(ctx, &response);
-
+			msq.post(response) catch {
+				msq.terminate_message(response);
+				return error("LSP: Failed to post message.");
+			};
 			print_log("LSP: Initialized with: %", initialize_result);
 		}
 
@@ -1256,19 +1399,22 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			if first_location.uri.len == 0 {
 				print_warn("LSP: Declaration not found.");
 			} else {
-				response :: make_response(ctx) catch return $;
+				response :: msq.make_message(LspResponse, job.worker_to_main);
 				filepath :: new_filepath_from_url(first_location.uri, response.allocator) catch {
-					terminate_response(&response);
+					msq.terminate_message(response);
 					return $;
 				};
 
-				set_variant(&response.as.lsp, .goto, .{
+				set_variant(&response.data, .goto, .{
 						cursor              = Cursor.{ row = first_location.range.start.line, col = first_location.range.start.character },
 						filepath            = filepath,
-						buffer_index        = crd.goto.buffer_index,
-						open_in_other_split = crd.goto.open_in_other_split,
+						buffer_index        = request.data.goto.buffer_index,
+						open_in_other_split = request.data.goto.open_in_other_split,
 					});
-				push_response(ctx, &response);
+				msq.post(response) catch {
+					msq.terminate_message(request);
+					return error("LSP: Failed to post message.");
+				};
 			}
 		}
 
@@ -1279,18 +1425,21 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			if switch_result.result.len == 0 {
 				print_warn("LSP: Other file not found.");
 			} else {
-				response :: make_response(ctx) catch return $;
+				response :: msq.make_message(LspResponse, job.worker_to_main);
 				filepath :: new_filepath_from_url(switch_result.result, response.allocator) catch {
-					terminate_response(&response);
+					msq.terminate_message(response);
 					return $;
 				};
 
-				set_variant(&response.as.lsp, .switch_header_source, .{
+				set_variant(&response.data, .switch_header_source, .{
 						filepath            = filepath,
-						buffer_index        = crd.switch_header_source.buffer_index,
-						open_in_other_split = crd.switch_header_source.open_in_other_split,
+						buffer_index        = request.data.switch_header_source.buffer_index,
+						open_in_other_split = request.data.switch_header_source.open_in_other_split,
 					});
-				push_response(ctx, &response);
+				msq.post(response) catch {
+					msq.terminate_message(request);
+					return error("LSP: Failed to post message.");
+				};
 			}
 		}
 
@@ -1317,7 +1466,7 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 				if err then return err;
 			}
 
-			response :: make_response(ctx) catch return $;
+			response :: msq.make_message(LspResponse, job.worker_to_main);
 
 			response_items: [..]CompletionItem;
 			array_init(&response_items, 64, response.allocator);
@@ -1338,14 +1487,17 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 				}
 			}
 
-			set_variant(&response.as.lsp, .completion, .{
-					buffer_index = crd.completion.buffer_index,
+			set_variant(&response.data, .completion, .{
+					buffer_index = request.data.completion.buffer_index,
 					items        = response_items,
-					cursor       = crd.completion.cursor,
+					cursor       = request.data.completion.cursor,
 					is_complete  = is_complete,
 				});
 
-			push_response(ctx, &response);
+			msq.post(response) catch {
+				msq.terminate_message(request);
+				return error("LSP: Failed to post message.");
+			};
 		}
 
 		.find_references {
@@ -1380,9 +1532,8 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			cwd :: get_cwd();
 			defer str_terminate(&cwd);
 
-			response :: make_response(ctx) catch return $;
+			response :: msq.make_message(LspResponse, job.worker_to_main);
 			result :: str_make(1024*8, response.allocator);
-
 
 			filepath: string;
 
@@ -1417,12 +1568,15 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 				index += get_character_len(text[index]);
 			}
 
-			set_variant(&response.as.lsp, .find_references, .{
-					buffer_index = crd.find_references.buffer_index,
+			set_variant(&response.data, .find_references, .{
+					buffer_index = request.data.find_references.buffer_index,
 					result       = result,
 				});
 
-			push_response(ctx, &response);
+			msq.post(response) catch {
+				msq.terminate_message(request);
+				return error("LSP: Failed to post message.");
+			};
 		}
 
 		.solution_open {
@@ -1434,7 +1588,7 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			deserialize_object(diag_result, json) catch return $;
 
 			if str_match(diag_result.result.kind, "full") {
-				push_diagnostic_response(ctx, crd.pull_diagnostics.filepath, diag_result.result.items, crd.pull_diagnostics.version) catch {
+				push_diagnostic_response(job, request.data.pull_diagnostics.filepath, diag_result.result.items, request.data.pull_diagnostics.version) catch {
 					return $;
 				};
 			}
@@ -1444,7 +1598,7 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 			help: RpcResponse(LspSignatureHelp);
 			deserialize_object(help, json) catch return $;
 
-			response   :: make_response(ctx) catch return $;
+			response   :: msq.make_message(LspResponse, job.worker_to_main);
 			signatures :: help.result.signatures;
 
 			overloads: [..]string;
@@ -1458,12 +1612,15 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 				array_push(&overloads, overload);
 			}
 
-			set_variant(&response.as.lsp, .signature_help, .{
+			set_variant(&response.data, .signature_help, .{
 					overloads    = overloads,
-					buffer_index = crd.signature_help.buffer_index,
-					cursor       = crd.signature_help.cursor,
+					buffer_index = request.data.signature_help.buffer_index,
+					cursor       = request.data.signature_help.cursor,
 				});
-			push_response(ctx, &response);
+			msq.post(response) catch {
+				msq.terminate_message(request);
+				return error("LSP: Failed to post message.");
+			};
 		}
 
 		default {
@@ -1474,7 +1631,45 @@ handle_response :: fn (ctx: *JobContext, json: JsonTokenizer, current_request: *
 	return OK;
 }
 
-handle_error :: fn (json: JsonTokenizer, current_request: *Request) Error {
+recv_notification :: fn (job: *Job, json: JsonTokenizer) Error {
+	header: struct { method: string_view; };
+	deserialize_object(header, json) catch return $;
+
+	allocator :: application_context.temporary_allocator;
+
+	switch str_hash(header.method) {
+		str_hash#("textDocument/publishDiagnostics") {
+			if !settings.show_lsp_inline_diagnostics then return OK;
+
+			dia_result: RpcRequest(LspPublishDiagnosticsParams);
+			deserialize_object(dia_result, json) catch return $;
+
+			filepath :: new_filepath_from_url(dia_result.params.uri, allocator) catch return $;
+			push_diagnostic_response(job, filepath, dia_result.params.diagnostics, dia_result.params.version) catch return $;
+			return OK;
+		}
+
+		str_hash#("window/logMessage") {
+			log_message: RpcRequest(LspLogMessage);
+			deserialize_object(log_message, json) catch return $;
+
+			switch log_message.params.type {
+				1 { print_warn("LSP: %", log_message.params.message); } // Print errors as warnings.
+				2 { print_warn("LSP: %", log_message.params.message); }
+				3 { print_info("LSP: %", log_message.params.message); }
+				default {
+					print_log("LSP: %", log_message.params.message);
+				}
+			}
+		}
+
+		default; // Unsupported, maybe report?
+	}
+
+	return OK;
+}
+
+recv_error :: fn (json: JsonTokenizer) Error {
 	lsp_error: LspError;
 	deserialize_object(lsp_error, json) catch {
 		print_err("LSP: %", $);
@@ -1483,10 +1678,14 @@ handle_error :: fn (json: JsonTokenizer, current_request: *Request) Error {
 
 	print_err("LSP: %", lsp_error.error.message);
 
-	// Return errors only when they are fatal...
-	if !current_request.is_pending then return OK;
+	request, found :: tbl_lookup(&worker_context.pending, lsp_error.id);
+	if !found then return OK;
 
-	switch current_request.as.lsp.kind {
+	defer msq.terminate_message(request);
+	defer tbl_erase(&worker_context.pending, lsp_error.id);
+
+	// Return errors only when they are fatal...
+	switch request.data.kind {
 		.initialize {
 			return error("LSP: Initialization failed. Process will stop. See the messages for more info.");
 		}
@@ -1499,22 +1698,9 @@ handle_error :: fn (json: JsonTokenizer, current_request: *Request) Error {
 	return OK;
 }
 
-handle_log_message :: fn (_: *JobContext, json: JsonTokenizer) {
-	log_message: RpcParams(LspLogMessage);
-	deserialize_object(log_message, json) catch return;
-
-	switch log_message.params.type {
-		1 { print_warn("LSP: %", log_message.params.message); } // Print errors as warnings.
-		2 { print_warn("LSP: %", log_message.params.message); }
-		3 { print_info("LSP: %", log_message.params.message); }
-		default {
-			print_log("LSP: %", log_message.params.message);
-		}
-	}
-}
-
-push_diagnostic_response :: fn (ctx: *JobContext, filepath: string_view, items: []LspDiagnostic, file_version: s32) Error {
-	response :: make_response(ctx) catch return $;
+push_diagnostic_response :: fn (job: *Job, filepath: string_view, items: []LspDiagnostic, file_version: s32) Error {
+	using msq;
+	response :: make_message(LspResponse, job.worker_to_main);
 
 	result: [..]ErrorLocation;
 	array_init(&result, LSP_MAX_DIAG_MESSAGE_COUNT, response.allocator);
@@ -1545,27 +1731,16 @@ push_diagnostic_response :: fn (ctx: *JobContext, filepath: string_view, items: 
 			});
 	}
 
-	set_variant(&response.as.lsp, .publish_diagnostics, .{
+	set_variant(&response.data, .publish_diagnostics, .{
 			filepath  = str_make(filepath, response.allocator),
 			version   = file_version,
 			items     = result,
 		});
 
-	push_response(ctx, &response);
-	return OK;
-}
-
-handle_diagnostics :: fn (ctx: *JobContext, json: JsonTokenizer) Error {
-	allocator :: application_context.temporary_allocator;
-
-	dia_result: RpcParams(LspPublishDiagnosticsParams);
-	deserialize_object(dia_result, json) catch return $;
-
-	// This might be disabled, but we still have to consume the json data...
-	if !settings.show_lsp_inline_diagnostics then return OK;
-
-	filepath :: new_filepath_from_url(dia_result.params.uri, allocator) catch return $;
-	push_diagnostic_response(ctx, filepath, dia_result.params.diagnostics, dia_result.params.version) catch return $;
+	post(response) catch {
+		terminate_message(response);
+		return error("LSP: Failed to post message.");
+	};
 	return OK;
 }
 
@@ -1933,41 +2108,41 @@ ignore_array :: fn (json: *JsonTokenizer) Error {
 	return OK;
 }
 
-next_token :: fn (ctx: *JsonTokenizer) Token {
+next_token :: fn (job: *JsonTokenizer) Token {
 	using Token.kind;
 
-	parse_bool :: fn (ctx: *JsonTokenizer, t: *Token) bool {
-		if str_match(string_view.{ 4, &ctx.bytes[ctx.index] }, "true") {
+	parse_bool :: fn (job: *JsonTokenizer, t: *Token) bool {
+		if str_match(string_view.{ 4, &job.bytes[job.index] }, "true") {
 			t.kind     = Token.kind.BOOL;
 			t.as.b   = true;
-			ctx.index += 4;
+			job.index += 4;
 			return true;
 		}
-		if str_match(string_view.{ 5, &ctx.bytes[ctx.index] }, "false") {
+		if str_match(string_view.{ 5, &job.bytes[job.index] }, "false") {
 			t.kind     = Token.kind.BOOL;
 			t.as.b   = false;
-			ctx.index += 5;
+			job.index += 5;
 			return true;
 		}
 		return false;
 	};
 
-	parse_null :: fn (ctx: *JsonTokenizer, t: *Token) bool {
-		if str_match(string_view.{ 4, &ctx.bytes[ctx.index] }, "null") {
+	parse_null :: fn (job: *JsonTokenizer, t: *Token) bool {
+		if str_match(string_view.{ 4, &job.bytes[job.index] }, "null") {
 			t.kind     = Token.kind.NULL;
-			ctx.index += 4;
+			job.index += 4;
 			return true;
 		}
 		return false;
 	};
 
-	parse_number :: fn (ctx: *JsonTokenizer, t: *Token) bool {
+	parse_number :: fn (job: *JsonTokenizer, t: *Token) bool {
 		using Token.kind;
-		start_index :: ctx.index;
+		start_index :: job.index;
 		len := 0;
 		is_float := false;
-		loop ; ctx.index < ctx.bytes.len; ctx.index += 1 {
-			c :: ctx.bytes[ctx.index];
+		loop ; job.index < job.bytes.len; job.index += 1 {
+			c :: job.bytes[job.index];
 			if is_digit(c) == false && c != '-' && c != '.' {
 				break;
 			}
@@ -1980,13 +2155,13 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		if len == 0 { return false; }
 		if is_float {
 			t.kind = FLOAT;
-			f, err :: strtof64(string_view.{ len, &ctx.bytes[start_index] });
+			f, err :: strtof64(string_view.{ len, &job.bytes[start_index] });
 			if !err {
 				t.as.f = auto f;
 			}
 		} else {
 			t.kind = NUMBER;
-			n, err :: strtos64(string_view.{ len, &ctx.bytes[start_index] });
+			n, err :: strtos64(string_view.{ len, &job.bytes[start_index] });
 			if !err {
 				t.as.n = auto n;
 			}
@@ -1995,46 +2170,46 @@ next_token :: fn (ctx: *JsonTokenizer) Token {
 		return true;
 	};
 
-	loop ctx.index < ctx.bytes.len {
-		eat_whitespace(ctx);
+	loop job.index < job.bytes.len {
+		eat_whitespace(job);
 		t := Token.{
 			kind  = INVALID,
 		};
 
-		c :: ctx.bytes[ctx.index];
+		c :: job.bytes[job.index];
 		if c == ',' || c == ':' || c == '\n' || c == '\r' {
-			ctx.index += 1;
+			job.index += 1;
 			continue;
 		}
 		if c == '{' {
 			t.kind = OBJECT_BEGIN;
-			ctx.index += 1;
+			job.index += 1;
 			return t;
 		}
 		if c == '}' {
 			t.kind = OBJECT_END;
-			ctx.index += 1;
+			job.index += 1;
 			return t;
 		}
 		if c == '[' {
 			t.kind = ARRAY_BEGIN;
-			ctx.index += 1;
+			job.index += 1;
 			return t;
 		}
 		if c == ']' {
 			t.kind = ARRAY_END;
-			ctx.index += 1;
+			job.index += 1;
 			return t;
 		}
 		if c == '\"' {
 			t.kind = STRING;
-			str :: eat_string_in_quotes(ctx, true);
+			str :: eat_string_in_quotes(job, true);
 			t.as.str = str;
 			return t;
 		}
-		if parse_bool(ctx, &t)   { return t; }
-		if parse_number(ctx, &t) { return t; }
-		if parse_null(ctx, &t)   { return t; }
+		if parse_bool(job, &t)   { return t; }
+		if parse_number(job, &t) { return t; }
+		if parse_null(job, &t)   { return t; }
 
 		return t;
 	}
@@ -2092,22 +2267,6 @@ json_source_to_str :: fn (dest: *string, src: string_view) {
 	}
 
 	if len > 0 { str_append(dest, string_view.{ len, &src[start] }); }
-}
-
-show_progress :: fn (ctx: *JobContext, current_request: *Request) #inline {
-	v := false;
-	switch current_request.as.lsp.kind {
-		.goto,
-		.switch_header_source,
-		.find_references,
-		.solution_open,
-		.completion,
-		.initialize { v = true; }
-
-		default;
-	}
-
-	set_job_progress_indicator(ctx, current_request.is_pending && v);
 }
 
 //
@@ -2228,17 +2387,26 @@ LpsReferencesParams :: struct {
 
 RpcResponse :: fn (TResponse: type #comptime) type #comptime {
 	return struct {
-		id:      s32;
 		jsonrpc: string_view;
+		id:      s32;
 		result:  TResponse;
 	};
 }
 
-RpcParams :: fn (TResponse: type #comptime) type #comptime {
+RpcRequest :: fn (TParams: type #comptime) type #comptime {
+	return struct {
+		jsonrpc: string_view;
+		id:      s32;
+		method:  string_view;
+		params:  TParams;
+	};
+}
+
+RpcNotification :: fn (TParams: type #comptime) type #comptime {
 	return struct {
 		jsonrpc: string_view;
 		method:  string_view;
-		params:  TResponse;
+		params:  TParams;
 	};
 }
 

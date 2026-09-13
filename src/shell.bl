@@ -1,8 +1,8 @@
-ShellRequest :: struct {
-	args: string;
+ShellRequest :: struct #base msq.Message {
+	args: string_view;
 }
 
-ShellResponse :: struct {
+ShellResponse :: struct #base msq.Message {
 	text:  string;
 }
 
@@ -33,6 +33,7 @@ shell_terminate :: fn () {
 }
 
 request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error {
+	using msq;
 	clear_error_list();
 
 	if shell.job_index != -1 {
@@ -61,18 +62,19 @@ request_shell_execute :: fn (cmd: string_view, flavor := ShellFlavor.CMD) Error 
 	job_index :: start_async_job(JobKind.SHELL, "shell", &worker);
 	shell.job_index = job_index;
 
-	ctx :: get_job_context(job_index);
+	job :: get_job(job_index);
 
-	request := make_request(ctx) catch return $;
-	request.as.shell = .{
-		args = str_make(cmd, request.allocator),
+	request :: make_message(ShellRequest, &job.main_to_worker);
+	request.args = str_make(cmd, request.allocator);
+
+	post(request) catch {
+		terminate_message(request);
+		return error("Failed to post shell message.");
 	};
-
-	push_request(ctx, &request);
 	return OK;
 }
 
-apply_shell :: fn (_: JobContext.state, response: *Response) Error {
+apply_shell :: fn (response: *ShellResponse) Error {
 	if shell.buffer_index == -1 then return OK;
 	assert(shell.buffer_index >= 0 && shell.buffer_index < buffers.len);
 	buf :: &buffers[shell.buffer_index];
@@ -83,15 +85,13 @@ apply_shell :: fn (_: JobContext.state, response: *Response) Error {
 	if buf.is_removed {
 		kill_shell();
 	} else {
-		response_data :: &response.as.shell;
-
 		text: string_view;
 		if shell.in_tmp.len > 0 {
-			str_append(&shell.in_tmp, response_data.text);
+			str_append(&shell.in_tmp, response.text);
 			text = shell.in_tmp;
 			shell.in_tmp.len = 0;
 		} else {
-			text = response_data.text;
+			text = response.text;
 		}
 
 		batch_begin(buf);
@@ -188,8 +188,7 @@ kill_shell :: fn () {
 		return;
 	}
 	assert(shell.job_index >= 0 && shell.job_index < jobs.len);
-	assert(!jobs[shell.job_index].worker_context.is_removed);
-	assert(jobs[shell.job_index].worker_context.kind == JobKind.SHELL);
+	assert(jobs[shell.job_index].kind == JobKind.SHELL);
 	remove_async_job(shell.job_index);
 }
 
@@ -199,134 +198,132 @@ get_shell :: fn () string_view #inline {
 
 #scope_private
 
-worker :: fn (ctx: *JobContext) s32 {
-	using JobContext.state;
+worker :: fn (job: *Job) s32 {
+	using msq;
 
-	report_error_and_fail :: fn (ctx: *JobContext, err: Error) {
-		print_err(err);
-		ctx.state = .FAILED;
-	};
+	request: *ShellRequest #noinit;
+	if poll_as(&job.main_to_worker, &request, true) {
+		defer terminate_message(request);
 
-	// wait for request
-	request: Request #noinit;
-	loop !pop_request(ctx, &request) {
-		os_sleep_ms(10);
-	}
-	request_data :: &request.as.shell;
-	defer terminate_request(&request);
+		set_job_progress_indicator(job, true);
+		defer set_job_progress_indicator(job, false);
 
-	set_job_progress_indicator(ctx, true);
-	defer set_job_progress_indicator(ctx, false);
+		allocator :: application_context.temporary_allocator;
 
-	allocator :: application_context.temporary_allocator;
+		shell_command :: str_make(get_shell(), allocator);
+		args_with_executable :: split_command_line_arguments(&shell_command, allocator);
 
-	shell_command :: str_make(get_shell(), allocator);
-	args_with_executable :: split_command_line_arguments(&shell_command, allocator);
+		if args_with_executable.len == 0 {
+			job_error(job, error("Cannot resolve shell executable name."));
+			return 1;
+		}
 
-	if args_with_executable.len == 0 {
-		report_error_and_fail(ctx, error("Cannot resolve shell executable name."));
-		return 0;
-	}
+		executable :: args_with_executable[0];
+		args       := []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
 
-	executable :: args_with_executable[0];
-	args       := []string_view.{ args_with_executable.len-1, &args_with_executable[1] };
+		shell_kind :: get_shell_kind(executable);
+		print_log("Shell: '%' -> % [%]", executable, shell_kind, args);
 
-	shell_kind :: get_shell_kind(executable);
-	print_log("Shell: '%' -> % [%]", executable, shell_kind, args);
+		// Handle shell specific prelude only in case there was nothing explicitly specified by user.
+		if args.len == 0 {
+			// Windows BS specific garbage needed for their shells to accept stdin.
+			switch shell_kind {
+				.CMD {
+					args = [_]string_view.{ "/Q", "/K", "prompt", "$" };
+				}
+				.POWERSHELL {
+					args = [_]string_view.{ "-c", "-" };
+				}
+				default;
+			}
+		}
 
-	// Handle shell specific prelude only in case there was nothing explicitly specified by user.
-	if args.len == 0 {
-		// Windows BS specific garbage needed for their shells to accept stdin.
+		start_process(job, executable, args) catch {
+			job_error(job, $);
+			return 1;
+		};
+		defer stop_process(job);
+
+		{ // Prologue
+			response :: make_message(ShellResponse, job.worker_to_main);
+			response.text = sprint_with_allocator(response.allocator, "Execute: %\n", request.args);
+			post(response) catch {
+				terminate_message(response);
+				job_error(job, "Failed to post shell message.");
+				return 1;
+			};
+		}
+
+		write_pipe(job.stdin, request.args);
+		write_pipe(job.stdin, if PLATFORM == .WINDOWS then "\r\n" else "\n");
+
 		switch shell_kind {
+			// Yet again Windows garbage to let the shell propagate exit value.
 			.CMD {
-				args = [_]string_view.{ "/Q", "/K", "prompt", "$" };
+				write_pipe(job.stdin, "exit %ERRORLEVEL%\r\n");
 			}
 			.POWERSHELL {
-				args = [_]string_view.{ "-c", "-" };
+				write_pipe(job.stdin, "exit $LASTEXITCODE\r\n");
 			}
 			default;
 		}
+
+		close_pipe(&job.stdin);
+
+		loop !atomic.load(&job.kill) {
+			state :: poll_process(job) catch {
+				job_error(job, $);
+				return 1;
+			};
+
+			using PollEvent;
+			if is_flag(state, READ) {
+				response :: make_message(ShellResponse, job.worker_to_main);
+				response.text = str_make(response.allocator);
+
+				read_pipe(job.stdout, &response.text) catch {
+					terminate_message(response);
+					job_error(job, $);
+					return 1;
+				};
+
+				post(response) catch {
+					terminate_message(response);
+					job_error(job, "Failed to post shell message.");
+					return 1;
+				};
+			}
+			if is_flag(state, CLOSED) {
+				atomic.store(&job.state, .DONE);
+				break;
+			}
+
+			os_sleep_ms(16);
+		}
+
+		// Epilogue
+		if atomic.load(&job.state) == .DONE {
+			response :: make_message(ShellResponse, job.worker_to_main);
+			response.text = sprint_with_allocator(response.allocator, "\nProcess exited with status %.\n", job.exit_code);
+			post(response) catch {
+				terminate_message(response);
+				job_error(job, "Failed to post shell message.");
+				return 1;
+			};
+			return 0;
+		}
 	}
 
-	start_process(ctx, executable, args) catch {
-		report_error_and_fail(ctx, $);
+	// Killed
+	response :: make_message(ShellResponse, job.worker_to_main);
+	response.text = str_make("\nProcess killed.\n", response.allocator);
+	post(response) catch {
+		terminate_message(response);
+		job_error(job, "Failed to post shell message.");
 		return 1;
 	};
-	defer stop_process(ctx);
 
-	{
-		response := make_response(ctx) catch {
-			report_error_and_fail(ctx, $);
-			return 1;
-		};
-		response.as.shell.text = sprint_with_allocator(response.allocator, "Execute: %\n", request_data.args);
-		push_response(ctx, &response);
-	}
-
-	write_pipe(ctx.stdin, request_data.args);
-	write_pipe(ctx.stdin, if PLATFORM == .WINDOWS then "\r\n" else "\n");
-
-	switch shell_kind {
-		// Yet again Windows garbage to let the shell propagate exit value.
-		.CMD {
-			write_pipe(ctx.stdin, "exit %ERRORLEVEL%\r\n");
-		}
-		.POWERSHELL {
-			write_pipe(ctx.stdin, "exit $LASTEXITCODE\r\n");
-		}
-		default;
-	}
-
-	close_pipe(&ctx.stdin);
-
-	loop !ctx.kill {
-		state :: poll_process(ctx) catch {
-			report_error_and_fail(ctx, $);
-			return 1;
-		};
-
-		using PollEvent;
-		if is_flag(state, READ) {
-			response := make_response(ctx) catch {
-				report_error_and_fail(ctx, $);
-				return 1;
-			};
-			response.as.shell.text = str_make(response.allocator);
-			defer push_response(ctx, &response);
-
-			read_pipe(ctx.stdout, &response.as.shell.text) catch {
-				report_error_and_fail(ctx, $);
-				return 1;
-			};
-		}
-		if is_flag(state, CLOSED) {
-			ctx.state = DONE;
-			break;
-		}
-
-		os_sleep_ms(10);
-	}
-
-	if ctx.state == DONE {
-		response := make_response(ctx) catch {
-			report_error_and_fail(ctx, $);
-			return 1;
-		};
-		response.as.shell.text = sprint_with_allocator(response.allocator, "\nProcess exited with status %.\n", ctx.exit_code);
-		push_response(ctx, &response);
-		return 0;
-	}
-
-	{
-		response := make_response(ctx) catch {
-			report_error_and_fail(ctx, $);
-			return 1;
-		};
-		response.as.shell.text = str_make("\nProcess killed.\n", response.allocator);
-		push_response(ctx, &response);
-	}
-
-	ctx.state = KILLED;
+	atomic.store(&job.state, .KILLED);
 	return 0;
 }
 

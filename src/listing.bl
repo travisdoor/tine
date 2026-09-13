@@ -30,11 +30,32 @@ listing_init :: fn () {
 
 	mutex_init(&async_search.mutex);
 	mutex_init(&visible_list_mutex);
+
+	msq.init(&async_search.queue, &message_pool);
+	loop i := 0; i < MAX_THREAD_COUNT; i += 1 {
+		async_search.threads_data[i] = WorkerContext.{
+			queue            = &async_search.queue,
+			generation_index = &async_search.generation_index,
+		};
+
+		async_search.threads[i] = threading.spawn_with_context(&async_search.threads_data[i], &search_worker) catch panic($);
+	}
+
+	atomic.store(&async_search.active_generation_index, -1);
 }
 
 listing_terminate :: fn () {
 	cancel_async_search();
+	msq.close(&async_search.queue);
+
+	loop i := 0; i < async_search.threads.len; i += 1 {
+		thread :: async_search.threads[i];
+		threading.join(thread);
+		threading.destroy(thread);
+	}
+
 	mutex_terminate(&async_search.mutex);
+	msq.terminate(&async_search.queue);
 
 	release_allocator(&string_cache[0]);
 	release_allocator(&string_cache[1]);
@@ -940,6 +961,8 @@ list_item_down :: fn () {
 // Do the cleanup of the current vidible list in case the first_call is true. We use both list buffers as double-buffers
 // one is visible, other one is filled with a new data; when new data is ready we just swap them.
 list_async_search :: fn (subject: string_view, first_call := false) Error {
+	check_main_thread();
+
 	if first_call || subject.len < 2 {
 		list[visible_list_index].len = 0;
 		selected_index               = 0;
@@ -951,11 +974,9 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 		}
 	}
 
-	// Also waits for all threads to finish.
 	cancel_async_search();
 
-	is_locked, err_lock :: mutex_try_lock(&project.mutex);
-	if err_lock { panic(err_lock); }
+	is_locked :: mutex_try_lock(&project.mutex) catch panic($);
 	if !is_locked {
 		print_warn(PROJECT_IS_INDEXING_MESSAGE);
 		return OK;
@@ -973,21 +994,23 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 
 
 	// Fire up searching in multiple threads...
-	job_count := MAX_JOB_COUNT;
-	loop job_count > 1 {
-		batch_count := project.indexed_files.len / job_count;
-		if batch_count > 1 { break; }
-		job_count -= 1;
+	batch_count := cast(s32) async_search.threads.len;
+	assert(batch_count > 0);
+	loop batch_count > 1 {
+		if (project.indexed_files.len / batch_count) > 1 {
+			break;
+		}
+		batch_count -= 1;
 	}
 
-	files_per_job :: project.indexed_files.len / job_count;
-	print_log("Found % files will be processed in % threads.", project.indexed_files.len, job_count);
+	files_per_batch :: project.indexed_files.len / batch_count;
+	print_log("Found % files will be processed in % threads.", project.indexed_files.len, batch_count);
 
-	async_search.jobs_started    = job_count;
-	async_search.jobs_running    = job_count;
 	async_search.total_files     = auto project.indexed_files.len;
-	async_search.processed_files = 0;
 	async_search.start_time      = os_ftick_ms();
+
+	atomic.store(&async_search.batches_running, batch_count);
+	atomic.store(&async_search.processed_files, 0);
 
 	// cleanup
 	list_index :: (visible_list_index + 1) % 2;
@@ -997,21 +1020,30 @@ list_async_search :: fn (subject: string_view, first_call := false) Error {
 	release_allocator(&string_cache[list_index]);
 	async_search.dest_list_index = list_index;
 
+	msq.clear(&async_search.queue);
+
+	atomic.store(&async_search.active_generation_index, atomic.load(&async_search.generation_index));
+
 	first_in_batch: s64;
-	loop i := 0; i < job_count; i += 1 {
-		len := files_per_job;
-		if i + 1 == job_count {
+	loop i := 0; i < batch_count; i += 1 {
+		len := files_per_batch;
+		if i + 1 == batch_count {
 			// The last one includes the rest of files.
 			len = project.indexed_files.len - first_in_batch;
 		}
-		async_search.jobs_data[i] = WorkerContext.{
-			subject      = subject,
-			files        = []string_view.{ len, &project.indexed_files[first_in_batch] },
-		};
 
-		async(&async_search.jobs[i], &async_search.jobs_data[i], &search_worker);
-		first_in_batch += files_per_job;
+		files_for_batch :: []string_view.{ len, &project.indexed_files[first_in_batch] };
+
+		msg :: msq.make_message(AsyncSearchRequest, &async_search.queue);
+		msg.subject          = str_make(subject, msg.allocator);
+		msg.files            = files_for_batch;
+		msg.generation_index = async_search.active_generation_index.base;
+
+		msq.post(msg);
+
+		first_in_batch += files_per_batch;
 	}
+
 	return OK;
 }
 
@@ -1029,154 +1061,174 @@ format_listing_results_to_string :: fn (str: *string) {
 }
 
 cancel_async_search :: fn () {
-	loop i := 0; i < async_search.jobs_started; i += 1 {
-		async_search.jobs_data[i].cancel = true;
+	check_main_thread();
+
+	mutex_lock(&async_search.mutex);
+	defer mutex_unlock(&async_search.mutex);
+
+	msq.clear(&async_search.queue);
+
+	index :: atomic.fetch_add(&async_search.generation_index, 1);
+	if atomic.compare_exchange(&async_search.active_generation_index, &index, -1) {
+		mutex_unlock(&project.mutex) catch panic($);
 	}
-	loop i := 0; i < async_search.jobs_started; i += 1 {
-		async_wait(&async_search.jobs[i]);
-	}
-	assert(async_search.jobs_started == 0);
-	assert(async_search.jobs_running == 0);
 }
 
 get_async_search_progress :: fn () (is_running: bool, progress: f32) #inline {
-	// This might be dirty, but whatever...
-	//mutex_lock(&async_search.mutex);
-	//defer mutex_unlock(&async_search.mutex);
-	if async_search.jobs_started == 0 {
+	check_main_thread();
+
+	if atomic.load(&async_search.batches_running) == 0 {
 		return false, 0.f;
 	}
-	return true, cast(f32) async_search.processed_files / cast(f32) async_search.total_files;
+	return true, cast(f32) atomic.load(&async_search.processed_files) / cast(f32) async_search.total_files;
 }
 
 #scope_private
 
-MAX_JOB_COUNT :: 32;
+MAX_THREAD_COUNT :: 16;
 
 WorkerContext :: struct {
-	subject: string_view;
-	files:   []string_view;
-	cancel:  bool;
+	queue:            *msq.Queue;
+	generation_index: *atomic.Atomic(u32);
+}
 
-	result: [..]ListItem;
+AsyncSearchRequest :: struct #base msq.Message {
+	subject: string_view;
+	files: []string_view;
+
+	generation_index: u32;
 }
 
 async_search: struct {
-	jobs:         [MAX_JOB_COUNT]Async(*WorkerContext, s32);
-	jobs_data:    [MAX_JOB_COUNT]WorkerContext;
-	jobs_started: s32;
-	jobs_running: s32;
+	threads:          [MAX_THREAD_COUNT]*threading.Thread;
+	threads_data:     [MAX_THREAD_COUNT]WorkerContext;
+	batches_running:  atomic.Atomic(s32);
+
+	generation_index:        atomic.Atomic(u32);
+	active_generation_index: atomic.Atomic(u32);
 
 	start_time:      f64;
 	dest_list_index: s32;
 
 	total_files:     s32;
-	processed_files: s32;
+	processed_files: atomic.Atomic(s32);
+
+	queue: msq.Queue;
 
 	mutex: Mutex;
 };
 
-on_worker_done :: fn (ctx: *WorkerContext) {
-	mutex_lock(&async_search.mutex);
-	defer mutex_unlock(&async_search.mutex);
-
-	if !ctx.cancel {
-		// Copy results.
-		list_index :: async_search.dest_list_index;
-		dest :: &list[list_index];
-		array_reserve(dest, ctx.result.len);
-		loop i := 0; i < ctx.result.len; i += 1 {
-			item :: array_push(dest, ctx.result[i]);
-			item.preview = str_make(item.preview, &string_cache[list_index]);
-		}
-	}
-
-	array_terminate(&ctx.result);
-
-	async_search.jobs_running -= 1;
-	assert(async_search.jobs_running >= 0);
-	if async_search.jobs_running > 0 {
-		return;
-	}
-	err_unlock :: mutex_unlock(&project.mutex);
-	if err_unlock { panic(err_unlock); }
-
-	async_search.jobs_started = 0;
-
-	{
-		mutex_lock(&visible_list_mutex);
-		visible_list_index = async_search.dest_list_index;
-		selected_index     = 0;
-		start_index        = 0;
-		mutex_unlock(&visible_list_mutex);
-
-		async_search.dest_list_index = -1;
-	}
-
-	print_log("Search done in %ms.", os_ftick_ms() - async_search.start_time);
-}
-
 search_worker :: fn (ctx: *WorkerContext) s32 {
-	assert(ctx.subject.len > 0);
-
 	file_buffer: [..]u8;
 	array_reserve(&file_buffer, 1024 * 64);
 	defer array_terminate(&file_buffer);
 
-	array_reserve(&ctx.result, 1024);
+	result: [..]ListItem;
+	array_reserve(&result, 1024);
+	defer array_terminate(&result);
 
-	subject_cols :: count_unicode_characters(ctx.subject);
+	was_canceled :: fn (ctx: *WorkerContext, rq: *AsyncSearchRequest) bool #inline {
+		return atomic.load(ctx.generation_index) != rq.generation_index;
+	};
 
-	loop i := 0; i < ctx.files.len && ctx.cancel == false; i += 1 {
-		filepath :: ctx.files[i];
-		stream, err_open :: open_file(filepath, OpenFileMode.READ);
-		if err_open {
-			close_file(&stream);
-			print_log("File '%' excluded from indexed list due to error: %", filepath, err_open.msg);
-			continue;
-		}
+	rq: *AsyncSearchRequest;
+	loop msq.poll_as(ctx.queue, &rq, true) {
+		defer msq.terminate_message(rq);
+		assert(rq.subject.len > 0);
 
-		file_buffer.len = 0;
-		err_read :: load_whole_file(&file_buffer, &stream, settings.search_size_limit_bytes);
-		close_file(&stream);
-		if err_read {
-			if err_read.code == -1 {
-				print_warn("File '%' excluded from search: %", filepath, err_read.msg);
-				//print_warn("File '%' skipped with error: %", filepath, err_read.msg);
-			} else {
-				print_err(err_read);
+		subject_cols :: count_unicode_characters(rq.subject);
+		result.len = 0;
+
+		// Search
+		loop i := 0; i < rq.files.len; i += 1 {
+			if was_canceled(ctx, rq) {
+				break;
 			}
+
+			filepath :: rq.files[i];
+			stream, err_open :: open_file(filepath, OpenFileMode.READ);
+			if err_open {
+				close_file(&stream);
+				print_log("File '%' excluded from indexed list due to error: %", filepath, err_open.msg);
+				continue;
+			}
+
+			file_buffer.len = 0;
+			err_read :: load_whole_file(&file_buffer, &stream, settings.search_size_limit_bytes);
+			close_file(&stream);
+			if err_read {
+				if err_read.code == -1 {
+					print_warn("File '%' excluded from search: %", filepath, err_read.msg);
+					//print_warn("File '%' skipped with error: %", filepath, err_read.msg);
+				} else {
+					print_err(err_read);
+				}
+				continue;
+			}
+
+			// search file
+			start_index : s64 = 0;
+			row, col: s32;
+			loop !was_canceled(ctx, rq) {
+				hit_position :: find_matching_subject_in_data(file_buffer, rq.subject, start_index, &row, &col);
+				if hit_position == -1 { break; }
+
+				// File name is valid until the list of all files is valid!
+				dirpath, filename := path_split(filepath);
+				if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
+				line :: expand_position_to_whole_line(file_buffer, hit_position);
+
+				array_push(&result, ListItem.{
+						title    = filename,
+						icon     = icon(ICON_FILE),
+						index    = auto hit_position,
+						preview  = tprint("%", line),
+						hint     = dirpath,
+						row      = row,
+						col      = col
+					});
+				start_index = hit_position + rq.subject.len;
+				col += subject_cols;
+			}
+
+			atomic.fetch_add(&async_search.processed_files, 1);
+		}
+
+		// Apply results.
+		mutex_lock(&async_search.mutex);
+		defer mutex_unlock(&async_search.mutex);
+
+		if was_canceled(ctx, rq) then continue;
+
+		// Copy results.
+		list_index :: async_search.dest_list_index;
+		dest :: &list[list_index];
+		array_reserve(dest, dest.len + result.len);
+		loop i := 0; i < result.len; i += 1 {
+			item :: array_push(dest, result[i]);
+			item.preview = str_make(item.preview, &string_cache[list_index]);
+		}
+
+		if atomic.fetch_sub(&async_search.batches_running, 1) > 1 {
 			continue;
 		}
 
-		// search file
-		start_index : s64 = 0;
-		row, col: s32;
-		loop ctx.cancel == false {
-			hit_position :: find_matching_subject_in_data(file_buffer, ctx.subject, start_index, &row, &col);
-			if hit_position == -1 { break; }
+		atomic.store(&async_search.active_generation_index, -1);
+		mutex_unlock(&project.mutex) catch panic($);
 
-			// File name is valid until the list of all files is valid!
-			dirpath, filename := path_split(filepath);
-			if dirpath.len > 0 && dirpath[dirpath.len-1] == '/' { dirpath.len -= 1; }
-			line :: expand_position_to_whole_line(file_buffer, hit_position);
+		{
+			mutex_lock(&visible_list_mutex);
+			visible_list_index = async_search.dest_list_index;
+			selected_index     = 0;
+			start_index        = 0;
+			mutex_unlock(&visible_list_mutex);
 
-			array_push(&ctx.result, ListItem.{
-				title    = filename,
-				icon     = icon(ICON_FILE),
-				index    = auto hit_position,
-				preview  = tprint("%", line),
-				hint     = dirpath,
-				row      = row,
-				col      = col
-			});
-			start_index = hit_position + ctx.subject.len;
-			col += subject_cols;
+			async_search.dest_list_index = -1;
 		}
 
-		async_search.processed_files += 1;
+		print_log("Search done in %ms.", os_ftick_ms() - async_search.start_time);
 	}
-	on_worker_done(ctx);
+
 	return 0;
 }
 
@@ -1219,6 +1271,8 @@ get_icon_for_file_info :: fn (file_info: *FileVisitInfo) string_view #inline {
 
 #scope_public
 reset_listing :: fn () {
+	check_main_thread();
+
 	list[DEFAULT_LIST_INDEX].len = 0;
 	list[FILTER_LIST_INDEX].len  = 0;
 

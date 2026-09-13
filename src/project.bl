@@ -4,6 +4,7 @@ PROJECT_SECTIONS :: get_enum_variants_as_redable_list(ProjectSection, false);
 init_project :: fn () {
 	project = .{};
 	project.string_cache = pool_make(null, 2048);
+	project.index_cache  = pool_make(null, 2048);
 	mutex_init(&project.mutex);
 }
 
@@ -15,6 +16,7 @@ terminate_project :: fn () {
 
 	mutex_terminate(&project.mutex);
 	release_allocator(&project.string_cache);
+	release_allocator(&project.index_cache);
 
 	array_terminate(&project.included_directories);
 	array_terminate(&project.included_extensions);
@@ -239,12 +241,12 @@ get_project_root_directory :: fn () string_view #inline {
 indexed_files_ditry := false;
 
 IndexWorkerContext :: struct {
-	cancel: bool;
+	cancel: atomic.Atomic(bool);
 }
 
 indexing: struct {
-	job: Async(*IndexWorkerContext, s32);
-	ctx: IndexWorkerContext;
+	thread: *threading.Thread;
+	ctx:     IndexWorkerContext;
 }
 
 index_included_directories :: fn () {
@@ -256,15 +258,19 @@ index_included_directories :: fn () {
 	}
 
 	atomic.store(&project.is_indexing, true);
-	indexing.ctx = IndexWorkerContext.{};
-	async(&indexing.job, &indexing.ctx, &index_worker);
+	indexing.thread = threading.spawn_with_context(&indexing.ctx, &index_worker) catch panic($);
 }
 
 cancel_indexing :: fn () {
-	if !atomic.load(&project.is_indexing) { return; }
-	indexing.ctx.cancel = true;
-	async_wait(&indexing.job);
-	atomic.store(&project.is_indexing, false);
+	if !indexing.thread then return;
+
+	atomic.store(&indexing.ctx.cancel, true);
+	threading.join(indexing.thread);
+	threading.destroy(indexing.thread);
+
+	indexing = .{};
+
+	assert(!project.is_indexing.base);
 }
 
 index_worker :: fn (ctx: *IndexWorkerContext) s32 {
@@ -285,7 +291,7 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 			return OK;
 		}
 
-		filepath :: str_make(info.filepath, &project.string_cache);
+		filepath :: str_make(info.filepath, &project.index_cache);
 		array_push(&project.indexed_files, filepath);
 		return OK;
 	};
@@ -294,9 +300,11 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 	// search is in progress...
 	mutex_lock(&project.mutex);
 	defer mutex_unlock(&project.mutex);
-	project.indexed_files.len = 0;
 
-	loop i := 0; i < project.included_directories.len && ctx.cancel == false; i += 1 {
+	project.indexed_files.len = 0;
+	reset_allocator(&project.index_cache);
+
+	loop i := 0; i < project.included_directories.len && !atomic.load(&ctx.cancel); i += 1 {
 		dirpath :: project.included_directories[i];
 		print_log("Index directory '%'.", dirpath);
 		err_visit :: visit_files(dirpath, VisitOpt.{ recursive = true }, &file_visitor);
@@ -306,8 +314,15 @@ index_worker :: fn (ctx: *IndexWorkerContext) s32 {
 		}
 	}
 
+	if atomic.load(&ctx.cancel) {
+		project.indexed_files.len = 0;
+		reset_allocator(&project.index_cache);
+		print_log("Indexing CANCELLED.");
+	} else {
+		print_log("Indexing DONE (indexed % files).", project.indexed_files.len);
+	}
+
 	atomic.store(&project.is_indexing, false);
-	print_log("Indexing DONE (indexed % files).", project.indexed_files.len);
 	return 0;
 };
 
@@ -353,6 +368,7 @@ clear_project :: fn () {
 	}
 
 	reset_allocator(&project.string_cache);
+	reset_allocator(&project.index_cache);
 }
 
 do_the_stuff_after_project_load :: fn () {
