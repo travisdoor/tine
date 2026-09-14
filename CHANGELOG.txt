@@ -1,5 +1,8 @@
 MASTER
 ---------------------------------------------------------------------------------------
+
+1.2.0 2026-09-14
+---------------------------------------------------------------------------------------
 - Add option on macOS to create a new application window once Tine is already running.
 - Fix crash when invalid lsp server executable is set on Linux/macOS.
 - Fix indexing thread management.
