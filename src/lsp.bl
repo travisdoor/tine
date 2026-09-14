@@ -794,6 +794,7 @@ worker_context: struct {
 	pending:      Table(s32, *LspRequest);
 	next_id:      s32;
 	frame_buffer: string;
+	frame_size:   s64;
 } #thread_local;
 
 terminate_worker_context :: fn () {
@@ -1191,54 +1192,22 @@ peek_rpc_kind :: fn (json: JsonTokenizer) PeekRpcKind {
 next_frame :: fn (job: *Job) (json: JsonTokenizer, err: Error) {
 	MAX_FRAME_SIZE :: 1024*1024*32; // 32MB
 
+	buffer :: &worker_context.frame_buffer;
+
+	// Chop stale frame from previous iteration.
+	if worker_context.frame_size > 0 {
+		remaining :: buffer.len - worker_context.frame_size;
+		if remaining > 0 then memmove(buffer.ptr, &(@buffer)[worker_context.frame_size], auto remaining);
+		buffer.len = remaining;
+
+		worker_context.frame_size = 0;
+	}
+
 	pipe_state :: poll_process(job) catch return .{}, $;
 	if is_flag(pipe_state, .CLOSED) then return .{}, error("Pipe closed.");
 
 	if is_flag(pipe_state, .READ_STDOUT) {
-
-		buffer :: &worker_context.frame_buffer;
 		read_pipe(job.stdout, buffer) catch return .{}, $;
-		header_end :: str_find(@buffer, "\r\n\r\n");
-		if header_end == -1 {
-			return .{}, OK; // Wait
-		}
-
-		content_size : s64 = -1;
-		{ // Parse header.
-			data := Tokenizer.{ bytes = @buffer };
-			property, value: string_view;
-			if str_split_by_first(eat_line_and_trim_eol(&data), ' ', &property, &value) {
-				if str_match(property, "Content-Length:") {
-					content_size = strtos64(value) catch {
-						return .{}, error("Cannot parse content size of the LSP response message!");
-					};
-				}
-			}
-			if content_size < 1 {
-				return .{}, error("Invalid size of LSP response content!");
-			}
-		}
-
-		content_offset :: header_end+4;
-		frame_size     :: content_offset + content_size;
-		if frame_size > MAX_FRAME_SIZE {
-			return .{}, error("Maximum LSP response frame size %B reached!", MAX_FRAME_SIZE);
-		}
-
-		if buffer.len < frame_size {
-			return .{}, OK; // Wait
-		}
-
-		// Chop the processed frame from the buffer.
-		remaining :: buffer.len - frame_size;
-		if remaining > 0 then memmove(buffer.ptr, &(@buffer)[frame_size], auto remaining);
-		buffer.len = remaining;
-
-		json :: JsonTokenizer.{
-			bytes = .{ content_size, &(@buffer)[content_offset] }
-		};
-
-		return json, OK;
 	}
 
 	if is_flag(pipe_state, .READ_STDERR) {
@@ -1249,7 +1218,44 @@ next_frame :: fn (job: *Job) (json: JsonTokenizer, err: Error) {
 		print_err("LSP: %", buffer);
 	}
 
-	return .{}, OK;
+	header_end :: str_find(@buffer, "\r\n\r\n");
+	if header_end == -1 {
+		return .{}, OK; // Wait
+	}
+
+	content_size : s64 = -1;
+	{ // Parse header.
+		data := Tokenizer.{ bytes = @buffer };
+		property, value: string_view;
+		if str_split_by_first(eat_line_and_trim_eol(&data), ' ', &property, &value) {
+			if str_match(property, "Content-Length:") {
+				content_size = strtos64(value) catch {
+					return .{}, error("Cannot parse content size of the LSP response message!");
+				};
+			}
+		}
+		if content_size < 1 {
+			return .{}, error("Invalid size of LSP response content!");
+		}
+	}
+
+	content_offset :: header_end+4;
+	frame_size     :: content_offset + content_size;
+	if frame_size > MAX_FRAME_SIZE {
+		return .{}, error("Maximum LSP response frame size %B reached!", MAX_FRAME_SIZE);
+	}
+
+	if buffer.len < frame_size {
+		return .{}, OK; // Wait
+	}
+
+	json :: JsonTokenizer.{
+		bytes = .{ content_size, &(@buffer)[content_offset] }
+	};
+
+	assert(worker_context.frame_size == 0);
+	worker_context.frame_size = frame_size;
+	return json, OK;
 }
 
 write_request :: fn (job: *Job, method: string_view, id: s32, params: ?TParams) Error {
