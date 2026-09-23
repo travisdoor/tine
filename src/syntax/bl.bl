@@ -111,7 +111,7 @@ DIRECTIVES :: [_]string_view.{
 	"inline", "noinline", "file", "line", "base", "entry", "build_entry",
 	"if", "tag", "noinit", "intrinsic", "test", "import", "export",
 	"scope", "thread_local", "flags", "maybe_unused", "comptime", "obsolete",
-	"scope_private", "scope_public", "scope_module", "err",
+	"scope_private", "scope_public", "scope_module", "err", "nocache", "hot",
 };
 
 DIRECTIVES_MAX_LEN :: max_len#(DIRECTIVES.ptr, DIRECTIVES.len);
